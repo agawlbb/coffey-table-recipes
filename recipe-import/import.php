@@ -2,12 +2,18 @@
 declare(strict_types=1);
 if (PHP_SAPI !== 'cli') exit;
 require 'C:/xampp/htdocs/CoffeyTableRecipes/src/bootstrap.php';
+require_once 'C:/xampp/htdocs/CoffeyTableRecipes/src/RecipeImportTools.php';
+if (in_array('--cleanup-existing', $argv, true)) {
+    require 'C:/xampp/htdocs/CoffeyTableRecipes/bin/cleanup-recipe-import.php';
+    exit;
+}
 $pdo = database(configuration());
 $destinations = $pdo->query("SELECT h.id,h.name,m.user_id,u.display_name,m.role FROM households h JOIN household_memberships m ON m.household_id=h.id JOIN users u ON u.id=m.user_id WHERE u.disabled=0 AND m.role IN ('owner','admin')")->fetchAll(PDO::FETCH_ASSOC);
 if (count($destinations)!==1 || (int)$destinations[0]['id']!==2 || (int)$destinations[0]['user_id']!==6) throw new RuntimeException('Destination changed: resolve household before importing.');
 $input = file_get_contents(__DIR__.'/import-ready.json');
 $data = json_decode(ltrim($input, "\xEF\xBB\xBF"), true, 100, JSON_THROW_ON_ERROR);
 $commit = in_array('--reviewed-commit', $argv, true);
+if ($commit && in_array('--dry-run', $argv, true)) throw new RuntimeException('Choose one import mode');
 function insertRow(PDO $pdo, string $table, array $row): int {
     $columns = array_keys($row);
     $sql='INSERT INTO '.$table.' (`'.implode('`,`',$columns).'`) VALUES ('.implode(',',array_fill(0,count($columns),'?')).')';
@@ -44,6 +50,11 @@ foreach ($data as $recipe) {
     $key=hash('sha256',$recipe['source_url']);
     $existing=$pdo->prepare('SELECT id FROM recipes WHERE household_id=? AND import_key=?'); $existing->execute([2,$key]);
     if ($id=$existing->fetchColumn()) { $report[]=['title'=>$recipe['title'],'status'=>'skipped_existing','id'=>(int)$id]; continue; }
+    $verifiedPhotos=[]; $photoFailures=[];
+    foreach (RecipeImportTools::images($recipe['image_source']??null,$recipe['source_url']) as $candidate) {
+        try { $verifiedPhotos[]=array_merge(RecipeImportTools::verifyImage($candidate['source_url']), ['caption'=>$candidate['caption']]); }
+        catch (Throwable $error) { $photoFailures[]=['source_url'=>$candidate['source_url'],'error'=>$error->getMessage()]; }
+    }
     $pdo->beginTransaction();
     try {
         $author=$recipe['author'];
@@ -53,16 +64,21 @@ foreach ($data as $recipe) {
             'household_id'=>2,'title'=>$recipe['title'],'original_language'=>'en','measurement_system'=>'unspecified',
             'source_type'=>'bookmark_jsonld','source_url'=>$recipe['source_url'],'source_title'=>$recipe['title'],'source_author'=>$authorName,
             'source_reference'=>$recipe['bookmark_url'],'source_text'=>json_encode($recipe,JSON_UNESCAPED_UNICODE|JSON_THROW_ON_ERROR),
-            'import_key'=>$key,'yield_text'=>$recipe['yield']===null?null:(is_array($recipe['yield'])?implode('; ',$recipe['yield']):(string)$recipe['yield']),
+            'import_key'=>$key,'yield_text'=>RecipeImportTools::yieldValue($recipe['yield'],$recipe['instructions_original'],$recipe['source_url']),
             'prep_minutes'=>minutes($recipe['prep_time']),'cook_minutes'=>minutes($recipe['cook_time']),'total_minutes'=>minutes($recipe['total_time']),
             'created_by_user_id'=>6,'updated_by_user_id'=>6,
-            'notes'=>'Original JSON-LD retained. Uncertain units and serving interpretation left unstructured. Source nutrition retained in source_text, not validated.'
+            'notes'=>null
         ]);
         foreach($recipe['ingredients_original'] as $position=>$line) insertRow($pdo,'recipe_ingredients',['household_id'=>2,'recipe_id'=>$id,'position'=>$position+1]+ingredient($line));
         foreach($recipe['instructions_original'] as $position=>$step) insertRow($pdo,'recipe_steps',['household_id'=>2,'recipe_id'=>$id,'position'=>$position+1,'instruction'=>$step]);
-        foreach(['category'=>'category','cuisine'=>'cuisine'] as $field=>$kind) foreach(array_unique((array)$recipe[$field]) as $label) if(is_string($label)&&trim($label)&&mb_strlen($label)<=120) insertRow($pdo,'recipe_tags',['household_id'=>2,'recipe_id'=>$id,'kind'=>$kind,'label'=>$label]);
+        foreach(['category'=>'category','cuisine'=>'cuisine'] as $field=>$kind) foreach(array_unique((array)$recipe[$field]) as $label) {
+            if(!is_string($label)||!trim($label)||mb_strlen($label)>120)continue;
+            if($kind==='category' && RecipeImportTools::excludedCategory($recipe['source_url'],$label))continue;
+            insertRow($pdo,'recipe_tags',['household_id'=>2,'recipe_id'=>$id,'kind'=>$kind,'label'=>$label]);
+        }
+        foreach(RecipeImportTools::pendingPhotos([], $verifiedPhotos, $authorName?:parse_url($recipe['source_url'],PHP_URL_HOST)) as $photo) insertRow($pdo,'recipe_photos',['household_id'=>2,'recipe_id'=>$id]+$photo);
         if ($commit) $pdo->commit(); else $pdo->rollBack();
-        $report[]=['title'=>$recipe['title'],'status'=>$commit?'imported':'validated_rolled_back','ingredients'=>count($recipe['ingredients_original']),'steps'=>count($recipe['instructions_original'])];
+        $report[]=['title'=>$recipe['title'],'status'=>$commit?'imported':'validated_rolled_back','ingredients'=>count($recipe['ingredients_original']),'steps'=>count($recipe['instructions_original']),'verified_photos'=>count($verifiedPhotos),'photo_failures'=>$photoFailures];
     } catch(Throwable $e) { if($pdo->inTransaction())$pdo->rollBack(); throw $e; }
 }
 echo json_encode($report,JSON_PRETTY_PRINT|JSON_UNESCAPED_UNICODE|JSON_THROW_ON_ERROR).PHP_EOL;

@@ -96,3 +96,11 @@ COMMIT;
 Do not run the example as seed data. Recipes appear in the app through Browse recipes after import. Use the refresh button to retrieve newly imported rows.
 
 Verify schema behavior with `C:\xampp\php\php.exe C:\xampp\htdocs\CoffeyTableRecipes\tests\recipe_schema.php`. The test uses a disposable database and leaves real recipe data unchanged.
+
+## Existing import cleanup and source photos
+
+The eight reviewed imports (IDs 9–16) now have cleaned importer notes/categories and 18 verified external photo references. Recipe IDs, original ingredient quantities/units, cooking instructions, and source extraction remain unchanged. Bran Flax Muffins yields `15 medium muffins`, with servings still unknown; Smoked Queso's contradictory yield remains unchanged for review.
+
+Use `recipe-import/import.php --cleanup-existing --dry-run` for a report, then `--cleanup-existing --apply` for an explicitly authorized repeatable cleanup/backfill. No schema changes or reimport are involved. Mapping and recovery procedures are documented in the backend's `docs/recipe-import-cleanup.md`; snapshots and personal source records stay out of Git. Import helper tests are in backend `tests/recipe_import.php`.
+
+External image references do not guarantee browser rendering: Chrome cross-origin decoding failed for the Bon Appétit and Midwest Foodie images even though their HTML image and CLI byte checks passed. The existing app fallback remains intact. Authenticated browser/detail verification is still pending, including Android sign-in.
