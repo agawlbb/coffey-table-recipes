@@ -69,3 +69,13 @@ The app supplies an explicit basic cursor fallback. The Add a person field uses 
 - No editing, measurement conversions, running timers or meal-plan changes included. External photo URLs display with fallback icons. Protected local media delivery is still pending; current eight imported recipes have no photo rows.
 - Flutter analysis passes; six unit/widget tests pass; Android emulator fixture-based navigation/detail checks pass. PHP: 37 recipe/isolation checks and 32 authentication checks pass.
 - Chrome live Firebase session retrieved actual Coffey recipe data through the API; Chinese Orange Chicken ingredients and ordered method inspected. Android recipe rendering tests use deterministic fixtures, not a real email login.
+
+## Cooking mode and category browsing — October 8, 2026
+
+Recipe details now offer Start cooking. Cooking mode uses large scrolling instructions, session step checkboxes, a persistent ingredient button, and countdown controls for structured duration actions. Progress and timers are discarded on exit, do not record cooking history, and do not send background alerts. Original quantities and temperatures are preserved. Recipes without structured timer actions still show their full human-readable instructions.
+
+Screen-awake support uses wakelock_plus while the cooking screen is active, with a user switch, lifecycle handling and release on exit. The UI reports when wake lock is unavailable; browsers may restrict it and iOS still requires macOS verification. Reference: [plugin documentation](https://pub.dev/documentation/wakelock_plus/latest/index.html).
+
+Browse by category selects household recipe category tags and combines the selection with text search and pagination. The GET recipe-list route accepts optional `category` and returns household `categories`. Category names are parameterized and length-checked. The importer remains responsible for cleaning source-site taxonomy labels.
+
+Flutter analysis is clean. All previous unit/widget checks passed and final focused tests cover category-plus-search selection, cooking progress, ingredient access and controlled-clock timer expiration/cancellation. Android emulator cooking-mode integration passes. PHP recipe tests pass 39 checks, and authentication tests pass 32 checks. Web and Android builds succeed. Chrome automation was unavailable for live verification in this turn; screen-awake behavior in Chrome requires a manual check.

@@ -3,6 +3,24 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  testWidgets('category browsing combines category with text search', (tester) async {
+    final paths = <String>[];
+    await tester.pumpWidget(MaterialApp(home: RecipeBrowser(householdId: '2', householdName: 'Coffey', request: (path) async {
+      paths.add(path);
+      return {'recipes': [], 'categories': ['Breakfast'], 'next_offset': null};
+    })));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(TextField), 'muffins');
+    await tester.tap(find.text('All categories'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Breakfast').last);
+    await tester.pumpAndSettle();
+    final query = Uri.parse(paths.last).queryParameters;
+    expect(query['category'], 'Breakfast');
+    expect(query['q'], 'muffins');
+    expect(query['offset'], '0');
+    expect(tester.takeException(), isNull);
+  });
   testWidgets('browse searches the household and opens structured details', (tester) async {
     final paths = <String>[];
     Future<Map<String, dynamic>> request(String path) async {

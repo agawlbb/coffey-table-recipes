@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import 'api.dart';
+import 'cooking_mode.dart';
 
 typedef RecipeRequest = Future<Map<String, dynamic>> Function(String path);
 
@@ -56,6 +57,8 @@ class _RecipeBrowserState extends State<RecipeBrowser> {
   int? _next;
   int _generation = 0;
   String _query = '';
+  String _category = '';
+  List<String> _categories = [];
   String? _error;
   bool _busy = true;
   @override
@@ -80,7 +83,11 @@ class _RecipeBrowserState extends State<RecipeBrowser> {
     });
     try {
       final query = Uri(
-        queryParameters: {'q': _query, 'offset': '${more ? _next ?? 0 : 0}'},
+        queryParameters: {
+          'q': _query,
+          'offset': '${more ? _next ?? 0 : 0}',
+          if (_category.isNotEmpty) 'category': _category,
+        },
       ).query;
       final data = await widget.request(
         '/households/${widget.householdId}/recipes?$query',
@@ -89,6 +96,7 @@ class _RecipeBrowserState extends State<RecipeBrowser> {
       setState(() {
         _recipes.addAll(recipeRows(data['recipes']));
         _next = data['next_offset'] as int?;
+        _categories = List<String>.from(data['categories'] as List? ?? []);
       });
     } catch (error) {
       if (mounted && generation == _generation) {
@@ -154,6 +162,36 @@ class _RecipeBrowserState extends State<RecipeBrowser> {
                     icon: const Icon(Icons.arrow_forward),
                   ),
                 ),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 0, 20, 16),
+              child: DropdownButtonFormField<String>(
+                key: ValueKey(_category),
+                initialValue: _category,
+                decoration: const InputDecoration(
+                  labelText: 'Browse by category',
+                ),
+                items: [
+                  const DropdownMenuItem(
+                    value: '',
+                    child: Text('All categories'),
+                  ),
+                  for (final category in {
+                    ..._categories,
+                    if (_category.isNotEmpty) _category,
+                  })
+                    DropdownMenuItem(value: category, child: Text(category)),
+                ],
+                onChanged: _busy
+                    ? null
+                    : (value) {
+                        setState(() {
+                          _category = value ?? '';
+                          _next = null;
+                        });
+                        _load();
+                      },
               ),
             ),
             if (_busy) const LinearProgressIndicator(),
@@ -376,6 +414,18 @@ class _RecipeDetailState extends State<RecipeDetail> {
             Text(
               recipe['title'] as String,
               style: Theme.of(context).textTheme.headlineLarge,
+            ),
+            const SizedBox(height: 16),
+            FilledButton.icon(
+              onPressed: steps.isEmpty
+                  ? null
+                  : () => Navigator.of(context).push(
+                      MaterialPageRoute<void>(
+                        builder: (_) => CookingMode(recipe: recipe),
+                      ),
+                    ),
+              icon: const Icon(Icons.soup_kitchen_outlined),
+              label: const Text('Start cooking'),
             ),
             if (summary.isNotEmpty)
               Padding(
