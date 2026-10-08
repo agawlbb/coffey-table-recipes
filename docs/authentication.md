@@ -46,3 +46,9 @@ C:\xampp\php\php.exe C:\xampp\htdocs\CoffeyTableRecipes\tests\authentication.php
 The PHP tests generate signing keys in memory and create/drop a dedicated randomly named test database, leaving household data untouched. They validate signature/claim rejection, isolation, roles, account disabling, multiple households, and people without accounts. They do not replace a real Google sign-in test.
 
 Official references: [Flutter Google sign-in](https://firebase.google.com/docs/auth/flutter/federated-auth), [server ID-token verification](https://firebase.google.com/docs/auth/admin/verify-id-tokens).
+
+## Emulator keyboard and published UI
+
+The CoffeyTable Pixel 8 emulator supports computer-keyboard input with `hw.keyboard=yes` in its local AVD configuration. Restart the emulator after changing this setting, click a text field, and type using the computer keyboard. Android's `show_ime_with_hard_keyboard=0` setting keeps the software keyboard hidden when a hardware keyboard is available. No credentials are stored in project files.
+
+Source changes do not update the XAMPP copy automatically. Run `tool/publish-local-web.ps1` to rebuild with the ignored local Firebase configuration and publish the assets, then refresh Chrome at `http://localhost/CoffeyTableRecipes/app/`. Use Ctrl+Shift+R if an already-open tab still displays the previous design.
