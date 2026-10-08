@@ -1,4 +1,3 @@
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import 'api.dart';
@@ -16,10 +15,8 @@ class CoffeyTableApp extends StatelessWidget {
   Widget build(BuildContext context) => MaterialApp(
     title: 'Coffey Table Recipes',
     debugShowCheckedModeBanner: false,
-    builder: (context, child) => MouseRegion(
-      cursor: SystemMouseCursors.basic,
-      child: child!,
-    ),
+    builder: (context, child) =>
+        MouseRegion(cursor: SystemMouseCursors.basic, child: child!),
     theme: ThemeData(
       useMaterial3: true,
       colorScheme: ColorScheme.fromSeed(
@@ -49,14 +46,7 @@ class MealPlanHome extends StatefulWidget {
 
 class _MealPlanHomeState extends State<MealPlanHome> {
   late Future<String> _health;
-  final _api = RecipeApi(
-    baseUrl: const String.fromEnvironment(
-      'API_BASE_URL',
-      defaultValue: kIsWeb
-          ? 'http://localhost/CoffeyTableRecipes/api/v1'
-          : 'http://10.0.2.2/CoffeyTableRecipes/api/v1',
-    ),
-  );
+  final _api = RecipeApi(baseUrl: apiBaseUrl);
 
   @override
   void initState() {

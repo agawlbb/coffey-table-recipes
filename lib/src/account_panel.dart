@@ -7,13 +7,6 @@ import 'auth.dart';
 import 'email_access.dart';
 import 'recipe_browser.dart';
 
-const apiBaseUrl = String.fromEnvironment(
-  'API_BASE_URL',
-  defaultValue: kIsWeb
-      ? 'http://localhost/CoffeyTableRecipes/api/v1'
-      : 'http://10.0.2.2/CoffeyTableRecipes/api/v1',
-);
-
 class AccountPanel extends StatefulWidget {
   const AccountPanel({
     super.key,

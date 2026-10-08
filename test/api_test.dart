@@ -4,6 +4,34 @@ import 'package:http/testing.dart';
 import 'package:coffey_table_recipes/src/api.dart';
 
 void main() {
+  test('web API follows the page origin, including scheme and port', () {
+    expect(
+      resolveApiBaseUrl(
+        isWeb: true,
+        pageUrl: Uri.parse('http://172.20.10.2/CoffeyTableRecipes/app/'),
+      ),
+      'http://172.20.10.2/CoffeyTableRecipes/api/v1',
+    );
+    expect(
+      resolveApiBaseUrl(
+        isWeb: true,
+        pageUrl: Uri.parse(
+          'https://recipes.example:8443/CoffeyTableRecipes/app/',
+        ),
+      ),
+      'https://recipes.example:8443/CoffeyTableRecipes/api/v1',
+    );
+  });
+  test('explicit API override and Android emulator default are preserved', () {
+    expect(
+      resolveApiBaseUrl(isWeb: true, override: 'https://api.example/api/v1'),
+      'https://api.example/api/v1',
+    );
+    expect(
+      resolveApiBaseUrl(isWeb: false),
+      'http://10.0.2.2/CoffeyTableRecipes/api/v1',
+    );
+  });
   test(
     'authenticated creation includes token and JSON without client user IDs',
     () async {
