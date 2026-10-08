@@ -38,4 +38,4 @@ For a phone connected through a hotspot or local Wi-Fi, open http://<laptop-IP>/
 
 ## Home screen design
 
-The responsive home uses warm cream surfaces, forest green, and muted gold accents. A welcome banner and prominent recipe collection card provide the main hierarchy; household members and member management are available in an expandable section. The connection indicator retains retry support without setup checkpoint copy. Shared artwork is pending an accessible image attachment.
+The responsive home uses parchment surfaces, olive green, coffee brown, and copper accents. A welcome banner and prominent recipe collection card provide the main hierarchy; household members and member management are available in an expandable section. The connection indicator retains retry support without setup checkpoint copy. The supplied cookbook artwork is bundled locally in `assets/images/coffey_table.jpg` and displayed without cropping in a responsive welcome card.

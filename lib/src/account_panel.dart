@@ -346,7 +346,7 @@ class _HouseholdPanelState extends State<HouseholdPanel> {
                 width: double.infinity,
                 padding: const EdgeInsets.all(24),
                 decoration: BoxDecoration(
-                  color: const Color(0xffeee8d9),
+                  color: const Color(0xffede5d3),
                   borderRadius: BorderRadius.circular(20),
                 ),
                 child: Column(
