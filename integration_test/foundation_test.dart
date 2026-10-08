@@ -25,7 +25,7 @@ void main() {
       );
     }
     await tester.scrollUntilVisible(
-      find.text('Foundation checkpoint'),
+      find.byTooltip('Retry connection'),
       250,
       scrollable: find
           .descendant(

@@ -323,6 +323,7 @@ class _HouseholdPanelState extends State<HouseholdPanel> {
               DropdownButtonFormField<String>(
                 key: ValueKey(_selected),
                 initialValue: _selected,
+                isExpanded: true,
                 decoration: const InputDecoration(labelText: 'Your household'),
                 items: _households
                     .map(
@@ -341,71 +342,103 @@ class _HouseholdPanelState extends State<HouseholdPanel> {
                       }),
               ),
               const SizedBox(height: 20),
-              FilledButton.icon(
-                onPressed: _busy || _selected == null
-                    ? null
-                    : () {
-                        final household = _households.firstWhere(
-                          (h) => h['id'] == _selected,
-                        );
-                        Navigator.of(context).push(
-                          MaterialPageRoute<void>(
-                            builder: (_) => RecipeBrowser(
-                              householdId: _selected!,
-                              householdName: household['name'] as String,
-                              request: (path) => _request(path),
-                            ),
-                          ),
-                        );
-                      },
-                icon: const Icon(Icons.menu_book_outlined),
-                label: const Text('Browse recipes'),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(24),
+                decoration: BoxDecoration(
+                  color: const Color(0xffeee8d9),
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Icon(Icons.menu_book_outlined, size: 32),
+                    const SizedBox(height: 12),
+                    Text(
+                      'Your recipe collection',
+                      style: Theme.of(context).textTheme.headlineSmall,
+                    ),
+                    const SizedBox(height: 8),
+                    const Text(
+                      'Find a favorite. Bring something good to the table.',
+                    ),
+                    const SizedBox(height: 20),
+                    FilledButton.icon(
+                      onPressed: _busy || _selected == null
+                          ? null
+                          : () {
+                              final household = _households.firstWhere(
+                                (h) => h['id'] == _selected,
+                              );
+                              Navigator.of(context).push(
+                                MaterialPageRoute<void>(
+                                  builder: (_) => RecipeBrowser(
+                                    householdId: _selected!,
+                                    householdName: household['name'] as String,
+                                    request: (path) => _request(path),
+                                  ),
+                                ),
+                              );
+                            },
+                      icon: const Icon(Icons.menu_book_outlined),
+                      label: const Text('Browse recipes'),
+                    ),
+                  ],
+                ),
               ),
               const SizedBox(height: 20),
-              Text(
-                'People at your table',
-                style: Theme.of(context).textTheme.titleMedium,
+              ExpansionTile(
+                tilePadding: EdgeInsets.zero,
+                leading: const Icon(Icons.people_outline),
+                title: const Text('People at your table'),
+                subtitle: Text('${_people.length} household members'),
+                children: [
+                  for (final person in _people)
+                    ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      leading: const Icon(Icons.person_outline),
+                      title: Text(person['display_name'] as String),
+                      subtitle: Text(
+                        person['user_id'] == null
+                            ? 'Household person'
+                            : 'Linked login account',
+                      ),
+                    ),
+                  if (canAdd) ...[
+                    TextField(
+                      controller: _newPerson,
+                      // Chrome's native I-beam can disappear over this light field.
+                      mouseCursor: kIsWeb
+                          ? SystemMouseCursors.basic
+                          : SystemMouseCursors.text,
+                      maxLength: 200,
+                      enabled: !_busy,
+                      decoration: const InputDecoration(
+                        labelText: 'Add a person',
+                      ),
+                    ),
+                    OutlinedButton(
+                      onPressed: _busy
+                          ? null
+                          : () {
+                              if (_newPerson.text.trim().isEmpty) return;
+                              _perform(() async {
+                                await _request(
+                                  '/households/$_selected/people',
+                                  body: {
+                                    'display_name': _newPerson.text.trim(),
+                                  },
+                                );
+                                if (!mounted) return;
+                                _newPerson.clear();
+                                await _loadPeople();
+                              });
+                            },
+                      child: const Text('Add person'),
+                    ),
+                  ],
+                ],
               ),
-              for (final person in _people)
-                ListTile(
-                  contentPadding: EdgeInsets.zero,
-                  leading: const Icon(Icons.person_outline),
-                  title: Text(person['display_name'] as String),
-                  subtitle: Text(
-                    person['user_id'] == null
-                        ? 'Household person'
-                        : 'Linked login account',
-                  ),
-                ),
-              if (canAdd) ...[
-                TextField(
-                  controller: _newPerson,
-                  // Chrome's native I-beam can disappear over this light field.
-                  mouseCursor: kIsWeb
-                      ? SystemMouseCursors.basic
-                      : SystemMouseCursors.text,
-                  maxLength: 200,
-                  enabled: !_busy,
-                  decoration: const InputDecoration(labelText: 'Add a person'),
-                ),
-                OutlinedButton(
-                  onPressed: _busy
-                      ? null
-                      : () {
-                          if (_newPerson.text.trim().isEmpty) return;
-                          _perform(() async {
-                            await _request(
-                              '/households/$_selected/people',
-                              body: {'display_name': _newPerson.text.trim()},
-                            );
-                            if (!mounted) return;
-                            _newPerson.clear();
-                            await _loadPeople();
-                          });
-                        },
-                  child: const Text('Add person'),
-                ),
-              ],
             ],
           ],
         ),

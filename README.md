@@ -35,3 +35,7 @@ Run tool/publish-local-web.ps1 to build and copy the web app into the XAMPP app 
 
 
 For a phone connected through a hotspot or local Wi-Fi, open http://<laptop-IP>/CoffeyTableRecipes/app/. The published app uses that host for both health checks and authenticated API requests. Republish if the laptop code changes; no rebuild is needed just because its IP changes.
+
+## Home screen design
+
+The responsive home uses warm cream surfaces, forest green, and muted gold accents. A welcome banner and prominent recipe collection card provide the main hierarchy; household members and member management are available in an expandable section. The connection indicator retains retry support without setup checkpoint copy. Shared artwork is pending an accessible image attachment.
