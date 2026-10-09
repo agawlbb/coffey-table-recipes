@@ -2,10 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 
 import 'src/app.dart';
+import 'src/debug_host.dart';
 import 'src/firebase_config.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await loadDebugApiOverride();
   final options = FirebaseConfig.options;
   String? initializationError;
   if (options != null) {
