@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import 'account_panel.dart';
+import 'touch_capability.dart';
 
 class CoffeyTableApp extends StatelessWidget {
   const CoffeyTableApp({
@@ -21,7 +22,7 @@ class CoffeyTableApp extends StatelessWidget {
     theme: ThemeData(
       useMaterial3: true,
       scrollbarTheme: const ScrollbarThemeData(
-        thumbColor: WidgetStatePropertyAll(Color(0xff465334)),
+        thumbColor: WidgetStatePropertyAll(Color(0xff858c79)),
         trackColor: WidgetStatePropertyAll(Color(0xffe3dacb)),
         trackBorderColor: WidgetStatePropertyAll(Color(0xffc9bda9)),
       ),
@@ -90,8 +91,9 @@ class MealPlanHome extends StatelessWidget {
 /// Each scrollable receives its own controller from the scroll behavior.
 /// This also covers horizontal photo strips and independent settings lists.
 class AppScrollBehavior extends MaterialScrollBehavior {
-  const AppScrollBehavior({this.webScrollbars = kIsWeb});
+  const AppScrollBehavior({this.webScrollbars = kIsWeb, this.touchCapable});
   final bool webScrollbars;
+  final bool? touchCapable;
 
   @override
   Widget buildScrollbar(
@@ -100,13 +102,14 @@ class AppScrollBehavior extends MaterialScrollBehavior {
     ScrollableDetails details,
   ) {
     if (!webScrollbars) return super.buildScrollbar(context, child, details);
+    if (touchCapable ?? deviceSupportsTouch()) return child;
     return Scrollbar(
       controller: details.controller,
       thumbVisibility: true,
-      trackVisibility: true,
+      trackVisibility: false,
       interactive: true,
-      thickness: 12,
-      radius: const Radius.circular(6),
+      thickness: 7,
+      radius: const Radius.circular(4),
       child: child,
     );
   }

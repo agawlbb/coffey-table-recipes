@@ -12,7 +12,10 @@ void main() {
     addTearDown(horizontal.dispose);
     await tester.pumpWidget(
       MaterialApp(
-        scrollBehavior: const AppScrollBehavior(webScrollbars: true),
+        scrollBehavior: const AppScrollBehavior(
+          webScrollbars: true,
+          touchCapable: false,
+        ),
         home: Scaffold(
           body: Column(
             children: [
@@ -50,9 +53,9 @@ void main() {
       bars.every(
         (bar) =>
             bar.thumbVisibility! &&
-            bar.trackVisibility! &&
+            !bar.trackVisibility! &&
             bar.interactive! &&
-            bar.thickness == 12,
+            bar.thickness == 7,
       ),
       isTrue,
     );
@@ -62,7 +65,7 @@ void main() {
     );
     final rect = tester.getRect(find.byType(Scrollbar).first);
     await tester.dragFrom(
-      Offset(rect.right - 6, rect.top + 15),
+      Offset(rect.right - 3, rect.top + 15),
       const Offset(0, 100),
     );
     await tester.pumpAndSettle();
@@ -70,4 +73,34 @@ void main() {
     expect(horizontal.offset, 0);
     expect(tester.takeException(), isNull);
   });
+  testWidgets(
+    'touch-capable web devices hide bars and retain swipe scrolling',
+    (tester) async {
+      final controller = ScrollController();
+      addTearDown(controller.dispose);
+      await tester.pumpWidget(
+        MaterialApp(
+          scrollBehavior: const AppScrollBehavior(
+            webScrollbars: true,
+            touchCapable: true,
+          ),
+          home: Scaffold(
+            body: ListView(
+              controller: controller,
+              children: List.generate(
+                30,
+                (i) => SizedBox(height: 60, child: Text('Recipe $i')),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(find.byType(Scrollbar), findsNothing);
+      await tester.drag(find.byType(ListView), const Offset(0, -200));
+      await tester.pumpAndSettle();
+      expect(controller.offset, greaterThan(0));
+      expect(tester.takeException(), isNull);
+    },
+  );
 }
