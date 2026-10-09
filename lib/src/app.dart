@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import 'account_panel.dart';
@@ -14,10 +15,16 @@ class CoffeyTableApp extends StatelessWidget {
   Widget build(BuildContext context) => MaterialApp(
     title: 'Coffey Table Recipes',
     debugShowCheckedModeBanner: false,
+    scrollBehavior: const AppScrollBehavior(),
     builder: (context, child) =>
         MouseRegion(cursor: SystemMouseCursors.basic, child: child!),
     theme: ThemeData(
       useMaterial3: true,
+      scrollbarTheme: const ScrollbarThemeData(
+        thumbColor: WidgetStatePropertyAll(Color(0xff465334)),
+        trackColor: WidgetStatePropertyAll(Color(0xffe3dacb)),
+        trackBorderColor: WidgetStatePropertyAll(Color(0xffc9bda9)),
+      ),
       colorScheme:
           ColorScheme.fromSeed(
             seedColor: const Color(0xff465334),
@@ -78,4 +85,29 @@ class MealPlanHome extends StatelessWidget {
     configured: authConfigured,
     initializationError: initializationError,
   );
+}
+
+/// Each scrollable receives its own controller from the scroll behavior.
+/// This also covers horizontal photo strips and independent settings lists.
+class AppScrollBehavior extends MaterialScrollBehavior {
+  const AppScrollBehavior({this.webScrollbars = kIsWeb});
+  final bool webScrollbars;
+
+  @override
+  Widget buildScrollbar(
+    BuildContext context,
+    Widget child,
+    ScrollableDetails details,
+  ) {
+    if (!webScrollbars) return super.buildScrollbar(context, child, details);
+    return Scrollbar(
+      controller: details.controller,
+      thumbVisibility: true,
+      trackVisibility: true,
+      interactive: true,
+      thickness: 12,
+      radius: const Radius.circular(6),
+      child: child,
+    );
+  }
 }

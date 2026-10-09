@@ -39,3 +39,5 @@ For a phone connected through a hotspot or local Wi-Fi, open http://<laptop-IP>/
 ## Home screen design
 
 The signed-in home opens directly to recipe search and the collection. The app bar shows a compact account indicator and Sign out. The navigation menu opens Household & people for household selection, setup, and member management; returning to Recipes preserves the search. Signed-out users open the login form with Sign in. Artwork remains bundled for future branding use but is not shown on the home screen. The app retains its parchment, olive, coffee, and copper palette.
+
+On web, scrollable lists and photo strips use persistent 12-pixel scrollbars with an olive thumb and a contrasting track. Drag the thumb or click the track to navigate without a touch screen.
