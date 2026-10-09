@@ -535,8 +535,7 @@ class _RecipeDetailState extends State<RecipeDetail> {
     final groups = recipeRows(recipe['groups']);
     final steps = recipeRows(recipe['steps']);
     final actions = recipeRows(recipe['actions']);
-    final photos = recipeRows(recipe['photos'])
-      ..sort((a, b) => (b['is_cover'] as num).compareTo(a['is_cover'] as num));
+    final photos = distinctRecipePhotos(recipeRows(recipe['photos']));
     final nutrition = recipe['nutrition'] as Map<String, dynamic>?;
     final summary = recipeSummary(recipe);
     return Center(
@@ -579,40 +578,7 @@ class _RecipeDetailState extends State<RecipeDetail> {
               ),
             if (photos.isNotEmpty) ...[
               const SizedBox(height: 20),
-              SizedBox(
-                height: 260,
-                child: ListView.separated(
-                  scrollDirection: Axis.horizontal,
-                  itemCount: photos.length,
-                  separatorBuilder: (_, index) => const SizedBox(width: 12),
-                  itemBuilder: (context, index) {
-                    final photo = photos[index];
-                    return SizedBox(
-                      width: 300,
-                      child: Column(
-                        children: [
-                          Expanded(
-                            child: ClipRRect(
-                              borderRadius: BorderRadius.circular(12),
-                              child: RecipePhoto(
-                                url: photo['source_url'] as String?,
-                              ),
-                            ),
-                          ),
-                          if (photo['caption'] != null)
-                            Text(photo['caption'] as String),
-                          if (photo['attribution'] != null)
-                            Text(
-                              photo['attribution'] as String,
-                              maxLines: 2,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                        ],
-                      ),
-                    );
-                  },
-                ),
-              ),
+              RecipePhotoGallery(photos: photos),
             ],
             Wrap(
               spacing: 8,
@@ -778,6 +744,128 @@ class _RecipeDetailState extends State<RecipeDetail> {
           ],
         ),
       ),
+    );
+  }
+}
+
+/// WordPress exports often list the same original with several size suffixes.
+/// Keep the selected cover first, and retain genuinely different source files.
+List<Map<String, dynamic>> distinctRecipePhotos(
+  List<Map<String, dynamic>> rows,
+) {
+  final ordered = [...rows]
+    ..sort(
+      (a, b) => ((b['is_cover'] as num?) ?? 0).compareTo(
+        (a['is_cover'] as num?) ?? 0,
+      ),
+    );
+  final seen = <String>{};
+  return ordered.where((photo) {
+    final url = photo['source_url'] as String?;
+    if (url == null || url.isEmpty) return true;
+    final uri = Uri.tryParse(url);
+    final key = uri != null && uri.path.contains('/wp-content/uploads/')
+        ? uri
+              .replace(
+                path: uri.path.replaceFirst(
+                  RegExp(
+                    r'-\d+x\d+(?=\.(?:jpe?g|png|webp)$)',
+                    caseSensitive: false,
+                  ),
+                  '',
+                ),
+              )
+              .toString()
+        : url;
+    return seen.add(key);
+  }).toList();
+}
+
+class RecipePhotoGallery extends StatefulWidget {
+  const RecipePhotoGallery({super.key, required this.photos});
+  final List<Map<String, dynamic>> photos;
+  @override
+  State<RecipePhotoGallery> createState() => _RecipePhotoGalleryState();
+}
+
+class _RecipePhotoGalleryState extends State<RecipePhotoGallery> {
+  final _pages = PageController();
+  int _index = 0;
+  @override
+  void dispose() {
+    _pages.dispose();
+    super.dispose();
+  }
+
+  void _move(int offset) => _pages.animateToPage(
+    _index + offset,
+    duration: const Duration(milliseconds: 200),
+    curve: Curves.easeOut,
+  );
+
+  @override
+  Widget build(BuildContext context) {
+    final photo = widget.photos[_index];
+    final height = (MediaQuery.sizeOf(context).height * .3).clamp(100.0, 240.0);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        SizedBox(
+          height: height,
+          width: double.infinity,
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(12),
+            child: PageView.builder(
+              controller: _pages,
+              itemCount: widget.photos.length,
+              onPageChanged: (index) => setState(() => _index = index),
+              itemBuilder: (context, index) => SizedBox.expand(
+                child: RecipePhoto(
+                  url: widget.photos[index]['source_url'] as String?,
+                ),
+              ),
+            ),
+          ),
+        ),
+        if (widget.photos.length > 1)
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              IconButton(
+                tooltip: 'Previous photo',
+                onPressed: _index > 0 ? () => _move(-1) : null,
+                icon: const Icon(Icons.chevron_left),
+              ),
+              Text('${_index + 1} / ${widget.photos.length}'),
+              IconButton(
+                tooltip: 'Next photo',
+                onPressed: _index < widget.photos.length - 1
+                    ? () => _move(1)
+                    : null,
+                icon: const Icon(Icons.chevron_right),
+              ),
+            ],
+          ),
+        if (photo['caption'] != null)
+          Padding(
+            padding: const EdgeInsets.only(top: 6),
+            child: Text(
+              photo['caption'] as String,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+        if (photo['attribution'] != null)
+          Padding(
+            padding: const EdgeInsets.only(top: 4),
+            child: Text(
+              photo['attribution'] as String,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
+          ),
+      ],
     );
   }
 }
