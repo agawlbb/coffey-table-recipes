@@ -20,6 +20,7 @@ class AccountPanel extends StatefulWidget {
 }
 
 class _AccountPanelState extends State<AccountPanel> {
+  bool _showLogin = false;
   bool _busy = false;
   String? _error;
   late final Stream<User?>? _authChanges = widget.configured
@@ -51,25 +52,20 @@ class _AccountPanelState extends State<AccountPanel> {
   @override
   Widget build(BuildContext context) {
     if (!widget.configured) {
-      return Card(
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'Welcome to your table',
-                style: Theme.of(context).textTheme.titleLarge,
-              ),
-              const SizedBox(height: 12),
-              Text(
-                widget.initializationError ?? 'Google sign-in setup is in progress. Your household will be ready here once it is connected.',
-              ),
-            ],
+      return Scaffold(
+        appBar: AppBar(title: const Text('Coffey Table')),
+        body: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Text(
+              widget.initializationError ??
+                  'Sign-in is not configured for this build.',
+            ),
           ),
         ),
       );
     }
+
     return StreamBuilder<User?>(
       stream: _authChanges,
       builder: (context, snapshot) {
@@ -80,7 +76,7 @@ class _AccountPanelState extends State<AccountPanel> {
         if (user != null) {
           return HouseholdPanel(key: ValueKey(user.uid), user: user);
         }
-        return Card(
+        final loginForm = Card(
           child: Padding(
             padding: const EdgeInsets.all(24),
             child: Column(
@@ -115,13 +111,54 @@ class _AccountPanelState extends State<AccountPanel> {
             ),
           ),
         );
+        return Scaffold(
+          appBar: AppBar(
+            title: const Text('Coffey Table'),
+            actions: [
+              TextButton(
+                onPressed: () => setState(() => _showLogin = true),
+                child: const Text('Sign in'),
+              ),
+            ],
+          ),
+          body: _showLogin
+              ? Center(
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 480),
+                    child: SingleChildScrollView(
+                      padding: const EdgeInsets.all(20),
+                      child: loginForm,
+                    ),
+                  ),
+                )
+              : Center(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(Icons.menu_book_outlined, size: 40),
+                      const SizedBox(height: 16),
+                      const Text('Sign in to view your recipes'),
+                      const SizedBox(height: 16),
+                      FilledButton(
+                        onPressed: () => setState(() => _showLogin = true),
+                        child: const Text('Sign in'),
+                      ),
+                    ],
+                  ),
+                ),
+        );
       },
     );
   }
 }
 
 class HouseholdPanel extends StatefulWidget {
-  const HouseholdPanel({super.key, required this.user});
+  const HouseholdPanel({super.key, required this.user, this.request});
+  final Future<Map<String, dynamic>> Function(
+    String path, {
+    Map<String, dynamic>? body,
+  })?
+  request;
   final User user;
   @override
   State<HouseholdPanel> createState() => _HouseholdPanelState();
@@ -136,6 +173,7 @@ class _HouseholdPanelState extends State<HouseholdPanel> {
   List<Map<String, dynamic>> _people = [];
   String? _selected;
   String? _error;
+  bool _settings = false;
   bool _busy = true;
 
   @override
@@ -158,6 +196,7 @@ class _HouseholdPanelState extends State<HouseholdPanel> {
     String path, {
     Map<String, dynamic>? body,
   }) async {
+    if (widget.request != null) return widget.request!(path, body: body);
     final token = await widget.user.getIdToken();
     if (token == null) throw ApiException(401, 'Please sign in again.');
     try {
@@ -203,7 +242,6 @@ class _HouseholdPanelState extends State<HouseholdPanel> {
     if (!_households.any((h) => h['id'] == _selected)) {
       _selected = households.isEmpty ? null : households.first['id'] as String;
     }
-    await _loadPeople();
   });
 
   Future<void> _loadPeople() async {
@@ -245,38 +283,12 @@ class _HouseholdPanelState extends State<HouseholdPanel> {
     final selected = _households.where((h) => h['id'] == _selected).firstOrNull;
     final canAdd =
         selected != null && ['owner', 'admin'].contains(selected['role']);
-    return Card(
+    final settings = Card(
       child: Padding(
         padding: const EdgeInsets.all(24),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Wrap(
-              spacing: 16,
-              crossAxisAlignment: WrapCrossAlignment.center,
-              children: [
-                Text(
-                  widget.user.displayName ?? 'Your account',
-                  style: Theme.of(context).textTheme.titleLarge,
-                ),
-                TextButton(
-                  onPressed: _busy
-                      ? null
-                      : () async {
-                          try {
-                            await GoogleAuthentication.signOut();
-                          } catch (_) {
-                            if (mounted) {
-                              setState(() {
-                                _error = 'Sign-out could not finish. Please try again.';
-                              });
-                            }
-                          }
-                        },
-                  child: const Text('Sign out'),
-                ),
-              ],
-            ),
             if (_busy)
               const Padding(
                 padding: EdgeInsets.symmetric(vertical: 16),
@@ -342,51 +354,6 @@ class _HouseholdPanelState extends State<HouseholdPanel> {
                       }),
               ),
               const SizedBox(height: 20),
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(24),
-                decoration: BoxDecoration(
-                  color: const Color(0xffede5d3),
-                  borderRadius: BorderRadius.circular(20),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Icon(Icons.menu_book_outlined, size: 32),
-                    const SizedBox(height: 12),
-                    Text(
-                      'Your recipe collection',
-                      style: Theme.of(context).textTheme.headlineSmall,
-                    ),
-                    const SizedBox(height: 8),
-                    const Text(
-                      'Find a favorite. Bring something good to the table.',
-                    ),
-                    const SizedBox(height: 20),
-                    FilledButton.icon(
-                      onPressed: _busy || _selected == null
-                          ? null
-                          : () {
-                              final household = _households.firstWhere(
-                                (h) => h['id'] == _selected,
-                              );
-                              Navigator.of(context).push(
-                                MaterialPageRoute<void>(
-                                  builder: (_) => RecipeBrowser(
-                                    householdId: _selected!,
-                                    householdName: household['name'] as String,
-                                    request: (path) => _request(path),
-                                  ),
-                                ),
-                              );
-                            },
-                      icon: const Icon(Icons.menu_book_outlined),
-                      label: const Text('Browse recipes'),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 20),
               ExpansionTile(
                 tilePadding: EdgeInsets.zero,
                 leading: const Icon(Icons.people_outline),
@@ -442,6 +409,125 @@ class _HouseholdPanelState extends State<HouseholdPanel> {
             ],
           ],
         ),
+      ),
+    );
+    final name = widget.user.displayName ?? widget.user.email ?? 'Your account';
+    return Scaffold(
+      appBar: AppBar(
+        title: Text(_settings ? 'Household & people' : 'Recipes'),
+        actions: [
+          if (MediaQuery.sizeOf(context).width >= 600)
+            Center(
+              child: SizedBox(
+                width: 120,
+                child: Text(name, maxLines: 1, overflow: TextOverflow.ellipsis),
+              ),
+            ),
+          Tooltip(
+            message: 'Signed in as $name',
+            child: CircleAvatar(
+              radius: 16,
+              child: Text(
+                name.isEmpty ? '?' : name.substring(0, 1).toUpperCase(),
+              ),
+            ),
+          ),
+          TextButton(
+            onPressed: _busy
+                ? null
+                : () async {
+                    try {
+                      await GoogleAuthentication.signOut();
+                    } catch (_) {
+                      if (context.mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text(
+                              'Sign-out could not finish. Please try again.',
+                            ),
+                          ),
+                        );
+                      }
+                    }
+                  },
+            child: const Text('Sign out'),
+          ),
+        ],
+      ),
+      drawer: Drawer(
+        child: SafeArea(
+          child: Column(
+            children: [
+              const ListTile(
+                leading: Icon(Icons.local_dining_outlined),
+                title: Text('Coffey Table'),
+              ),
+              const Divider(),
+              ListTile(
+                leading: const Icon(Icons.menu_book_outlined),
+                title: const Text('Recipes'),
+                selected: !_settings,
+                onTap: () {
+                  Navigator.pop(context);
+                  setState(() => _settings = false);
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.settings_outlined),
+                title: const Text('Household & people'),
+                selected: _settings,
+                onTap: () {
+                  Navigator.pop(context);
+                  setState(() => _settings = true);
+                  _perform(_loadPeople);
+                },
+              ),
+            ],
+          ),
+        ),
+      ),
+      body: IndexedStack(
+        index: _settings ? 1 : 0,
+        children: [
+          _busy && _households.isEmpty
+              ? const Center(child: CircularProgressIndicator())
+              : _error != null && selected == null
+              ? Center(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Padding(
+                        padding: const EdgeInsets.all(20),
+                        child: Text(_error!),
+                      ),
+                      TextButton(onPressed: _load, child: const Text('Retry')),
+                    ],
+                  ),
+                )
+              : selected == null
+              ? Center(
+                  child: FilledButton(
+                    onPressed: () => setState(() => _settings = true),
+                    child: const Text('Set up household'),
+                  ),
+                )
+              : RecipeBrowser(
+                  key: ValueKey(_selected),
+                  embedded: true,
+                  householdId: _selected!,
+                  householdName: selected['name'] as String,
+                  request: (path) => _request(path),
+                ),
+          Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 720),
+              child: ListView(
+                padding: const EdgeInsets.all(16),
+                children: [settings],
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }

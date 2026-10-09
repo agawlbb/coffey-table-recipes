@@ -43,10 +43,12 @@ class RecipeBrowser extends StatefulWidget {
     required this.householdId,
     required this.householdName,
     required this.request,
+    this.embedded = false,
   });
   final String householdId;
   final String householdName;
   final RecipeRequest request;
+  final bool embedded;
   @override
   State<RecipeBrowser> createState() => _RecipeBrowserState();
 }
@@ -127,165 +129,167 @@ class _RecipeBrowserState extends State<RecipeBrowser> {
   );
 
   @override
-  Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(
-      title: Text('${widget.householdName} recipes'),
-      actions: [
-        IconButton(
-          onPressed: _busy ? null : () => _load(),
-          tooltip: 'Refresh recipes',
-          icon: const Icon(Icons.refresh),
-        ),
-      ],
-    ),
-    body: Center(
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 1100),
-        child: Column(
-          children: [
-            Padding(
-              padding: const EdgeInsets.all(20),
-              child: TextField(
-                controller: _search,
-                mouseCursor: kIsWeb
-                    ? SystemMouseCursors.basic
-                    : SystemMouseCursors.text,
-                textInputAction: TextInputAction.search,
-                onSubmitted: (_) => _load(),
-                decoration: InputDecoration(
-                  labelText: 'Find a recipe',
-                  hintText: 'Title, ingredient, cuisine or technique',
-                  prefixIcon: const Icon(Icons.search),
-                  suffixIcon: IconButton(
-                    onPressed: () => _load(),
-                    tooltip: 'Search recipes',
-                    icon: const Icon(Icons.arrow_forward),
-                  ),
+  Widget build(BuildContext context) => widget.embedded
+      ? _content(context)
+      : Scaffold(
+          appBar: AppBar(
+            title: Text('${widget.householdName} recipes'),
+            actions: [
+              IconButton(
+                onPressed: _busy ? null : () => _load(),
+                tooltip: 'Refresh recipes',
+                icon: const Icon(Icons.refresh),
+              ),
+            ],
+          ),
+          body: _content(context),
+        );
+
+  Widget _content(BuildContext context) => Center(
+    child: ConstrainedBox(
+      constraints: const BoxConstraints(maxWidth: 1100),
+      child: Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.all(20),
+            child: TextField(
+              controller: _search,
+              mouseCursor: kIsWeb
+                  ? SystemMouseCursors.basic
+                  : SystemMouseCursors.text,
+              textInputAction: TextInputAction.search,
+              onSubmitted: (_) => _load(),
+              decoration: InputDecoration(
+                labelText: 'Find a recipe',
+                hintText: 'Title, ingredient, cuisine or technique',
+                prefixIcon: const Icon(Icons.search),
+                suffixIcon: IconButton(
+                  onPressed: () => _load(),
+                  tooltip: 'Search recipes',
+                  icon: const Icon(Icons.arrow_forward),
                 ),
               ),
             ),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(20, 0, 20, 16),
-              child: DropdownButtonFormField<String>(
-                key: ValueKey(_category),
-                initialValue: _category,
-                decoration: const InputDecoration(
-                  labelText: 'Browse by category',
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 0, 20, 16),
+            child: DropdownButtonFormField<String>(
+              key: ValueKey(_category),
+              initialValue: _category,
+              isExpanded: true,
+              decoration: const InputDecoration(
+                labelText: 'Browse by category',
+              ),
+              items: [
+                const DropdownMenuItem(
+                  value: '',
+                  child: Text('All categories'),
                 ),
-                items: [
-                  const DropdownMenuItem(
-                    value: '',
-                    child: Text('All categories'),
+                for (final category in {
+                  ..._categories,
+                  if (_category.isNotEmpty) _category,
+                })
+                  DropdownMenuItem(value: category, child: Text(category)),
+              ],
+              onChanged: _busy
+                  ? null
+                  : (value) {
+                      setState(() {
+                        _category = value ?? '';
+                        _next = null;
+                      });
+                      _load();
+                    },
+            ),
+          ),
+          if (_busy) const LinearProgressIndicator(),
+          if (_error != null)
+            Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                children: [
+                  Text(_error!),
+                  TextButton(
+                    onPressed: () => _load(more: _recipes.isNotEmpty),
+                    child: const Text('Retry'),
                   ),
-                  for (final category in {
-                    ..._categories,
-                    if (_category.isNotEmpty) _category,
-                  })
-                    DropdownMenuItem(value: category, child: Text(category)),
                 ],
-                onChanged: _busy
-                    ? null
-                    : (value) {
-                        setState(() {
-                          _category = value ?? '';
-                          _next = null;
-                        });
-                        _load();
-                      },
               ),
             ),
-            if (_busy) const LinearProgressIndicator(),
-            if (_error != null)
-              Padding(
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  children: [
-                    Text(_error!),
-                    TextButton(
-                      onPressed: () => _load(more: _recipes.isNotEmpty),
-                      child: const Text('Retry'),
-                    ),
-                  ],
-                ),
+          if (!_busy && _error == null && _recipes.isEmpty)
+            const Padding(
+              padding: EdgeInsets.all(24),
+              child: Text(
+                'No recipes found. Try another search or add recipes to this household.',
               ),
-            if (!_busy && _error == null && _recipes.isEmpty)
-              const Padding(
-                padding: EdgeInsets.all(24),
-                child: Text(
-                  'No recipes found. Try another search or add recipes to this household.',
-                ),
-              ),
-            Expanded(
-              child: ListView.builder(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 20,
-                  vertical: 8,
-                ),
-                itemCount: _recipes.length + (_next != null ? 1 : 0),
-                itemBuilder: (context, index) {
-                  if (index == _recipes.length) {
-                    return Padding(
-                      padding: const EdgeInsets.all(16),
-                      child: OutlinedButton(
-                        onPressed: _busy ? null : () => _load(more: true),
-                        child: const Text('Load more recipes'),
-                      ),
-                    );
-                  }
-                  final recipe = _recipes[index];
-                  final summary = recipeSummary(recipe);
-                  return Card(
-                    clipBehavior: Clip.antiAlias,
-                    child: InkWell(
-                      onTap: () => _open(recipe),
-                      child: Padding(
-                        padding: const EdgeInsets.all(16),
-                        child: Row(
-                          children: [
-                            SizedBox(
-                              width: 80,
-                              height: 80,
-                              child: RecipePhoto(
-                                url: recipe['photo_url'] as String?,
-                              ),
-                            ),
-                            const SizedBox(width: 16),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    recipe['title'] as String,
-                                    style: Theme.of(context)
-                                        .textTheme
-                                        .titleMedium,
-                                  ),
-                                  if (summary.isNotEmpty) ...[
-                                    const SizedBox(height: 6),
-                                    Text(summary),
-                                  ],
-                                  if (recipe['description'] != null) ...[
-                                    const SizedBox(height: 6),
-                                    Text(
-                                      recipe['description'] as String,
-                                      maxLines: 2,
-                                      overflow: TextOverflow.ellipsis,
-                                    ),
-                                  ],
-                                ],
-                              ),
-                            ),
-                            const Icon(Icons.chevron_right),
-                          ],
-                        ),
-                      ),
+            ),
+          Expanded(
+            child: ListView.builder(
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+              itemCount: _recipes.length + (_next != null ? 1 : 0),
+              itemBuilder: (context, index) {
+                if (index == _recipes.length) {
+                  return Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: OutlinedButton(
+                      onPressed: _busy ? null : () => _load(more: true),
+                      child: const Text('Load more recipes'),
                     ),
                   );
-                },
-              ),
+                }
+                final recipe = _recipes[index];
+                final summary = recipeSummary(recipe);
+                return Card(
+                  clipBehavior: Clip.antiAlias,
+                  child: InkWell(
+                    onTap: () => _open(recipe),
+                    child: Padding(
+                      padding: const EdgeInsets.all(16),
+                      child: Row(
+                        children: [
+                          SizedBox(
+                            width: 80,
+                            height: 80,
+                            child: RecipePhoto(
+                              url: recipe['photo_url'] as String?,
+                            ),
+                          ),
+                          const SizedBox(width: 16),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  recipe['title'] as String,
+                                  style: Theme.of(context)
+                                      .textTheme
+                                      .titleMedium,
+                                ),
+                                if (summary.isNotEmpty) ...[
+                                  const SizedBox(height: 6),
+                                  Text(summary),
+                                ],
+                                if (recipe['description'] != null) ...[
+                                  const SizedBox(height: 6),
+                                  Text(
+                                    recipe['description'] as String,
+                                    maxLines: 2,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ],
+                              ],
+                            ),
+                          ),
+                          const Icon(Icons.chevron_right),
+                        ],
+                      ),
+                    ),
+                  ),
+                );
+              },
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     ),
   );

@@ -21,7 +21,7 @@ flutter test
 flutter build web
 ```
 
-The home screen checks the actual API connection. Google authentication and household setup are implemented; recipes and meal-plan data are next. No simulated sign-in or development authorization bypass is provided.
+The signed-in home displays recipes from the hosted API, with search, category browsing, and cooking mode. Account and household management are available through the app bar and navigation menu. No simulated sign-in or development authorization bypass is provided.
 
 See `docs/checkpoints.md` for the agreed implementation sequence and `docs/authentication.md` for configured sign-in commands. Default Flutter icons remain until the selected artwork is supplied.
 
@@ -34,8 +34,8 @@ Android and web can be built here. iOS source is included; building and signing 
 Run tool/publish-local-web.ps1 to build and copy the web app into the XAMPP app directory. Then open http://localhost/CoffeyTableRecipes/. This build works while Apache is running, without the Flutter development server. Republish after source changes.
 
 
-For a phone connected through a hotspot or local Wi-Fi, open http://<laptop-IP>/CoffeyTableRecipes/app/. The page is served by the laptop, while health checks and authenticated requests use the hosted API. Republish after app source changes.
+For a phone connected through a hotspot or local Wi-Fi, open http://<laptop-IP>/CoffeyTableRecipes/app/. The page is served by the laptop, while authenticated requests use the hosted API. Republish after app source changes.
 
 ## Home screen design
 
-The responsive home uses parchment surfaces, olive green, coffee brown, and copper accents. A welcome banner and prominent recipe collection card provide the main hierarchy; household members and member management are available in an expandable section. The connection indicator retains retry support without setup checkpoint copy. The supplied cookbook artwork is bundled locally in `assets/images/coffey_table.jpg` and displayed without cropping in a responsive welcome card.
+The signed-in home opens directly to recipe search and the collection. The app bar shows a compact account indicator and Sign out. The navigation menu opens Household & people for household selection, setup, and member management; returning to Recipes preserves the search. Signed-out users open the login form with Sign in. Artwork remains bundled for future branding use but is not shown on the home screen. The app retains its parchment, olive, coffee, and copper palette.
