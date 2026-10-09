@@ -59,8 +59,11 @@ class _RecipeBrowserState extends State<RecipeBrowser> {
   int? _next;
   int _generation = 0;
   String _query = '';
-  String _category = '';
-  List<String> _categories = [];
+  final List<Map<String, dynamic>> _trail = [];
+  List<Map<String, dynamic>> _nodes = [];
+  bool _categoryView = true;
+  String get _scopeLabel =>
+      _trail.isEmpty ? 'All recipes' : _trail.last['label'] as String;
   String? _error;
   bool _busy = true;
   @override
@@ -81,14 +84,19 @@ class _RecipeBrowserState extends State<RecipeBrowser> {
     setState(() {
       _busy = true;
       _error = null;
-      if (!more) _recipes.clear();
+      if (!more) {
+        _recipes.clear();
+        _nodes = [];
+        _next = null;
+      }
     });
     try {
       final query = Uri(
         queryParameters: {
           'q': _query,
           'offset': '${more ? _next ?? 0 : 0}',
-          if (_category.isNotEmpty) 'category': _category,
+          'tree': '1',
+          if (_trail.isNotEmpty) 'scope': '${_trail.last['id']}',
         },
       ).query;
       final data = await widget.request(
@@ -98,7 +106,8 @@ class _RecipeBrowserState extends State<RecipeBrowser> {
       setState(() {
         _recipes.addAll(recipeRows(data['recipes']));
         _next = data['next_offset'] as int?;
-        _categories = List<String>.from(data['categories'] as List? ?? []);
+        _nodes = recipeRows(data['category_nodes']);
+        _categoryView = data['view'] == 'categories';
       });
     } catch (error) {
       if (mounted && generation == _generation) {
@@ -115,6 +124,24 @@ class _RecipeBrowserState extends State<RecipeBrowser> {
         });
       }
     }
+  }
+
+  void _enterCategory(Map<String, dynamic> category) {
+    setState(() {
+      _trail.add(category);
+      _search.clear();
+      _next = null;
+    });
+    _load();
+  }
+
+  void _back() {
+    setState(() {
+      if (_trail.isNotEmpty) _trail.removeLast();
+      _search.clear();
+      _next = null;
+    });
+    _load();
   }
 
   void _open(Map<String, dynamic> recipe) => Navigator.of(context).push(
@@ -159,47 +186,47 @@ class _RecipeBrowserState extends State<RecipeBrowser> {
                   : SystemMouseCursors.text,
               textInputAction: TextInputAction.search,
               onSubmitted: (_) => _load(),
+              onChanged: (_) => setState(() {}),
               decoration: InputDecoration(
-                labelText: 'Find a recipe',
+                labelText: _trail.isEmpty
+                    ? 'Search all recipes'
+                    : 'Search ${_scopeLabel.toLowerCase()}',
                 hintText: 'Title, ingredient, cuisine or technique',
                 prefixIcon: const Icon(Icons.search),
-                suffixIcon: IconButton(
-                  onPressed: () => _load(),
-                  tooltip: 'Search recipes',
-                  icon: const Icon(Icons.arrow_forward),
+                suffixIcon: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (_search.text.isNotEmpty || _query.isNotEmpty)
+                      IconButton(
+                        onPressed: () {
+                          _search.clear();
+                          _load();
+                        },
+                        tooltip: 'Clear search',
+                        icon: const Icon(Icons.close),
+                      ),
+                    IconButton(
+                      onPressed: () => _load(),
+                      tooltip: 'Search recipes',
+                      icon: const Icon(Icons.arrow_forward),
+                    ),
+                  ],
                 ),
               ),
             ),
           ),
           Padding(
             padding: const EdgeInsets.fromLTRB(20, 0, 20, 16),
-            child: DropdownButtonFormField<String>(
-              key: ValueKey(_category),
-              initialValue: _category,
-              isExpanded: true,
-              decoration: const InputDecoration(
-                labelText: 'Browse by category',
+            child: Align(
+              alignment: Alignment.centerLeft,
+              child: Text(
+                _query.isNotEmpty
+                    ? 'Results in $_scopeLabel'
+                    : _trail.isEmpty
+                    ? 'Browse categories'
+                    : _trail.map((c) => c['label']).join(' › '),
+                style: Theme.of(context).textTheme.titleMedium,
               ),
-              items: [
-                const DropdownMenuItem(
-                  value: '',
-                  child: Text('All categories'),
-                ),
-                for (final category in {
-                  ..._categories,
-                  if (_category.isNotEmpty) _category,
-                })
-                  DropdownMenuItem(value: category, child: Text(category)),
-              ],
-              onChanged: _busy
-                  ? null
-                  : (value) {
-                      setState(() {
-                        _category = value ?? '';
-                        _next = null;
-                      });
-                      _load();
-                    },
             ),
           ),
           if (_busy) const LinearProgressIndicator(),
@@ -216,18 +243,72 @@ class _RecipeBrowserState extends State<RecipeBrowser> {
                 ],
               ),
             ),
-          if (!_busy && _error == null && _recipes.isEmpty)
-            const Padding(
-              padding: EdgeInsets.all(24),
+          if (!_busy &&
+              _error == null &&
+              (_categoryView ? _nodes.isEmpty : _recipes.isEmpty))
+            Padding(
+              padding: const EdgeInsets.all(24),
               child: Text(
-                'No recipes found. Try another search or add recipes to this household.',
+                _categoryView
+                    ? 'No recipes in this category yet.'
+                    : 'No recipes found in this scope. Try another search.',
               ),
             ),
           Expanded(
             child: ListView.builder(
+              key: ValueKey(
+                '${_trail.isEmpty ? "root" : _trail.last['id']}:$_query',
+              ),
               padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
-              itemCount: _recipes.length + (_next != null ? 1 : 0),
+              itemCount: _categoryView
+                  ? _nodes.length
+                  : _recipes.length + (_next != null ? 1 : 0),
               itemBuilder: (context, index) {
+                if (_categoryView) {
+                  final category = _nodes[index];
+                  return Card(
+                    clipBehavior: Clip.antiAlias,
+                    child: InkWell(
+                      onTap: _busy ? null : () => _enterCategory(category),
+                      child: Padding(
+                        padding: const EdgeInsets.all(16),
+                        child: Row(
+                          children: [
+                            SizedBox(
+                              width: 80,
+                              height: 80,
+                              child: Image.asset(
+                                'assets/categories/${category['image_key']}.png',
+                                fit: BoxFit.cover,
+                                errorBuilder: (_, error, stack) =>
+                                    const Icon(Icons.restaurant, size: 36),
+                              ),
+                            ),
+                            const SizedBox(width: 16),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    category['label'] as String,
+                                    style: Theme.of(context)
+                                        .textTheme
+                                        .titleMedium,
+                                  ),
+                                  const SizedBox(height: 6),
+                                  Text(
+                                    '${category['recipe_count']} ${category['recipe_count'].toString() == '1' ? 'recipe' : 'recipes'}',
+                                  ),
+                                ],
+                              ),
+                            ),
+                            const Icon(Icons.chevron_right),
+                          ],
+                        ),
+                      ),
+                    ),
+                  );
+                }
                 if (index == _recipes.length) {
                   return Padding(
                     padding: const EdgeInsets.all(16),
@@ -287,6 +368,26 @@ class _RecipeBrowserState extends State<RecipeBrowser> {
                   ),
                 );
               },
+            ),
+          ),
+          SafeArea(
+            top: false,
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(20, 8, 20, 12),
+              child: SizedBox(
+                width: double.infinity,
+                child: OutlinedButton.icon(
+                  onPressed: _busy || (_trail.isEmpty && _query.isEmpty)
+                      ? null
+                      : _back,
+                  icon: const Icon(Icons.arrow_back),
+                  label: Text(
+                    _trail.length > 1
+                        ? 'Back to ${_trail[_trail.length - 2]['label']}'
+                        : 'Back to main categories',
+                  ),
+                ),
+              ),
             ),
           ),
         ],
@@ -385,6 +486,17 @@ class _RecipeDetailState extends State<RecipeDetail> {
   @override
   Widget build(BuildContext context) => Scaffold(
     appBar: AppBar(title: Text(widget.title)),
+    bottomNavigationBar: SafeArea(
+      top: false,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(20, 8, 20, 12),
+        child: OutlinedButton.icon(
+          onPressed: () => Navigator.of(context).pop(),
+          icon: const Icon(Icons.arrow_back),
+          label: const Text('Back to recipes'),
+        ),
+      ),
+    ),
     body: _error != null
         ? Center(
             child: Column(

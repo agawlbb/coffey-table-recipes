@@ -3,53 +3,159 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
-  testWidgets('category browsing combines category with text search', (tester) async {
+  testWidgets('three-level browsing scopes search and back navigation', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(320, 800);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
     final paths = <String>[];
-    await tester.pumpWidget(MaterialApp(home: RecipeBrowser(householdId: '2', householdName: 'Coffey', request: (path) async {
-      paths.add(path);
-      return {'recipes': [], 'categories': ['Breakfast'], 'next_offset': null};
-    })));
+    await tester.pumpWidget(
+      MaterialApp(
+        home: RecipeBrowser(
+          householdId: '2',
+          householdName: 'Coffey',
+          request: (path) async {
+            paths.add(path);
+            final query = Uri.parse(path).queryParameters;
+            if ((query['q'] ?? '').isNotEmpty || query['scope'] == '8') {
+              return {
+                'view': 'recipes',
+                'recipes': [
+                  {'id': '9', 'title': 'Bran muffins'},
+                ],
+                'next_offset': null,
+              };
+            }
+            return {
+              'view': 'categories',
+              'recipes': [],
+              'category_nodes': [
+                if (query['scope'] == null)
+                  {
+                    'id': '5',
+                    'label': 'Breakfast',
+                    'image_key': 'breakfast',
+                    'recipe_count': 1,
+                  }
+                else
+                  {
+                    'id': '8',
+                    'label': 'Muffins',
+                    'image_key': 'muffins',
+                    'recipe_count': 1,
+                  },
+              ],
+              'next_offset': null,
+            };
+          },
+        ),
+      ),
+    );
     await tester.pumpAndSettle();
-    await tester.enterText(find.byType(TextField), 'muffins');
-    await tester.tap(find.text('All categories'));
+    expect(find.text('Breakfast'), findsOneWidget);
+    await tester.enterText(find.byType(TextField), 'bran');
+    await tester.tap(find.byTooltip('Search recipes'));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Breakfast').last);
+    expect(Uri.parse(paths.last).queryParameters.containsKey('scope'), isFalse);
+    expect(find.text('Bran muffins'), findsOneWidget);
+    await tester.tap(find.text('Back to main categories'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Breakfast'));
+    await tester.pumpAndSettle();
+    expect(Uri.parse(paths.last).queryParameters['scope'], '5');
+    await tester.enterText(find.byType(TextField), 'bran');
+    await tester.tap(find.byTooltip('Search recipes'));
+    await tester.pumpAndSettle();
+    expect(Uri.parse(paths.last).queryParameters['scope'], '5');
+    await tester.tap(find.byTooltip('Clear search'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Muffins'));
+    await tester.pumpAndSettle();
+    expect(find.text('Bran muffins'), findsOneWidget);
+    await tester.enterText(find.byType(TextField), 'bran');
+    await tester.tap(find.byTooltip('Search recipes'));
     await tester.pumpAndSettle();
     final query = Uri.parse(paths.last).queryParameters;
-    expect(query['category'], 'Breakfast');
-    expect(query['q'], 'muffins');
+    expect(query['scope'], '8');
+    expect(query['q'], 'bran');
     expect(query['offset'], '0');
+    await tester.tap(find.text('Back to Breakfast'));
+    await tester.pumpAndSettle();
+    expect(Uri.parse(paths.last).queryParameters['scope'], '5');
+    expect(Uri.parse(paths.last).queryParameters['q'], '');
+    expect(find.text('Muffins'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
-  testWidgets('browse searches the household and opens structured details', (tester) async {
+  testWidgets('browse searches the household and opens structured details', (
+    tester,
+  ) async {
     final paths = <String>[];
     Future<Map<String, dynamic>> request(String path) async {
       paths.add(path);
       if (path.contains('/recipes/9')) {
-        return {'recipe': {
-          'id': '9', 'title': 'Crêpes', 'original_language': 'fr',
-          'servings': '4.0000', 'revision': '1',
-          'ingredients': [{'group_id': null, 'original_text': '250 g de farine'}],
-          'steps': [{'id': '4', 'position': 1, 'instruction': 'Préchauffer à 180°C.'}],
-          'actions': [{'step_id': '4', 'temperature_value': '180.0000', 'temperature_unit': 'C'}],
-          'source_title': 'Family recipe', 'groups': [], 'tags': [], 'photos': [], 'related': [], 'pairings': [],
-        }};
+        return {
+          'recipe': {
+            'id': '9',
+            'title': 'Crêpes',
+            'original_language': 'fr',
+            'servings': '4.0000',
+            'revision': '1',
+            'ingredients': [
+              {'group_id': null, 'original_text': '250 g de farine'},
+            ],
+            'steps': [
+              {'id': '4', 'position': 1, 'instruction': 'Préchauffer à 180°C.'},
+            ],
+            'actions': [
+              {
+                'step_id': '4',
+                'temperature_value': '180.0000',
+                'temperature_unit': 'C',
+              },
+            ],
+            'source_title': 'Family recipe',
+            'groups': [],
+            'tags': [],
+            'photos': [],
+            'related': [],
+            'pairings': [],
+          },
+        };
       }
-      return {'recipes': [{'id': '9', 'title': 'Crêpes', 'servings': '4.0000'}], 'next_offset': null};
+      return {
+        'recipes': [
+          {'id': '9', 'title': 'Crêpes', 'servings': '4.0000'},
+        ],
+        'next_offset': null,
+      };
     }
-    await tester.pumpWidget(MaterialApp(home: RecipeBrowser(householdId: '2', householdName: 'Coffey', request: request)));
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: RecipeBrowser(
+          householdId: '2',
+          householdName: 'Coffey',
+          request: request,
+        ),
+      ),
+    );
     await tester.pumpAndSettle();
     expect(find.text('Crêpes'), findsOneWidget);
     await tester.enterText(find.byType(TextField), 'farine');
     await tester.tap(find.byTooltip('Search recipes'));
     await tester.pumpAndSettle();
-    expect(paths.last, '/households/2/recipes?q=farine&offset=0');
+    expect(paths.last, '/households/2/recipes?q=farine&offset=0&tree=1');
     await tester.tap(find.text('Crêpes'));
     await tester.pumpAndSettle();
     expect(paths.last, '/households/2/recipes/9');
     expect(find.text('• 250 g de farine'), findsOneWidget);
     expect(find.text('1. Préchauffer à 180°C.'), findsOneWidget);
     expect(find.text('180°C'), findsOneWidget);
+    await tester.tap(find.text('Back to recipes'));
+    await tester.pumpAndSettle();
+    expect(find.byType(TextField), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 
