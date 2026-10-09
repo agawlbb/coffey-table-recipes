@@ -60,7 +60,7 @@ void main() {
     await tester.pumpAndSettle();
     expect(Uri.parse(paths.last).queryParameters.containsKey('scope'), isFalse);
     expect(find.text('Bran muffins'), findsOneWidget);
-    await tester.tap(find.text('Back to main categories'));
+    await tester.tap(find.byTooltip('Back one level'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Breakfast'));
     await tester.pumpAndSettle();
@@ -81,11 +81,27 @@ void main() {
     expect(query['scope'], '8');
     expect(query['q'], 'bran');
     expect(query['offset'], '0');
-    await tester.tap(find.text('Back to Breakfast'));
+    expect(find.text('All Recipes'), findsOneWidget);
+    expect(find.text('Breakfast'), findsOneWidget);
+    expect(find.text('Muffins'), findsOneWidget);
+    await tester.tap(find.byKey(const ValueKey('recipe-breadcrumb-2')));
+    await tester.pumpAndSettle();
+    expect(Uri.parse(paths.last).queryParameters['scope'], '8');
+    expect(Uri.parse(paths.last).queryParameters['q'], '');
+    await tester.tap(find.byKey(const ValueKey('recipe-breadcrumb-1')));
+    await tester.pumpAndSettle();
+    expect(Uri.parse(paths.last).queryParameters['scope'], '5');
+    await tester.tap(find.text('Muffins'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byTooltip('Back one level'));
     await tester.pumpAndSettle();
     expect(Uri.parse(paths.last).queryParameters['scope'], '5');
     expect(Uri.parse(paths.last).queryParameters['q'], '');
     expect(find.text('Muffins'), findsOneWidget);
+    await tester.tap(find.byKey(const ValueKey('recipe-breadcrumb-0')));
+    await tester.pumpAndSettle();
+    expect(Uri.parse(paths.last).queryParameters.containsKey('scope'), isFalse);
+    expect(find.text('Breakfast'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
   testWidgets('browse searches the household and opens structured details', (
@@ -153,7 +169,7 @@ void main() {
     expect(find.text('• 250 g de farine'), findsOneWidget);
     expect(find.text('1. Préchauffer à 180°C.'), findsOneWidget);
     expect(find.text('180°C'), findsOneWidget);
-    await tester.tap(find.text('Back to recipes'));
+    await tester.tap(find.byTooltip('Back to recipes'));
     await tester.pumpAndSettle();
     expect(find.byType(TextField), findsOneWidget);
     expect(tester.takeException(), isNull);

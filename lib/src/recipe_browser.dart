@@ -136,8 +136,12 @@ class _RecipeBrowserState extends State<RecipeBrowser> {
   }
 
   void _back() {
+    _returnToLevel(_trail.isEmpty ? 0 : _trail.length - 1);
+  }
+
+  void _returnToLevel(int depth) {
     setState(() {
-      if (_trail.isNotEmpty) _trail.removeLast();
+      _trail.removeRange(depth, _trail.length);
       _search.clear();
       _next = null;
     });
@@ -219,13 +223,27 @@ class _RecipeBrowserState extends State<RecipeBrowser> {
             padding: const EdgeInsets.fromLTRB(20, 0, 20, 16),
             child: Align(
               alignment: Alignment.centerLeft,
-              child: Text(
-                _query.isNotEmpty
-                    ? 'Results in $_scopeLabel'
-                    : _trail.isEmpty
-                    ? 'Browse categories'
-                    : _trail.map((c) => c['label']).join(' › '),
-                style: Theme.of(context).textTheme.titleMedium,
+              child: Wrap(
+                crossAxisAlignment: WrapCrossAlignment.center,
+                children: [
+                  for (var depth = 0; depth <= _trail.length; depth++) ...[
+                    if (depth > 0) const Icon(Icons.chevron_right, size: 18),
+                    TextButton(
+                      key: ValueKey('recipe-breadcrumb-$depth'),
+                      onPressed: _busy ? null : () => _returnToLevel(depth),
+                      child: Text(
+                        depth == 0
+                            ? 'All Recipes'
+                            : _trail[depth - 1]['label'] as String,
+                        style: TextStyle(
+                          fontWeight: depth == _trail.length
+                              ? FontWeight.bold
+                              : FontWeight.normal,
+                        ),
+                      ),
+                    ),
+                  ],
+                ],
               ),
             ),
           ),
@@ -374,18 +392,14 @@ class _RecipeBrowserState extends State<RecipeBrowser> {
             top: false,
             child: Padding(
               padding: const EdgeInsets.fromLTRB(20, 8, 20, 12),
-              child: SizedBox(
-                width: double.infinity,
-                child: OutlinedButton.icon(
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: IconButton(
                   onPressed: _busy || (_trail.isEmpty && _query.isEmpty)
                       ? null
                       : _back,
                   icon: const Icon(Icons.arrow_back),
-                  label: Text(
-                    _trail.length > 1
-                        ? 'Back to ${_trail[_trail.length - 2]['label']}'
-                        : 'Back to main categories',
-                  ),
+                  tooltip: 'Back one level',
                 ),
               ),
             ),
@@ -490,10 +504,14 @@ class _RecipeDetailState extends State<RecipeDetail> {
       top: false,
       child: Padding(
         padding: const EdgeInsets.fromLTRB(20, 8, 20, 12),
-        child: OutlinedButton.icon(
-          onPressed: () => Navigator.of(context).pop(),
-          icon: const Icon(Icons.arrow_back),
-          label: const Text('Back to recipes'),
+        child: Align(
+          heightFactor: 1,
+          alignment: Alignment.centerLeft,
+          child: IconButton(
+            onPressed: () => Navigator.of(context).pop(),
+            icon: const Icon(Icons.arrow_back),
+            tooltip: 'Back to recipes',
+          ),
         ),
       ),
     ),
