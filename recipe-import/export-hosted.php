@@ -3,23 +3,19 @@ declare(strict_types=1);
 if (PHP_SAPI!=='cli') exit;
 require_once 'C:/xampp/htdocs/CoffeyTableRecipes/src/RecipeImportTools.php';
 require_once __DIR__.'/HostedImport.php';
-$options=getopt('', ['input:','output:','household:','user:','browser-image-manifest:']);
+$options=getopt('', ['input:','output:','household:','user:','photo-archive-manifest:']);
 foreach (['input','output','household','user'] as $required) if (!isset($options[$required])) throw new RuntimeException("Missing --$required");
 $recipes=json_decode(ltrim(file_get_contents($options['input']),"\xEF\xBB\xBF"),true,100,JSON_THROW_ON_ERROR);
 $bookmarks=json_decode(ltrim(file_get_contents(__DIR__.'/bookmarks.json'),"\xEF\xBB\xBF"),true,100,JSON_THROW_ON_ERROR);
-$browserPhotos=[];
-if (isset($options['browser-image-manifest'])) {
-    $manifest=$options['browser-image-manifest'];
-    $assetDirectory=realpath(dirname($manifest));
-    $assets=json_decode(file_get_contents($manifest),true,100,JSON_THROW_ON_ERROR);
-    foreach ($assets['assets']??[] as $asset) {
-        if (($asset['kind']??'')!=='image') continue;
-        $path=realpath($asset['path']);
-        if (!$path || !str_starts_with(strtolower($path),strtolower($assetDirectory.DIRECTORY_SEPARATOR)) || filesize($path)>8*1024*1024) throw new RuntimeException('Invalid browser image artifact');
-        $dimensions=getimagesize($path);
-        if (!$dimensions || !in_array($dimensions['mime'],['image/jpeg','image/png','image/webp','image/gif'],true) || $dimensions['mime']!==$asset['contentType']) throw new RuntimeException('Invalid browser image bytes');
-        $browserPhotos[$asset['url']]=['source_url'=>$asset['url'],'mime_type'=>$dimensions['mime'],'width_pixels'=>$dimensions[0],'height_pixels'=>$dimensions[1],'verified_at_utc'=>gmdate('c'),'verification_method'=>'rendered_source_asset_bytes'];
-    }
+if(!isset($options['photo-archive-manifest'])) throw new RuntimeException('Download photos first; --photo-archive-manifest is required');
+$archive=[];
+foreach(json_decode(file_get_contents($options['photo-archive-manifest']),true,100,JSON_THROW_ON_ERROR) as $asset) {
+    if(!preg_match('~^media/recipe-photos/[a-f0-9]{64}\.(jpg|png|webp|gif)$~D',$asset['storage_key']??'')) throw new RuntimeException('Invalid archive key');
+    $path=dirname($options['photo-archive-manifest']).'/'.$asset['storage_key'];
+    if(!is_file($path) || filesize($path)>8*1024*1024 || hash_file('sha256',$path)!==$asset['sha256'] || pathinfo($path,PATHINFO_FILENAME)!==$asset['sha256']) throw new RuntimeException('Archived image bytes missing or changed');
+    $info=getimagesize($path);
+    if(!$info || $info['mime']!==$asset['mime_type'] || $info[0]!==$asset['width_pixels'] || $info[1]!==$asset['height_pixels']) throw new RuntimeException('Archived image metadata does not match bytes');
+    foreach($asset['original_urls'] as $url) $archive[$url]=$asset;
 }
 foreach ($recipes as &$recipe) {
     $recipe['collected_at_utc']??=gmdate('c');
@@ -27,7 +23,12 @@ foreach ($recipes as &$recipe) {
     $recipe['verified_photos']=[];
     $recipe['photo_failures']=[];
     foreach (RecipeImportTools::images($recipe['image_source']??[], $recipe['source_url']) as $image) {
-        try {$recipe['verified_photos'][]=($browserPhotos[$image['source_url']]??RecipeImportTools::verifyImage($image['source_url']))+['caption'=>$image['caption']];}
+        try {
+            $asset=$archive[$image['source_url']]??throw new RuntimeException('No downloaded archive for source image');
+            $asset['publisher_url']=$image['source_url'];
+            $asset['source_url']=$asset['hosted_url'];
+            $recipe['verified_photos'][]=$asset+['caption'=>$image['caption']];
+        }
         catch (Throwable $error) {$recipe['photo_failures'][]=['url'=>$image['source_url'],'error'=>$error->getMessage()];}
     }
     echo json_encode(['title'=>$recipe['title'],'photos'=>count($recipe['verified_photos']),'photo_failures'=>$recipe['photo_failures']],JSON_UNESCAPED_SLASHES)."\n";

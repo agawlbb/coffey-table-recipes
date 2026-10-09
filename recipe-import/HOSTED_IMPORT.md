@@ -6,11 +6,23 @@ Use `export-hosted.php` to prepare data-only SQL for the existing hosted schema.
 & C:/xampp/php/php.exe recipe-import/export-hosted.php `
   --input=recipe-import/remaining-ready.json `
   --output=recipe-import/generated/remaining.sql `
-  --household=2 --user=6
+  --household=2 --user=6 `
+  --photo-archive-manifest=recipe-import/generated/photo-archive/manifest.json
 & C:/xampp/php/php.exe recipe-import/test-hosted.php recipe-import/generated/remaining.sql
 ```
 
-The exporter checks public source photos using the backend's existing safe image verifier. If a source image loads in the browser but rejects the server-side image request, export that observed image with the browser's page-assets capability and pass its manifest using `--browser-image-manifest=<absolute-path>`. Only assets matching the recipe's source image candidates are used. The exporter verifies the local artifact path, size, decoded image dimensions and MIME type. It retains the public source URL and attribution; image files are not uploaded to the backend.
+Photos must be downloaded before exporting hosted SQL. Create a JSON list of candidate URL groups (each group represents one photo, with full-size and resized URLs as alternatives), then run:
+
+```powershell
+& C:/xampp/php/php.exe recipe-import/archive-photos.php `
+  recipe-import/generated/photo-candidates.json recipe-import/generated/photo-archive
+```
+
+The downloader pins validated public DNS addresses, checks every redirect, verifies TLS, limits downloads to 8 MB / 20 seconds, and validates the decoded image type and dimensions. Content-hash filenames avoid duplicate files. Review `failures.json`; recover publisher-blocked images using a browser download and validate its actual bytes before adding it to the private manifest. Never invent a replacement source photo.
+
+Upload only `media/recipe-photos/` to `/home/hosting_account/coffeybean.com/CoffeyTableRecipes/`, including the backend's image-directory `.htaccess`. Do not upload manifests, SQL, source pages or backups into the public directory. Verify every public file's SHA-256 and CORS headers before applying SQL. The exporter requires the archive manifest and matching local bytes; `HostedImport` rejects external photo URLs or invalid storage keys. Original publisher URLs and attribution remain in the private archive/source text. Generated media and import artifacts remain outside Git.
+
+For existing photo records, export a JSON snapshot including IDs, household, recipe, URL, storage key, MIME, dimensions, position, cover, caption and attribution. `migrate-photo-archive.php <snapshot> <manifest> <output-directory>` prepares a guarded migration and rollback scoped to household 2 / owner 6. It updates existing rows without deleting duplicates or changing recipe content/revisions. Exact old-value guards preserve concurrent photo edits. Repeat execution makes no changes. A migration to another household requires reviewing and changing the explicit destination in the planner first.
 
 `HostedImport.php` preserves original ingredient text, parses decimal quantities and exact fractions including Unicode fractions, and leaves missing quantities and placeholder zero durations unspecified. SQL text values use UTF-8 hex literals with an explicit collation, so source apostrophes, punctuation and Unicode cannot become SQL statements. The generated files contain source material and remain outside Git.
 
@@ -31,3 +43,9 @@ The five-recipe export passed 15 checks, including execution and a repeat execut
 | 21 | Homemade Chicago-Style Deep Dish Pizza | 8 | 6 | 1 |
 
 The local application database was not changed. Existing recipes were not updated. The Kroger bookmark remains unimported because authoritative recipe content could not be recovered; no substitute was invented. The import result screenshot and source artifacts remain in the ignored `generated/` directory.
+
+## Hosted photo archive, 2026-10-09
+
+Downloaded and uploaded 15 verified source-image files. Migrated all 23 external photo records to coffeybean.com; two existing hosted illustrations remain intact. All 25 photo records across 13 recipes retain their IDs, ordering, captions, attribution and cover selection. WordPress variants share one full-size archive file. Hosted checks confirm zero external image URLs, matching SHA-256 for all 15 uploads, and public-image CORS headers. The private before snapshot, rollback SQL, manifest and verification screenshot are under ignored `generated/photo-archive/`.
+
+Validation: `test-photo-archive.php` checks private-address rejection, authorization, concurrent-edit guards, metadata preservation, idempotence and rollback in a disposable local database; `test-hosted.php` checks hosted import behavior and rejects hotlinked photos.

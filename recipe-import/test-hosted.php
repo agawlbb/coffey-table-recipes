@@ -22,7 +22,12 @@ try {
     $config['database']['name']=$name;$pdo=database($config);
     foreach(glob('C:/xampp/htdocs/CoffeyTableRecipes/database/migrations/*.sql') as $file)foreach(explode(';',file_get_contents($file)) as $statement)if(trim($statement)!=='')$pdo->exec($statement);
     $pdo->exec("INSERT INTO households(id,name) VALUES(2,'Fixture'),(3,'Other household'); INSERT INTO users(id,firebase_uid) VALUES(6,'fixture'); INSERT INTO household_memberships(household_id,user_id,role) VALUES(2,6,'owner')");
-    $recipe=['title'=>"Chef's cake 🍰; DROP TABLE recipes;",'source_url'=>'https://example.com/cake','ingredients_original'=>['1 ¼ cups flour'], 'instructions_original'=>["Bake; let cool. It's done."], 'verified_photos'=>[['source_url'=>'https://example.com/photo.jpg','mime_type'=>'image/jpeg','width_pixels'=>120,'height_pixels'=>80]]];
+    $recipe=['title'=>"Chef's cake 🍰; DROP TABLE recipes;",'source_url'=>'https://example.com/cake','ingredients_original'=>['1 ¼ cups flour'], 'instructions_original'=>["Bake; let cool. It's done."], 'verified_photos'=>[['source_url'=>'https://coffeybean.com/CoffeyTableRecipes/media/recipe-photos/'.str_repeat('a',64).'.jpg','storage_key'=>'media/recipe-photos/'.str_repeat('a',64).'.jpg','mime_type'=>'image/jpeg','width_pixels'=>120,'height_pixels'=>80]]];
+    $recipe['author']=[['name'=>'Fixture author']];
+    $hotlinked=$recipe;
+    $hotlinked['verified_photos'][0]['source_url']='https://example.com/photo.jpg';
+    try {HostedImport::sql([$hotlinked],2,6);throw new RuntimeException('Hotlink accepted');}
+    catch(RuntimeException $error){checkHosted(str_contains($error->getMessage(),'downloaded and archived'),'External images cannot be imported as hotlinks');}
     $run=function(string $sql)use($pdo){foreach(explode(';',$sql) as $statement)if(trim($statement)!==''){$query=$pdo->query($statement);$query->closeCursor();}};
     $run(HostedImport::sql([$recipe],3,6));
     checkHosted((int)$pdo->query('SELECT COUNT(*) FROM recipes')->fetchColumn()===0,'Unauthorized destination has no writes');
@@ -31,6 +36,8 @@ try {
     checkHosted($pdo->query('SELECT instruction FROM recipe_steps')->fetchColumn()===$recipe['instructions_original'][0],'Instruction preservation');
     checkHosted((int)$pdo->query('SELECT quantity_numerator FROM recipe_ingredients')->fetchColumn()===5,'Exact fraction stored');
     checkHosted((int)$pdo->query('SELECT SUM(is_cover) FROM recipe_photos')->fetchColumn()===1,'Validated source cover');
+    checkHosted($pdo->query('SELECT attribution FROM recipe_photos')->fetchColumn()==='Fixture author','Structured source author retained as attribution');
+    checkHosted($pdo->query('SELECT storage_key FROM recipe_photos')->fetchColumn()===$recipe['verified_photos'][0]['storage_key'],'Archived storage key retained');
     $pdo->exec("UPDATE recipes SET title='User edit'");
     $run(HostedImport::sql([$recipe],2,6));
     checkHosted((int)$pdo->query('SELECT COUNT(*) FROM recipes')->fetchColumn()===1 && $pdo->query('SELECT title FROM recipes')->fetchColumn()==='User edit','Idempotency preserves user edits');

@@ -62,12 +62,17 @@ final class HostedImport
         if ($household<1 || $user<1 || !$recipes) throw new RuntimeException('Explicit destination and recipes required');
         $out=["SET NAMES utf8mb4;", "SET @recipe_import_allowed=(SELECT COUNT(*) FROM households h JOIN household_memberships m ON m.household_id=h.id JOIN users u ON u.id=m.user_id WHERE h.id=$household AND m.user_id=$user AND m.role IN ('owner','admin') AND u.disabled=0);", 'START TRANSACTION;'];
         foreach ($recipes as $recipe) {
+            $author=$recipe['author']??null;
+            if(is_array($author)) {
+                $authors=isset($author['name'])?[$author]:$author;
+                $author=implode(', ',array_filter(array_map(static fn($a)=>is_string($a)?$a:(is_array($a)?($a['name']??''):''),$authors)));
+            }
             if (empty($recipe['title']) || empty($recipe['ingredients_original']) || empty($recipe['instructions_original']) || !filter_var($recipe['source_url']??'',FILTER_VALIDATE_URL)) throw new RuntimeException('Incomplete recipe');
             $key=self::literal(hash('sha256',$recipe['source_url']));
             $out[]="SET @recipe_import_new=(@recipe_import_allowed=1 AND NOT EXISTS(SELECT 1 FROM recipes WHERE household_id=$household AND (import_key=$key OR source_url=".self::literal($recipe['source_url']).")));";
             $out[]=self::insert('recipes',[
                 'household_id'=>$household,'title'=>$recipe['title'],'original_language'=>'en','measurement_system'=>'unspecified',
-                'source_type'=>'bookmark_'.($recipe['extraction_type']??'jsonld'),'source_url'=>$recipe['source_url'],'source_title'=>$recipe['title'],'source_author'=>$recipe['author']??null,
+                'source_type'=>'bookmark_'.($recipe['extraction_type']??'jsonld'),'source_url'=>$recipe['source_url'],'source_title'=>$recipe['title'],'source_author'=>$author,
                 'source_reference'=>$recipe['bookmark_url']??$recipe['source_url'],'source_text'=>json_encode($recipe,JSON_UNESCAPED_UNICODE|JSON_THROW_ON_ERROR),
                 'import_key'=>hash('sha256',$recipe['source_url']),'yield_text'=>RecipeImportTools::yieldValue($recipe['yield']??null,$recipe['instructions_original'],$recipe['source_url']),
                 'prep_minutes'=>self::minutes($recipe['prep_time']??null),'cook_minutes'=>self::minutes($recipe['cook_time']??null),'total_minutes'=>self::minutes($recipe['total_time']??null),
@@ -81,7 +86,15 @@ final class HostedImport
                 if ($kind==='category' && RecipeImportTools::excludedCategory($recipe['source_url'],$label)) continue;
                 $out[]=self::insert('recipe_tags',['household_id'=>$household,'recipe_id'=>0,'kind'=>$kind,'label'=>$label]);
             }
-            foreach (RecipeImportTools::pendingPhotos([], $recipe['verified_photos']??[], $recipe['author']??parse_url($recipe['source_url'],PHP_URL_HOST)) as $photo) $out[]=self::insert('recipe_photos',['household_id'=>$household,'recipe_id'=>0]+$photo);
+            $archived=$recipe['verified_photos']??[];
+            foreach($archived as $asset) {
+                $key=$asset['storage_key']??'';
+                if(!preg_match('~^media/recipe-photos/[a-f0-9]{64}\.(jpg|png|webp|gif)$~D',$key) || $asset['source_url']!=='https://coffeybean.com/CoffeyTableRecipes/'.$key) throw new RuntimeException('Photo must be downloaded and archived before hosted import');
+            }
+            foreach (RecipeImportTools::pendingPhotos([], $archived, $author?:parse_url($recipe['source_url'],PHP_URL_HOST)) as $photo) {
+                foreach($archived as $asset) if($asset['source_url']===$photo['source_url']) $photo['storage_key']=$asset['storage_key'];
+                $out[]=self::insert('recipe_photos',['household_id'=>$household,'recipe_id'=>0]+$photo);
+            }
         }
         $out[]='COMMIT;';
         $out[]="SELECT @recipe_import_allowed AS authorized_destination;";

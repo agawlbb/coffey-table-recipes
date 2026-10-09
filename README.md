@@ -43,3 +43,5 @@ The signed-in home opens directly to recipe search and the collection. The app b
 On mouse-only web devices, scrollable lists and photo strips use persistent, slim 7-pixel scrollbars with a muted olive thumb and no visible track. Drag the thumb or click its track area to navigate. Browsers reporting touch capability (including hybrid laptops) hide the bars and retain swipe scrolling. Native mobile scrolling is unchanged.
 
 Recipe detail photos fit completely inside a frame no taller than 240 pixels or 30% of the viewport height. Distinct photos have previous/next buttons; WordPress size variants of the same photo display only once, with the selected cover retained. Orange Chicken's original and three resized variants therefore appear as one photo. Stored source references are preserved.
+
+Imported recipe photos are downloaded and served from coffeybean.com under `CoffeyTableRecipes/media/recipe-photos/`. Photo records use the hosted URL and storage key; publisher URLs remain in the private import archive for provenance. See `recipe-import/HOSTED_IMPORT.md` for the archive and upload workflow.
