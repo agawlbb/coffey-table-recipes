@@ -31,7 +31,7 @@ void main() {
     expect(photos, hasLength(2));
   });
   for (final height in [400.0, 900.0]) {
-    testWidgets('photo is cropped inside viewport-bounded frame at $height', (
+    testWidgets('whole photo fits inside viewport-bounded frame at $height', (
       tester,
     ) async {
       tester.view.physicalSize = Size(360, height);
@@ -54,6 +54,10 @@ void main() {
       expect(
         tester.getSize(find.byType(PageView)).height,
         lessThanOrEqualTo(height * .3),
+      );
+      expect(
+        tester.widget<RecipePhoto>(find.byType(RecipePhoto).first).fit,
+        BoxFit.contain,
       );
       await tester.tap(find.byTooltip('Next photo'));
       await tester.pumpAndSettle();

@@ -411,7 +411,8 @@ class _RecipeBrowserState extends State<RecipeBrowser> {
 }
 
 class RecipePhoto extends StatelessWidget {
-  const RecipePhoto({super.key, this.url});
+  const RecipePhoto({super.key, this.url, this.fit = BoxFit.cover});
+  final BoxFit fit;
   final String? url;
   @override
   Widget build(BuildContext context) {
@@ -427,7 +428,7 @@ class RecipePhoto extends StatelessWidget {
     }
     return Image.network(
       url!,
-      fit: BoxFit.cover,
+      fit: fit,
       errorBuilder: (_, error, stack) => placeholder,
     );
   }
@@ -822,6 +823,7 @@ class _RecipePhotoGalleryState extends State<RecipePhotoGallery> {
               itemBuilder: (context, index) => SizedBox.expand(
                 child: RecipePhoto(
                   url: widget.photos[index]['source_url'] as String?,
+                  fit: BoxFit.contain,
                 ),
               ),
             ),
