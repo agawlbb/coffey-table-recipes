@@ -4,12 +4,7 @@ import 'package:flutter/foundation.dart';
 
 import 'package:http/http.dart' as http;
 
-import 'debug_host.dart';
-
-String get apiBaseUrl =>
-    (debugHostEnabled ? debugApiOverride.value : null) ?? defaultApiBaseUrl;
-
-final defaultApiBaseUrl = resolveApiBaseUrl(
+final apiBaseUrl = resolveApiBaseUrl(
   isWeb: kIsWeb,
   pageUrl: kIsWeb ? Uri.base : null,
   override: const String.fromEnvironment('API_BASE_URL'),

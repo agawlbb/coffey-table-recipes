@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 
 import 'api.dart';
 import 'account_panel.dart';
-import 'debug_host.dart';
 
 class CoffeyTableApp extends StatelessWidget {
   const CoffeyTableApp({
@@ -13,59 +12,55 @@ class CoffeyTableApp extends StatelessWidget {
   final bool authConfigured;
   final String? initializationError;
   @override
-  Widget build(BuildContext context) => ValueListenableBuilder<String?>(
-    valueListenable: debugApiOverride,
-    builder: (context, value, child) => MaterialApp(
-      key: ValueKey(apiBaseUrl),
-      title: 'Coffey Table Recipes',
-      debugShowCheckedModeBanner: false,
-      builder: (context, child) =>
-          MouseRegion(cursor: SystemMouseCursors.basic, child: child!),
-      theme: ThemeData(
-        useMaterial3: true,
-        colorScheme:
-            ColorScheme.fromSeed(
-              seedColor: const Color(0xff465334),
-              surface: const Color(0xfffff9ee),
-            ).copyWith(
-              primary: const Color(0xff465334),
-              onPrimary: const Color(0xfffff9ee),
-              secondary: const Color(0xffa55d24),
-              onSurface: const Color(0xff3b2416),
-            ),
-        scaffoldBackgroundColor: const Color(0xfff5eddf),
-        appBarTheme: const AppBarTheme(
-          backgroundColor: Color(0xfff5eddf),
-          foregroundColor: Color(0xff465334),
-          elevation: 0,
+  Widget build(BuildContext context) => MaterialApp(
+    title: 'Coffey Table Recipes',
+    debugShowCheckedModeBanner: false,
+    builder: (context, child) =>
+        MouseRegion(cursor: SystemMouseCursors.basic, child: child!),
+    theme: ThemeData(
+      useMaterial3: true,
+      colorScheme:
+          ColorScheme.fromSeed(
+            seedColor: const Color(0xff465334),
+            surface: const Color(0xfffff9ee),
+          ).copyWith(
+            primary: const Color(0xff465334),
+            onPrimary: const Color(0xfffff9ee),
+            secondary: const Color(0xffa55d24),
+            onSurface: const Color(0xff3b2416),
+          ),
+      scaffoldBackgroundColor: const Color(0xfff5eddf),
+      appBarTheme: const AppBarTheme(
+        backgroundColor: Color(0xfff5eddf),
+        foregroundColor: Color(0xff465334),
+        elevation: 0,
+      ),
+      cardTheme: CardThemeData(
+        elevation: 0,
+        color: const Color(0xfffff9ee),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(24),
+          side: const BorderSide(color: Color(0xffdfd1bb)),
         ),
-        cardTheme: CardThemeData(
-          elevation: 0,
-          color: const Color(0xfffff9ee),
+      ),
+      inputDecorationTheme: InputDecorationTheme(
+        filled: true,
+        fillColor: const Color(0xfff7f0e4),
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(14)),
+        contentPadding: const EdgeInsets.all(18),
+      ),
+      filledButtonTheme: FilledButtonThemeData(
+        style: FilledButton.styleFrom(
+          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 18),
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(24),
-            side: const BorderSide(color: Color(0xffdfd1bb)),
-          ),
-        ),
-        inputDecorationTheme: InputDecorationTheme(
-          filled: true,
-          fillColor: const Color(0xfff7f0e4),
-          border: OutlineInputBorder(borderRadius: BorderRadius.circular(14)),
-          contentPadding: const EdgeInsets.all(18),
-        ),
-        filledButtonTheme: FilledButtonThemeData(
-          style: FilledButton.styleFrom(
-            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 18),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(14),
-            ),
+            borderRadius: BorderRadius.circular(14),
           ),
         ),
       ),
-      home: MealPlanHome(
-        authConfigured: authConfigured,
-        initializationError: initializationError,
-      ),
+    ),
+    home: MealPlanHome(
+      authConfigured: authConfigured,
+      initializationError: initializationError,
     ),
   );
 }
@@ -121,7 +116,6 @@ class _MealPlanHomeState extends State<MealPlanHome> {
         child: ListView(
           padding: const EdgeInsets.all(24),
           children: [
-            if (debugHostEnabled) DebugHostPanel(currentUrl: apiBaseUrl),
             const TableWelcomeBanner(),
             const SizedBox(height: 24),
             AccountPanel(
