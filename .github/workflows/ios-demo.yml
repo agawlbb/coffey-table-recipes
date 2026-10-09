@@ -1,0 +1,39 @@
+name: iOS demonstration IPA
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  ios:
+    runs-on: macos-15
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install pinned Flutter
+        run: |
+          git clone --depth 1 --branch 3.47.6 https://github.com/flutter/flutter.git "$RUNNER_TEMP/flutter"
+          echo "$RUNNER_TEMP/flutter/bin" >> "$GITHUB_PATH"
+      - name: Restore private Firebase build configuration
+        env:
+          FIREBASE_CONFIG: ${{ secrets.FIREBASE_CONFIG_JSON }}
+        run: |
+          test -n "$FIREBASE_CONFIG" || { echo 'FIREBASE_CONFIG_JSON repository secret is required'; exit 1; }
+          printf '%s' "$FIREBASE_CONFIG" > "$RUNNER_TEMP/firebase.json"
+      - run: flutter pub get
+      - run: flutter analyze
+      - run: flutter test
+      - name: Build unsigned iOS app
+        run: flutter build ios --release --no-codesign --dart-define-from-file="$RUNNER_TEMP/firebase.json"
+      - name: Package IPA for later Sideloadly signing
+        run: |
+          mkdir -p build/ios/package/Payload
+          cp -R build/ios/iphoneos/Runner.app build/ios/package/Payload/
+          cd build/ios/package
+          zip -qry ../CoffeyTableRecipes-unsigned.ipa Payload
+      - uses: actions/upload-artifact@v4
+        with:
+          name: CoffeyTableRecipes-iOS-unsigned-${{ github.ref_name }}
+          path: build/ios/CoffeyTableRecipes-unsigned.ipa
+          retention-days: 30

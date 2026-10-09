@@ -1,7 +1,7 @@
 # Hosted testing deployment
 
 The default API for Android and web is `https://coffeybean.com/CoffeyTableRecipes/api/v1`.
-Only the backend is deployed to coffeybean.com. The web app remains in local XAMPP.
+The 0.1.0 demonstration publishes the web app to `/CoffeyTableRecipes/app/`, reached through `/CoffeyTableRecipes/`. The local XAMPP copy remains available.
 Android needs only internet access; a locally served web page still needs access to the laptop that serves it.
 
 ## Local copies
