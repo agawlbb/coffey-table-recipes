@@ -4,14 +4,14 @@ Flutter client for Android, iOS, and responsive web. The PHP API lives in `C:\xa
 
 ## Run locally
 
-Start Apache and MySQL in XAMPP.
+The app defaults to https://coffeybean.com/CoffeyTableRecipes/api/v1 on every platform. The local PHP project and database remain available in XAMPP.
 
 ```powershell
 flutter run -d emulator-5554
 flutter run -d chrome --web-port=8080 --dart-define=API_BASE_URL=http://localhost/CoffeyTableRecipes/api/v1
 ```
 
-Android emulator uses `http://10.0.2.2/CoffeyTableRecipes/api/v1`; published web uses `/CoffeyTableRecipes/api/v1` on the page's origin (host, scheme, and port), allowing phones to reach the laptop backend. The development command above overrides the API to Apache on port 80.
+The first command uses the hosted backend. The second explicitly selects local Apache on port 80; start Apache and MySQL before using that override.
 
 Override the address with `--dart-define=API_BASE_URL=https://your-host.example/api/v1`. Physical Android devices require the computer's reachable LAN address. Android debug builds allow local HTTP; deployed builds should use HTTPS.
 
@@ -34,7 +34,7 @@ Android and web can be built here. iOS source is included; building and signing 
 Run tool/publish-local-web.ps1 to build and copy the web app into the XAMPP app directory. Then open http://localhost/CoffeyTableRecipes/. This build works while Apache is running, without the Flutter development server. Republish after source changes.
 
 
-For a phone connected through a hotspot or local Wi-Fi, open http://<laptop-IP>/CoffeyTableRecipes/app/. The published app uses that host for both health checks and authenticated API requests. Republish if the laptop code changes; no rebuild is needed just because its IP changes.
+For a phone connected through a hotspot or local Wi-Fi, open http://<laptop-IP>/CoffeyTableRecipes/app/. The page is served by the laptop, while health checks and authenticated requests use the hosted API. Republish after app source changes.
 
 ## Home screen design
 

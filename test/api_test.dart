@@ -4,31 +4,15 @@ import 'package:http/testing.dart';
 import 'package:coffey_table_recipes/src/api.dart';
 
 void main() {
-  test('web API follows the page origin, including scheme and port', () {
+  test('all platforms default to the hosted HTTPS API', () {
     expect(
-      resolveApiBaseUrl(
-        isWeb: true,
-        pageUrl: Uri.parse('http://172.20.10.2/CoffeyTableRecipes/app/'),
-      ),
-      'http://172.20.10.2/CoffeyTableRecipes/api/v1',
-    );
-    expect(
-      resolveApiBaseUrl(
-        isWeb: true,
-        pageUrl: Uri.parse(
-          'https://recipes.example:8443/CoffeyTableRecipes/app/',
-        ),
-      ),
-      'https://recipes.example:8443/CoffeyTableRecipes/api/v1',
+      resolveApiBaseUrl(),
+      'https://coffeybean.com/CoffeyTableRecipes/api/v1',
     );
   });
-  test('explicit API override and Android emulator default are preserved', () {
+  test('an explicit API override supports local development', () {
     expect(
-      resolveApiBaseUrl(isWeb: true, override: 'https://api.example/api/v1'),
-      'https://api.example/api/v1',
-    );
-    expect(
-      resolveApiBaseUrl(isWeb: false),
+      resolveApiBaseUrl(override: 'http://10.0.2.2/CoffeyTableRecipes/api/v1'),
       'http://10.0.2.2/CoffeyTableRecipes/api/v1',
     );
   });

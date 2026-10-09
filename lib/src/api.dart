@@ -1,24 +1,14 @@
 import 'dart:convert';
 
-import 'package:flutter/foundation.dart';
-
 import 'package:http/http.dart' as http;
 
 final apiBaseUrl = resolveApiBaseUrl(
-  isWeb: kIsWeb,
-  pageUrl: kIsWeb ? Uri.base : null,
   override: const String.fromEnvironment('API_BASE_URL'),
 );
 
-String resolveApiBaseUrl({
-  required bool isWeb,
-  Uri? pageUrl,
-  String override = '',
-}) {
+String resolveApiBaseUrl({String override = ''}) {
   if (override.isNotEmpty) return override;
-  return isWeb
-      ? pageUrl!.resolve('/CoffeyTableRecipes/api/v1').toString()
-      : 'http://10.0.2.2/CoffeyTableRecipes/api/v1';
+  return 'https://coffeybean.com/CoffeyTableRecipes/api/v1';
 }
 
 class RecipeApi {
