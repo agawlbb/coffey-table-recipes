@@ -5,6 +5,8 @@
 # Local recipe source material and generated import review files
 /recipe-import/*.json
 /recipe-import/review.html
+/recipe-import/source-pages/
+/recipe-import/generated/
 /config/*.local.json
 /android/app/google-services.json
 /ios/Runner/GoogleService-Info.plist
