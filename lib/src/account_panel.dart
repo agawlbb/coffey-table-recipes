@@ -384,14 +384,11 @@ class _HouseholdPanelState extends State<HouseholdPanel> {
                 ListTile(
                   contentPadding: EdgeInsets.zero,
                   leading: person['user_id'] != null
-                      ? Tooltip(
-                          message: 'Has a login account',
-                          child: Icon(
-                            Icons.verified_user,
-                            color: Theme.of(context).colorScheme.primary,
-                          ),
+                      ? Icon(
+                          Icons.account_circle,
+                          color: Theme.of(context).colorScheme.primary,
                         )
-                      : const Icon(Icons.person_outline),
+                      : const SizedBox(width: 24),
                   title: Text(person['display_name'] as String),
                   trailing: person['user_id'] == null
                       ? IconButton(

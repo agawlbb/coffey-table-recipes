@@ -61,7 +61,8 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.text('Alex'), findsOneWidget);
       expect(find.text('Sam'), findsOneWidget);
-      expect(find.byTooltip('Has a login account'), findsOneWidget);
+      expect(find.byIcon(Icons.account_circle), findsOneWidget);
+      expect(find.byTooltip('Has a login account'), findsNothing);
       await tester.tap(find.byTooltip('Invite to join (coming later)'));
       await tester.pumpAndSettle();
       expect(find.text('Invitations are coming later.'), findsOneWidget);
