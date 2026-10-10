@@ -100,7 +100,11 @@ class _AdministrationPageState extends State<AdministrationPage> {
     });
     try {
       await widget.request(
-        '/admin/${person ? 'people' : 'users'}/${user['id']}/delete',
+        '/admin/${person
+            ? 'people'
+            : user['firebase_only'] == true
+            ? 'firebase'
+            : 'users'}/${user['firebase_only'] == true ? Uri.encodeComponent(user['firebase_uid'] as String) : user['id']}/delete',
         body: {'confirm': true},
       );
       if (!mounted) return;

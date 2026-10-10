@@ -21,6 +21,30 @@ class PendingUser extends TestUser {
 }
 
 void main() {
+  testWidgets('unverified account registers once without sending email', (
+    tester,
+  ) async {
+    final user = PendingUser('registration-before-verification');
+    var registrations = 0;
+    await tester.pumpWidget(
+      MaterialApp(
+        home: EmailVerificationScreen(
+          user: user,
+          refresh: () async {},
+          signOut: () async {},
+          registerAccount: () async {
+            registrations++;
+          },
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.pump(const Duration(seconds: 10));
+    expect(registrations, 1);
+    expect(user.sends, 0);
+    await tester.pumpWidget(const SizedBox());
+  });
+
   testWidgets('signup send failure is visible without sending again', (
     tester,
   ) async {

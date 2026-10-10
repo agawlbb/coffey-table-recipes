@@ -12,10 +12,12 @@ class EmailVerificationScreen extends StatefulWidget {
     required this.user,
     required this.refresh,
     required this.signOut,
+    this.registerAccount,
   });
   final User user;
   final Future<void> Function() refresh;
   final Future<void> Function() signOut;
+  final Future<void> Function()? registerAccount;
 
   @override
   State<EmailVerificationScreen> createState() =>
@@ -29,6 +31,8 @@ class _EmailVerificationScreenState extends State<EmailVerificationScreen>
   bool _checking = false;
   String? _message;
   Future<void>? _observedAttempt;
+  String? _registrationError;
+  bool _registering = false;
 
   @override
   void initState() {
@@ -38,6 +42,26 @@ class _EmailVerificationScreenState extends State<EmailVerificationScreen>
     _refresh();
     InvitationVerification.changes.addListener(_signupAttemptChanged);
     _signupAttemptChanged();
+    _registerAccount();
+  }
+
+  Future<void> _registerAccount() async {
+    if (_registering || widget.registerAccount == null) return;
+    setState(() {
+      _registering = true;
+      _registrationError = null;
+    });
+    try {
+      await widget.registerAccount!();
+    } catch (_) {
+      if (mounted) {
+        setState(
+          () => _registrationError = 'Your login account was created, but could not be registered with the recipe service. Retry to finish account setup.',
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _registering = false);
+    }
   }
 
   void _signupAttemptChanged() {
@@ -146,6 +170,14 @@ class _EmailVerificationScreenState extends State<EmailVerificationScreen>
                   const Text(
                     'Return here after verifying. This screen will continue automatically once your email is verified.',
                   ),
+                  if (_registrationError != null) ...[
+                    const SizedBox(height: 16),
+                    Text(_registrationError!),
+                    TextButton(
+                      onPressed: _registering ? null : _registerAccount,
+                      child: const Text('Retry account setup'),
+                    ),
+                  ],
                   if (_message != null) ...[
                     const SizedBox(height: 16),
                     Text(_message!),

@@ -90,6 +90,15 @@ class _AccountPanelState extends State<AccountPanel> {
                   await current!.getIdToken(true);
                 }
               },
+              registerAccount: () async {
+                final api = RecipeApi(baseUrl: apiBaseUrl);
+                try {
+                  final token = await user.getIdToken(true);
+                  await api.request('/me', token!);
+                } finally {
+                  api.close();
+                }
+              },
               signOut: FirebaseAuth.instance.signOut,
             );
           }
