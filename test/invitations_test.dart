@@ -3,12 +3,56 @@ import 'dart:async';
 import 'package:coffey_table_recipes/src/account_panel.dart';
 import 'package:coffey_table_recipes/src/api.dart';
 import 'package:coffey_table_recipes/src/invitation_dialogs.dart';
+import 'package:coffey_table_recipes/src/invitation_entry.dart';
+import 'package:coffey_table_recipes/src/email_access.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'home_design_test.dart' show TestUser;
 
+class VerificationUser extends TestUser {
+  ActionCodeSettings? settings;
+  int sends = 0;
+  @override
+  String get uid => 'verification-test';
+  @override
+  Future<void> sendEmailVerification([
+    ActionCodeSettings? actionCodeSettings,
+  ]) async {
+    sends++;
+    settings = actionCodeSettings;
+  }
+}
+
 void main() {
+  testWidgets('invitation entry selects signup and prefills email', (
+    tester,
+  ) async {
+    final entry = InvitationEntry(
+      Uri.parse(
+        'https://coffeybean.com/CoffeyTableRecipes/app/?account=create&email=val%2Btest%40example.test',
+      ),
+    );
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: EmailAccess(
+            initialEmail: entry.email,
+            register: entry.register,
+          ),
+        ),
+      ),
+    );
+    expect(find.widgetWithText(TextFormField, 'Your name'), findsOneWidget);
+    expect(find.text('val+test@example.test'), findsOneWidget);
+    final returned = InvitationEntry(
+      Uri.parse(InvitationEntry.verificationReturnUrl(entry.email)),
+    );
+    expect(returned.signIn, isTrue);
+    expect(returned.register, isFalse);
+    expect(returned.email, entry.email);
+  });
   testWidgets('accept failure stays visible and retry cannot submit twice', (
     tester,
   ) async {
@@ -194,10 +238,11 @@ void main() {
   testWidgets('unverified invitee is prompted to verify before membership', (
     tester,
   ) async {
+    final user = VerificationUser();
     await tester.pumpWidget(
       MaterialApp(
         home: HouseholdPanel(
-          user: TestUser(),
+          user: user,
           request: (path, {body}) async => {
             'households': [],
             'invitations': [],
@@ -208,7 +253,10 @@ void main() {
     );
     await tester.pumpAndSettle();
     expect(find.text('You have a household invitation'), findsOneWidget);
-    expect(find.text('Send verification email'), findsOneWidget);
+    expect(find.text('Resend verification email'), findsOneWidget);
+    expect(user.sends, 1);
+    expect(Uri.parse(user.settings!.url!).queryParameters['email'], user.email);
+    expect(find.textContaining('Verification email sent.'), findsOneWidget);
     expect(find.text('Accept'), findsNothing);
     await tester.tap(find.text('Later'));
     await tester.pumpAndSettle();

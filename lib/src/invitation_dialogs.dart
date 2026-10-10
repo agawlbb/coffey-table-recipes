@@ -2,6 +2,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
 import 'api.dart';
+import 'invitation_entry.dart';
 
 String _errorMessage(Object error) => error is ApiException
     ? error.message
@@ -187,7 +188,13 @@ class _InvitationVerificationDialogState
     extends State<InvitationVerificationDialog> {
   bool _busy = false;
   String? _message;
-  Future<void> _verify({required bool check}) async {
+  @override
+  void initState() {
+    super.initState();
+    _verify(check: false, automatic: true);
+  }
+
+  Future<void> _verify({required bool check, bool automatic = false}) async {
     setState(() {
       _busy = true;
       _message = null;
@@ -207,7 +214,7 @@ class _InvitationVerificationDialogState
           );
         }
       } else {
-        await widget.user.sendEmailVerification();
+        await InvitationVerification.send(widget.user, resend: !automatic);
         if (mounted) {
           setState(
             () => _message =
@@ -246,7 +253,7 @@ class _InvitationVerificationDialogState
       ),
       TextButton(
         onPressed: _busy ? null : () => _verify(check: false),
-        child: const Text('Send verification email'),
+        child: const Text('Resend verification email'),
       ),
       FilledButton(
         onPressed: _busy ? null : () => _verify(check: true),

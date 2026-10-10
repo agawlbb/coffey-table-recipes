@@ -6,6 +6,7 @@ import 'api.dart';
 import 'auth.dart';
 import 'email_access.dart';
 import 'invitation_dialogs.dart';
+import 'invitation_entry.dart';
 import 'recipe_browser.dart';
 
 class AccountPanel extends StatefulWidget {
@@ -21,7 +22,8 @@ class AccountPanel extends StatefulWidget {
 }
 
 class _AccountPanelState extends State<AccountPanel> {
-  bool _showLogin = false;
+  late final InvitationEntry _entry = InvitationEntry(Uri.base);
+  late bool _showLogin = _entry.register || _entry.signIn;
   bool _busy = false;
   String? _error;
   late final Stream<User?>? _authChanges = widget.configured
@@ -92,7 +94,10 @@ class _AccountPanelState extends State<AccountPanel> {
                   'Sign in to bring your household’s recipes and dinner plans together.',
                 ),
                 const SizedBox(height: 20),
-                const EmailAccess(),
+                EmailAccess(
+                  initialEmail: _entry.email,
+                  register: _entry.register,
+                ),
                 const SizedBox(height: 12),
                 OutlinedButton.icon(
                   onPressed: _busy ? null : _signIn,
@@ -361,6 +366,10 @@ class _HouseholdPanelState extends State<HouseholdPanel> {
 
   Future<void> _load({bool reviewInvitations = true}) async {
     await _perform(() async {
+      if (widget.request == null && _entryReturnedFromVerification) {
+        await widget.user.reload();
+        await widget.user.getIdToken(true);
+      }
       final data = await _request('/me');
       _userId = (data['user'] as Map?)?['id'] as String?;
       final households = List<Map<String, dynamic>>.from(
@@ -384,6 +393,9 @@ class _HouseholdPanelState extends State<HouseholdPanel> {
       await _reviewInvitations();
     }
   }
+
+  bool get _entryReturnedFromVerification =>
+      kIsWeb && Uri.base.queryParameters['account'] == 'signin';
 
   Future<void> _reviewInvitations() async {
     if (_reviewingInvitations) return;

@@ -1,11 +1,16 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+
+import 'invitation_entry.dart';
+
 import 'package:flutter/services.dart';
 
 enum EmailAccessMode { signIn, register }
 
 class EmailAccess extends StatefulWidget {
-  const EmailAccess({super.key});
+  const EmailAccess({super.key, this.initialEmail = '', this.register = false});
+  final String initialEmail;
+  final bool register;
   @override
   State<EmailAccess> createState() => _EmailAccessState();
 }
@@ -20,6 +25,13 @@ class _EmailAccessState extends State<EmailAccess> {
   bool _busy = false;
   String? _message;
   bool _success = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _email.text = widget.initialEmail;
+    _mode = widget.register ? EmailAccessMode.register : EmailAccessMode.signIn;
+  }
 
   @override
   void dispose() {
@@ -72,6 +84,7 @@ class _EmailAccessState extends State<EmailAccess> {
           email: email,
           password: _password.text,
         );
+        await InvitationVerification.send(result.user!);
         await result.user!.updateDisplayName(_name.text.trim());
         await result.user!.getIdToken(true);
       }
