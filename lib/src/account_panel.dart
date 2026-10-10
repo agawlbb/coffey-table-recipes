@@ -383,27 +383,28 @@ class _HouseholdPanelState extends State<HouseholdPanel> {
               for (final person in _people)
                 ListTile(
                   contentPadding: EdgeInsets.zero,
-                  leading: person['user_id'] != null
-                      ? Icon(
-                          Icons.account_circle,
-                          color: Theme.of(context).colorScheme.primary,
-                        )
-                      : const SizedBox(width: 24),
-                  title: Text(person['display_name'] as String),
-                  trailing: person['user_id'] == null
-                      ? IconButton(
-                          tooltip: 'Invite to join (coming later)',
-                          icon: const Icon(Icons.mail_outline),
-                          onPressed: () => ScaffoldMessenger.of(context)
-                              .showSnackBar(
-                                const SnackBar(
-                                  content: Text(
-                                    'Invitations are coming later.',
+                  leading: SizedBox(
+                    width: 48,
+                    height: 48,
+                    child: person['user_id'] != null
+                        ? Icon(
+                            Icons.account_circle,
+                            color: Theme.of(context).colorScheme.primary,
+                          )
+                        : IconButton(
+                            tooltip: 'Invite to join (coming later)',
+                            icon: const Icon(Icons.mail_outline),
+                            onPressed: () => ScaffoldMessenger.of(context)
+                                .showSnackBar(
+                                  const SnackBar(
+                                    content: Text(
+                                      'Invitations are coming later.',
+                                    ),
                                   ),
                                 ),
-                              ),
-                        )
-                      : null,
+                          ),
+                  ),
+                  title: Text(person['display_name'] as String),
                 ),
               if (!_busy && _people.isEmpty)
                 const Text('No people have been added yet.'),
