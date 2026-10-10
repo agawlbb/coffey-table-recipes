@@ -168,7 +168,6 @@ class _HouseholdPanelState extends State<HouseholdPanel> {
   final _api = RecipeApi(baseUrl: apiBaseUrl);
   final _householdName = TextEditingController();
   final _personName = TextEditingController();
-  final _newPerson = TextEditingController();
   List<Map<String, dynamic>> _households = [];
   List<Map<String, dynamic>> _people = [];
   String? _selected;
@@ -188,7 +187,6 @@ class _HouseholdPanelState extends State<HouseholdPanel> {
     _api.close();
     _householdName.dispose();
     _personName.dispose();
-    _newPerson.dispose();
     super.dispose();
   }
 
@@ -242,6 +240,7 @@ class _HouseholdPanelState extends State<HouseholdPanel> {
     if (!_households.any((h) => h['id'] == _selected)) {
       _selected = households.isEmpty ? null : households.first['id'] as String;
     }
+    await _loadPeople();
   });
 
   Future<void> _loadPeople() async {
@@ -275,6 +274,34 @@ class _HouseholdPanelState extends State<HouseholdPanel> {
       _households.add(household);
       _selected = household['id'] as String;
       await _loadPeople();
+    });
+  }
+
+  Future<void> _editName({required bool rename}) async {
+    final household = _households.firstWhere((h) => h['id'] == _selected);
+    final name = await showDialog<String>(
+      context: context,
+      builder: (context) => _NameDialog(
+        title: rename ? 'Edit household name' : 'Add household member',
+        label: rename ? 'Household name' : 'Person name',
+        initialName: rename ? household['name'] as String : '',
+      ),
+    );
+    if (!mounted || name == null) return;
+    await _perform(() async {
+      if (rename) {
+        final data = await _request(
+          '/households/$_selected/name',
+          body: {'name': name},
+        );
+        if (mounted) household['name'] = (data['household'] as Map)['name'];
+      } else {
+        await _request(
+          '/households/$_selected/people',
+          body: {'display_name': name},
+        );
+        await _loadPeople();
+      }
     });
   }
 
@@ -332,80 +359,60 @@ class _HouseholdPanelState extends State<HouseholdPanel> {
             ],
             if (_households.isNotEmpty) ...[
               const SizedBox(height: 16),
-              DropdownButtonFormField<String>(
-                key: ValueKey(_selected),
-                initialValue: _selected,
-                isExpanded: true,
-                decoration: const InputDecoration(labelText: 'Your household'),
-                items: _households
-                    .map(
-                      (h) => DropdownMenuItem(
-                        value: h['id'] as String,
-                        child: Text(h['name'] as String),
-                      ),
-                    )
-                    .toList(),
-                onChanged: _busy
-                    ? null
-                    : (id) => _perform(() async {
-                        _selected = id;
-                        _people = [];
-                        await _loadPeople();
-                      }),
-              ),
-              const SizedBox(height: 20),
-              ExpansionTile(
-                tilePadding: EdgeInsets.zero,
-                leading: const Icon(Icons.people_outline),
-                title: const Text('People at your table'),
-                subtitle: Text('${_people.length} household members'),
+              Row(
                 children: [
-                  for (final person in _people)
-                    ListTile(
-                      contentPadding: EdgeInsets.zero,
-                      leading: const Icon(Icons.person_outline),
-                      title: Text(person['display_name'] as String),
-                      subtitle: Text(
-                        person['user_id'] == null
-                            ? 'Household person'
-                            : 'Linked login account',
-                      ),
+                  Expanded(
+                    child: Text(
+                      selected?['name'] as String? ?? '',
+                      style: Theme.of(context).textTheme.headlineSmall,
                     ),
-                  if (canAdd) ...[
-                    TextField(
-                      controller: _newPerson,
-                      // Chrome's native I-beam can disappear over this light field.
-                      mouseCursor: kIsWeb
-                          ? SystemMouseCursors.basic
-                          : SystemMouseCursors.text,
-                      maxLength: 200,
-                      enabled: !_busy,
-                      decoration: const InputDecoration(
-                        labelText: 'Add a person',
-                      ),
+                  ),
+                  if (canAdd)
+                    IconButton(
+                      tooltip: 'Edit household name',
+                      onPressed: _busy ? null : () => _editName(rename: true),
+                      icon: const Icon(Icons.edit_outlined),
                     ),
-                    OutlinedButton(
-                      onPressed: _busy
-                          ? null
-                          : () {
-                              if (_newPerson.text.trim().isEmpty) return;
-                              _perform(() async {
-                                await _request(
-                                  '/households/$_selected/people',
-                                  body: {
-                                    'display_name': _newPerson.text.trim(),
-                                  },
-                                );
-                                if (!mounted) return;
-                                _newPerson.clear();
-                                await _loadPeople();
-                              });
-                            },
-                      child: const Text('Add person'),
-                    ),
-                  ],
                 ],
               ),
+              const SizedBox(height: 20),
+              Text(
+                'People at your table',
+                style: Theme.of(context).textTheme.titleMedium,
+              ),
+              for (final person in _people)
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: const Icon(Icons.person_outline),
+                  title: Text(person['display_name'] as String),
+                  trailing: person['user_id'] != null
+                      ? const Tooltip(
+                          message: 'Has a login account',
+                          child: Icon(Icons.account_circle_outlined),
+                        )
+                      : IconButton(
+                          tooltip: 'Invite to join (coming later)',
+                          icon: const Icon(Icons.mail_outline),
+                          onPressed: () => ScaffoldMessenger.of(context)
+                              .showSnackBar(
+                                const SnackBar(
+                                  content: Text(
+                                    'Invitations are coming later.',
+                                  ),
+                                ),
+                              ),
+                        ),
+                ),
+              if (!_busy && _people.isEmpty)
+                const Text('No people have been added yet.'),
+              if (canAdd) ...[
+                const SizedBox(height: 16),
+                OutlinedButton.icon(
+                  onPressed: _busy ? null : () => _editName(rename: false),
+                  icon: const Icon(Icons.person_add_outlined),
+                  label: const Text('Add household member'),
+                ),
+              ],
             ],
           ],
         ),
@@ -531,4 +538,60 @@ class _HouseholdPanelState extends State<HouseholdPanel> {
       ),
     );
   }
+}
+
+class _NameDialog extends StatefulWidget {
+  const _NameDialog({
+    required this.title,
+    required this.label,
+    required this.initialName,
+  });
+  final String title;
+  final String label;
+  final String initialName;
+  @override
+  State<_NameDialog> createState() => _NameDialogState();
+}
+
+class _NameDialogState extends State<_NameDialog> {
+  late final _controller = TextEditingController(text: widget.initialName);
+  final _form = GlobalKey<FormState>();
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  void _save() {
+    if (_form.currentState!.validate()) {
+      Navigator.pop(context, _controller.text.trim());
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) => AlertDialog(
+    title: Text(widget.title),
+    content: Form(
+      key: _form,
+      child: TextFormField(
+        controller: _controller,
+        autofocus: true,
+        mouseCursor: kIsWeb
+            ? SystemMouseCursors.basic
+            : SystemMouseCursors.text,
+        maxLength: 200,
+        decoration: InputDecoration(labelText: widget.label),
+        validator: (value) =>
+            value == null || value.trim().isEmpty ? 'Enter a name.' : null,
+        onFieldSubmitted: (_) => _save(),
+      ),
+    ),
+    actions: [
+      TextButton(
+        onPressed: () => Navigator.pop(context),
+        child: const Text('Cancel'),
+      ),
+      FilledButton(onPressed: _save, child: const Text('Save')),
+    ],
+  );
 }

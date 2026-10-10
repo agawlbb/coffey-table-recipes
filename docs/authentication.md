@@ -52,3 +52,13 @@ Official references: [Flutter Google sign-in](https://firebase.google.com/docs/a
 The CoffeyTable Pixel 8 emulator supports computer-keyboard input with `hw.keyboard=yes` in its local AVD configuration. Restart the emulator after changing this setting, click a text field, and type using the computer keyboard. Android's `show_ime_with_hard_keyboard=0` setting keeps the software keyboard hidden when a hardware keyboard is available. No credentials are stored in project files.
 
 Source changes do not update the XAMPP copy automatically. Run `tool/publish-local-web.ps1` to rebuild with the ignored local Firebase configuration and publish the assets, then refresh Chrome at `http://localhost/CoffeyTableRecipes/app/`. Use Ctrl+Shift+R if an already-open tab still displays the previous design.
+
+## Household and people screen (2026-10-10)
+
+The app presents one household per account. Accounts without a household still use the initial setup form. Household creation rejects an account that already has a membership; the membership schema remains capable of multiple households. Legacy accounts with several memberships use the oldest household (lowest ID) and have no household selector. Existing memberships are retained.
+
+Household & people displays the household name and an always-visible people list. Owners/admins can rename the household and add people through name dialogs. Linked people have an account icon; people without accounts have an invitation icon that announces invitations are coming later. Adding a person does not create or invite a login account.
+
+Renaming uses authenticated `POST /households/{id}/name` with JSON `name`, returning `household` with `id`, `name`, and `role`. The server requires owner/admin access and validates the name. No schema migration is needed. The app continues to use coffeybean.com; the matching PHP endpoint must be deployed there before hosted rename works.
+
+Validation: Flutter widget coverage includes narrow/wide layouts, one-household presentation, visible people, account/invitation icons, name validation, renaming and adding a person. PHP tests verify creation rejection, persisted rename, permissions and household isolation while retaining the multiple-membership schema test.
