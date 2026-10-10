@@ -63,9 +63,11 @@ void main() {
       expect(find.text('Sam'), findsOneWidget);
       expect(find.byIcon(Icons.account_circle), findsOneWidget);
       expect(find.byTooltip('Has a login account'), findsNothing);
-      await tester.tap(find.byTooltip('Invite to join (coming later)'));
+      await tester.tap(find.byTooltip('Invite to household'));
       await tester.pumpAndSettle();
-      expect(find.text('Invitations are coming later.'), findsOneWidget);
+      expect(find.text('Invite Sam'), findsOneWidget);
+      await tester.tap(find.text('Cancel'));
+      await tester.pumpAndSettle();
       await tester.tap(find.byTooltip('Edit household name'));
       await tester.pumpAndSettle();
       await tester.enterText(find.byType(TextFormField), '');
@@ -83,7 +85,7 @@ void main() {
       await tester.tap(find.text('Save'));
       await tester.pumpAndSettle();
       expect(find.text('Jamie'), findsOneWidget);
-      expect(find.byTooltip('Invite to join (coming later)'), findsNWidgets(2));
+      expect(find.byTooltip('Invite to household'), findsNWidgets(2));
       expect(tester.takeException(), isNull);
     },
   );

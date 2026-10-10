@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'api.dart';
 import 'auth.dart';
 import 'email_access.dart';
+import 'invitation_dialogs.dart';
 import 'recipe_browser.dart';
 
 class AccountPanel extends StatefulWidget {
@@ -174,6 +175,9 @@ class _HouseholdPanelState extends State<HouseholdPanel> {
   String? _error;
   bool _settings = false;
   bool _busy = true;
+  List<Map<String, dynamic>> _invitations = [];
+  bool _invitationVerificationRequired = false;
+  bool _reviewingInvitations = false;
 
   @override
   void initState() {
@@ -230,18 +234,92 @@ class _HouseholdPanelState extends State<HouseholdPanel> {
     }
   }
 
-  Future<void> _load() => _perform(() async {
-    final data = await _request('/me');
-    final households = List<Map<String, dynamic>>.from(
-      data['households'] as List,
-    );
-    if (!mounted) return;
-    _households = households;
-    if (!_households.any((h) => h['id'] == _selected)) {
-      _selected = households.isEmpty ? null : households.first['id'] as String;
+  Future<void> _load({bool reviewInvitations = true}) async {
+    await _perform(() async {
+      final data = await _request('/me');
+      final households = List<Map<String, dynamic>>.from(
+        data['households'] as List,
+      );
+      if (!mounted) return;
+      _households = households;
+      _invitations = List<Map<String, dynamic>>.from(
+        data['invitations'] as List? ?? [],
+      );
+      _invitationVerificationRequired =
+          data['invitation_verification_required'] == true;
+      if (!_households.any((h) => h['id'] == _selected)) {
+        _selected = households.isEmpty
+            ? null
+            : households.first['id'] as String;
+      }
+      await _loadPeople();
+    });
+    if (mounted && _error == null && reviewInvitations) {
+      await _reviewInvitations();
     }
-    await _loadPeople();
-  });
+  }
+
+  Future<void> _reviewInvitations() async {
+    if (_reviewingInvitations) return;
+    _reviewingInvitations = true;
+    try {
+      if (_invitationVerificationRequired) {
+        final verified = await showDialog<bool>(
+          context: context,
+          barrierDismissible: false,
+          builder: (_) => InvitationVerificationDialog(user: widget.user),
+        );
+        if (verified == true && mounted) {
+          await _load(reviewInvitations: false);
+        }
+      }
+      for (final invitation in List<Map<String, dynamic>>.from(_invitations)) {
+        if (!mounted) return;
+        final accepted = await showDialog<bool>(
+          context: context,
+          barrierDismissible: false,
+          builder: (_) => InvitationResponseDialog(
+            invitation: invitation,
+            respond: (decision) async {
+              await _request(
+                '/invitations/${invitation['id']}/respond',
+                body: {'decision': decision},
+              );
+            },
+          ),
+        );
+        if (!mounted) return;
+        if (accepted == true) {
+          await _load(reviewInvitations: false);
+          return;
+        }
+        _invitations.removeWhere((item) => item['id'] == invitation['id']);
+      }
+    } finally {
+      _reviewingInvitations = false;
+    }
+  }
+
+  Future<void> _invitePerson(Map<String, dynamic> person) async {
+    final sent = await showDialog<bool>(
+      context: context,
+      builder: (_) => InvitePersonDialog(
+        personName: person['display_name'] as String,
+        send: (email) async {
+          await _request(
+            '/households/$_selected/people/${person['id']}/invitations',
+            body: {'email': email},
+          );
+        },
+      ),
+    );
+    if (mounted && sent == true) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Invitation email sent.')));
+      await _perform(_loadPeople);
+    }
+  }
 
   Future<void> _loadPeople() async {
     if (_selected == null) {
@@ -392,16 +470,13 @@ class _HouseholdPanelState extends State<HouseholdPanel> {
                             color: Theme.of(context).colorScheme.primary,
                           )
                         : IconButton(
-                            tooltip: 'Invite to join (coming later)',
+                            tooltip: person['invitation_email'] != null
+                                ? 'Invitation pending'
+                                : 'Invite to household',
                             icon: const Icon(Icons.mail_outline),
-                            onPressed: () => ScaffoldMessenger.of(context)
-                                .showSnackBar(
-                                  const SnackBar(
-                                    content: Text(
-                                      'Invitations are coming later.',
-                                    ),
-                                  ),
-                                ),
+                            onPressed: _busy || !canAdd
+                                ? null
+                                : () => _invitePerson(person),
                           ),
                   ),
                   title: Text(person['display_name'] as String),

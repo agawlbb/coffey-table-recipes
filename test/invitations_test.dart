@@ -1,0 +1,154 @@
+import 'package:coffey_table_recipes/src/account_panel.dart';
+import 'package:coffey_table_recipes/src/api.dart';
+import 'package:coffey_table_recipes/src/invitation_dialogs.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter_test/flutter_test.dart';
+
+import 'home_design_test.dart' show TestUser;
+
+void main() {
+  testWidgets(
+    'email dialog validates, shows rejection, and retries successfully',
+    (tester) async {
+      final emails = <String>[];
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Builder(
+            builder: (context) => Scaffold(
+              body: TextButton(
+                child: const Text('Invite'),
+                onPressed: () => showDialog<bool>(
+                  context: context,
+                  builder: (_) => InvitePersonDialog(
+                    personName: 'Sam',
+                    send: (email) async {
+                      emails.add(email);
+                      if (emails.length == 1) {
+                        throw ApiException(
+                          409,
+                          'This person could not be invited because their account already belongs to a household.',
+                        );
+                      }
+                    },
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.tap(find.text('Invite'));
+      await tester.pumpAndSettle();
+      await tester.enterText(find.byType(TextFormField), 'invalid');
+      await tester.tap(find.text('Send invitation'));
+      await tester.pumpAndSettle();
+      expect(find.text('Enter a valid email address.'), findsOneWidget);
+      expect(emails, isEmpty);
+      await tester.enterText(find.byType(TextFormField), ' sam@example.test ');
+      await tester.tap(find.text('Send invitation'));
+      await tester.pumpAndSettle();
+      expect(find.textContaining('could not be invited'), findsOneWidget);
+      expect(find.text('Invite Sam'), findsOneWidget);
+      await tester.tap(find.text('Send invitation'));
+      await tester.pumpAndSettle();
+      expect(emails, ['sam@example.test', 'sam@example.test']);
+      expect(find.text('Invite Sam'), findsNothing);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  for (final decision in ['Accept', 'Decline']) {
+    testWidgets('pending invitation appears at login and supports $decision', (
+      tester,
+    ) async {
+      String? response;
+      var pending = true;
+      Future<Map<String, dynamic>> request(
+        String path, {
+        Map<String, dynamic>? body,
+      }) async {
+        if (path == '/me') {
+          return {
+            'households': response == 'accept'
+                ? [
+                    {'id': '2', 'name': 'Family', 'role': 'member'},
+                  ]
+                : [],
+            'invitations': pending
+                ? [
+                    {
+                      'id': '7',
+                      'household_id': '2',
+                      'household_name': 'Family',
+                      'inviter_name': 'Alex',
+                    },
+                  ]
+                : [],
+          };
+        }
+        if (path == '/invitations/7/respond') {
+          response = body!['decision'] as String;
+          pending = false;
+          return {
+            'invitation': {
+              'id': '7',
+              'status': response == 'accept' ? 'accepted' : 'declined',
+            },
+          };
+        }
+        if (path.endsWith('/people')) return {'people': []};
+        return {
+          'recipes': [
+            {'id': '8', 'title': 'Shared soup'},
+          ],
+          'next_offset': null,
+        };
+      }
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: HouseholdPanel(user: TestUser(), request: request),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('Household invitation'), findsOneWidget);
+      expect(find.text('Alex has invited you to join Family.'), findsOneWidget);
+      await tester.tap(find.text(decision));
+      await tester.pumpAndSettle();
+      expect(response, decision.toLowerCase());
+      expect(find.text('Household invitation'), findsNothing);
+      expect(
+        find.text('Shared soup'),
+        decision == 'Accept' ? findsOneWidget : findsNothing,
+      );
+      if (decision == 'Decline') {
+        expect(find.text('Set up household'), findsOneWidget);
+      }
+      expect(tester.takeException(), isNull);
+    });
+  }
+
+  testWidgets('unverified invitee is prompted to verify before membership', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: HouseholdPanel(
+          user: TestUser(),
+          request: (path, {body}) async => {
+            'households': [],
+            'invitations': [],
+            'invitation_verification_required': true,
+          },
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('You have a household invitation'), findsOneWidget);
+    expect(find.text('Send verification email'), findsOneWidget);
+    expect(find.text('Accept'), findsNothing);
+    await tester.tap(find.text('Later'));
+    await tester.pumpAndSettle();
+    expect(tester.takeException(), isNull);
+  });
+}
