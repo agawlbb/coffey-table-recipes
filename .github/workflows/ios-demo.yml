@@ -24,6 +24,8 @@ jobs:
       - run: flutter pub get
       - run: flutter analyze
       - run: flutter test
+      - name: Configure iOS Google sign-in callback
+        run: python3 tool/configure-ios.py "$RUNNER_TEMP/firebase.json"
       - name: Build unsigned iOS app
         run: flutter build ios --release --no-codesign --dart-define-from-file="$RUNNER_TEMP/firebase.json"
       - name: Package IPA for later Sideloadly signing

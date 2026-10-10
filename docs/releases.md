@@ -13,3 +13,7 @@ The web entry is `/CoffeyTableRecipes/`, with assets in `/CoffeyTableRecipes/app
 ## 0.1.0 — initial demonstration
 
 Household authentication, recipe categories and browsing, recipe details, cooking mode and navigation breadcrumbs. Hosted backend remains selected; no database or API changes are part of this release.
+
+### iOS build 2
+
+The iOS follow-up uses `0.1.0+2` and tag `v0.1.0-ios.2`; the initial `v0.1.0` tag remains immutable. Web and Android build 1 remain the published initial demo. The iOS workflow requires its Firebase client values and inserts the Google callback URL scheme during the build, keeping local client configuration outside source control. Sideloadly signing and on-device authentication must be verified separately.
