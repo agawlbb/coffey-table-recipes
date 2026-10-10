@@ -34,7 +34,7 @@ class DeploymentTests(unittest.TestCase):
                 upload = Mock()
                 upload.json.return_value = {'status': int(success)}
                 extracted = Mock()
-                extracted.json.return_value = {'cpanelresult': {'event': {'result': 1}, 'data': [{'result': 1}]}}
+                extracted.json.return_value = {'cpanelresult': {'event': {'result': 1}, 'data': [{'result': 1, 'dest': deploy.DIRECTORY}]}}
                 session.post.side_effect = [upload, extracted]
                 public = Mock()
                 public.json.return_value = metadata

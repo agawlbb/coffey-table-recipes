@@ -9,7 +9,7 @@ import zipfile
 import requests
 
 HOST = 'https://ecngx362.inmotionhosting.com:2083'
-DIRECTORY = 'coffeybean.com/CoffeyTableRecipes'
+DIRECTORY = '/home/hosting_account/coffeybean.com/CoffeyTableRecipes'
 PUBLIC = 'https://coffeybean.com/CoffeyTableRecipes/app/'
 
 def deploy():
@@ -30,11 +30,14 @@ def deploy():
     if upload_result.get('status', upload_result.get('result', {}).get('status')) != 1:
         raise RuntimeError('cPanel upload failed; credential and response details omitted')
     print('Extracting uploaded web archive', flush=True)
-    response = session.post(HOST + '/json-api/cpanel', data={'cpanel_jsonapi_apiversion': '2', 'cpanel_jsonapi_module': 'Fileman', 'cpanel_jsonapi_func': 'fileop', 'op': 'extract', 'sourcefiles': DIRECTORY + '/' + archive.name, 'destfiles': DIRECTORY, 'doubledecode': '0'}, timeout=180)
+    response = session.post(HOST + '/json-api/cpanel', data={'cpanel_jsonapi_user': os.environ['CPANEL_USER'], 'cpanel_jsonapi_apiversion': '2', 'cpanel_jsonapi_module': 'Fileman', 'cpanel_jsonapi_func': 'fileop', 'op': 'extract', 'sourcefiles': DIRECTORY + '/' + archive.name, 'destfiles': DIRECTORY, 'doubledecode': '1'}, timeout=180)
     response.raise_for_status()
     result = response.json()['cpanelresult']
     if result.get('event', {}).get('result') != 1 or any(item.get('result') == 0 for item in result.get('data', [])):
         raise RuntimeError('cPanel extraction failed; response details omitted')
+    destinations = [item.get('dest', '') for item in result.get('data', [])]
+    if not destinations or any(path.rstrip('/') != DIRECTORY for path in destinations):
+        raise RuntimeError('cPanel did not confirm the intended extraction directory')
     print('Verifying public deployment metadata and asset hashes', flush=True)
     # Public checks use a separate unauthenticated client: never send the token to the site.
     response = requests.get(PUBLIC + 'version.json', params={'commit': expected['commit']}, timeout=60)
