@@ -57,7 +57,7 @@ Source changes do not update the XAMPP copy automatically. Run `tool/publish-loc
 
 The app presents one household per account. Accounts without a household still use the initial setup form. Household creation rejects an account that already has a membership; the membership schema remains capable of multiple households. Legacy accounts with several memberships use the oldest household (lowest ID) and have no household selector. Existing memberships are retained.
 
-Household & people displays the household name and an always-visible people list. Owners/admins can rename the household and add people through name dialogs. Linked people have an account icon; people without accounts have an invitation icon that announces invitations are coming later. Adding a person does not create or invite a login account.
+Household & people displays the household name and an always-visible people list. Owners/admins can rename the household and add people through name dialogs. Linked people have a filled shield/check account icon beside their name; people without accounts have an outlined person icon and a separate invitation button that announces invitations are coming later. The rows have no visible account-status labels. Adding a person does not create or invite a login account.
 
 Renaming uses authenticated `POST /households/{id}/name` with JSON `name`, returning `household` with `id`, `name`, and `role`. The server requires owner/admin access and validates the name. No schema migration is needed. The app continues to use coffeybean.com; the matching PHP endpoint must be deployed there before hosted rename works.
 

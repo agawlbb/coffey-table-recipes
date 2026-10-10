@@ -383,14 +383,18 @@ class _HouseholdPanelState extends State<HouseholdPanel> {
               for (final person in _people)
                 ListTile(
                   contentPadding: EdgeInsets.zero,
-                  leading: const Icon(Icons.person_outline),
-                  title: Text(person['display_name'] as String),
-                  trailing: person['user_id'] != null
-                      ? const Tooltip(
+                  leading: person['user_id'] != null
+                      ? Tooltip(
                           message: 'Has a login account',
-                          child: Icon(Icons.account_circle_outlined),
+                          child: Icon(
+                            Icons.verified_user,
+                            color: Theme.of(context).colorScheme.primary,
+                          ),
                         )
-                      : IconButton(
+                      : const Icon(Icons.person_outline),
+                  title: Text(person['display_name'] as String),
+                  trailing: person['user_id'] == null
+                      ? IconButton(
                           tooltip: 'Invite to join (coming later)',
                           icon: const Icon(Icons.mail_outline),
                           onPressed: () => ScaffoldMessenger.of(context)
@@ -401,7 +405,8 @@ class _HouseholdPanelState extends State<HouseholdPanel> {
                                   ),
                                 ),
                               ),
-                        ),
+                        )
+                      : null,
                 ),
               if (!_busy && _people.isEmpty)
                 const Text('No people have been added yet.'),
