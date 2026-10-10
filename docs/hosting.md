@@ -36,3 +36,5 @@ Flutter analysis and all 12 tests passed. Web and Android debug builds succeeded
 The initial database copy contained 17 tables and 187 rows; every hosted table count matched its local source. Remote backend internal directories returned HTTP 403. No other domain directories or databases were changed.
 
 Unverified accounts now stay on a dedicated email verification screen after signup or login. Verification sends automatically, supports explicit resend and send-failure retry, and checks Firebase on return and every five seconds before showing household invitations/setup. Widget regression tests cover automatic sending, resend, retries and the absence of the old dialog choices. No backend API or database changes are required.
+
+Verification screen published to localhost and coffeybean.com on 2026-10-10 from cfd6819. Flutter analysis passed; all 35 tests passed, followed by 8 verification/invitation checks after refreshing token claims. Hosted version.json, main.dart.js and FontManifest.json matched the final build by SHA-256. Real inbox delivery and verification-click testing still require a test recipient; widget checks send no email.
