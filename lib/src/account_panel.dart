@@ -186,13 +186,61 @@ class _HouseholdPanelState extends State<HouseholdPanel> {
   bool _reviewingInvitations = false;
   String? _displayName;
   bool _accountBusy = false;
+  String? _userId;
+
+  Map<String, dynamic>? get _ownPerson => _userId == null
+      ? null
+      : _people.where((person) => person['user_id'] == _userId).firstOrNull;
+
+  Future<void> _changeTableName() async {
+    final person = _ownPerson;
+    final householdId = _selected;
+    if (person == null || householdId == null) return;
+    final name = await showDialog<String>(
+      context: context,
+      builder: (_) => _NameDialog(
+        title: 'Change name at the table',
+        label: 'Your name at the table',
+        initialName: person['display_name'] as String,
+      ),
+    );
+    if (!mounted || name == null) return;
+    setState(() => _accountBusy = true);
+    try {
+      final data = await _request(
+        '/households/$householdId/people/me/name',
+        body: {'display_name': name},
+      );
+      if (!mounted) return;
+      setState(
+        () => person['display_name'] = (data['person'] as Map)['display_name'],
+      );
+      ScaffoldMessenger.of(context).hideCurrentSnackBar();
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Your name at the table updated.')),
+      );
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).hideCurrentSnackBar();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              error is ApiException ? error.message : 'Could not update your name at the table. Please try again.',
+            ),
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _accountBusy = false);
+    }
+  }
 
   Future<void> _changeDisplayName() async {
     final name = await showDialog<String>(
       context: context,
       builder: (_) => _NameDialog(
-        title: 'Change display name',
-        label: 'Display name',
+        title: 'Change account display name',
+        label: 'Account display name',
         initialName: _displayName ?? widget.user.displayName ?? '',
       ),
     );
@@ -202,7 +250,6 @@ class _HouseholdPanelState extends State<HouseholdPanel> {
       await widget.user.updateDisplayName(name);
       if (!mounted) return;
       setState(() => _displayName = name);
-      _personName.text = name;
       ScaffoldMessenger.of(context)
           .showSnackBar(const SnackBar(content: Text('Display name updated.')));
     } catch (_) {
@@ -315,6 +362,7 @@ class _HouseholdPanelState extends State<HouseholdPanel> {
   Future<void> _load({bool reviewInvitations = true}) async {
     await _perform(() async {
       final data = await _request('/me');
+      _userId = (data['user'] as Map?)?['id'] as String?;
       final households = List<Map<String, dynamic>>.from(
         data['households'] as List,
       );
@@ -558,6 +606,15 @@ class _HouseholdPanelState extends State<HouseholdPanel> {
                           ),
                   ),
                   title: Text(person['display_name'] as String),
+                  trailing: person == _ownPerson
+                      ? IconButton(
+                          tooltip: 'Change name at the table',
+                          onPressed: _busy || _accountBusy
+                              ? null
+                              : _changeTableName,
+                          icon: const Icon(Icons.edit_outlined),
+                        )
+                      : null,
                 ),
               if (!_busy && _people.isEmpty)
                 const Text('No people have been added yet.'),
@@ -596,6 +653,7 @@ class _HouseholdPanelState extends State<HouseholdPanel> {
             position: PopupMenuPosition.under,
             onSelected: (value) {
               if (value == 'name') _changeDisplayName();
+              if (value == 'tableName') _changeTableName();
               if (value == 'logout') _logOut();
               if (value == 'household') {
                 setState(() => _settings = true);
@@ -614,11 +672,20 @@ class _HouseholdPanelState extends State<HouseholdPanel> {
                 ),
               ),
               const PopupMenuDivider(),
+              PopupMenuItem(
+                value: 'tableName',
+                enabled: !_busy && _ownPerson != null,
+                child: const ListTile(
+                  leading: Icon(Icons.badge_outlined),
+                  title: Text('Change name at the table'),
+                  contentPadding: EdgeInsets.zero,
+                ),
+              ),
               const PopupMenuItem(
                 value: 'name',
                 child: ListTile(
                   leading: Icon(Icons.person_outline),
-                  title: Text('Change display name'),
+                  title: Text('Change account display name'),
                   contentPadding: EdgeInsets.zero,
                 ),
               ),
