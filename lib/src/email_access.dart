@@ -1,4 +1,5 @@
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import 'invitation_entry.dart';
@@ -171,6 +172,9 @@ class _EmailAccessState extends State<EmailAccess> {
               ),
             TextFormField(
               controller: _email,
+              // Browser password-manager controls live outside Flutter's tap
+              // regions. Keep the DOM input alive while their popup opens.
+              onTapOutside: kIsWeb ? (_) {} : null,
               enabled: !_busy,
               keyboardType: TextInputType.emailAddress,
               autofillHints: const [

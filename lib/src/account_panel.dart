@@ -25,7 +25,6 @@ class AccountPanel extends StatefulWidget {
 
 class _AccountPanelState extends State<AccountPanel> {
   late final InvitationEntry _entry = InvitationEntry(Uri.base);
-  late bool _showLogin = _entry.register || _entry.signIn;
   bool _busy = false;
   String? _error;
   late final Stream<User?>? _authChanges = widget.configured
@@ -120,40 +119,16 @@ class _AccountPanelState extends State<AccountPanel> {
           ),
         );
         return Scaffold(
-          appBar: AppBar(
-            title: const Text('Coffey Table'),
-            actions: [
-              TextButton(
-                onPressed: () => setState(() => _showLogin = true),
-                child: const Text('Sign in'),
+          appBar: AppBar(title: const Text('Coffey Table')),
+          body: Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 480),
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.all(20),
+                child: loginForm,
               ),
-            ],
+            ),
           ),
-          body: _showLogin
-              ? Center(
-                  child: ConstrainedBox(
-                    constraints: const BoxConstraints(maxWidth: 480),
-                    child: SingleChildScrollView(
-                      padding: const EdgeInsets.all(20),
-                      child: loginForm,
-                    ),
-                  ),
-                )
-              : Center(
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const Icon(Icons.menu_book_outlined, size: 40),
-                      const SizedBox(height: 16),
-                      const Text('Sign in to view your recipes'),
-                      const SizedBox(height: 16),
-                      FilledButton(
-                        onPressed: () => setState(() => _showLogin = true),
-                        child: const Text('Sign in'),
-                      ),
-                    ],
-                  ),
-                ),
         );
       },
     );
