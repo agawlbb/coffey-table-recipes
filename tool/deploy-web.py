@@ -22,16 +22,20 @@ def deploy():
                 output.write(path, 'app/' + path.relative_to(root).as_posix())
     session = requests.Session()
     session.headers['Authorization'] = f"cpanel {os.environ['CPANEL_USER']}:{os.environ['CPANEL_API_TOKEN']}"
+    print('Uploading generated web archive', flush=True)
     with archive.open('rb') as stream:
         response = session.post(HOST + '/execute/Fileman/upload_files', data={'dir': DIRECTORY, 'overwrite': '1'}, files={'file-1': (archive.name, stream, 'application/zip')}, timeout=180)
     response.raise_for_status()
-    if response.json().get('status') != 1:
+    upload_result = response.json()
+    if upload_result.get('status', upload_result.get('result', {}).get('status')) != 1:
         raise RuntimeError('cPanel upload failed; credential and response details omitted')
+    print('Extracting uploaded web archive', flush=True)
     response = session.post(HOST + '/json-api/cpanel', data={'cpanel_jsonapi_apiversion': '2', 'cpanel_jsonapi_module': 'Fileman', 'cpanel_jsonapi_func': 'fileop', 'op': 'extract', 'sourcefiles': DIRECTORY + '/' + archive.name, 'destfiles': DIRECTORY, 'doubledecode': '0'}, timeout=180)
     response.raise_for_status()
     result = response.json()['cpanelresult']
     if result.get('event', {}).get('result') != 1 or any(item.get('result') == 0 for item in result.get('data', [])):
         raise RuntimeError('cPanel extraction failed; response details omitted')
+    print('Verifying public deployment metadata and asset hashes', flush=True)
     # Public checks use a separate unauthenticated client: never send the token to the site.
     response = requests.get(PUBLIC + 'version.json', params={'commit': expected['commit']}, timeout=60)
     response.raise_for_status()
@@ -49,5 +53,6 @@ if __name__ == '__main__':
         deploy()
     except Exception as error:
         # Avoid printing request objects or credential-bearing headers.
-        print(f'Deployment failed ({type(error).__name__}). See the failed stage; credentials are not logged.', file=sys.stderr)
+        detail = str(error) if type(error) is RuntimeError else type(error).__name__
+        print(f'Deployment failed: {detail}. Credentials are not logged.', file=sys.stderr)
         sys.exit(1)
