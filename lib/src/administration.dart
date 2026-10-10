@@ -18,6 +18,8 @@ class AdministrationPage extends StatefulWidget {
 
 class _AdministrationPageState extends State<AdministrationPage> {
   List<Map<String, dynamic>> _users = [];
+  List<Map<String, dynamic>> _people = [];
+  bool _deletedSelf = false;
   String? _actorId;
   String? _error;
   bool _busy = true;
@@ -48,11 +50,15 @@ class _AdministrationPageState extends State<AdministrationPage> {
       setState(() {
         _actorId = user['id'] as String;
         _users = List<Map<String, dynamic>>.from(data['users'] as List);
+        _people = List<Map<String, dynamic>>.from(
+          data['people'] as List? ?? [],
+        );
       });
     } catch (error) {
       if (mounted) {
         setState(() {
           _users = [];
+          _people = [];
           _error = _message(error);
         });
       }
@@ -61,14 +67,19 @@ class _AdministrationPageState extends State<AdministrationPage> {
     }
   }
 
-  Future<void> _delete(Map<String, dynamic> user) async {
+  Future<void> _delete(Map<String, dynamic> user, {bool person = false}) async {
     final label = user['email'] ?? user['display_name'] ?? 'User ${user['id']}';
+    final own = !person && user['id'] == _actorId;
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Permanently delete user?'),
+        title: Text(
+          person ? 'Permanently delete person?' : 'Permanently delete user?',
+        ),
         content: Text(
-          'Delete $label from the database and Firebase? Their household membership, linked person and related invitations will be removed. Shared recipes and cooking history will remain. This cannot be undone.',
+          person
+              ? 'Remove $label from ${user['household_name']}? Their table entry, favorites and invitations will be permanently deleted. They have no linked login account. Shared recipes and cooking history will remain. This cannot be undone.'
+              : 'Delete $label from the database and Firebase? Their household memberships, table entries, favorites and related invitations will be removed. Shared recipes and cooking history will remain. This cannot be undone.${own ? ' This is your own administrator account. You will lose access to administration.' : ''}',
         ),
         actions: [
           TextButton(
@@ -89,13 +100,23 @@ class _AdministrationPageState extends State<AdministrationPage> {
     });
     try {
       await widget.request(
-        '/admin/users/${user['id']}/delete',
+        '/admin/${person ? 'people' : 'users'}/${user['id']}/delete',
         body: {'confirm': true},
       );
       if (!mounted) return;
-      setState(() => _users.removeWhere((row) => row['id'] == user['id']));
+      setState(() {
+        (person ? _people : _users).removeWhere(
+          (row) => row['id'] == user['id'],
+        );
+        if (own) {
+          _deletedSelf = true;
+          _users = [];
+          _people = [];
+        }
+      });
       ScaffoldMessenger.of(context)
           .showSnackBar(SnackBar(content: Text('$label deleted.')));
+      if (!own) await _load();
     } catch (error) {
       if (mounted) setState(() => _error = _message(error));
     } finally {
@@ -109,7 +130,7 @@ class _AdministrationPageState extends State<AdministrationPage> {
       title: const Text('Administration'),
       actions: [
         IconButton(
-          onPressed: _busy ? null : _load,
+          onPressed: _busy || _deletedSelf ? null : _load,
           tooltip: 'Refresh users',
           icon: const Icon(Icons.refresh),
         ),
@@ -129,16 +150,29 @@ class _AdministrationPageState extends State<AdministrationPage> {
                   style: TextStyle(color: Theme.of(context).colorScheme.error),
                 ),
               ),
+            if (_deletedSelf)
+              const Padding(
+                padding: EdgeInsets.all(16),
+                child: Text(
+                  'Your account has been permanently deleted. Close this window.',
+                ),
+              ),
             const Padding(
               padding: EdgeInsets.all(16),
-              child: Text('Users', style: TextStyle(fontSize: 24)),
+              child: Text(
+                'Users & table people',
+                style: TextStyle(fontSize: 24),
+              ),
             ),
             Expanded(
               child: ListView.builder(
-                itemCount: _users.length,
+                itemCount: _users.length + _people.length,
                 itemBuilder: (context, index) {
-                  final user = _users[index];
-                  final own = user['id'] == _actorId;
+                  final person = index >= _users.length;
+                  final user = person
+                      ? _people[index - _users.length]
+                      : _users[index];
+                  final own = !person && user['id'] == _actorId;
                   return ListTile(
                     title: Text(
                       user['display_name'] as String? ??
@@ -146,13 +180,15 @@ class _AdministrationPageState extends State<AdministrationPage> {
                           'User ${user['id']}',
                     ),
                     subtitle: Text(
-                      '${user['email'] ?? 'No email'} · ${user['account_role']}${own ? ' (you)' : ''}',
+                      person
+                          ? '${user['household_name']} · No linked account'
+                          : '${user['email'] ?? 'No email'} · ${user['email_verified'] == true ? 'Verified' : 'Unverified'} · ${user['account_role']}${own ? ' (you)' : ''}',
                     ),
                     trailing: IconButton(
-                      tooltip: own
-                          ? 'You cannot delete your own account'
-                          : 'Delete user',
-                      onPressed: _busy || own ? null : () => _delete(user),
+                      tooltip: person ? 'Delete person' : 'Delete user',
+                      onPressed: _busy || _deletedSelf
+                          ? null
+                          : () => _delete(user, person: person),
                       icon: const Icon(Icons.delete_outline),
                     ),
                   );
