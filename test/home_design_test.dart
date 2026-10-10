@@ -7,7 +7,13 @@ class TestUser implements User {
   @override
   String get uid => 'test-user';
   @override
-  String? get displayName => 'Alex Example';
+  String? get displayName => name;
+  String name = 'Alex Example';
+  @override
+  Future<void> updateDisplayName(String? displayName) async {
+    name = displayName!;
+  }
+
   @override
   String? get email => 'alex@example.test';
   @override
@@ -15,6 +21,51 @@ class TestUser implements User {
 }
 
 void main() {
+  testWidgets('user menu saves display name and confirms logout', (
+    tester,
+  ) async {
+    final user = TestUser();
+    var logoutCount = 0;
+    await tester.pumpWidget(
+      MaterialApp(
+        home: HouseholdPanel(
+          user: user,
+          request: (path, {body}) async => {'households': []},
+          signOut: () async {
+            logoutCount++;
+          },
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.byTooltip('User menu'));
+    await tester.pumpAndSettle();
+    expect(find.text('alex@example.test'), findsOneWidget);
+    await tester.tap(find.text('Change display name'));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(TextFormField), '  Jamie  ');
+    await tester.tap(find.text('Save'));
+    await tester.pumpAndSettle();
+    expect(user.name, 'Jamie');
+    expect(find.text('J'), findsOneWidget);
+    await tester.tap(find.byTooltip('User menu'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Log out'));
+    await tester.pumpAndSettle();
+    expect(logoutCount, 0);
+    await tester.tap(find.text('Cancel'));
+    await tester.pumpAndSettle();
+    expect(logoutCount, 0);
+    await tester.tap(find.byTooltip('User menu'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Log out'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(FilledButton, 'Log out'));
+    await tester.pumpAndSettle();
+    expect(logoutCount, 1);
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets(
     'household names save and people show account or invitation icons',
     (tester) async {
@@ -137,7 +188,8 @@ void main() {
       expect(find.text('People at your table'), findsNothing);
       expect(find.text('Your household'), findsNothing);
       expect(find.byType(Image), findsNothing);
-      expect(find.text('Sign out'), findsOneWidget);
+      expect(find.byTooltip('User menu'), findsOneWidget);
+      expect(find.text('Log out'), findsNothing);
       expect(paths.where((p) => p.endsWith('/people')), isNotEmpty);
       await tester.enterText(find.byType(TextField), 'soup');
       await tester.tap(find.byTooltip('Open navigation menu'));

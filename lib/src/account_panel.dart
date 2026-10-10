@@ -154,7 +154,13 @@ class _AccountPanelState extends State<AccountPanel> {
 }
 
 class HouseholdPanel extends StatefulWidget {
-  const HouseholdPanel({super.key, required this.user, this.request});
+  const HouseholdPanel({
+    super.key,
+    required this.user,
+    this.request,
+    this.signOut,
+  });
+  final Future<void> Function()? signOut;
   final Future<Map<String, dynamic>> Function(
     String path, {
     Map<String, dynamic>? body,
@@ -178,6 +184,78 @@ class _HouseholdPanelState extends State<HouseholdPanel> {
   List<Map<String, dynamic>> _invitations = [];
   bool _invitationVerificationRequired = false;
   bool _reviewingInvitations = false;
+  String? _displayName;
+  bool _accountBusy = false;
+
+  Future<void> _changeDisplayName() async {
+    final name = await showDialog<String>(
+      context: context,
+      builder: (_) => _NameDialog(
+        title: 'Change display name',
+        label: 'Display name',
+        initialName: _displayName ?? widget.user.displayName ?? '',
+      ),
+    );
+    if (!mounted || name == null) return;
+    setState(() => _accountBusy = true);
+    try {
+      await widget.user.updateDisplayName(name);
+      if (!mounted) return;
+      setState(() => _displayName = name);
+      _personName.text = name;
+      ScaffoldMessenger.of(context)
+          .showSnackBar(const SnackBar(content: Text('Display name updated.')));
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Could not update your display name. Please try again.',
+            ),
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _accountBusy = false);
+    }
+  }
+
+  Future<void> _logOut() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Log out?'),
+        content: const Text(
+          'You’ll need to sign in again to access your household’s recipes.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Log out'),
+          ),
+        ],
+      ),
+    );
+    if (!mounted || confirmed != true) return;
+    setState(() => _accountBusy = true);
+    try {
+      await (widget.signOut ?? GoogleAuthentication.signOut)();
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Log-out could not finish. Please try again.'),
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _accountBusy = false);
+    }
+  }
 
   @override
   void initState() {
@@ -496,7 +574,11 @@ class _HouseholdPanelState extends State<HouseholdPanel> {
         ),
       ),
     );
-    final name = widget.user.displayName ?? widget.user.email ?? 'Your account';
+    final name =
+        _displayName ??
+        widget.user.displayName ??
+        widget.user.email ??
+        'Your account';
     return Scaffold(
       appBar: AppBar(
         title: Text(_settings ? 'Household & people' : 'Recipes'),
@@ -508,34 +590,62 @@ class _HouseholdPanelState extends State<HouseholdPanel> {
                 child: Text(name, maxLines: 1, overflow: TextOverflow.ellipsis),
               ),
             ),
-          Tooltip(
-            message: 'Signed in as $name',
-            child: CircleAvatar(
+          PopupMenuButton<String>(
+            tooltip: 'User menu',
+            enabled: !_accountBusy,
+            position: PopupMenuPosition.under,
+            onSelected: (value) {
+              if (value == 'name') _changeDisplayName();
+              if (value == 'logout') _logOut();
+              if (value == 'household') {
+                setState(() => _settings = true);
+                if (!_busy) _perform(_loadPeople);
+              }
+            },
+            itemBuilder: (_) => [
+              PopupMenuItem<String>(
+                enabled: false,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(name, style: Theme.of(context).textTheme.titleSmall),
+                    if (widget.user.email != null) Text(widget.user.email!),
+                  ],
+                ),
+              ),
+              const PopupMenuDivider(),
+              const PopupMenuItem(
+                value: 'name',
+                child: ListTile(
+                  leading: Icon(Icons.person_outline),
+                  title: Text('Change display name'),
+                  contentPadding: EdgeInsets.zero,
+                ),
+              ),
+              const PopupMenuItem(
+                value: 'household',
+                child: ListTile(
+                  leading: Icon(Icons.people_outline),
+                  title: Text('Household & people'),
+                  contentPadding: EdgeInsets.zero,
+                ),
+              ),
+              const PopupMenuDivider(),
+              const PopupMenuItem(
+                value: 'logout',
+                child: ListTile(
+                  leading: Icon(Icons.logout),
+                  title: Text('Log out'),
+                  contentPadding: EdgeInsets.zero,
+                ),
+              ),
+            ],
+            icon: CircleAvatar(
               radius: 16,
               child: Text(
                 name.isEmpty ? '?' : name.substring(0, 1).toUpperCase(),
               ),
             ),
-          ),
-          TextButton(
-            onPressed: _busy
-                ? null
-                : () async {
-                    try {
-                      await GoogleAuthentication.signOut();
-                    } catch (_) {
-                      if (context.mounted) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text(
-                              'Sign-out could not finish. Please try again.',
-                            ),
-                          ),
-                        );
-                      }
-                    }
-                  },
-            child: const Text('Sign out'),
           ),
         ],
       ),
