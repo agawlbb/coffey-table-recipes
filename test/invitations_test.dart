@@ -255,7 +255,7 @@ void main() {
     expect(find.text('You have a household invitation'), findsOneWidget);
     expect(find.text('Resend verification email'), findsOneWidget);
     expect(user.sends, 1);
-    expect(Uri.parse(user.settings!.url!).queryParameters['email'], user.email);
+    expect(Uri.parse(user.settings!.url).queryParameters['email'], user.email);
     expect(find.textContaining('Verification email sent.'), findsOneWidget);
     expect(find.text('Accept'), findsNothing);
     await tester.tap(find.text('Later'));
@@ -263,3 +263,4 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 }
+
