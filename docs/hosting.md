@@ -12,6 +12,14 @@ Before future API or database schema changes, ask whether to switch back to loca
 
 ## Build
 
+## Deployment on Git pushes
+
+`.github/workflows/deploy-web.yml` builds and deploys web assets on pushes to `main` and manual dispatches. It runs analysis/tests, uses the existing private Firebase build secret, gives fonts content-specific filenames, and verifies hosted source metadata and asset hashes after publishing. Deployments are serialized. Only the web `app/` directory is included in the archive; this workflow does not deploy PHP or migrations.
+
+The workflow requires GitHub Actions secrets `CPANEL_USER` and `CPANEL_API_TOKEN`. The cPanel token has all API access granted to its account, not folder-limited access. Creating it and storing it in the private GitHub repository requires explicit approval. Do not commit the token or the cPanel password. Revoke or replace tokens from cPanel Manage API Tokens; an expiring token needs renewal before its expiry. The scripts use HTTPS with certificate verification and never log the credential.
+
+The current website was manually published on 2026-10-10 from commit `76ba8d4`: version 0.2.0 build 3. Analysis and all 33 tests passed; the hosted JavaScript hash matched the local build. Automated deployment activation awaits the credential and a successful live workflow run.
+
 ```powershell
 flutter build web --base-href=/CoffeyTableRecipes/app/ --dart-define-from-file=config/firebase.local.json
 flutter build apk --debug --dart-define-from-file=config/firebase.local.json
