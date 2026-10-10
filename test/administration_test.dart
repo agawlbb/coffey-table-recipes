@@ -8,6 +8,48 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  testWidgets('Firebase-only deletion uses UID after confirmation', (
+    tester,
+  ) async {
+    final writes = <String>[];
+    await tester.pumpWidget(
+      MaterialApp(
+        home: AdministrationPage(
+          request: (path, {body}) async {
+            if (path == '/me')
+              return {
+                'user': {'id': '1', 'account_role': 'administrator'},
+              };
+            if (path == '/admin/users')
+              return {
+                'users': writes.isEmpty
+                    ? [
+                        {
+                          'id': 'firebase:orphan',
+                          'firebase_uid': 'orphan',
+                          'firebase_only': true,
+                          'email': 'orphan@example.test',
+                          'account_role': 'user',
+                        },
+                      ]
+                    : [],
+              };
+            expect(body, {'confirm': true});
+            writes.add(path);
+            return {'deleted': true};
+          },
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.byTooltip('Delete user'));
+    await tester.pumpAndSettle();
+    expect(writes, isEmpty);
+    await tester.tap(find.text('Delete permanently'));
+    await tester.pumpAndSettle();
+    expect(writes, ['/admin/firebase/orphan/delete']);
+  });
+
   for (final person in [true, false]) {
     testWidgets(
       person
