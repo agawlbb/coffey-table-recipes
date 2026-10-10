@@ -25,7 +25,31 @@ class VerificationUser extends TestUser {
   }
 }
 
+class ReturnUrlRejectedUser extends VerificationUser {
+  @override
+  String get uid => 'return-url-rejected';
+  @override
+  Future<void> sendEmailVerification([
+    ActionCodeSettings? actionCodeSettings,
+  ]) async {
+    sends++;
+    if (actionCodeSettings != null) {
+      throw FirebaseAuthException(code: 'unauthorized-continue-uri');
+    }
+  }
+}
+
 void main() {
+  test(
+    'unauthorized return URL falls back to standard verification email',
+    () async {
+      final user = ReturnUrlRejectedUser();
+      await InvitationVerification.send(user);
+      expect(user.sends, 2);
+      await InvitationVerification.send(user);
+      expect(user.sends, 2);
+    },
+  );
   testWidgets('invitation entry selects signup and prefills email', (
     tester,
   ) async {
@@ -263,4 +287,3 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 }
-

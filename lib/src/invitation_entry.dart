@@ -21,12 +21,19 @@ abstract final class InvitationVerification {
     if (resend) _sent.remove(user.uid);
     return _sent.putIfAbsent(user.uid, () async {
       try {
-        await user.sendEmailVerification(
-          ActionCodeSettings(
-            url: InvitationEntry.verificationReturnUrl(user.email ?? ''),
-            handleCodeInApp: false,
-          ),
-        );
+        try {
+          await user.sendEmailVerification(
+            ActionCodeSettings(
+              url: InvitationEntry.verificationReturnUrl(user.email ?? ''),
+              handleCodeInApp: false,
+            ),
+          );
+        } on FirebaseAuthException catch (error) {
+          if (error.code != 'unauthorized-continue-uri') rethrow;
+          // Verification can still proceed when the optional return URL is not
+          // authorized. Keep Firebase's hosted verification link functional.
+          await user.sendEmailVerification();
+        }
       } catch (_) {
         _sent.remove(user.uid);
         rethrow;

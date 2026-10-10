@@ -76,11 +76,17 @@ class _EmailVerificationScreenState extends State<EmailVerificationScreen>
               'Verification email sent. Check your inbox and spam folder.',
         );
       }
-    } catch (_) {
+    } catch (error) {
       if (mounted) {
-        setState(
-          () => _message = 'The verification email could not be sent. Please try resending it.',
-        );
+        final message = error is FirebaseAuthException
+            ? switch (error.code) {
+                'too-many-requests' => 'Firebase has temporarily limited verification emails. Please wait a few minutes before resending.',
+                'network-request-failed' => 'The verification email could not be sent. Check your connection and resend.',
+                _ =>
+                  'The verification email could not be sent (${error.code}). Please try resending it.',
+              }
+            : 'The verification email could not be sent. Please try resending it.';
+        setState(() => _message = message);
       }
     } finally {
       if (mounted) setState(() => _sending = false);
