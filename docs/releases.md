@@ -4,6 +4,8 @@
 
 Version `0.3.0+4`, tagged `v0.3.0`, adds a dedicated email verification screen, explicit resend and refreshed verification claims before loading household invitations. Administration supports deleting accounts and unlinked table people. Android, web and unsigned iOS packages share this version and build number. The release tag publishes the hosted web app and builds iOS through GitHub Actions; signing and device installation remain user-managed.
 
+Release verification on 2026-10-10: Flutter analysis passed and all 39 tests passed. Android release APK metadata confirms version 0.3.0/build 4. Hosted deployment run `38085019825` passed publication and asset verification; public version metadata identifies release commit `4ee5b75`, and the browser loaded recipe categories after a connection retry. iOS run `38085019826` built and packaged the unsigned IPA successfully. Both mobile packages were saved to the user's desktop; signing and on-device installation are pending.
+
 ## 0.2.0 — household invitations
 
 Version `0.2.0+3`, tagged `v0.2.0`, adds household invitation dialogs, invitation responses after login, retry handling and duplicate submission protection. It targets the hosted coffeybean.com backend with the previously deployed invitation support.
