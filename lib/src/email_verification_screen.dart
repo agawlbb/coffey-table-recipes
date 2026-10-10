@@ -33,7 +33,6 @@ class _EmailVerificationScreenState extends State<EmailVerificationScreen>
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    _send();
     _timer = Timer.periodic(const Duration(seconds: 5), (_) => _refresh());
     _refresh();
   }

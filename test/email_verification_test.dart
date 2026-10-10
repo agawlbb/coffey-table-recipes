@@ -21,7 +21,7 @@ class PendingUser extends TestUser {
 
 void main() {
   testWidgets(
-    'verification sends automatically, resends, and checks completion',
+    'verification opens without sending; explicit resend sends once',
     (tester) async {
       final user = PendingUser('verification-gate');
       var refreshes = 0;
@@ -37,7 +37,7 @@ void main() {
         ),
       );
       await tester.pumpAndSettle();
-      expect(user.sends, 1);
+      expect(user.sends, 0);
       expect(find.text('Verify your email'), findsOneWidget);
       expect(find.textContaining(user.email!), findsOneWidget);
       expect(find.text('Later'), findsNothing);
@@ -45,9 +45,10 @@ void main() {
       expect(find.text('Set up household'), findsNothing);
       await tester.tap(find.text('Resend verification email'));
       await tester.pumpAndSettle();
-      expect(user.sends, 2);
+      expect(user.sends, 1);
       await tester.pump(const Duration(seconds: 5));
       expect(refreshes, greaterThanOrEqualTo(2));
+      expect(user.sends, 1);
       await tester.pumpWidget(const SizedBox());
     },
   );
@@ -65,11 +66,13 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
-    expect(find.textContaining('could not be sent'), findsOneWidget);
+    expect(user.sends, 0);
+    expect(find.textContaining('could not be sent'), findsNothing);
     expect(find.text('Resend verification email'), findsOneWidget);
     await tester.tap(find.text('Resend verification email'));
     await tester.pumpAndSettle();
-    expect(user.sends, 2);
+    expect(user.sends, 1);
+    expect(find.textContaining('could not be sent'), findsOneWidget);
     await tester.pumpWidget(const SizedBox());
   });
 }

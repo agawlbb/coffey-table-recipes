@@ -188,13 +188,7 @@ class _InvitationVerificationDialogState
     extends State<InvitationVerificationDialog> {
   bool _busy = false;
   String? _message;
-  @override
-  void initState() {
-    super.initState();
-    _verify(check: false, automatic: true);
-  }
-
-  Future<void> _verify({required bool check, bool automatic = false}) async {
+  Future<void> _verify({required bool check}) async {
     setState(() {
       _busy = true;
       _message = null;
@@ -214,7 +208,7 @@ class _InvitationVerificationDialogState
           );
         }
       } else {
-        await InvitationVerification.send(widget.user, resend: !automatic);
+        await InvitationVerification.send(widget.user, resend: true);
         if (mounted) {
           setState(
             () => _message =
