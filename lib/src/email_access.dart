@@ -1,5 +1,6 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 enum EmailAccessMode { signIn, register }
 
@@ -74,6 +75,7 @@ class _EmailAccessState extends State<EmailAccess> {
         await result.user!.updateDisplayName(_name.text.trim());
         await result.user!.getIdToken(true);
       }
+      TextInput.finishAutofillContext(shouldSave: true);
       if (mounted) {
         _password.clear();
         _confirmation.clear();
@@ -135,120 +137,140 @@ class _EmailAccessState extends State<EmailAccess> {
   @override
   Widget build(BuildContext context) {
     final registration = _mode == EmailAccessMode.register;
-    return Form(
-      key: _form,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          if (registration)
+    return AutofillGroup(
+      key: ValueKey(_mode),
+      onDisposeAction: AutofillContextAction.cancel,
+      child: Form(
+        key: _form,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (registration)
+              TextFormField(
+                controller: _name,
+                enabled: !_busy,
+                maxLength: 200,
+                decoration: const InputDecoration(labelText: 'Your name'),
+                validator: (value) => value == null || value.trim().isEmpty
+                    ? 'Enter your name.'
+                    : null,
+              ),
             TextFormField(
-              controller: _name,
+              controller: _email,
               enabled: !_busy,
-              maxLength: 200,
-              decoration: const InputDecoration(labelText: 'Your name'),
-              validator: (value) => value == null || value.trim().isEmpty
-                  ? 'Enter your name.'
-                  : null,
-            ),
-          TextFormField(
-            controller: _email,
-            enabled: !_busy,
-            keyboardType: TextInputType.emailAddress,
-            autofillHints: const [AutofillHints.email],
-            decoration: const InputDecoration(labelText: 'Email'),
-            validator: (value) =>
-                value == null ||
-                    !RegExp(r'^[^\s@]+@[^\s@]+\.[^\s@]+$')
-                        .hasMatch(value.trim())
-                ? 'Enter a valid email address.'
-                : null,
-          ),
-          const SizedBox(height: 12),
-          TextFormField(
-            controller: _password,
-            enabled: !_busy,
-            obscureText: true,
-            autocorrect: false,
-            enableSuggestions: false,
-            autofillHints: [
-              registration ? AutofillHints.newPassword : AutofillHints.password,
-            ],
-            decoration: InputDecoration(labelText: 'Password'),
-            validator: (value) {
-              if (value == null || value.isEmpty) return 'Enter your password.';
-              if ((registration) && value.length < 8) {
-                return 'Use at least 8 characters.';
-              }
-              return null;
-            },
-            onFieldSubmitted: (_) {
-              if (!registration && !_busy) _submit();
-            },
-          ),
-          if (registration) ...[
-            const SizedBox(height: 12),
-            TextFormField(
-              controller: _confirmation,
-              enabled: !_busy,
-              obscureText: true,
+              keyboardType: TextInputType.emailAddress,
+              autofillHints: const [
+                AutofillHints.username,
+                AutofillHints.email,
+              ],
               autocorrect: false,
               enableSuggestions: false,
-              decoration: const InputDecoration(labelText: 'Confirm password'),
+              textInputAction: TextInputAction.next,
+              decoration: const InputDecoration(labelText: 'Email'),
               validator: (value) =>
-                  value != _password.text ? 'Passwords do not match.' : null,
+                  value == null ||
+                      !RegExp(r'^[^\s@]+@[^\s@]+\.[^\s@]+$')
+                          .hasMatch(value.trim())
+                  ? 'Enter a valid email address.'
+                  : null,
             ),
-          ],
-          const SizedBox(height: 20),
-          FilledButton(
-            onPressed: _busy ? null : _submit,
-            child: Text(
-              _busy
-                  ? 'Please wait…'
-                  : registration
-                  ? 'Create account'
-                  : 'Sign in with email',
+            const SizedBox(height: 12),
+            TextFormField(
+              controller: _password,
+              enabled: !_busy,
+              obscureText: true,
+              textInputAction: registration
+                  ? TextInputAction.next
+                  : TextInputAction.done,
+              autocorrect: false,
+              enableSuggestions: false,
+              autofillHints: [
+                registration
+                    ? AutofillHints.newPassword
+                    : AutofillHints.password,
+              ],
+              decoration: InputDecoration(labelText: 'Password'),
+              validator: (value) {
+                if (value == null || value.isEmpty) {
+                  return 'Enter your password.';
+                }
+                if ((registration) && value.length < 8) {
+                  return 'Use at least 8 characters.';
+                }
+                return null;
+              },
+              onFieldSubmitted: (_) {
+                if (!registration && !_busy) _submit();
+              },
             ),
-          ),
-          Wrap(
-            spacing: 12,
-            children: [
-              TextButton(
-                onPressed: _busy
-                    ? null
-                    : () => setState(() {
-                        _form.currentState?.reset();
-                        _mode = registration
-                            ? EmailAccessMode.signIn
-                            : EmailAccessMode.register;
-                        _message = null;
-                        _password.clear();
-                        _confirmation.clear();
-                      }),
-                child: Text(
-                  registration
-                      ? 'Already have an account? Sign in'
-                      : 'Create an account',
+            if (registration) ...[
+              const SizedBox(height: 12),
+              TextFormField(
+                controller: _confirmation,
+                enabled: !_busy,
+                obscureText: true,
+                autocorrect: false,
+                enableSuggestions: false,
+                autofillHints: const [AutofillHints.newPassword],
+                decoration: const InputDecoration(
+                  labelText: 'Confirm password',
                 ),
-              ),
-              TextButton(
-                onPressed: _busy ? null : _reset,
-                child: const Text('Forgot password?'),
+                validator: (value) =>
+                    value != _password.text ? 'Passwords do not match.' : null,
               ),
             ],
-          ),
-          if (_message != null) ...[
-            const SizedBox(height: 12),
-            Text(
-              _message!,
-              style: TextStyle(
-                color: _success
-                    ? Theme.of(context).colorScheme.primary
-                    : Theme.of(context).colorScheme.error,
+            const SizedBox(height: 20),
+            FilledButton(
+              onPressed: _busy ? null : _submit,
+              child: Text(
+                _busy
+                    ? 'Please wait…'
+                    : registration
+                    ? 'Create account'
+                    : 'Sign in with email',
               ),
             ),
+            Wrap(
+              spacing: 12,
+              children: [
+                TextButton(
+                  onPressed: _busy
+                      ? null
+                      : () => setState(() {
+                          _form.currentState?.reset();
+                          _mode = registration
+                              ? EmailAccessMode.signIn
+                              : EmailAccessMode.register;
+                          _message = null;
+                          _password.clear();
+                          _confirmation.clear();
+                        }),
+                  child: Text(
+                    registration
+                        ? 'Already have an account? Sign in'
+                        : 'Create an account',
+                  ),
+                ),
+                TextButton(
+                  onPressed: _busy ? null : _reset,
+                  child: const Text('Forgot password?'),
+                ),
+              ],
+            ),
+            if (_message != null) ...[
+              const SizedBox(height: 12),
+              Text(
+                _message!,
+                style: TextStyle(
+                  color: _success
+                      ? Theme.of(context).colorScheme.primary
+                      : Theme.of(context).colorScheme.error,
+                ),
+              ),
+            ],
           ],
-        ],
+        ),
       ),
     );
   }

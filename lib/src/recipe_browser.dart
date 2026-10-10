@@ -226,6 +226,12 @@ class _RecipeBrowserState extends State<RecipeBrowser> {
               child: Wrap(
                 crossAxisAlignment: WrapCrossAlignment.center,
                 children: [
+                  if (_trail.isNotEmpty || _query.isNotEmpty)
+                    IconButton(
+                      onPressed: _busy ? null : _back,
+                      icon: const Icon(Icons.arrow_back),
+                      tooltip: 'Back one level',
+                    ),
                   for (var depth = 0; depth <= _trail.length; depth++) ...[
                     if (depth > 0) const Icon(Icons.chevron_right, size: 18),
                     TextButton(
@@ -388,22 +394,6 @@ class _RecipeBrowserState extends State<RecipeBrowser> {
               },
             ),
           ),
-          SafeArea(
-            top: false,
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(20, 8, 20, 12),
-              child: Align(
-                alignment: Alignment.centerLeft,
-                child: IconButton(
-                  onPressed: _busy || (_trail.isEmpty && _query.isEmpty)
-                      ? null
-                      : _back,
-                  icon: const Icon(Icons.arrow_back),
-                  tooltip: 'Back one level',
-                ),
-              ),
-            ),
-          ),
         ],
       ),
     ),
@@ -500,21 +490,9 @@ class _RecipeDetailState extends State<RecipeDetail> {
 
   @override
   Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(title: Text(widget.title)),
-    bottomNavigationBar: SafeArea(
-      top: false,
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(20, 8, 20, 12),
-        child: Align(
-          heightFactor: 1,
-          alignment: Alignment.centerLeft,
-          child: IconButton(
-            onPressed: () => Navigator.of(context).pop(),
-            icon: const Icon(Icons.arrow_back),
-            tooltip: 'Back to recipes',
-          ),
-        ),
-      ),
+    appBar: AppBar(
+      leading: BackButton(onPressed: () => Navigator.of(context).pop()),
+      title: Text(widget.title),
     ),
     body: _error != null
         ? Center(

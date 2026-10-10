@@ -21,6 +21,10 @@ flutter test
 flutter build web
 ```
 
+During development, web builds use a custom bootstrap without an offline service worker and fetch fresh bootstrap/entry-point URLs. The web-only Reload app button reloads with a fresh URL; previous Flutter service workers for this app are unregistered on startup. Deploy `build/web/.htaccess` along with the other files to Apache hosting with `mod_headers` and header overrides enabled: it requests no browser caching for this development deployment. Other hosts need equivalent `Cache-Control: no-store` response headers. These changes take effect after deploying the new build; an already-open older build may need Ctrl+Shift+R once. Restore production caching and remove the development button when ready for release.
+
+Recipe details use the standard top-left app-bar back button. Category/search back navigation sits at the start of the breadcrumb row above the results. Email sign-in groups username and password autofill hints and asks the platform to save credentials only after successful authentication; password-manager behavior still depends on the browser and extension.
+
 The signed-in home displays recipes from the hosted API, with search, category browsing, and cooking mode. Account and household management are available through the app bar and navigation menu. No simulated sign-in or development authorization bypass is provided.
 
 See `docs/checkpoints.md` for the agreed implementation sequence and `docs/authentication.md` for configured sign-in commands. Default Flutter icons remain until the selected artwork is supplied.

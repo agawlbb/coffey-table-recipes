@@ -34,6 +34,11 @@
   <style>
     /* Keep a visible fallback while Flutter initializes or between controls. */
     html, body { cursor: default; }
+    #reload-app {
+      position: fixed; right: 12px; bottom: 12px; z-index: 10000;
+      padding: 8px 12px; border: 1px solid #6b7050; border-radius: 6px;
+      background: #fff; color: #333; font: 14px system-ui; cursor: pointer;
+    }
   </style>
 </head>
 <body>
@@ -45,7 +50,40 @@
     For more details:
     * https://docs.flutter.dev/platform-integration/web/initialization
   -->
-  <script src="flutter_bootstrap.js" async></script>
+  <button id="reload-app" type="button" title="Reload the latest development build">Reload app</button>
+  <script>
+    const appBase = new URL(document.querySelector('base').href);
+    async function removeOldWorker() {
+      if (!('serviceWorker' in navigator)) return false;
+      const registrations = await navigator.serviceWorker.getRegistrations();
+      for (const registration of registrations) {
+        const worker = registration.active || registration.waiting || registration.installing;
+        if (registration.scope === appBase.href && worker &&
+            new URL(worker.scriptURL).pathname === new URL('flutter_service_worker.js', appBase).pathname) {
+          await registration.unregister();
+        }
+      }
+      const controller = navigator.serviceWorker.controller;
+      return controller && new URL(controller.scriptURL).pathname ===
+        new URL('flutter_service_worker.js', appBase).pathname;
+    }
+    document.getElementById('reload-app').addEventListener('click', async () => {
+      await removeOldWorker().catch(() => false);
+      const url = new URL(location.href);
+      url.searchParams.set('dev_reload', Date.now());
+      location.replace(url.href);
+    });
+    (async () => {
+      // A previous offline build may still control this page until navigation.
+      if (await removeOldWorker().catch(() => false)) {
+        location.reload();
+        return;
+      }
+      const script = document.createElement('script');
+      script.src = new URL('flutter_bootstrap.js?dev=' + Date.now(), appBase).href;
+      document.body.appendChild(script);
+    })();
+  </script>
 </body>
 </html>
 

@@ -93,6 +93,10 @@ void main() {
     expect(Uri.parse(paths.last).queryParameters['scope'], '5');
     await tester.tap(find.text('Muffins'));
     await tester.pumpAndSettle();
+    expect(
+      tester.getCenter(find.byTooltip('Back one level')).dy,
+      lessThan(tester.getTopLeft(find.text('Bran muffins')).dy),
+    );
     await tester.tap(find.byTooltip('Back one level'));
     await tester.pumpAndSettle();
     expect(Uri.parse(paths.last).queryParameters['scope'], '5');
@@ -169,7 +173,9 @@ void main() {
     expect(find.text('• 250 g de farine'), findsOneWidget);
     expect(find.text('1. Préchauffer à 180°C.'), findsOneWidget);
     expect(find.text('180°C'), findsOneWidget);
-    await tester.tap(find.byTooltip('Back to recipes'));
+    expect(find.byType(BackButton), findsOneWidget);
+    expect(tester.getCenter(find.byType(BackButton)).dy, lessThan(100));
+    await tester.tap(find.byType(BackButton));
     await tester.pumpAndSettle();
     expect(find.byType(TextField), findsOneWidget);
     expect(tester.takeException(), isNull);
