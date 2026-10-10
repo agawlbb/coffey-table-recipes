@@ -34,3 +34,5 @@ The APK is a debug-signed testing build. Install it over the prior debug build o
 Flutter analysis and all 12 tests passed. Web and Android debug builds succeeded. Hosted health returned healthy JSON with browser and Dart user agents. The authenticated local web session read its household, recipe list, and recipe detail through the hosted API. The local web page displayed the connected service state.
 
 The initial database copy contained 17 tables and 187 rows; every hosted table count matched its local source. Remote backend internal directories returned HTTP 403. No other domain directories or databases were changed.
+
+Unverified accounts now stay on a dedicated email verification screen after signup or login. Verification sends automatically, supports explicit resend and send-failure retry, and checks Firebase on return and every five seconds before showing household invitations/setup. Widget regression tests cover automatic sending, resend, retries and the absence of the old dialog choices. No backend API or database changes are required.

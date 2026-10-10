@@ -7,6 +7,7 @@ import 'administration.dart';
 import 'administration_window.dart';
 import 'auth.dart';
 import 'email_access.dart';
+import 'email_verification_screen.dart';
 import 'invitation_dialogs.dart';
 import 'invitation_entry.dart';
 import 'recipe_browser.dart';
@@ -78,6 +79,20 @@ class _AccountPanelState extends State<AccountPanel> {
         }
         final user = snapshot.data;
         if (user != null) {
+          if (!user.emailVerified) {
+            return EmailVerificationScreen(
+              key: ValueKey('verify-${user.uid}'),
+              user: user,
+              refresh: () async {
+                await user.reload();
+                final current = FirebaseAuth.instance.currentUser;
+                if (current?.emailVerified == true) {
+                  await current!.getIdToken(true);
+                }
+              },
+              signOut: FirebaseAuth.instance.signOut,
+            );
+          }
           return HouseholdPanel(key: ValueKey(user.uid), user: user);
         }
         final loginForm = Card(
