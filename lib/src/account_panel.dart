@@ -3,6 +3,8 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import 'api.dart';
+import 'administration.dart';
+import 'administration_window.dart';
 import 'auth.dart';
 import 'email_access.dart';
 import 'invitation_dialogs.dart';
@@ -192,6 +194,16 @@ class _HouseholdPanelState extends State<HouseholdPanel> {
   String? _displayName;
   bool _accountBusy = false;
   String? _userId;
+  bool _administrator = false;
+
+  void _openAdministration() {
+    if (openAdministrationWindow()) return;
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => AdministrationPage(request: _request),
+      ),
+    );
+  }
 
   Map<String, dynamic>? get _ownPerson => _userId == null
       ? null
@@ -332,12 +344,22 @@ class _HouseholdPanelState extends State<HouseholdPanel> {
     final token = await widget.user.getIdToken();
     if (token == null) throw ApiException(401, 'Please sign in again.');
     try {
-      return await _api.request(path, token, body: body);
+      return await _api.request(
+        path,
+        token,
+        body: body,
+        timeout: Duration(seconds: path.startsWith('/admin/') ? 60 : 20),
+      );
     } on ApiException catch (error) {
       if (error.status != 401) rethrow;
       final refreshed = await widget.user.getIdToken(true);
       if (refreshed == null) rethrow;
-      return _api.request(path, refreshed, body: body);
+      return _api.request(
+        path,
+        refreshed,
+        body: body,
+        timeout: Duration(seconds: path.startsWith('/admin/') ? 60 : 20),
+      );
     }
   }
 
@@ -372,6 +394,8 @@ class _HouseholdPanelState extends State<HouseholdPanel> {
       }
       final data = await _request('/me');
       _userId = (data['user'] as Map?)?['id'] as String?;
+      _administrator =
+          (data['user'] as Map?)?['account_role'] == 'administrator';
       final households = List<Map<String, dynamic>>.from(
         data['households'] as List,
       );
@@ -666,6 +690,7 @@ class _HouseholdPanelState extends State<HouseholdPanel> {
             onSelected: (value) {
               if (value == 'name') _changeDisplayName();
               if (value == 'tableName') _changeTableName();
+              if (value == 'administration') _openAdministration();
               if (value == 'logout') _logOut();
               if (value == 'household') {
                 setState(() => _settings = true);
@@ -709,6 +734,15 @@ class _HouseholdPanelState extends State<HouseholdPanel> {
                   contentPadding: EdgeInsets.zero,
                 ),
               ),
+              if (_administrator)
+                const PopupMenuItem(
+                  value: 'administration',
+                  child: ListTile(
+                    leading: Icon(Icons.admin_panel_settings_outlined),
+                    title: Text('Administration'),
+                    contentPadding: EdgeInsets.zero,
+                  ),
+                ),
               const PopupMenuDivider(),
               const PopupMenuItem(
                 value: 'logout',

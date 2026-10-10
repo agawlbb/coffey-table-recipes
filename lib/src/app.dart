@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import 'account_panel.dart';
+import 'administration.dart';
 import 'touch_capability.dart';
 
 class CoffeyTableApp extends StatelessWidget {
@@ -15,6 +16,10 @@ class CoffeyTableApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) => MaterialApp(
     title: 'Coffey Table Recipes',
+    routes: {
+      '/administration': (_) =>
+          AuthenticatedAdministration(configured: authConfigured),
+    },
     debugShowCheckedModeBanner: false,
     scrollBehavior: const AppScrollBehavior(),
     builder: (context, child) =>

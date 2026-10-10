@@ -21,6 +21,7 @@ class RecipeApi {
     String path,
     String token, {
     Map<String, dynamic>? body,
+    Duration timeout = const Duration(seconds: 20),
   }) async {
     final uri = Uri.parse('$baseUrl$path');
     final headers = {
@@ -31,7 +32,7 @@ class RecipeApi {
         await (body == null
                 ? _client.get(uri, headers: headers)
                 : _client.post(uri, headers: headers, body: jsonEncode(body)))
-            .timeout(const Duration(seconds: 20));
+            .timeout(timeout);
     final data = jsonDecode(response.body) as Map<String, dynamic>;
     if (response.statusCode < 200 || response.statusCode >= 300) {
       final error = data['error'] as Map<String, dynamic>?;
