@@ -28,6 +28,7 @@ class _EmailVerificationScreenState extends State<EmailVerificationScreen>
   bool _sending = false;
   bool _checking = false;
   String? _message;
+  Future<void>? _observedAttempt;
 
   @override
   void initState() {
@@ -35,11 +36,22 @@ class _EmailVerificationScreenState extends State<EmailVerificationScreen>
     WidgetsBinding.instance.addObserver(this);
     _timer = Timer.periodic(const Duration(seconds: 5), (_) => _refresh());
     _refresh();
+    InvitationVerification.changes.addListener(_signupAttemptChanged);
+    _signupAttemptChanged();
+  }
+
+  void _signupAttemptChanged() {
+    final attempt = InvitationVerification.attemptFor(widget.user.uid);
+    if (attempt != null && attempt != _observedAttempt && mounted) {
+      _observedAttempt = attempt;
+      _observe(attempt);
+    }
   }
 
   @override
   void dispose() {
     _timer?.cancel();
+    InvitationVerification.changes.removeListener(_signupAttemptChanged);
     WidgetsBinding.instance.removeObserver(this);
     super.dispose();
   }
@@ -63,12 +75,20 @@ class _EmailVerificationScreenState extends State<EmailVerificationScreen>
 
   Future<void> _send({bool resend = false}) async {
     if (_sending) return;
+    await InvitationVerification.send(
+      widget.user,
+      resend: resend,
+    ).catchError((Object _) {});
+  }
+
+  Future<void> _observe(Future<void> attempt) async {
+    if (!mounted) return;
     setState(() {
       _sending = true;
       _message = null;
     });
     try {
-      await InvitationVerification.send(widget.user, resend: resend);
+      await attempt;
       if (mounted) {
         setState(
           () => _message =

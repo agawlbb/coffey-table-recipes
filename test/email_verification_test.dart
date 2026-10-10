@@ -1,4 +1,5 @@
 import 'package:coffey_table_recipes/src/email_verification_screen.dart';
+import 'package:coffey_table_recipes/src/invitation_entry.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -20,6 +21,27 @@ class PendingUser extends TestUser {
 }
 
 void main() {
+  testWidgets('signup send failure is visible without sending again', (
+    tester,
+  ) async {
+    final user = PendingUser('signup-send-failure', fail: true);
+    await InvitationVerification.send(user).catchError((Object _) {});
+    await tester.pumpWidget(
+      MaterialApp(
+        home: EmailVerificationScreen(
+          user: user,
+          refresh: () async {},
+          signOut: () async {},
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(user.sends, 1);
+    expect(find.textContaining('could not be sent'), findsOneWidget);
+    await tester.pump(const Duration(seconds: 5));
+    expect(user.sends, 1);
+    await tester.pumpWidget(const SizedBox());
+  });
   testWidgets(
     'verification opens without sending; explicit resend sends once',
     (tester) async {

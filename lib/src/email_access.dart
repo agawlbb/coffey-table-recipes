@@ -81,12 +81,17 @@ class _EmailAccessState extends State<EmailAccess> {
           password: _password.text,
         );
       } else if (_mode == EmailAccessMode.register) {
+        final name = _name.text.trim();
         final result = await auth.createUserWithEmailAndPassword(
           email: email,
           password: _password.text,
         );
-        await InvitationVerification.send(result.user!);
-        await result.user!.updateDisplayName(_name.text.trim());
+        final verification = InvitationVerification.send(result.user!);
+        // Attach an error handler immediately: the verification screen also
+        // observes this attempt after the sign-in widget has been removed.
+        final observed = verification.catchError((Object _) {});
+        await result.user!.updateDisplayName(name);
+        await observed;
         await result.user!.getIdToken(true);
       }
       TextInput.finishAutofillContext(shouldSave: true);

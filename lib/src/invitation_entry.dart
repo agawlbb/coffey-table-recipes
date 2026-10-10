@@ -1,4 +1,5 @@
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/foundation.dart';
 
 class InvitationEntry {
   InvitationEntry(Uri uri)
@@ -17,9 +18,13 @@ class InvitationEntry {
 
 abstract final class InvitationVerification {
   static final Map<String, Future<void>> _sent = {};
+  static final Map<String, Future<void>> _attempts = {};
+  static final ValueNotifier<int> changes = ValueNotifier(0);
+  // Observe an existing signup attempt without making a new send request.
+  static Future<void>? attemptFor(String uid) => _attempts[uid];
   static Future<void> send(User user, {bool resend = false}) {
     if (resend) _sent.remove(user.uid);
-    return _sent.putIfAbsent(user.uid, () async {
+    final attempt = _sent.putIfAbsent(user.uid, () async {
       try {
         try {
           await user.sendEmailVerification(
@@ -39,5 +44,8 @@ abstract final class InvitationVerification {
         rethrow;
       }
     });
+    _attempts[user.uid] = attempt;
+    changes.value++;
+    return attempt;
   }
 }
