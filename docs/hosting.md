@@ -12,15 +12,15 @@ Before future API or database schema changes, ask whether to switch back to loca
 
 ## Build
 
-## Deployment on Git pushes
+## Deployment on release tags or explicit requests
 
-`.github/workflows/deploy-web.yml` builds and deploys web assets on pushes to `main` and manual dispatches. It runs analysis/tests, uses the existing private Firebase build secret, gives fonts content-specific filenames, and verifies hosted source metadata and asset hashes after publishing. Deployments are serialized. Only the web `app/` directory is included in the archive; this workflow does not deploy PHP or migrations.
+`.github/workflows/deploy-web.yml` builds and deploys web assets when a release tag matching `v[0-9]*.[0-9]*.[0-9]*` (for example `v0.2.1`) is pushed, or when manually dispatched at the user's explicit request. Ordinary commits and branch pushes, including pushes to `main`, do not deploy. A local release tag must be pushed to GitHub to trigger deployment. It runs analysis/tests, uses the existing private Firebase build secret, gives fonts content-specific filenames, and verifies hosted source metadata and asset hashes after publishing. Deployments are serialized. Only the web `app/` directory is included in the archive; this workflow does not deploy PHP or migrations.
 
 The workflow requires GitHub Actions secrets `CPANEL_USER` and `CPANEL_API_TOKEN`. The cPanel token has all API access granted to its account, not folder-limited access. Creating it and storing it in the private GitHub repository requires explicit approval. Do not commit the token or the cPanel password. Revoke or replace tokens from cPanel Manage API Tokens; an expiring token needs renewal before its expiry. The scripts use HTTPS with certificate verification and never log the credential.
 
 The current website was manually published on 2026-10-10 from commit `76ba8d4`: version 0.2.0 build 3. Analysis and all 33 tests passed; the hosted JavaScript hash matched the local build.
 
-Automatic deployment was activated and verified on 2026-10-10 by Actions run `38080431005`, deploying commit `2e74f48`. The approved token `codex-coffeytable-web` is stored only in the encrypted repository secret, with expiration on October 10, 2027 (local time). Its temporary local transfer file was removed. The workflow verified the absolute extraction directory, hosted source metadata, and all three checked asset hashes. Earlier unsuccessful setup runs were corrected before declaring automation ready. Future app pushes to `main` publish automatically; a manual workflow dispatch also rebuilds and publishes without a cPanel login.
+Automatic deployment was activated and verified on 2026-10-10 by Actions run `38080431005`, deploying commit `2e74f48`. The approved token `codex-coffeytable-web` is stored only in the encrypted repository secret, with expiration on October 10, 2027 (local time). Its temporary local transfer file was removed. The workflow verified the absolute extraction directory, hosted source metadata, and all three checked asset hashes. Earlier unsuccessful setup runs were corrected before declaring automation ready. The trigger was subsequently restricted at the user's request to pushed release tags and explicit manual deployment requests; branch pushes no longer publish. Both supported deployment paths use the stored token without a cPanel login.
 
 ```powershell
 flutter build web --base-href=/CoffeyTableRecipes/app/ --dart-define-from-file=config/firebase.local.json
