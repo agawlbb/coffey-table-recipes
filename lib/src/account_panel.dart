@@ -378,8 +378,9 @@ class _HouseholdPanelState extends State<HouseholdPanel> {
 
   Future<void> _load({bool reviewInvitations = true}) async {
     await _perform(() async {
-      if (widget.request == null && _entryReturnedFromVerification) {
-        await widget.user.reload();
+      if (widget.request == null) {
+        if (_entryReturnedFromVerification) await widget.user.reload();
+        // Refresh verification claims before querying invitations.
         await widget.user.getIdToken(true);
       }
       final data = await _request('/me');
