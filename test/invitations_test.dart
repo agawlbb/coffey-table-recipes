@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:coffey_table_recipes/src/account_panel.dart';
 import 'package:coffey_table_recipes/src/api.dart';
 import 'package:coffey_table_recipes/src/invitation_dialogs.dart';
@@ -7,6 +9,67 @@ import 'package:flutter_test/flutter_test.dart';
 import 'home_design_test.dart' show TestUser;
 
 void main() {
+  testWidgets('accept failure stays visible and retry cannot submit twice', (
+    tester,
+  ) async {
+    var attempts = 0;
+    final completed = Completer<void>();
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Builder(
+          builder: (context) => Scaffold(
+            body: TextButton(
+              child: const Text('Review'),
+              onPressed: () => showDialog<bool>(
+                context: context,
+                barrierDismissible: false,
+                builder: (_) => InvitationResponseDialog(
+                  invitation: const {
+                    'id': '7',
+                    'household_name': 'Family',
+                    'inviter_name': 'Alex',
+                  },
+                  respond: (_) async {
+                    attempts++;
+                    if (attempts == 1) {
+                      throw ApiException(503, 'Please try again.');
+                    }
+                    await completed.future;
+                  },
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.tap(find.text('Review'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Accept'));
+    await tester.pumpAndSettle();
+    expect(find.text('Please try again.'), findsOneWidget);
+    expect(find.text('Household invitation'), findsOneWidget);
+    await tester.tap(find.text('Accept'));
+    await tester.pump();
+    expect(
+      tester
+          .widget<FilledButton>(find.widgetWithText(FilledButton, 'Accept'))
+          .onPressed,
+      isNull,
+    );
+    expect(
+      tester
+          .widget<TextButton>(find.widgetWithText(TextButton, 'Decline'))
+          .onPressed,
+      isNull,
+    );
+    expect(attempts, 2);
+    completed.complete();
+    await tester.pumpAndSettle();
+    expect(find.text('Household invitation'), findsNothing);
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets(
     'email dialog validates, shows rejection, and retries successfully',
     (tester) async {

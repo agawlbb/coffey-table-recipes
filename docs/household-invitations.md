@@ -7,3 +7,5 @@ After sign-in/account creation, `/me` supplies pending invitations for the authe
 The backend remains coffeybean.com, as selected by the user. Deployment requires the PHP invitation migration/API, authenticated SMTP configuration, and a restricted Firebase account lookup credential. A local web rebuild alone does not activate those hosted capabilities.
 
 Validation: Flutter analysis, existing widget/API tests, and `test/invitations_test.dart` cover email validation, account-already-in-household rejection, retry, pending invitations at login, accept/decline, and email verification gating. See the PHP repository's `docs/household-invitations.md` for server setup and disposable database tests.
+
+Additional regression coverage verifies that an acceptance error leaves the invitation visible for retry, and disables both response buttons while a retry is running to prevent duplicate submission. All five invitation widget tests pass. The current feature is deployed at `https://coffeybean.com/CoffeyTableRecipes/app/`; authenticated hosted UI and real email delivery verification still need a signed-in account and a test recipient.
