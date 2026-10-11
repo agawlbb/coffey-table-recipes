@@ -97,6 +97,9 @@ void main() {
           .initiallyExpanded,
       isFalse,
     );
+    expect(find.text('2 actions'), findsOneWidget);
+    expect(find.text('Timer: Simmer timer · 1 min'), findsOneWidget);
+    expect(find.text('Rest: Second timer · 2 min'), findsOneWidget);
     await section(tester, 'Step 1');
     expect(
       tester

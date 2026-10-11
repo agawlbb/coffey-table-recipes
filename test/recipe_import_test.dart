@@ -24,6 +24,63 @@ Map<String, dynamic> draft(List<String> questions) => {
 };
 
 void main() {
+  for (final edited in [false, true]) {
+    testWidgets('cancel import review returns to origin (edited: $edited)', (
+      tester,
+    ) async {
+      var calls = 0;
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Builder(
+            builder: (context) => Scaffold(
+              body: TextButton(
+                onPressed: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => RecipeImport(
+                      householdId: '2',
+                      request: (_, body) async {
+                        calls++;
+                        return draft([]);
+                      },
+                    ),
+                  ),
+                ),
+                child: const Text('Start import'),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.tap(find.text('Start import'));
+      await tester.pumpAndSettle();
+      await tester.enterText(
+        find.widgetWithText(TextField, 'Recipe or description'),
+        'Soup with water',
+      );
+      await tester.ensureVisible(find.text('Continue'));
+      await tester.tap(find.text('Continue'));
+      await tester.pumpAndSettle();
+      expect(find.text('Review recipe'), findsOneWidget);
+      if (edited) {
+        await tester.enterText(
+          find.widgetWithText(TextFormField, 'Recipe name'),
+          'Changed soup',
+        );
+      }
+      await tester.tap(find.text('Cancel'));
+      await tester.pumpAndSettle();
+      if (edited) {
+        expect(find.text('Discard changes?'), findsOneWidget);
+        await tester.tap(find.text('Discard'));
+        await tester.pumpAndSettle();
+      }
+      expect(find.text('Start import'), findsOneWidget);
+      expect(find.text('Add recipe'), findsNothing);
+      expect(find.text('Discard recipe import?'), findsNothing);
+      expect(calls, 1);
+    });
+  }
   for (final camera in [false, true]) {
     testWidgets(
       camera

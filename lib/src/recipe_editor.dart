@@ -153,6 +153,8 @@ class _RecipeEditorState extends State<RecipeEditor> {
     }
     if (!mounted) return;
     setState(() => _leaving = true);
+    await WidgetsBinding.instance.endOfFrame;
+    if (!mounted) return;
     Navigator.pop(context);
   }
 
@@ -449,6 +451,7 @@ class _RecipeEditorState extends State<RecipeEditor> {
     VoidCallback? remove,
     String? preview,
     bool? initiallyExpanded,
+    Widget? summary,
   }) {
     final index = rows.indexOf(row);
     return Card(
@@ -464,9 +467,16 @@ class _RecipeEditorState extends State<RecipeEditor> {
             (row['id']?.toString().startsWith('new-') == true ||
                 row['_key'] != null),
         title: Text(title),
-        subtitle: preview == null || preview.trim().isEmpty
+        subtitle: summary == null && (preview == null || preview.trim().isEmpty)
             ? null
-            : Text(preview, maxLines: 2, overflow: TextOverflow.ellipsis),
+            : Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  if (preview != null && preview.trim().isNotEmpty)
+                    Text(preview, maxLines: 2, overflow: TextOverflow.ellipsis),
+                  ?summary,
+                ],
+              ),
         childrenPadding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
         children: [
           ...children,
@@ -679,12 +689,77 @@ class _RecipeEditorState extends State<RecipeEditor> {
         ),
       ],
       preview: row['instruction']?.toString(),
+      summary: actions.isEmpty
+          ? null
+          : Padding(
+              padding: const EdgeInsets.only(top: 8),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    '${actions.length} ${actions.length == 1 ? 'action' : 'actions'}',
+                    style: const TextStyle(fontWeight: FontWeight.w600),
+                  ),
+                  for (final action in actions)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 4),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Icon(
+                            ['timer', 'rest'].contains(action['action_type'])
+                                ? Icons.timer_outlined
+                                : action['temperature_value'] != null
+                                ? Icons.thermostat
+                                : Icons.notifications_outlined,
+                            size: 18,
+                          ),
+                          const SizedBox(width: 6),
+                          Expanded(child: Text(_actionSummary(action))),
+                        ],
+                      ),
+                    ),
+                ],
+              ),
+            ),
       initiallyExpanded: false,
       remove: () {
         _rows('actions').removeWhere((a) => a['step_id'] == row['id']);
         _rows('steps').remove(row);
       },
     );
+  }
+
+  String _actionSummary(Map<String, dynamic> action) {
+    const types = {
+      'timer': 'Timer',
+      'rest': 'Rest',
+      'appliance_temperature': 'Appliance temperature',
+      'internal_temperature': 'Internal temperature',
+      'reminder': 'Reminder',
+    };
+    final details = <String>[];
+    if (action['label']?.toString().trim().isNotEmpty == true) {
+      details.add(action['label'].toString());
+    }
+    final seconds = int.tryParse('${action['duration_seconds']}');
+    if (seconds != null) {
+      final minutes = seconds ~/ 60, remainder = seconds % 60;
+      details.add(
+        minutes == 0
+            ? '$seconds sec'
+            : '$minutes min${remainder == 0 ? '' : ' $remainder sec'}',
+      );
+    }
+    if (action['temperature_value'] != null) {
+      details.add(
+        '${recipeValue(action['temperature_value'])}°${action['temperature_unit'] ?? ''}',
+      );
+    }
+    if (action['appliance']?.toString().trim().isNotEmpty == true) {
+      details.add(action['appliance'].toString());
+    }
+    return '${types[action['action_type']] ?? 'Action'}${details.isEmpty ? '' : ': ${details.join(' · ')}'}';
   }
 
   Widget _photoItem(Map<String, dynamic> row) => _item(

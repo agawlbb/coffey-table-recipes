@@ -31,6 +31,7 @@ class _RecipeImportState extends State<RecipeImport> {
   String _kind = 'text';
   XFile? _file;
   bool _busy = false;
+  bool _leaving = false;
   String? _error;
   Map<String, dynamic>? _draft;
   List<String> _questions = [];
@@ -230,7 +231,11 @@ class _RecipeImportState extends State<RecipeImport> {
         ),
       ),
     );
-    if (saved != null && mounted) Navigator.pop(context, saved);
+    if (mounted) {
+      setState(() => _leaving = true);
+      await WidgetsBinding.instance.endOfFrame;
+      if (mounted) Navigator.pop(context, saved);
+    }
   }
 
   Future<void> _close() async {
@@ -258,12 +263,16 @@ class _RecipeImportState extends State<RecipeImport> {
       );
       if (discard != true) return;
     }
-    if (mounted) Navigator.pop(context);
+    if (mounted) {
+      setState(() => _leaving = true);
+      await WidgetsBinding.instance.endOfFrame;
+      if (mounted) Navigator.pop(context);
+    }
   }
 
   @override
   Widget build(BuildContext context) => PopScope(
-    canPop: false,
+    canPop: _leaving,
     onPopInvokedWithResult: (didPop, _) {
       if (!didPop) _close();
     },
