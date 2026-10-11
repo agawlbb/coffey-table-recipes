@@ -10,7 +10,7 @@ The user requests that all future project changes be committed to Git.
 # Hosted development workflow
 
 - "Create a release" explicitly authorizes reviewing changes since the prior release, choosing and tagging an appropriate version, pushing the release, rebuilding web/Android/unsigned iOS, publishing the hosted app, saving the latest Android APK in the accessible "recipe app" folder, and saving the unsigned iOS IPA on the user's desktop. Remove obsolete release packages from their respective destinations only after replacements are verified. Retain unrelated files and signed packages. Record release validation in Git.
-- On the next release, create `CHANGELOG.md` using Git history, release tags, and existing release records to cover previous releases and the new release. On every subsequent release, update it with the version, release date, and meaningful changes since the previous release. Include the changelog in the release commit before tagging; do not invent unsupported history.
+- On every release, update `CHANGELOG.md` with the version, release date, and meaningful changes since the previous release. Its initial history was reconstructed from Git tags and release records in 0.5.0. Include the changelog in the release commit before tagging; do not invent unsupported history.
 - The Android release destination is `G:\My Drive\recipe app`. Save the latest verified APK there instead of on the desktop.
 
 - Unless the user specifies otherwise, all changes to database data, database structure, and the backend hosting process occur on the hosted coffeybean.com site.

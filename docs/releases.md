@@ -10,6 +10,8 @@ When the user says "create a release", review progress since the previous releas
 
 Version `0.5.0+6`, tagged `v0.5.0`, adds the complete recipe editor with device photos and step actions, database-ID recipe link sharing, and resumable full recipe-text downloads with offline readiness checks. Supporting backend changes are already hosted. Web, Android and unsigned iOS use the same version and build number. The initial historical changelog was created from prior release records and Git history before tagging this release.
 
+Verified on 2026-10-11: Flutter analysis passed and all 77 tests passed. Android release compilation succeeded; the APK was copied to `G:\My Drive\recipe app`, its copy hash matched, and its metadata confirms 0.5.0/build 6. Hosted deployment run `38144164128` passed version and asset verification; public metadata identifies release commit `932e943` and the built-in browser loaded the recipe collection. iOS run `38144162621` successfully built the unsigned IPA using Xcode 26.3; its metadata also confirms 0.5.0/build 6. The IPA was saved on the desktop, replacing the obsolete 0.4.0 unsigned IPA. No obsolete APKs were present in the Android destination. Signing and device installation remain user-managed.
+
 ## 0.4.0 — offline recipe library and browsing
 
 Version `0.4.0+5`, tagged `v0.4.0`, adds an offline mobile recipe library and recent-photo caching, scoped recipes below distinct category cards, backend-delivered verification emails, and administration of Firebase-only accounts. The existing hosted verification backend is already deployed; this release rebuilds and distributes the app without database or backend changes. All three platforms share this version and build number; iOS is unsigned for user-managed signing.
