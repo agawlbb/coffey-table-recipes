@@ -2,7 +2,9 @@
 
 ## Release command
 
-When the user says "create a release", review progress since the previous release, choose an appropriate version and increment its build number, validate and commit, create and push an immutable annotated tag, rebuild web/Android/unsigned iOS, explicitly dispatch hosted deployment using the release tag, and save the verified APK and unsigned IPA on the desktop. Then remove obsolete app release APKs and unsigned IPAs from the desktop, retaining unrelated files and signed packages. A tag by itself does not authorize hosted deployment; the web workflow is manual-only and requires a release tag.
+When the user says "create a release", review progress since the previous release, choose an appropriate version and increment its build number, validate and commit, create and push an immutable annotated tag, rebuild web/Android/unsigned iOS, explicitly dispatch hosted deployment using the release tag, save the verified Android APK in the accessible "recipe app" folder, and save the unsigned IPA on the desktop. Then remove obsolete release packages from their respective destinations, retaining unrelated files and signed packages. A tag by itself does not authorize hosted deployment; the web workflow is manual-only and requires a release tag.
+
+At the next release, create `CHANGELOG.md` covering previous releases and the new release using Git history, tags, and the release records below. Every future release must update it with the version, release date, and meaningful changes since the prior release. Commit the changelog before tagging the release. Describe only changes supported by the project history.
 
 ## 0.4.0 — offline recipe library and browsing
 
