@@ -888,6 +888,20 @@ class _HouseholdPanelState extends State<HouseholdPanel> {
                         householdId: _selected!,
                         householdName: selected['name'] as String,
                         request: (path) => _request(path),
+                        save: (path, body) async {
+                          final data = await _request(path, body: body);
+                          await _offline?.rememberSavedRecipe(path, data);
+                          if (_offline != null) {
+                            unawaited(
+                              _offline!.sync(
+                                _households
+                                    .map((h) => h['id'] as String)
+                                    .toList(),
+                              ),
+                            );
+                          }
+                          return data;
+                        },
                       ),
                 Center(
                   child: ConstrainedBox(

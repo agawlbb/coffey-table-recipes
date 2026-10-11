@@ -8,6 +8,7 @@ import 'package:flutter_cache_manager/flutter_cache_manager.dart';
 import 'api.dart';
 import 'cooking_mode.dart';
 import 'offline_recipes.dart';
+import 'recipe_editor.dart';
 
 final recipePhotoCache = CacheManager(
   Config(
@@ -57,10 +58,12 @@ class RecipeBrowser extends StatefulWidget {
     required this.householdName,
     required this.request,
     this.embedded = false,
+    this.save,
   });
   final String householdId;
   final String householdName;
   final RecipeRequest request;
+  final RecipeSave? save;
   final bool embedded;
   @override
   State<RecipeBrowser> createState() => _RecipeBrowserState();
@@ -179,16 +182,20 @@ class _RecipeBrowserState extends State<RecipeBrowser> {
     _load();
   }
 
-  void _open(Map<String, dynamic> recipe) => Navigator.of(context).push(
-    MaterialPageRoute<void>(
-      builder: (_) => RecipeDetail(
-        householdId: widget.householdId,
-        recipeId: recipe['id'] as String,
-        title: recipe['title'] as String,
-        request: widget.request,
+  Future<void> _open(Map<String, dynamic> recipe) async {
+    await Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => RecipeDetail(
+          householdId: widget.householdId,
+          recipeId: recipe['id'] as String,
+          title: recipe['title'] as String,
+          request: widget.request,
+          save: widget.save,
+        ),
       ),
-    ),
-  );
+    );
+    if (mounted) _load();
+  }
 
   @override
   Widget build(BuildContext context) => widget.embedded
@@ -492,11 +499,13 @@ class RecipeDetail extends StatefulWidget {
     required this.recipeId,
     required this.title,
     required this.request,
+    this.save,
   });
   final String householdId;
   final String recipeId;
   final String title;
   final RecipeRequest request;
+  final RecipeSave? save;
   @override
   State<RecipeDetail> createState() => _RecipeDetailState();
 }
@@ -630,6 +639,23 @@ class _RecipeDetailState extends State<RecipeDetail> {
     padding: const EdgeInsets.only(top: 28, bottom: 12),
     child: Text(text, style: Theme.of(context).textTheme.headlineSmall),
   );
+  Future<void> _edit() async {
+    final updated = await Navigator.of(context).push<Map<String, dynamic>>(
+      MaterialPageRoute(
+        builder: (_) => RecipeEditor(
+          recipe: _recipe!,
+          householdId: widget.householdId,
+          save: widget.save!,
+        ),
+      ),
+    );
+    if (updated != null && mounted) {
+      setState(() => _recipe = updated);
+      ScaffoldMessenger.of(context)
+          .showSnackBar(const SnackBar(content: Text('Recipe saved')));
+    }
+  }
+
   void _openRelated(Map<String, dynamic> row) => Navigator.of(context).push(
     MaterialPageRoute<void>(
       builder: (_) => RecipeDetail(
@@ -637,6 +663,7 @@ class _RecipeDetailState extends State<RecipeDetail> {
         recipeId: row['id'] as String,
         title: row['title'] as String,
         request: widget.request,
+        save: widget.save,
       ),
     ),
   );
@@ -645,7 +672,7 @@ class _RecipeDetailState extends State<RecipeDetail> {
   Widget build(BuildContext context) => Scaffold(
     appBar: AppBar(
       leading: BackButton(onPressed: () => Navigator.of(context).pop()),
-      title: Text(widget.title),
+      title: Text(_recipe?['title'] as String? ?? widget.title),
       actions: [
         Builder(
           builder: (anchor) => IconButton(
@@ -687,9 +714,21 @@ class _RecipeDetailState extends State<RecipeDetail> {
         child: ListView(
           padding: const EdgeInsets.all(24),
           children: [
-            Text(
-              recipe['title'] as String,
-              style: Theme.of(context).textTheme.headlineLarge,
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    recipe['title'] as String,
+                    style: Theme.of(context).textTheme.headlineLarge,
+                  ),
+                ),
+                if (widget.save != null)
+                  IconButton(
+                    tooltip: 'Edit recipe',
+                    onPressed: _edit,
+                    icon: const Icon(Icons.edit_outlined),
+                  ),
+              ],
             ),
             const SizedBox(height: 16),
             FilledButton.icon(

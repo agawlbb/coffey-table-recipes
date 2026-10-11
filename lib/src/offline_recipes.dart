@@ -213,6 +213,52 @@ class OfflineRecipes with WidgetsBindingObserver {
       RegExp(r'^/households/[^/]+/(people|recipes)(/[^/?]+)?(\?.*)?$')
           .hasMatch(path);
 
+  /// Use the server-confirmed save response immediately, including offline reads.
+  Future<void> rememberSavedRecipe(
+    String path,
+    Map<String, dynamic> data,
+  ) async {
+    await _load();
+    if (_closed) return;
+    final segments = Uri.parse(path).pathSegments;
+    if (segments.length != 4 || segments[2] != 'recipes') return;
+    final recipe = data['recipe'] as Map<String, dynamic>;
+    _responses[path] = jsonDecode(jsonEncode(data));
+    final household = segments[1];
+    final library = _libraries[household] as Map?;
+    if (library != null) {
+      for (final row in library['rows'] as List) {
+        if (row['id'] == recipe['id']) {
+          for (final field in [
+            'title',
+            'description',
+            'original_language',
+            'servings',
+            'yield_text',
+            'prep_minutes',
+            'cook_minutes',
+            'total_minutes',
+            'parent_recipe_id',
+          ]) {
+            row[field] = recipe[field];
+          }
+          final photos = (recipe['photos'] as List? ?? []);
+          final covers = photos.where(
+            (p) => p['is_cover'] == 1 || p['is_cover'] == true,
+          );
+          row['photo_url'] = (covers.isNotEmpty
+              ? covers.first
+              : photos.firstOrNull)?['source_url'];
+        }
+      }
+      // Force the next sync to refresh categories and related recipes as well.
+      library['synced_at'] = '1970-01-01T00:00:00Z';
+    }
+    final root = '/households/$household/recipes';
+    _responses.removeWhere((key, _) => Uri.parse(key).path == root);
+    await _save();
+  }
+
   Future<Map<String, dynamic>> request(String path) async {
     await _load();
     if (offlineStatus.value && _cacheable(path)) {
