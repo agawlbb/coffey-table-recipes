@@ -1,7 +1,5 @@
 name: Deploy hosted website
 on:
-  push:
-    tags: ['v[0-9]*.[0-9]*.[0-9]*']
   workflow_dispatch:
 permissions:
   contents: read
@@ -13,6 +11,9 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
+      - name: Require a release tag
+        run: |
+          [[ "$GITHUB_REF" =~ ^refs/tags/v[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo 'Select a versioned release tag for deployment'; exit 1; }
       - uses: actions/checkout@v4
       - name: Install pinned Flutter
         run: |

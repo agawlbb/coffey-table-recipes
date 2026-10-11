@@ -9,6 +9,8 @@ The user requests that all future project changes be committed to Git.
 
 # Hosted development workflow
 
+- "Create a release" explicitly authorizes reviewing changes since the prior release, choosing and tagging an appropriate version, pushing the release, rebuilding web/Android/unsigned iOS, publishing the hosted app, and saving the mobile packages on the user's desktop. Remove obsolete CoffeyTableRecipes APK/unsigned IPA release packages there only after the replacements are verified. Retain unrelated files and signed packages. Record release validation in Git.
+
 - Unless the user specifies otherwise, all changes to database data, database structure, and the backend hosting process occur on the hosted coffeybean.com site.
 - Changes to the app itself are developed and tested locally using the XAMPP copy at `C:\xampp\htdocs\CoffeyTableRecipes`. Flutter source changes belong in this repository.
 - Update the hosted app only when the user explicitly asks and a new version is tagged. A tag alone does not authorize deployment.

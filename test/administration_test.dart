@@ -16,11 +16,12 @@ void main() {
       MaterialApp(
         home: AdministrationPage(
           request: (path, {body}) async {
-            if (path == '/me')
+            if (path == '/me') {
               return {
                 'user': {'id': '1', 'account_role': 'administrator'},
               };
-            if (path == '/admin/users')
+            }
+            if (path == '/admin/users') {
               return {
                 'users': writes.isEmpty
                     ? [
@@ -34,6 +35,7 @@ void main() {
                       ]
                     : [],
               };
+            }
             expect(body, {'confirm': true});
             writes.add(path);
             return {'deleted': true};
