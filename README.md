@@ -66,7 +66,7 @@ Imported recipe photos are downloaded and served from coffeybean.com under `Coff
 
 Recipe review catches decimal/fraction conflicts before save, expands the affected ingredient and Exact quantities section, highlights the conflicting fields, and scrolls them into view. AI prefills use one valid quantity representation; backend errors identify the ingredient or action.
 
-AI image generation is available alongside existing recipe photos, with no daily
+AI image generation is offered only when no draft or saved recipe photos exist, with no daily
 attempt cap. Saving a new category generates specific category artwork; browsing
 retries missing artwork for previously imported categories. Category images use
 the backend media URL rather than the parent category asset.

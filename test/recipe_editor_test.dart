@@ -57,16 +57,17 @@ Future<void> section(WidgetTester tester, String label) async {
 }
 
 void main() {
-  testWidgets('category review shows parent before category name', (
+  testWidgets('saved category review shows parent before category', (
     tester,
   ) async {
     final draft = recipe();
     draft['category_assignments'] = [
-      {'label': 'Pies', 'parent_label': 'Desserts'},
+      {'category_id': '2'},
     ];
     draft['edit_options'] = {
       'categories': [
         {'id': '1', 'label': 'Desserts', 'parent_label': null},
+        {'id': '2', 'label': 'Pies', 'parent_label': 'Desserts'},
       ],
     };
     await tester.pumpWidget(
@@ -80,16 +81,17 @@ void main() {
     );
     await tester.pumpAndSettle();
     await section(tester, 'Categories & tags');
-    if (find.text('Parent category').evaluate().isEmpty)
+    if (find.text('Parent category').evaluate().isEmpty) {
       await section(tester, 'Desserts / Pies');
+    }
     expect(
       tester.getTopLeft(find.text('Parent category')).dy,
-      lessThan(tester.getTopLeft(find.text('Category name')).dy),
+      lessThan(tester.getTopLeft(find.text('Category')).dy),
     );
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('AI image remains available with photos and saves normally', (
+  testWidgets('AI image hides after a photo is added and saves normally', (
     tester,
   ) async {
     Map<String, dynamic>? submitted;
@@ -124,20 +126,15 @@ void main() {
     await tester.tap(find.text('Generate an image with AI'));
     await tester.pumpAndSettle();
     expect(generated, 1);
-    expect(find.text('Generate an image with AI'), findsOneWidget);
+    expect(find.text('Generate an image with AI'), findsNothing);
     expect(
       find.widgetWithText(TextFormField, 'AI-generated soup'),
       findsOneWidget,
     );
-    await tester.ensureVisible(find.text('Generate an image with AI'));
-    await tester.tap(find.text('Generate an image with AI'));
-    await tester.pumpAndSettle();
-    expect(generated, 2);
     await tester.tap(find.text('Save'));
     await tester.pumpAndSettle();
-    expect((submitted!['photos'] as List).length, 2);
+    expect((submitted!['photos'] as List).length, 1);
     expect((submitted!['photos'] as List).first['is_cover'], 1);
-    expect((submitted!['photos'] as List).last['is_cover'], 0);
     expect(
       (submitted!['photos'] as List).first['attribution'],
       contains('AI-generated'),
@@ -550,7 +547,7 @@ void main() {
       await tester.ensureVisible(find.text(label));
       await tester.tap(find.text(label));
       await tester.pumpAndSettle();
-      expect(find.text('Generate an image with AI'), findsOneWidget);
+      expect(find.text('Generate an image with AI'), findsNothing);
     }
     await tester.tap(find.text('Save'));
     await tester.pumpAndSettle();

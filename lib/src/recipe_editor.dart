@@ -65,6 +65,19 @@ class _RecipeEditorState extends State<RecipeEditor> {
       (_draft[key] as List).cast<Map<String, dynamic>>();
   List<Map<String, dynamic>> _options(String key) =>
       recipeRows((_draft['edit_options'] as Map?)?[key]);
+  String _categoryTitle(Map<String, dynamic> row) {
+    final selected = row['label'] != null
+        ? row
+        : _options('categories')
+              .where(
+                (c) => c['id'].toString() == row['category_id']?.toString(),
+              )
+              .firstOrNull;
+    if (selected == null) return 'Browse category';
+    final parent = selected['parent_label'];
+    return '${parent == null || parent == '' ? '' : '$parent / '}${selected['label']}';
+  }
+
   @override
   void initState() {
     super.initState();
@@ -84,6 +97,14 @@ class _RecipeEditorState extends State<RecipeEditor> {
     for (final key in ['tags', 'category_assignments']) {
       for (final row in _rows(key)) {
         row['_key'] = _id();
+      }
+    }
+    for (final row in _rows('category_assignments')) {
+      final selected = _options('categories')
+          .where((c) => c['id'].toString() == row['category_id']?.toString())
+          .firstOrNull;
+      if (selected != null) {
+        row['_parent_category'] = selected['parent_label'] ?? selected['label'];
       }
     }
     _draft['original_language'] ??= 'en';
@@ -294,7 +315,12 @@ class _RecipeEditorState extends State<RecipeEditor> {
   }
 
   Future<void> _generatePhoto() async {
-    if (_picking || _saving) return;
+    if (_picking ||
+        _saving ||
+        _rows('photos').isNotEmpty ||
+        recipeRows(widget.recipe['photos']).isNotEmpty) {
+      return;
+    }
     FocusScope.of(context).unfocus();
     setState(() {
       _picking = true;
@@ -449,6 +475,7 @@ class _RecipeEditorState extends State<RecipeEditor> {
         ],
         onChanged: (value) => _change(() {
           row[key] = value == '' ? null : value;
+          if (key == '_parent_category') row['category_id'] = null;
           if (key == 'action_type') {
             final timed = ['timer', 'rest'].contains(value);
             final temperature = [
@@ -1189,13 +1216,15 @@ class _RecipeEditorState extends State<RecipeEditor> {
                               icon: const Icon(Icons.camera_alt_outlined),
                               label: const Text('Use camera'),
                             ),
-                            OutlinedButton.icon(
-                              onPressed: _picking || _saving
-                                  ? null
-                                  : _generatePhoto,
-                              icon: const Icon(Icons.auto_awesome_outlined),
-                              label: const Text('Generate an image with AI'),
-                            ),
+                            if (_rows('photos').isEmpty &&
+                                recipeRows(widget.recipe['photos']).isEmpty)
+                              OutlinedButton.icon(
+                                onPressed: _picking || _saving
+                                    ? null
+                                    : _generatePhoto,
+                                icon: const Icon(Icons.auto_awesome_outlined),
+                                label: const Text('Generate an image with AI'),
+                              ),
                           ],
                         ),
                         if (_picking) const LinearProgressIndicator(),
@@ -1209,7 +1238,9 @@ class _RecipeEditorState extends State<RecipeEditor> {
                               ),
                             ),
                           ),
-                        _help('Generate an image with AI.'),
+                        if (_rows('photos').isEmpty &&
+                            recipeRows(widget.recipe['photos']).isEmpty)
+                          _help('Generate an image with AI.'),
                         const Padding(
                           padding: EdgeInsets.only(top: 12),
                           child: Text('JPEG, PNG or WebP · up to 5 MB each'),
@@ -1221,9 +1252,7 @@ class _RecipeEditorState extends State<RecipeEditor> {
                     _section('Categories & tags', Icons.label_outline, [
                       ..._rows('category_assignments').map(
                         (r) => _item(
-                          r['label'] == null
-                              ? 'Browse category'
-                              : '${r['parent_label'] == null || r['parent_label'] == '' ? '' : '${r['parent_label']} / '}${r['label']}',
+                          _categoryTitle(r),
                           _rows('category_assignments'),
                           r,
                           [
@@ -1241,12 +1270,29 @@ class _RecipeEditorState extends State<RecipeEditor> {
                                 required: true,
                                 maxLength: 120,
                               ),
-                            ] else
+                            ] else ...[
+                              _choice(
+                                r,
+                                '_parent_category',
+                                'Parent category',
+                                {
+                                  for (final c in _options(
+                                    'categories',
+                                  ).where((c) => c['parent_label'] == null))
+                                    '${c['label']}': '${c['label']}',
+                                },
+                              ),
                               _choice(r, 'category_id', 'Category', {
-                                for (final c in _options('categories'))
-                                  '${c['id']}':
-                                      '${c['parent_label'] == null ? '' : '${c['parent_label']} / '}${c['label']}',
+                                for (final c in _options('categories').where(
+                                  (c) =>
+                                      c['parent_label'] ==
+                                          r['_parent_category'] ||
+                                      (c['parent_label'] == null &&
+                                          c['label'] == r['_parent_category']),
+                                ))
+                                  '${c['id']}': '${c['label']}',
                               }),
+                            ],
                           ],
                         ),
                       ),
