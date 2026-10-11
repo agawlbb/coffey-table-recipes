@@ -70,3 +70,5 @@ AI image generation is available alongside existing recipe photos, with no daily
 attempt cap. Saving a new category generates specific category artwork; browsing
 retries missing artwork for previously imported categories. Category images use
 the backend media URL rather than the parent category asset.
+
+Imported category review shows Parent category before Category name. Imports generate missing recipe descriptions and classify filled pie shells as Pies under Desserts, including recipes without a title.

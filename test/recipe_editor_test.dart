@@ -57,6 +57,38 @@ Future<void> section(WidgetTester tester, String label) async {
 }
 
 void main() {
+  testWidgets('category review shows parent before category name', (
+    tester,
+  ) async {
+    final draft = recipe();
+    draft['category_assignments'] = [
+      {'label': 'Pies', 'parent_label': 'Desserts'},
+    ];
+    draft['edit_options'] = {
+      'categories': [
+        {'id': '1', 'label': 'Desserts', 'parent_label': null},
+      ],
+    };
+    await tester.pumpWidget(
+      MaterialApp(
+        home: RecipeEditor(
+          recipe: draft,
+          householdId: '2',
+          save: (_, body) async => {'recipe': body},
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await section(tester, 'Categories & tags');
+    if (find.text('Parent category').evaluate().isEmpty)
+      await section(tester, 'Desserts / Pies');
+    expect(
+      tester.getTopLeft(find.text('Parent category')).dy,
+      lessThan(tester.getTopLeft(find.text('Category name')).dy),
+    );
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('AI image remains available with photos and saves normally', (
     tester,
   ) async {

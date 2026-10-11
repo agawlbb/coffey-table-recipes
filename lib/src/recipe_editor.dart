@@ -1228,6 +1228,12 @@ class _RecipeEditorState extends State<RecipeEditor> {
                           r,
                           [
                             if (r['label'] != null) ...[
+                              _choice(r, 'parent_label', 'Parent category', {
+                                for (final c in _options(
+                                  'categories',
+                                ).where((c) => c['parent_label'] == null))
+                                  '${c['label']}': '${c['label']}',
+                              }, nullable: true),
                               _field(
                                 r,
                                 'label',
@@ -1235,12 +1241,6 @@ class _RecipeEditorState extends State<RecipeEditor> {
                                 required: true,
                                 maxLength: 120,
                               ),
-                              _choice(r, 'parent_label', 'Parent category', {
-                                for (final c in _options(
-                                  'categories',
-                                ).where((c) => c['parent_label'] == null))
-                                  '${c['label']}': '${c['label']}',
-                              }, nullable: true),
                             ] else
                               _choice(r, 'category_id', 'Category', {
                                 for (final c in _options('categories'))
