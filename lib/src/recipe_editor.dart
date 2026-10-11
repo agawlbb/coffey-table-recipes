@@ -34,6 +34,7 @@ class _RecipeEditorState extends State<RecipeEditor> {
   late final Map<String, dynamic> _draft;
   bool _dirty = false, _saving = false, _picking = false, _leaving = false;
   String? _error;
+  String? _photoError;
   bool _revealingErrors = false;
   AnimationStyle? get _expansionStyle =>
       _revealingErrors ? AnimationStyle.noAnimation : null;
@@ -241,6 +242,7 @@ class _RecipeEditorState extends State<RecipeEditor> {
     setState(() {
       _picking = true;
       _error = null;
+      _photoError = null;
     });
     try {
       final file =
@@ -256,6 +258,53 @@ class _RecipeEditorState extends State<RecipeEditor> {
       if (mounted) {
         setState(
           () => _error = error is FormatException ? error.message : 'Could not open the photo picker or camera. Check device permissions and try again.',
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _picking = false);
+    }
+  }
+
+  Future<void> _generatePhoto() async {
+    if (_picking || _saving || _rows('photos').isNotEmpty) return;
+    FocusScope.of(context).unfocus();
+    setState(() {
+      _picking = true;
+      _error = null;
+      _photoError = null;
+    });
+    try {
+      final data = await widget.save(
+        '/households/${widget.householdId}/recipe-photo',
+        {
+          'recipe': {
+            if (_draft['id'] != null) 'id': _draft['id'],
+            'title': _draft['title'],
+            'ingredients': _rows('ingredients')
+                .map((r) => {'original_text': r['original_text']})
+                .toList(),
+            'steps': _rows('steps')
+                .map((r) => {'instruction': r['instruction']})
+                .toList(),
+            'photos': [],
+          },
+        },
+      );
+      final photo = data['photo'] as Map<String, dynamic>;
+      final encoded = photo['image_base64'] as String;
+      if (encoded.isEmpty || encoded.length > 7000000) {
+        throw const FormatException('AI returned an invalid photo.');
+      }
+      if (!mounted) return;
+      _change(
+        () => _rows('photos').add({...photo, 'id': _id(), 'is_cover': 1}),
+      );
+    } catch (error) {
+      if (mounted) {
+        setState(
+          () => _photoError = error is ApiException
+              ? error.message
+              : 'Could not generate a photo. Your recipe is still here.',
         );
       }
     } finally {
@@ -1093,9 +1142,33 @@ class _RecipeEditorState extends State<RecipeEditor> {
                               icon: const Icon(Icons.camera_alt_outlined),
                               label: const Text('Use camera'),
                             ),
+                            if (_rows('photos').isEmpty &&
+                                recipeRows(widget.recipe['photos']).isEmpty)
+                              OutlinedButton.icon(
+                                onPressed: _picking || _saving
+                                    ? null
+                                    : _generatePhoto,
+                                icon: const Icon(Icons.auto_awesome_outlined),
+                                label: const Text('Generate AI photo'),
+                              ),
                           ],
                         ),
                         if (_picking) const LinearProgressIndicator(),
+                        if (_photoError != null)
+                          Padding(
+                            padding: const EdgeInsets.only(top: 12),
+                            child: Text(
+                              _photoError!,
+                              style: TextStyle(
+                                color: Theme.of(context).colorScheme.error,
+                              ),
+                            ),
+                          ),
+                        if (_rows('photos').isEmpty &&
+                            recipeRows(widget.recipe['photos']).isEmpty)
+                          _help(
+                            'Generate a small illustrative photo from this recipe using paid AI. Review it before saving.',
+                          ),
                         const Padding(
                           padding: EdgeInsets.only(top: 12),
                           child: Text(

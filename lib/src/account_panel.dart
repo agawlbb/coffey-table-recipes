@@ -378,7 +378,9 @@ class _HouseholdPanelState extends State<HouseholdPanel> {
         token,
         body: body,
         timeout: Duration(
-          seconds: path.endsWith('/recipe-import')
+          seconds: path.endsWith('/recipe-photo')
+              ? 180
+              : path.endsWith('/recipe-import')
               ? 110
               : path.startsWith('/admin/')
               ? 60
@@ -396,7 +398,9 @@ class _HouseholdPanelState extends State<HouseholdPanel> {
         refreshed,
         body: body,
         timeout: Duration(
-          seconds: path.endsWith('/recipe-import')
+          seconds: path.endsWith('/recipe-photo')
+              ? 180
+              : path.endsWith('/recipe-import')
               ? 110
               : path.startsWith('/admin/')
               ? 60
