@@ -41,6 +41,10 @@ jobs:
       - run: flutter pub get
       - run: flutter analyze
       - run: flutter test
+      - name: Validate iOS share configuration
+        run: |
+          python3 -m unittest discover -s tool -p test_configure_ios.py
+          plutil -lint ios/Runner/Info.plist ios/ShareExtension/Info.plist ios/Runner/Runner.entitlements ios/ShareExtension/ShareExtension.entitlements ios/Runner.xcodeproj/project.pbxproj
       - name: Configure iOS Google sign-in callback
         run: python3 tool/configure-ios.py "$RUNNER_TEMP/firebase.json"
       - name: Build unsigned iOS app

@@ -8,6 +8,7 @@ import 'package:image_picker/image_picker.dart';
 import 'api.dart';
 import 'offline_recipes.dart';
 import 'recipe_editor.dart';
+import 'shared_recipe_import.dart';
 
 class RecipeImport extends StatefulWidget {
   const RecipeImport({
@@ -16,8 +17,10 @@ class RecipeImport extends StatefulWidget {
     required this.request,
     this.pickFile,
     this.takePhoto,
+    this.sharedInput,
   });
   final String householdId;
+  final SharedRecipeInput? sharedInput;
   final RecipeSave request;
   final Future<XFile?> Function()? pickFile;
   final Future<XFile?> Function()? takePhoto;
@@ -40,7 +43,25 @@ class _RecipeImportState extends State<RecipeImport> {
   void initState() {
     super.initState();
     offlineStatus.addListener(_connectionChanged);
-    _recoverCamera();
+    final shared = widget.sharedInput;
+    if (shared != null) {
+      _file = shared.file;
+      _text.text = shared.text ?? '';
+      _url.text = shared.url ?? '';
+      _kind = shared.file != null
+          ? 'file'
+          : shared.url != null
+          ? 'website'
+          : 'text';
+      _error = shared.error;
+      if (shared.error == null) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) _analyze();
+        });
+      }
+    } else {
+      _recoverCamera();
+    }
   }
 
   void _connectionChanged() {

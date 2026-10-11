@@ -13,6 +13,8 @@ scheme = ".".join(reversed(client_id.split(".")))
 path = Path("ios/Runner/Info.plist")
 with path.open("rb") as source:
     info = plistlib.load(source)
-info["CFBundleURLTypes"] = [{"CFBundleTypeRole": "Editor", "CFBundleURLSchemes": [scheme]}]
+callbacks = [entry for entry in info.get("CFBundleURLTypes", [])
+             if any(item.startswith("ShareMedia-") for item in entry.get("CFBundleURLSchemes", []))]
+info["CFBundleURLTypes"] = callbacks + [{"CFBundleTypeRole": "Editor", "CFBundleURLSchemes": [scheme]}]
 with path.open("wb") as target:
     plistlib.dump(info, target, sort_keys=False)

@@ -14,6 +14,7 @@ import 'invitation_dialogs.dart';
 import 'invitation_entry.dart';
 import 'recipe_browser.dart';
 import 'recipe_import.dart';
+import 'shared_recipe_import.dart';
 import 'offline_recipes.dart';
 
 class AccountPanel extends StatefulWidget {
@@ -326,9 +327,11 @@ class _HouseholdPanelState extends State<HouseholdPanel> {
     }
   }
 
+  bool _sharedImportOpen = false;
   @override
   void initState() {
     super.initState();
+    sharedRecipeInbox.addListener(_sharedRecipeChanged);
     _personName.text = widget.user.displayName ?? '';
     if (mobileOfflineEnabled && widget.request == null) {
       _offline =
@@ -344,11 +347,67 @@ class _HouseholdPanelState extends State<HouseholdPanel> {
 
   @override
   void dispose() {
+    sharedRecipeInbox.removeListener(_sharedRecipeChanged);
     _offline?.close();
     _api.close();
     _householdName.dispose();
     _personName.dispose();
     super.dispose();
+  }
+
+  void _sharedRecipeChanged() {
+    if (!mounted ||
+        _selected == null ||
+        _busy ||
+        _sharedImportOpen ||
+        sharedRecipeInbox.value.isEmpty) {
+      return;
+    }
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _openSharedRecipe();
+    });
+  }
+
+  Future<void> _openSharedRecipe() async {
+    if (!mounted || _sharedImportOpen || _selected == null || _busy) return;
+    _sharedImportOpen = true;
+    final input = sharedRecipeInbox.take();
+    if (input == null) {
+      _sharedImportOpen = false;
+      return;
+    }
+    final householdId = _selected!;
+    try {
+      final saved = await Navigator.push<Map<String, dynamic>>(
+        context,
+        MaterialPageRoute(
+          builder: (_) => RecipeImport(
+            householdId: householdId,
+            sharedInput: input,
+            request: (path, body) async {
+              final data = await _request(path, body: body);
+              if (data['recipe'] is Map &&
+                  (data['recipe'] as Map)['id'] != null) {
+                await _offline?.rememberSavedRecipe(
+                  '/households/$householdId/recipes/${(data['recipe'] as Map)['id']}',
+                  data,
+                );
+              }
+              return data;
+            },
+          ),
+        ),
+      );
+      if (saved != null && mounted) {
+        setState(() {
+          _settings = false;
+          _recipeRefresh++;
+        });
+      }
+    } finally {
+      _sharedImportOpen = false;
+      _sharedRecipeChanged();
+    }
   }
 
   Future<Map<String, dynamic>> _request(
@@ -438,6 +497,7 @@ class _HouseholdPanelState extends State<HouseholdPanel> {
         setState(() {
           _busy = false;
         });
+        _sharedRecipeChanged();
       }
     }
   }
@@ -480,6 +540,7 @@ class _HouseholdPanelState extends State<HouseholdPanel> {
       }
       await _loadPeople();
     });
+    _sharedRecipeChanged();
     if (mounted &&
         _error == null &&
         reviewInvitations &&
