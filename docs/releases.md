@@ -10,6 +10,8 @@ Version `0.4.0+5`, tagged `v0.4.0`, adds an offline mobile recipe library and re
 
 The connectivity plugin requires the iOS 26 SDK. The iOS workflow selects Xcode 26.3 and supports manually rebuilding an existing release tag with updated workflow tooling, preserving the tag and application source.
 
+Verified on 2026-10-11: analysis passed and all 60 Flutter tests passed. Android release compilation succeeded after regenerating plugin registration following tests. Web deployment run `38136744689` passed source metadata and asset verification; public metadata identifies `a6ded16`, version 0.4.0/build 5, and browser category browsing succeeded after a connection retry. Initial iOS compilation failed with the older SDK; corrected run `38137001260` checked out the unchanged `v0.4.0` source and successfully produced the unsigned IPA using Xcode 26.3. APK and IPA metadata both confirm version 0.4.0/build 5. Both packages were saved on the desktop, and the obsolete 0.1.0 APK found there was removed after replacement verification. Signing and on-device installation remain user-managed.
+
 ## 0.3.0 — email verification and administration
 
 Version `0.3.0+4`, tagged `v0.3.0`, adds a dedicated email verification screen, explicit resend and refreshed verification claims before loading household invitations. Administration supports deleting accounts and unlinked table people. Android, web and unsigned iOS packages share this version and build number. The release tag publishes the hosted web app and builds iOS through GitHub Actions; signing and device installation remain user-managed.
