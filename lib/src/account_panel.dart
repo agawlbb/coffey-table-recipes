@@ -455,12 +455,12 @@ class _HouseholdPanelState extends State<HouseholdPanel> {
             ? null
             : households.first['id'] as String;
       }
-      await _loadPeople();
       if (_offline != null && !offlineStatus.value) {
         unawaited(
           _offline!.sync(households.map((h) => h['id'] as String).toList()),
         );
       }
+      await _loadPeople();
     });
     if (mounted &&
         _error == null &&
@@ -846,45 +846,59 @@ class _HouseholdPanelState extends State<HouseholdPanel> {
           ),
         ),
       ),
-      body: IndexedStack(
-        index: _settings ? 1 : 0,
+      body: Column(
         children: [
-          _busy && _households.isEmpty
-              ? const Center(child: CircularProgressIndicator())
-              : _error != null && selected == null
-              ? Center(
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Padding(
-                        padding: const EdgeInsets.all(20),
-                        child: Text(_error!),
+          if (_offline != null && _households.isNotEmpty)
+            RecipeSyncStatus(
+              progress: _offline!.progress,
+              retry: () => unawaited(_offline!.retry()),
+            ),
+          Expanded(
+            child: IndexedStack(
+              index: _settings ? 1 : 0,
+              children: [
+                _busy && _households.isEmpty
+                    ? const Center(child: CircularProgressIndicator())
+                    : _error != null && selected == null
+                    ? Center(
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Padding(
+                              padding: const EdgeInsets.all(20),
+                              child: Text(_error!),
+                            ),
+                            TextButton(
+                              onPressed: _load,
+                              child: const Text('Retry'),
+                            ),
+                          ],
+                        ),
+                      )
+                    : selected == null
+                    ? Center(
+                        child: FilledButton(
+                          onPressed: () => setState(() => _settings = true),
+                          child: const Text('Set up household'),
+                        ),
+                      )
+                    : RecipeBrowser(
+                        key: ValueKey(_selected),
+                        embedded: true,
+                        householdId: _selected!,
+                        householdName: selected['name'] as String,
+                        request: (path) => _request(path),
                       ),
-                      TextButton(onPressed: _load, child: const Text('Retry')),
-                    ],
+                Center(
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 720),
+                    child: ListView(
+                      padding: const EdgeInsets.all(16),
+                      children: [settings],
+                    ),
                   ),
-                )
-              : selected == null
-              ? Center(
-                  child: FilledButton(
-                    onPressed: () => setState(() => _settings = true),
-                    child: const Text('Set up household'),
-                  ),
-                )
-              : RecipeBrowser(
-                  key: ValueKey(_selected),
-                  embedded: true,
-                  householdId: _selected!,
-                  householdName: selected['name'] as String,
-                  request: (path) => _request(path),
                 ),
-          Center(
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 720),
-              child: ListView(
-                padding: const EdgeInsets.all(16),
-                children: [settings],
-              ),
+              ],
             ),
           ),
         ],
