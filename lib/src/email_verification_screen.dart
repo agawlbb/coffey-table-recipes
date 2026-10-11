@@ -4,6 +4,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
 import 'invitation_entry.dart';
+import 'api.dart';
 
 /// Keeps unverified accounts out of household setup while verification is pending.
 class EmailVerificationScreen extends StatefulWidget {
@@ -128,6 +129,8 @@ class _EmailVerificationScreenState extends State<EmailVerificationScreen>
                 _ =>
                   'The verification email could not be sent (${error.code}). Please try resending it.',
               }
+            : error is ApiException
+            ? error.message
             : 'The verification email could not be sent. Please try resending it.';
         setState(() => _message = message);
       }

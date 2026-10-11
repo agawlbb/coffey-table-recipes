@@ -1,6 +1,8 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 
+import 'api.dart';
+
 class InvitationEntry {
   InvitationEntry(Uri uri)
     : email = uri.queryParameters['email'] ?? '',
@@ -17,6 +19,25 @@ class InvitationEntry {
 }
 
 abstract final class InvitationVerification {
+  @visibleForTesting
+  static Future<void> Function(User) delivery = sendHosted;
+
+  static Future<void> sendHosted(User user, {RecipeApi? api}) async {
+    final service = api ?? RecipeApi(baseUrl: apiBaseUrl);
+    try {
+      final token = await user.getIdToken(true);
+      if (token == null) throw ApiException(401, 'Please sign in again.');
+      await service.request(
+        '/me/verification-email',
+        token,
+        body: {},
+        timeout: const Duration(seconds: 45),
+      );
+    } finally {
+      if (api == null) service.close();
+    }
+  }
+
   static final Map<String, Future<void>> _sent = {};
   static final Map<String, Future<void>> _attempts = {};
   static final ValueNotifier<int> changes = ValueNotifier(0);
@@ -26,19 +47,7 @@ abstract final class InvitationVerification {
     if (resend) _sent.remove(user.uid);
     final attempt = _sent.putIfAbsent(user.uid, () async {
       try {
-        try {
-          await user.sendEmailVerification(
-            ActionCodeSettings(
-              url: InvitationEntry.verificationReturnUrl(user.email ?? ''),
-              handleCodeInApp: false,
-            ),
-          );
-        } on FirebaseAuthException catch (error) {
-          if (error.code != 'unauthorized-continue-uri') rethrow;
-          // Verification can still proceed when the optional return URL is not
-          // authorized. Keep Firebase's hosted verification link functional.
-          await user.sendEmailVerification();
-        }
+        await delivery(user);
       } catch (_) {
         _sent.remove(user.uid);
         rethrow;

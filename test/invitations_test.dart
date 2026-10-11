@@ -40,13 +40,20 @@ class ReturnUrlRejectedUser extends VerificationUser {
 }
 
 void main() {
+  setUp(() {
+    InvitationVerification.delivery = (user) => user.sendEmailVerification();
+  });
+  tearDown(() {
+    InvitationVerification.delivery = InvitationVerification.sendHosted;
+  });
   test(
-    'unauthorized return URL falls back to standard verification email',
+    'successful verification request is deduplicated until explicit resend',
     () async {
-      final user = ReturnUrlRejectedUser();
+      final user = VerificationUser();
       await InvitationVerification.send(user);
-      expect(user.sends, 2);
       await InvitationVerification.send(user);
+      expect(user.sends, 1);
+      await InvitationVerification.send(user, resend: true);
       expect(user.sends, 2);
     },
   );
@@ -282,7 +289,7 @@ void main() {
     await tester.tap(find.text('Resend verification email'));
     await tester.pumpAndSettle();
     expect(user.sends, 1);
-    expect(Uri.parse(user.settings!.url).queryParameters['email'], user.email);
+    expect(user.settings, isNull);
     expect(find.textContaining('Verification email sent.'), findsOneWidget);
     expect(find.text('Accept'), findsNothing);
     await tester.tap(find.text('Later'));

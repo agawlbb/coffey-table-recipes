@@ -23,6 +23,12 @@ class PendingUser extends TestUser {
 }
 
 void main() {
+  setUp(() {
+    InvitationVerification.delivery = (user) => user.sendEmailVerification();
+  });
+  tearDown(() {
+    InvitationVerification.delivery = InvitationVerification.sendHosted;
+  });
   testWidgets(
     'Firebase limit reports rejection without inventing a reset time',
     (tester) async {
