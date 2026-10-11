@@ -1,5 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:share_plus/share_plus.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter_cache_manager/flutter_cache_manager.dart';
 
@@ -500,6 +502,83 @@ class RecipeDetail extends StatefulWidget {
 }
 
 class _RecipeDetailState extends State<RecipeDetail> {
+  bool _sharing = false;
+
+  Future<void> _shareRecipe(BuildContext anchor) async {
+    final choice = await showModalBottomSheet<bool>(
+      context: context,
+      builder: (context) => SafeArea(
+        child: ListTile(
+          leading: const Icon(Icons.link),
+          title: const Text('Send a link'),
+          subtitle: const Text('Anyone with the link can view this recipe.'),
+          onTap: () => Navigator.pop(context, true),
+        ),
+      ),
+    );
+    if (choice != true || !mounted || !anchor.mounted) return;
+    final box = anchor.findRenderObject() as RenderBox?;
+    final origin = box == null
+        ? null
+        : box.localToGlobal(Offset.zero) & box.size;
+    setState(() => _sharing = true);
+    try {
+      final data = await widget.request(
+        '/households/${widget.householdId}/recipes/${widget.recipeId}/share',
+      );
+      if (!mounted) return;
+      final link = data['url'] as String;
+      var status = ShareResultStatus.unavailable;
+      try {
+        final result = await SharePlus.instance.share(
+          ShareParams(
+            text: link,
+            subject: widget.title,
+            sharePositionOrigin: origin,
+          ),
+        );
+        status = result.status;
+      } catch (_) {
+        // Browsers can reject sharing after the asynchronous link request.
+        // Keep the generated link available to copy in that case.
+      }
+      if (status == ShareResultStatus.unavailable && mounted) {
+        await showDialog<void>(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: const Text('Recipe link'),
+            content: SelectableText(link),
+            actions: [
+              TextButton(
+                onPressed: () async {
+                  await Clipboard.setData(ClipboardData(text: link));
+                  if (context.mounted) Navigator.pop(context);
+                },
+                child: const Text('Copy link'),
+              ),
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('Close'),
+              ),
+            ],
+          ),
+        );
+      }
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              error is ApiException ? error.message : 'Could not share this recipe. Check your connection and retry.',
+            ),
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _sharing = false);
+    }
+  }
+
   Map<String, dynamic>? _recipe;
   String? _error;
   bool _wasOffline = false;
@@ -567,6 +646,17 @@ class _RecipeDetailState extends State<RecipeDetail> {
     appBar: AppBar(
       leading: BackButton(onPressed: () => Navigator.of(context).pop()),
       title: Text(widget.title),
+      actions: [
+        Builder(
+          builder: (anchor) => IconButton(
+            tooltip: 'Share recipe',
+            icon: const Icon(Icons.share),
+            onPressed: _recipe == null || _sharing
+                ? null
+                : () => _shareRecipe(anchor),
+          ),
+        ),
+      ],
     ),
     body: _error != null
         ? Center(
