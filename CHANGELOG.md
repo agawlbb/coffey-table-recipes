@@ -1,6 +1,16 @@
 # Changelog
 
-Release dates and changes are reconstructed from annotated Git tags, commit history, and project release records. Versions before 1.0 are demonstration releases. Android uses the existing demonstration signing identity; iOS packages are unsigned for user-managed signing.
+Release dates and changes are reconstructed from annotated Git tags, commit history, and project release records. Versions before 1.0 are demonstration releases; 1.0 marks the first usable release. Android retains the existing signing identity; iOS packages are unsigned for user-managed signing.
+
+## 1.0.0 — 2026-10-11
+
+Build 7; tag `v1.0.0`. First usable release.
+
+- Added AI-assisted recipe import from pasted text, dish descriptions, website links, PDF/image/text uploads, and camera photos.
+- Added clarification questions and editable review before saving, including quantity conflict warnings and cooking-action previews.
+- Added incoming Android/iOS shares that open recipe import for review, including files, links, and text.
+- Improved ingredient review, editor layout, category-parent display, and cancellation/navigation behavior.
+- Added optional AI imagery for recipes without photos and category artwork; separated import warnings from saved cooking notes and made source labels readable.
 
 ## 0.5.0 — 2026-10-11
 
