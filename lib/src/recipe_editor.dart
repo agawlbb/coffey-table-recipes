@@ -200,7 +200,7 @@ class _RecipeEditorState extends State<RecipeEditor> {
     });
     try {
       final data = await widget.save(
-        '/households/${widget.householdId}/recipes/${_draft['id']}',
+        '/households/${widget.householdId}/recipes${_draft['id'] == null ? '' : '/${_draft['id']}'}',
         _draft,
       );
       if (!mounted) return;
@@ -724,7 +724,11 @@ class _RecipeEditorState extends State<RecipeEditor> {
       appBar: AppBar(
         leading: BackButton(onPressed: _close),
         title: Text(
-          MediaQuery.sizeOf(context).width < 480 ? 'Edit' : 'Edit recipe',
+          _draft['id'] == null
+              ? 'Review recipe'
+              : MediaQuery.sizeOf(context).width < 480
+              ? 'Edit'
+              : 'Edit recipe',
         ),
         actions: [
           TextButton(

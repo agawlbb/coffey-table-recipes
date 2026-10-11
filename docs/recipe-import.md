@@ -1,4 +1,10 @@
-# Recipe import handoff
+# Historical recipe import handoff
+
+Current workflow (October 11, 2026): the persistent database is hosted on
+coffeybean.com; the old local database described below has been retired. Use the
+new [Add recipe workflow](recipe-ai-import.md) for authenticated AI-assisted
+imports and reviewed creation through the API. The following direct-import
+instructions and account IDs document the earlier prototype and are historical.
 
 Recipe storage is ready in local MariaDB database `coffey_table_recipes`. Backend root: `C:\xampp\htdocs\CoffeyTableRecipes`. This is a development-only direct database import contract, not a public API. Flutter uses authenticated recipe browsing/detail endpoints. Recipe create/update/delete API endpoints are not yet implemented.
 

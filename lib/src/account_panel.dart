@@ -13,6 +13,7 @@ import 'email_verification_screen.dart';
 import 'invitation_dialogs.dart';
 import 'invitation_entry.dart';
 import 'recipe_browser.dart';
+import 'recipe_import.dart';
 import 'offline_recipes.dart';
 
 class AccountPanel extends StatefulWidget {
@@ -190,6 +191,7 @@ class _HouseholdPanelState extends State<HouseholdPanel> {
   String? _selected;
   String? _error;
   bool _settings = false;
+  int _recipeRefresh = 0;
   bool _busy = true;
   List<Map<String, dynamic>> _invitations = [];
   bool _invitationVerificationRequired = false;
@@ -376,7 +378,9 @@ class _HouseholdPanelState extends State<HouseholdPanel> {
         token,
         body: body,
         timeout: Duration(
-          seconds: path.startsWith('/admin/')
+          seconds: path.endsWith('/recipe-import')
+              ? 110
+              : path.startsWith('/admin/')
               ? 60
               : _offline != null && body == null
               ? 8
@@ -391,7 +395,13 @@ class _HouseholdPanelState extends State<HouseholdPanel> {
         path,
         refreshed,
         body: body,
-        timeout: Duration(seconds: path.startsWith('/admin/') ? 60 : 20),
+        timeout: Duration(
+          seconds: path.endsWith('/recipe-import')
+              ? 110
+              : path.startsWith('/admin/')
+              ? 60
+              : 20,
+        ),
       );
     }
   }
@@ -833,6 +843,47 @@ class _HouseholdPanelState extends State<HouseholdPanel> {
                 },
               ),
               ListTile(
+                leading: const Icon(Icons.add_circle_outline),
+                title: const Text('Add recipe'),
+                enabled: selected != null && !offlineStatus.value,
+                onTap: selected == null
+                    ? null
+                    : () async {
+                        Navigator.pop(context);
+                        final householdId = _selected!;
+                        final saved =
+                            await Navigator.push<Map<String, dynamic>>(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => RecipeImport(
+                                  householdId: householdId,
+                                  request: (path, body) async {
+                                    final data = await _request(
+                                      path,
+                                      body: body,
+                                    );
+                                    if (data['recipe'] is Map &&
+                                        (data['recipe'] as Map)['id'] != null) {
+                                      final id = (data['recipe'] as Map)['id'];
+                                      await _offline?.rememberSavedRecipe(
+                                        '/households/$householdId/recipes/$id',
+                                        data,
+                                      );
+                                    }
+                                    return data;
+                                  },
+                                ),
+                              ),
+                            );
+                        if (saved != null && mounted) {
+                          setState(() {
+                            _settings = false;
+                            _recipeRefresh++;
+                          });
+                        }
+                      },
+              ),
+              ListTile(
                 leading: const Icon(Icons.settings_outlined),
                 title: const Text('Household & people'),
                 selected: _settings,
@@ -883,7 +934,7 @@ class _HouseholdPanelState extends State<HouseholdPanel> {
                         ),
                       )
                     : RecipeBrowser(
-                        key: ValueKey(_selected),
+                        key: ValueKey('$_selected|$_recipeRefresh'),
                         embedded: true,
                         householdId: _selected!,
                         householdName: selected['name'] as String,
