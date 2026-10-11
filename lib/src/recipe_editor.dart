@@ -513,7 +513,9 @@ class _RecipeEditorState extends State<RecipeEditor> {
     for (final r in _options('recipes')) '${r['id']}': '${r['title']}',
   };
   Widget _ingredient(Map<String, dynamic> row) => _item(
-    '${row['ingredient_name'] ?? 'New ingredient'}',
+    row['original_text']?.toString().trim().isNotEmpty == true
+        ? row['original_text'].toString()
+        : '${row['ingredient_name'] ?? 'New ingredient'}',
     _rows('ingredients'),
     row,
     [
@@ -598,49 +600,55 @@ class _RecipeEditorState extends State<RecipeEditor> {
         ],
       ),
     ],
-    preview: row['original_text']?.toString(),
     initiallyExpanded: (row['original_text']?.toString().trim().isEmpty ?? true)
         ? null
         : false,
   );
   Widget _action(Map<String, dynamic> row, List<Map<String, dynamic>> rows) =>
-      _item(row['label']?.toString() ?? 'Cooking action', rows, row, [
-        _choice(row, 'action_type', 'Action type', const {
-          'timer': 'Timer',
-          'rest': 'Rest',
-          'appliance_temperature': 'Appliance temperature',
-          'internal_temperature': 'Internal temperature',
-          'reminder': 'Reminder',
-        }),
-        _field(row, 'label', 'Label', maxLength: 300),
-        if (['timer', 'rest'].contains(row['action_type']) ||
-            row['duration_seconds'] != null)
-          _field(
-            row,
-            'duration_seconds',
-            'Duration (seconds)',
-            required: ['timer', 'rest'].contains(row['action_type']),
-            numeric: 'integer',
-          ),
-        if ([
-              'appliance_temperature',
-              'internal_temperature',
-            ].contains(row['action_type']) ||
-            row['temperature_value'] != null) ...[
-          _field(
-            row,
-            'temperature_value',
-            'Temperature',
-            required: true,
-            numeric: 'number',
-          ),
-          _choice(row, 'temperature_unit', 'Temperature unit', const {
-            'F': 'Fahrenheit (°F)',
-            'C': 'Celsius (°C)',
+      _item(
+        row['label']?.toString() ?? 'Cooking action',
+        rows,
+        row,
+        [
+          _choice(row, 'action_type', 'Action type', const {
+            'timer': 'Timer',
+            'rest': 'Rest',
+            'appliance_temperature': 'Appliance temperature',
+            'internal_temperature': 'Internal temperature',
+            'reminder': 'Reminder',
           }),
+          _field(row, 'label', 'Label', maxLength: 300),
+          if (['timer', 'rest'].contains(row['action_type']) ||
+              row['duration_seconds'] != null)
+            _field(
+              row,
+              'duration_seconds',
+              'Duration (seconds)',
+              required: ['timer', 'rest'].contains(row['action_type']),
+              numeric: 'integer',
+            ),
+          if ([
+                'appliance_temperature',
+                'internal_temperature',
+              ].contains(row['action_type']) ||
+              row['temperature_value'] != null) ...[
+            _field(
+              row,
+              'temperature_value',
+              'Temperature',
+              required: true,
+              numeric: 'number',
+            ),
+            _choice(row, 'temperature_unit', 'Temperature unit', const {
+              'F': 'Fahrenheit (°F)',
+              'C': 'Celsius (°C)',
+            }),
+          ],
+          _field(row, 'appliance', 'Appliance', maxLength: 80),
         ],
-        _field(row, 'appliance', 'Appliance', maxLength: 80),
-      ], remove: () => _rows('actions').remove(row));
+        initiallyExpanded: false,
+        remove: () => _rows('actions').remove(row),
+      );
   Widget _step(Map<String, dynamic> row) {
     final actions = _rows('actions')
         .where((a) => a['step_id'] == row['id'])
@@ -671,6 +679,7 @@ class _RecipeEditorState extends State<RecipeEditor> {
         ),
       ],
       preview: row['instruction']?.toString(),
+      initiallyExpanded: false,
       remove: () {
         _rows('actions').removeWhere((a) => a['step_id'] == row['id']);
         _rows('steps').remove(row);
@@ -1025,15 +1034,32 @@ class _RecipeEditorState extends State<RecipeEditor> {
                     _section('Categories & tags', Icons.label_outline, [
                       ..._rows('category_assignments').map(
                         (r) => _item(
-                          'Browse category',
+                          r['label'] == null
+                              ? 'Browse category'
+                              : '${r['parent_label'] == null || r['parent_label'] == '' ? '' : '${r['parent_label']} / '}${r['label']}',
                           _rows('category_assignments'),
                           r,
                           [
-                            _choice(r, 'category_id', 'Category', {
-                              for (final c in _options('categories'))
-                                '${c['id']}':
-                                    '${c['parent_label'] == null ? '' : '${c['parent_label']} / '}${c['label']}',
-                            }),
+                            if (r['label'] != null) ...[
+                              _field(
+                                r,
+                                'label',
+                                'Category name',
+                                required: true,
+                                maxLength: 120,
+                              ),
+                              _choice(r, 'parent_label', 'Parent category', {
+                                for (final c in _options(
+                                  'categories',
+                                ).where((c) => c['parent_label'] == null))
+                                  '${c['label']}': '${c['label']}',
+                              }, nullable: true),
+                            ] else
+                              _choice(r, 'category_id', 'Category', {
+                                for (final c in _options('categories'))
+                                  '${c['id']}':
+                                      '${c['parent_label'] == null ? '' : '${c['parent_label']} / '}${c['label']}',
+                              }),
                           ],
                         ),
                       ),

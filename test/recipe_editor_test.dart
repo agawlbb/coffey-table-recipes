@@ -75,15 +75,36 @@ void main() {
     await tester.tap(find.byTooltip('Go to ingredients'));
     await tester.pumpAndSettle();
     final tile = tester.widget<ExpansionTile>(
-      find.widgetWithText(ExpansionTile, 'Milk').last,
+      find.widgetWithText(ExpansionTile, '1 cup milk').last,
     );
     expect(tile.initiallyExpanded, isFalse);
     expect(find.text('1. Milk'), findsNothing);
+    expect(find.text('Milk'), findsNothing);
     expect(find.text('1 cup milk'), findsOneWidget);
-    await section(tester, 'Milk');
+    await section(tester, '1 cup milk');
     expect(
       find.widgetWithText(TextFormField, 'Ingredient line (as displayed)'),
       findsOneWidget,
+    );
+    await tester.ensureVisible(find.byTooltip('Go to steps & actions'));
+    await tester.tap(find.byTooltip('Go to steps & actions'));
+    await tester.pumpAndSettle();
+    expect(
+      tester
+          .widget<ExpansionTile>(
+            find.widgetWithText(ExpansionTile, 'Step 1').last,
+          )
+          .initiallyExpanded,
+      isFalse,
+    );
+    await section(tester, 'Step 1');
+    expect(
+      tester
+          .widget<ExpansionTile>(
+            find.widgetWithText(ExpansionTile, 'Simmer timer').last,
+          )
+          .initiallyExpanded,
+      isFalse,
     );
   });
 
@@ -107,7 +128,7 @@ void main() {
     await tester.tap(find.byTooltip('Go to ingredients'));
     await tester.pumpAndSettle();
     expect(find.text('1 cup milk'), findsOneWidget);
-    await section(tester, 'Milk');
+    await section(tester, '1 cup milk');
     final line = find.widgetWithText(
       TextFormField,
       'Ingredient line (as displayed)',
