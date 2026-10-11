@@ -448,6 +448,7 @@ class _RecipeEditorState extends State<RecipeEditor> {
     List<Widget> children, {
     VoidCallback? remove,
     String? preview,
+    bool? initiallyExpanded,
   }) {
     final index = rows.indexOf(row);
     return Card(
@@ -459,8 +460,9 @@ class _RecipeEditorState extends State<RecipeEditor> {
         controller: _controller('item-${identityHashCode(row)}'),
         expansionAnimationStyle: _expansionStyle,
         initiallyExpanded:
-            row['id']?.toString().startsWith('new-') == true ||
-            row['_key'] != null,
+            initiallyExpanded ??
+            (row['id']?.toString().startsWith('new-') == true ||
+                row['_key'] != null),
         title: Text(title),
         subtitle: preview == null || preview.trim().isEmpty
             ? null
@@ -511,7 +513,7 @@ class _RecipeEditorState extends State<RecipeEditor> {
     for (final r in _options('recipes')) '${r['id']}': '${r['title']}',
   };
   Widget _ingredient(Map<String, dynamic> row) => _item(
-    '${_rows('ingredients').indexOf(row) + 1}. ${row['ingredient_name'] ?? 'New ingredient'}',
+    '${row['ingredient_name'] ?? 'New ingredient'}',
     _rows('ingredients'),
     row,
     [
@@ -597,6 +599,9 @@ class _RecipeEditorState extends State<RecipeEditor> {
       ),
     ],
     preview: row['original_text']?.toString(),
+    initiallyExpanded: (row['original_text']?.toString().trim().isEmpty ?? true)
+        ? null
+        : false,
   );
   Widget _action(Map<String, dynamic> row, List<Map<String, dynamic>> rows) =>
       _item(row['label']?.toString() ?? 'Cooking action', rows, row, [

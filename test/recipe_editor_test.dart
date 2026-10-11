@@ -57,6 +57,36 @@ Future<void> section(WidgetTester tester, String label) async {
 }
 
 void main() {
+  testWidgets('imported ingredients start collapsed without list numbers', (
+    tester,
+  ) async {
+    final imported = recipe()..remove('id');
+    (imported['ingredients'] as List).first.remove('id');
+    await tester.pumpWidget(
+      MaterialApp(
+        home: RecipeEditor(
+          recipe: imported,
+          householdId: '2',
+          save: (_, body) async => body,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.byTooltip('Go to ingredients'));
+    await tester.pumpAndSettle();
+    final tile = tester.widget<ExpansionTile>(
+      find.widgetWithText(ExpansionTile, 'Milk').last,
+    );
+    expect(tile.initiallyExpanded, isFalse);
+    expect(find.text('1. Milk'), findsNothing);
+    expect(find.text('1 cup milk'), findsOneWidget);
+    await section(tester, 'Milk');
+    expect(
+      find.widgetWithText(TextFormField, 'Ingredient line (as displayed)'),
+      findsOneWidget,
+    );
+  });
+
   testWidgets('section shortcuts preserve edits and show useful row previews', (
     tester,
   ) async {
@@ -77,7 +107,7 @@ void main() {
     await tester.tap(find.byTooltip('Go to ingredients'));
     await tester.pumpAndSettle();
     expect(find.text('1 cup milk'), findsOneWidget);
-    await section(tester, '1. Milk');
+    await section(tester, 'Milk');
     final line = find.widgetWithText(
       TextFormField,
       'Ingredient line (as displayed)',
