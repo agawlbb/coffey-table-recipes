@@ -123,7 +123,7 @@ class _EmailVerificationScreenState extends State<EmailVerificationScreen>
       if (mounted) {
         final message = error is FirebaseAuthException
             ? switch (error.code) {
-                'too-many-requests' => 'Firebase has temporarily limited verification emails. Please wait a few minutes before resending.',
+                'too-many-requests' => 'Firebase rejected the verification email request (too-many-requests). No email was sent. Firebase does not provide a retry time.',
                 'network-request-failed' => 'The verification email could not be sent. Check your connection and resend.',
                 _ =>
                   'The verification email could not be sent (${error.code}). Please try resending it.',

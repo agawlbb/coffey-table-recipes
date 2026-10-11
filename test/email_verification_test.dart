@@ -7,20 +7,52 @@ import 'package:flutter_test/flutter_test.dart';
 import 'home_design_test.dart' show TestUser;
 
 class PendingUser extends TestUser {
-  PendingUser(this.id, {this.fail = false});
+  PendingUser(this.id, {this.fail = false, this.errorCode});
   final String id;
   final bool fail;
+  final String? errorCode;
   int sends = 0;
   @override
   String get uid => id;
   @override
   Future<void> sendEmailVerification([ActionCodeSettings? settings]) async {
     sends++;
+    if (errorCode != null) throw FirebaseAuthException(code: errorCode!);
     if (fail) throw FirebaseAuthException(code: 'network-request-failed');
   }
 }
 
 void main() {
+  testWidgets(
+    'Firebase limit reports rejection without inventing a reset time',
+    (tester) async {
+      final user = PendingUser(
+        'rate-limit-message',
+        errorCode: 'too-many-requests',
+      );
+      await tester.pumpWidget(
+        MaterialApp(
+          home: EmailVerificationScreen(
+            user: user,
+            refresh: () async {},
+            signOut: () async {},
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Resend verification email'));
+      await tester.pumpAndSettle();
+      expect(
+        find.textContaining('does not provide a retry time'),
+        findsOneWidget,
+      );
+      expect(find.textContaining('few minutes'), findsNothing);
+      await tester.pump(const Duration(seconds: 10));
+      expect(user.sends, 1);
+      await tester.pumpWidget(const SizedBox());
+    },
+  );
+
   testWidgets('unverified account registers once without sending email', (
     tester,
   ) async {
