@@ -43,6 +43,17 @@ jobs:
       - run: flutter test
       - name: Validate iOS share configuration
         run: |
+          # Normalize build ordering for immutable releases created before this correction.
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path('ios/Runner.xcodeproj/project.pbxproj')
+          text = path.read_text()
+          thin = '\t\t\t\t3B06AD1E1E4923F5004D2608 /* Thin Binary */,\n'
+          embed = '\t\t\t\t7FEAB63A8052A2CE3F548F05,\n'
+          text = text.replace(thin + embed, embed + thin)
+          assert embed + thin in text, 'Unexpected Runner extension build ordering'
+          path.write_text(text)
+          PY
           python3 -m unittest discover -s tool -p test_configure_ios.py
           plutil -lint ios/Runner/Info.plist ios/ShareExtension/Info.plist ios/Runner/Runner.entitlements ios/ShareExtension/ShareExtension.entitlements ios/Runner.xcodeproj/project.pbxproj
       - name: Configure iOS Google sign-in callback

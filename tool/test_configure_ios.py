@@ -9,6 +9,12 @@ import unittest
 ROOT = Path(__file__).resolve().parents[1]
 
 class IOSShareConfigurationTests(unittest.TestCase):
+    def test_extension_is_embedded_before_flutter_thinning(self):
+        project = (ROOT / 'ios/Runner.xcodeproj/project.pbxproj').read_text()
+        runner = project.split('97C146ED1CF9000F007C117D /* Runner */ = {', 1)[1]
+        phases = runner.split('buildPhases = (', 1)[1].split(');', 1)[0]
+        self.assertLess(phases.index('7FEAB63A8052A2CE3F548F05'), phases.index('3B06AD1E1E4923F5004D2608'))
+
     def test_google_callback_configuration_preserves_share_callback(self):
         with tempfile.TemporaryDirectory() as directory:
             workspace = Path(directory)
