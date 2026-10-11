@@ -65,3 +65,8 @@ Recipe detail photos fit completely inside a frame no taller than 240 pixels or 
 Imported recipe photos are downloaded and served from coffeybean.com under `CoffeyTableRecipes/media/recipe-photos/`. Photo records use the hosted URL and storage key; publisher URLs remain in the private import archive for provenance. See `recipe-import/HOSTED_IMPORT.md` for the archive and upload workflow.
 
 Recipe review catches decimal/fraction conflicts before save, expands the affected ingredient and Exact quantities section, highlights the conflicting fields, and scrolls them into view. AI prefills use one valid quantity representation; backend errors identify the ingredient or action.
+
+AI image generation is available alongside existing recipe photos, with no daily
+attempt cap. Saving a new category generates specific category artwork; browsing
+retries missing artwork for previously imported categories. Category images use
+the backend media URL rather than the parent category asset.

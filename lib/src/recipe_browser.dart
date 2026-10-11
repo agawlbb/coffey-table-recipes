@@ -130,6 +130,21 @@ class _RecipeBrowserState extends State<RecipeBrowser> {
       );
       if (!mounted || generation != _generation) return;
       final nodes = recipeRows(data['category_nodes']);
+      for (final category in nodes.where(
+        (node) => node['needs_ai_image'] == true,
+      )) {
+        if (widget.save == null) break;
+        try {
+          final image = await widget.save!(
+            '/households/${widget.householdId}/category-image',
+            {'category_id': category['id'].toString()},
+          );
+          category['image_url'] = image['image_url'];
+        } catch (_) {
+          // Keep browsing available; a later visit can retry a failed generation.
+        }
+      }
+
       if (!more && data['view'] == 'categories') {
         final recipeQuery = Uri(
           queryParameters: {...Uri.splitQueryString(query), 'tree': '0'},
@@ -340,12 +355,21 @@ class _RecipeBrowserState extends State<RecipeBrowser> {
                             SizedBox(
                               width: 80,
                               height: 80,
-                              child: Image.asset(
-                                'assets/categories/${category['image_key']}.png',
-                                fit: BoxFit.cover,
-                                errorBuilder: (_, error, stack) =>
-                                    const Icon(Icons.restaurant, size: 36),
-                              ),
+                              child: category['image_url'] != null
+                                  ? RecipePhoto(
+                                      url: category['image_url'] as String,
+                                    )
+                                  : category['needs_ai_image'] == true
+                                  ? const Icon(Icons.restaurant, size: 36)
+                                  : Image.asset(
+                                      'assets/categories/${category['image_key']}.png',
+                                      fit: BoxFit.cover,
+                                      errorBuilder: (_, error, stack) =>
+                                          const Icon(
+                                            Icons.restaurant,
+                                            size: 36,
+                                          ),
+                                    ),
                             ),
                             const SizedBox(width: 16),
                             Expanded(

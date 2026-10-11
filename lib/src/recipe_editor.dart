@@ -206,6 +206,34 @@ class _RecipeEditorState extends State<RecipeEditor> {
         '/households/${widget.householdId}/recipes${_draft['id'] == null ? '' : '/${_draft['id']}'}',
         _draft,
       );
+      final savedRecipe = data['recipe'] as Map<String, dynamic>;
+      for (final category in recipeRows(savedRecipe['category_assignments'])) {
+        try {
+          await widget.save(
+            '/households/${widget.householdId}/category-image',
+            {'category_id': category['category_id'].toString()},
+          );
+        } on ApiException catch (error) {
+          if (error.status == 404) continue;
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text('Recipe saved. Category image: ${error.message}'),
+              ),
+            );
+          }
+        } catch (_) {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text(
+                  'Recipe saved. Category image could not be generated; it will be retried when browsing.',
+                ),
+              ),
+            );
+          }
+        }
+      }
       if (!mounted) return;
       setState(() {
         _leaving = true;
@@ -266,7 +294,7 @@ class _RecipeEditorState extends State<RecipeEditor> {
   }
 
   Future<void> _generatePhoto() async {
-    if (_picking || _saving || _rows('photos').isNotEmpty) return;
+    if (_picking || _saving) return;
     FocusScope.of(context).unfocus();
     setState(() {
       _picking = true;
@@ -297,7 +325,11 @@ class _RecipeEditorState extends State<RecipeEditor> {
       }
       if (!mounted) return;
       _change(
-        () => _rows('photos').add({...photo, 'id': _id(), 'is_cover': 1}),
+        () => _rows('photos').add({
+          ...photo,
+          'id': _id(),
+          'is_cover': _rows('photos').isEmpty ? 1 : 0,
+        }),
       );
     } catch (error) {
       if (mounted) {
@@ -1144,30 +1176,26 @@ class _RecipeEditorState extends State<RecipeEditor> {
                           spacing: 12,
                           children: [
                             OutlinedButton.icon(
-                              onPressed:
-                                  _picking || _rows('photos').length >= 20
+                              onPressed: _picking
                                   ? null
                                   : () => _photo(ImageSource.gallery),
                               icon: const Icon(Icons.upload_outlined),
                               label: const Text('Upload image'),
                             ),
                             OutlinedButton.icon(
-                              onPressed:
-                                  _picking || _rows('photos').length >= 20
+                              onPressed: _picking
                                   ? null
                                   : () => _photo(ImageSource.camera),
                               icon: const Icon(Icons.camera_alt_outlined),
                               label: const Text('Use camera'),
                             ),
-                            if (_rows('photos').isEmpty &&
-                                recipeRows(widget.recipe['photos']).isEmpty)
-                              OutlinedButton.icon(
-                                onPressed: _picking || _saving
-                                    ? null
-                                    : _generatePhoto,
-                                icon: const Icon(Icons.auto_awesome_outlined),
-                                label: const Text('Generate AI photo'),
-                              ),
+                            OutlinedButton.icon(
+                              onPressed: _picking || _saving
+                                  ? null
+                                  : _generatePhoto,
+                              icon: const Icon(Icons.auto_awesome_outlined),
+                              label: const Text('Generate an image with AI'),
+                            ),
                           ],
                         ),
                         if (_picking) const LinearProgressIndicator(),
@@ -1181,16 +1209,10 @@ class _RecipeEditorState extends State<RecipeEditor> {
                               ),
                             ),
                           ),
-                        if (_rows('photos').isEmpty &&
-                            recipeRows(widget.recipe['photos']).isEmpty)
-                          _help(
-                            'Generate a small illustrative photo from this recipe using paid AI. Review it before saving.',
-                          ),
+                        _help('Generate an image with AI.'),
                         const Padding(
                           padding: EdgeInsets.only(top: 12),
-                          child: Text(
-                            'JPEG, PNG or WebP · up to 5 MB each · 20 photos maximum',
-                          ),
+                          child: Text('JPEG, PNG or WebP · up to 5 MB each'),
                         ),
                       ],
                       subtitle:

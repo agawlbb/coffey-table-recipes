@@ -57,55 +57,60 @@ Future<void> section(WidgetTester tester, String label) async {
 }
 
 void main() {
-  testWidgets(
-    'AI photo is available only for an empty photo draft and saves normally',
-    (tester) async {
-      Map<String, dynamic>? submitted;
-      var generated = 0;
-      await tester.pumpWidget(
-        MaterialApp(
-          home: RecipeEditor(
-            recipe: recipe(),
-            householdId: '2',
-            save: (path, body) async {
-              if (path.endsWith('/recipe-photo')) {
-                generated++;
-                expect((body['recipe'] as Map)['photos'], isEmpty);
-                return {
-                  'photo': {
-                    'image_base64': 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aT1sAAAAASUVORK5CYII=',
-                    'caption': 'AI-generated soup',
-                    'attribution': 'AI-generated with OpenAI',
-                    'is_cover': 1,
-                  },
-                };
-              }
-              submitted = body;
-              throw ApiException(500, 'Test retains draft');
-            },
-          ),
+  testWidgets('AI image remains available with photos and saves normally', (
+    tester,
+  ) async {
+    Map<String, dynamic>? submitted;
+    var generated = 0;
+    await tester.pumpWidget(
+      MaterialApp(
+        home: RecipeEditor(
+          recipe: recipe(),
+          householdId: '2',
+          save: (path, body) async {
+            if (path.endsWith('/recipe-photo')) {
+              generated++;
+              expect((body['recipe'] as Map)['photos'], isEmpty);
+              return {
+                'photo': {
+                  'image_base64': 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aT1sAAAAASUVORK5CYII=',
+                  'caption': 'AI-generated soup',
+                  'attribution': 'AI-generated with OpenAI',
+                  'is_cover': 1,
+                },
+              };
+            }
+            submitted = body;
+            throw ApiException(500, 'Test retains draft');
+          },
         ),
-      );
-      await tester.pumpAndSettle();
-      await section(tester, 'Photos');
-      await tester.ensureVisible(find.text('Generate AI photo'));
-      await tester.tap(find.text('Generate AI photo'));
-      await tester.pumpAndSettle();
-      expect(generated, 1);
-      expect(find.text('Generate AI photo'), findsNothing);
-      expect(
-        find.widgetWithText(TextFormField, 'AI-generated soup'),
-        findsOneWidget,
-      );
-      await tester.tap(find.text('Save'));
-      await tester.pumpAndSettle();
-      expect((submitted!['photos'] as List).single['is_cover'], 1);
-      expect(
-        (submitted!['photos'] as List).single['attribution'],
-        contains('AI-generated'),
-      );
-    },
-  );
+      ),
+    );
+    await tester.pumpAndSettle();
+    await section(tester, 'Photos');
+    await tester.ensureVisible(find.text('Generate an image with AI'));
+    await tester.tap(find.text('Generate an image with AI'));
+    await tester.pumpAndSettle();
+    expect(generated, 1);
+    expect(find.text('Generate an image with AI'), findsOneWidget);
+    expect(
+      find.widgetWithText(TextFormField, 'AI-generated soup'),
+      findsOneWidget,
+    );
+    await tester.ensureVisible(find.text('Generate an image with AI'));
+    await tester.tap(find.text('Generate an image with AI'));
+    await tester.pumpAndSettle();
+    expect(generated, 2);
+    await tester.tap(find.text('Save'));
+    await tester.pumpAndSettle();
+    expect((submitted!['photos'] as List).length, 2);
+    expect((submitted!['photos'] as List).first['is_cover'], 1);
+    expect((submitted!['photos'] as List).last['is_cover'], 0);
+    expect(
+      (submitted!['photos'] as List).first['attribution'],
+      contains('AI-generated'),
+    );
+  });
 
   testWidgets('AI generation failure keeps an empty draft retryable', (
     tester,
@@ -122,11 +127,11 @@ void main() {
     );
     await tester.pumpAndSettle();
     await section(tester, 'Photos');
-    await tester.ensureVisible(find.text('Generate AI photo'));
-    await tester.tap(find.text('Generate AI photo'));
+    await tester.ensureVisible(find.text('Generate an image with AI'));
+    await tester.tap(find.text('Generate an image with AI'));
     await tester.pumpAndSettle();
     expect(find.text('Image model unavailable'), findsOneWidget);
-    expect(find.text('Generate AI photo'), findsOneWidget);
+    expect(find.text('Generate an image with AI'), findsOneWidget);
   });
 
   testWidgets('imported ingredients start collapsed without list numbers', (
@@ -513,7 +518,7 @@ void main() {
       await tester.ensureVisible(find.text(label));
       await tester.tap(find.text(label));
       await tester.pumpAndSettle();
-      expect(find.text('Generate AI photo'), findsNothing);
+      expect(find.text('Generate an image with AI'), findsOneWidget);
     }
     await tester.tap(find.text('Save'));
     await tester.pumpAndSettle();
