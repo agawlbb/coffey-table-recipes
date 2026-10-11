@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -11,6 +13,7 @@ import 'email_verification_screen.dart';
 import 'invitation_dialogs.dart';
 import 'invitation_entry.dart';
 import 'recipe_browser.dart';
+import 'offline_recipes.dart';
 
 class AccountPanel extends StatefulWidget {
   const AccountPanel({
@@ -179,6 +182,7 @@ class HouseholdPanel extends StatefulWidget {
 
 class _HouseholdPanelState extends State<HouseholdPanel> {
   final _api = RecipeApi(baseUrl: apiBaseUrl);
+  OfflineRecipes? _offline;
   final _householdName = TextEditingController();
   final _personName = TextEditingController();
   List<Map<String, dynamic>> _households = [];
@@ -324,11 +328,21 @@ class _HouseholdPanelState extends State<HouseholdPanel> {
   void initState() {
     super.initState();
     _personName.text = widget.user.displayName ?? '';
+    if (mobileOfflineEnabled && widget.request == null) {
+      _offline =
+          OfflineRecipes(
+            key: '$apiBaseUrl|${widget.user.uid}',
+            fetch: (path) => _onlineRequest(path),
+          )..start(() {
+            if (mounted) unawaited(_load(reviewInvitations: false));
+          });
+    }
     _load();
   }
 
   @override
   void dispose() {
+    _offline?.close();
     _api.close();
     _householdName.dispose();
     _personName.dispose();
@@ -340,18 +354,38 @@ class _HouseholdPanelState extends State<HouseholdPanel> {
     Map<String, dynamic>? body,
   }) async {
     if (widget.request != null) return widget.request!(path, body: body);
-    final token = await widget.user.getIdToken();
+    if (body != null && _offline != null && offlineStatus.value) {
+      throw ApiException(
+        503,
+        'Changes require an internet connection. Reconnect and try again.',
+      );
+    }
+    if (body == null && _offline != null) return _offline!.request(path);
+    return _onlineRequest(path, body: body);
+  }
+
+  Future<Map<String, dynamic>> _onlineRequest(
+    String path, {
+    Map<String, dynamic>? body,
+  }) async {
+    final token = await _idToken();
     if (token == null) throw ApiException(401, 'Please sign in again.');
     try {
       return await _api.request(
         path,
         token,
         body: body,
-        timeout: Duration(seconds: path.startsWith('/admin/') ? 60 : 20),
+        timeout: Duration(
+          seconds: path.startsWith('/admin/')
+              ? 60
+              : _offline != null && body == null
+              ? 8
+              : 20,
+        ),
       );
     } on ApiException catch (error) {
       if (error.status != 401) rethrow;
-      final refreshed = await widget.user.getIdToken(true);
+      final refreshed = await _idToken(true);
       if (refreshed == null) rethrow;
       return _api.request(
         path,
@@ -360,6 +394,11 @@ class _HouseholdPanelState extends State<HouseholdPanel> {
         timeout: Duration(seconds: path.startsWith('/admin/') ? 60 : 20),
       );
     }
+  }
+
+  Future<String?> _idToken([bool refresh = false]) {
+    final token = widget.user.getIdToken(refresh);
+    return _offline == null ? token : token.timeout(const Duration(seconds: 8));
   }
 
   Future<void> _perform(Future<void> Function() action) async {
@@ -387,10 +426,15 @@ class _HouseholdPanelState extends State<HouseholdPanel> {
 
   Future<void> _load({bool reviewInvitations = true}) async {
     await _perform(() async {
-      if (widget.request == null) {
+      if (widget.request == null && !offlineStatus.value) {
         if (_entryReturnedFromVerification) await widget.user.reload();
         // Refresh verification claims before querying invitations.
-        await widget.user.getIdToken(true);
+        try {
+          await _idToken(true);
+        } catch (error) {
+          if (_offline == null || !isOfflineFailure(error)) rethrow;
+          offlineStatus.value = true;
+        }
       }
       final data = await _request('/me');
       _userId = (data['user'] as Map?)?['id'] as String?;
@@ -412,8 +456,16 @@ class _HouseholdPanelState extends State<HouseholdPanel> {
             : households.first['id'] as String;
       }
       await _loadPeople();
+      if (_offline != null && !offlineStatus.value) {
+        unawaited(
+          _offline!.sync(households.map((h) => h['id'] as String).toList()),
+        );
+      }
     });
-    if (mounted && _error == null && reviewInvitations) {
+    if (mounted &&
+        _error == null &&
+        reviewInvitations &&
+        !offlineStatus.value) {
       await _reviewInvitations();
     }
   }

@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'account_panel.dart';
 import 'administration.dart';
 import 'touch_capability.dart';
+import 'offline_recipes.dart';
 
 class CoffeyTableApp extends StatelessWidget {
   const CoffeyTableApp({
@@ -22,8 +23,22 @@ class CoffeyTableApp extends StatelessWidget {
     },
     debugShowCheckedModeBanner: false,
     scrollBehavior: const AppScrollBehavior(),
-    builder: (context, child) =>
-        MouseRegion(cursor: SystemMouseCursors.basic, child: child!),
+    builder: (context, child) => MouseRegion(
+      cursor: SystemMouseCursors.basic,
+      child: Stack(
+        children: [
+          child!,
+          if (mobileOfflineEnabled)
+            Positioned(
+              right: 12,
+              bottom: 12,
+              child: SafeArea(
+                child: const IgnorePointer(child: OfflineIndicator()),
+              ),
+            ),
+        ],
+      ),
+    ),
     theme: ThemeData(
       useMaterial3: true,
       scrollbarTheme: const ScrollbarThemeData(

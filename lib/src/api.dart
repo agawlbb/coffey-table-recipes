@@ -1,6 +1,13 @@
 import 'dart:convert';
+import 'dart:async';
 
 import 'package:http/http.dart' as http;
+import 'package:firebase_auth/firebase_auth.dart';
+
+bool isOfflineFailure(Object error) =>
+    error is TimeoutException ||
+    error is http.ClientException ||
+    (error is FirebaseAuthException && error.code == 'network-request-failed');
 
 final apiBaseUrl = resolveApiBaseUrl(
   override: const String.fromEnvironment('API_BASE_URL'),

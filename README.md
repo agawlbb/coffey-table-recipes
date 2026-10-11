@@ -33,6 +33,18 @@ See `docs/checkpoints.md` for the agreed implementation sequence and `docs/authe
 
 Android and web can be built here. iOS source is included; building and signing iOS requires macOS/Xcode and Apple configuration.
 
+## Offline mobile use
+
+Android and iOS save recipe text in the background after a successful signed-in household load. The sync downloads every page, category and full recipe detail available to that account, including ingredients, instructions, nutrition and related recipes. Completed collections refresh at most once per 24 hours on launch or return to the app; normal online browsing still requests current data. Keep the app open and connected for the first full download. No server changes or database export are required.
+
+A returning, already signed-in user can restart offline, browse categories, search saved titles, descriptions, ingredients, tags and category labels, and use recipe details and cooking mode. Text is stored in application support files, separately for each Firebase account and API server. Detail downloads run in batches of three; checkpoints are saved roughly every 25 recipes. An interrupted sync keeps the previous complete collection. Content that has not been downloaded asks the user to reconnect. Available device storage and the first sync completing determine offline availability; new sign-in and account/household changes require a connection. Confirmed access denials and removed memberships invalidate saved access.
+
+Recipe photos viewed on mobile use a disk cache targeting the 100 most recently used images, with images unused for 90 days eligible for cleanup. Photos are downloaded on demand, rather than downloading the entire photo library. The operating system may reclaim image cache files; missing images show the existing recipe placeholder. The cache manager's cleanup is asynchronous, so the object count is a target rather than a strict byte limit. See the [cache manager configuration](https://pub.dev/documentation/flutter_cache_manager/latest/flutter_cache_manager/Config-class.html).
+
+A small cloud-off icon and “Offline” label appear at the bottom right, including in recipe details and cooking mode. The app checks network changes, resume events and (while offline in the foreground) a 30-second retry to recover when internet access returns. HTTP authorization and server errors are surfaced instead of silently serving old data. Web behavior remains unchanged.
+
+Validation: `flutter test test/offline_recipes_test.dart` covers restart persistence, all-page/detail sync, category and ingredient search, account isolation, interrupted sync, access errors, membership removal, storage failure and the indicator. For a device smoke test, sign in against the hosted API, let the initial sync complete, enable airplane mode, force-close/reopen, search an unvisited recipe, open cooking mode and revisit a viewed photo. Disable airplane mode and verify the badge disappears. Android builds can be checked here; iOS builds and airplane-mode checks require macOS/Xcode and a device.
+
 ## XAMPP web address
 
 Run tool/publish-local-web.ps1 to build and copy the web app into the XAMPP app directory. Then open http://localhost/CoffeyTableRecipes/. This build works while Apache is running, without the Flutter development server. Republish after source changes.

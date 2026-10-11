@@ -1,8 +1,19 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:cached_network_image/cached_network_image.dart';
+import 'package:flutter_cache_manager/flutter_cache_manager.dart';
 
 import 'api.dart';
 import 'cooking_mode.dart';
+import 'offline_recipes.dart';
+
+final recipePhotoCache = CacheManager(
+  Config(
+    'recentRecipePhotos',
+    maxNrOfCacheObjects: 100,
+    stalePeriod: const Duration(days: 90),
+  ),
+);
 
 typedef RecipeRequest = Future<Map<String, dynamic>> Function(String path);
 
@@ -66,16 +77,26 @@ class _RecipeBrowserState extends State<RecipeBrowser> {
       _trail.isEmpty ? 'All recipes' : _trail.last['label'] as String;
   String? _error;
   bool _busy = true;
+  bool _wasOffline = false;
   @override
   void initState() {
     super.initState();
+    _wasOffline = offlineStatus.value;
+    if (mobileOfflineEnabled) offlineStatus.addListener(_connectionChanged);
     _load();
   }
 
   @override
   void dispose() {
+    offlineStatus.removeListener(_connectionChanged);
     _search.dispose();
     super.dispose();
+  }
+
+  void _connectionChanged() {
+    final recovered = _wasOffline && !offlineStatus.value;
+    _wasOffline = offlineStatus.value;
+    if (recovered && mounted) _load();
   }
 
   Future<void> _load({bool more = false}) async {
@@ -416,6 +437,15 @@ class RecipePhoto extends StatelessWidget {
         uri.host.isEmpty) {
       return placeholder;
     }
+    if (mobileOfflineEnabled) {
+      return CachedNetworkImage(
+        imageUrl: url!,
+        cacheManager: recipePhotoCache,
+        fit: fit,
+        placeholder: (_, _) => placeholder,
+        errorWidget: (_, _, _) => placeholder,
+      );
+    }
     return Image.network(
       url!,
       fit: fit,
@@ -443,10 +473,25 @@ class RecipeDetail extends StatefulWidget {
 class _RecipeDetailState extends State<RecipeDetail> {
   Map<String, dynamic>? _recipe;
   String? _error;
+  bool _wasOffline = false;
   @override
   void initState() {
     super.initState();
+    _wasOffline = offlineStatus.value;
+    if (mobileOfflineEnabled) offlineStatus.addListener(_connectionChanged);
     _load();
+  }
+
+  void _connectionChanged() {
+    final recovered = _wasOffline && !offlineStatus.value;
+    _wasOffline = offlineStatus.value;
+    if (recovered && mounted) _load();
+  }
+
+  @override
+  void dispose() {
+    offlineStatus.removeListener(_connectionChanged);
+    super.dispose();
   }
 
   Future<void> _load() async {
