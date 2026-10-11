@@ -6,9 +6,9 @@ Android needs only internet access; a locally served web page still needs access
 
 ## Local copies
 
-The PHP project and original database remain in XAMPP. Hosted and local data are independent copies; edits are not synchronized automatically. The local published web app also uses the hosted backend by default.
+The PHP source remains in XAMPP, but the persistent backend and MySQL database are hosted exclusively on coffeybean.com. The outdated local recipe database was removed on 2026-10-11 after saving an ignored recovery backup in the backend repository storage directory. The local published web app continues to use the hosted backend.
 
-Before future API or database schema changes, ask whether to switch back to local development. After that decision, select a local endpoint with a build-time `API_BASE_URL` override, for example `http://10.0.2.2/CoffeyTableRecipes/api/v1` for an emulator or `http://localhost/CoffeyTableRecipes/api/v1` for web. Include `--dart-define-from-file=config/firebase.local.json` as usual.
+Use coffeybean.com for future backend and database work. Only use a local endpoint for an explicitly requested isolated test, with a build-time `API_BASE_URL` override, for example `http://10.0.2.2/CoffeyTableRecipes/api/v1` for an emulator or `http://localhost/CoffeyTableRecipes/api/v1` for web. Include `--dart-define-from-file=config/firebase.local.json` as usual.
 
 ## Build
 
