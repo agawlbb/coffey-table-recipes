@@ -27,6 +27,8 @@ Recipe details use the standard top-left app-bar back button. Category/search ba
 
 The signed-in home displays recipes from the hosted API, with search, category browsing, and cooking mode. Account and household management are available through the app bar and navigation menu. No simulated sign-in or development authorization bypass is provided.
 
+Each browsing scope shows sage-green category cards followed by a horizontal divider and cream-colored recipe cards. The recipe list includes recipes in descendant categories; use Load more recipes to continue through the scope. Search stays within the selected scope.
+
 See `docs/checkpoints.md` for the agreed implementation sequence and `docs/authentication.md` for configured sign-in commands. Default Flutter icons remain until the selected artwork is supplied.
 
 ## Platforms

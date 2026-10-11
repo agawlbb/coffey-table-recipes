@@ -3,6 +3,84 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  testWidgets('categories precede scoped recipes and survive pagination', (
+    tester,
+  ) async {
+    final paths = <String>[];
+    await tester.pumpWidget(
+      MaterialApp(
+        home: RecipeBrowser(
+          householdId: '2',
+          householdName: 'Coffey',
+          request: (path) async {
+            paths.add(path);
+            final query = Uri.parse(path).queryParameters;
+            if (query['tree'] == '1') {
+              return {
+                'view': 'categories',
+                'category_nodes': [
+                  {
+                    'id': '5',
+                    'label': 'Breakfast',
+                    'image_key': 'breakfast',
+                    'recipe_count': 2,
+                  },
+                ],
+                'recipes': [],
+              };
+            }
+            return {
+              'recipes': [
+                {
+                  'id': query['offset'] == '0' ? '9' : '10',
+                  'title': query['offset'] == '0' ? 'Bran muffins' : 'Pancakes',
+                },
+              ],
+              'next_offset': query['offset'] == '0' ? 1 : null,
+            };
+          },
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('Breakfast'), findsOneWidget);
+    expect(find.text('Bran muffins'), findsOneWidget);
+    expect(
+      tester.getTopLeft(find.text('Breakfast')).dy,
+      lessThan(
+        tester
+            .getTopLeft(find.byKey(const ValueKey('scope-recipes-divider')))
+            .dy,
+      ),
+    );
+    expect(
+      tester.getTopLeft(find.byKey(const ValueKey('scope-recipes-divider'))).dy,
+      lessThan(tester.getTopLeft(find.text('Bran muffins')).dy),
+    );
+    final categoryCard = tester.widget<Card>(
+      find.ancestor(of: find.text('Breakfast'), matching: find.byType(Card)),
+    );
+    final recipeCard = tester.widget<Card>(
+      find.ancestor(of: find.text('Bran muffins'), matching: find.byType(Card)),
+    );
+    expect(categoryCard.color, isNot(recipeCard.color));
+    await tester.tap(find.text('Load more recipes'));
+    await tester.pumpAndSettle();
+    expect(Uri.parse(paths.last).queryParameters['tree'], '0');
+    expect(Uri.parse(paths.last).queryParameters['offset'], '1');
+    expect(find.text('Breakfast'), findsOneWidget);
+    await tester.scrollUntilVisible(
+      find.text('Pancakes'),
+      150,
+      scrollable: find.descendant(
+        of: find.byType(ListView),
+        matching: find.byType(Scrollable),
+      ),
+    );
+    expect(find.text('Pancakes'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('three-level browsing scopes search and back navigation', (
     tester,
   ) async {

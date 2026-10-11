@@ -72,7 +72,6 @@ class _RecipeBrowserState extends State<RecipeBrowser> {
   String _query = '';
   final List<Map<String, dynamic>> _trail = [];
   List<Map<String, dynamic>> _nodes = [];
-  bool _categoryView = true;
   String get _scopeLabel =>
       _trail.isEmpty ? 'All recipes' : _trail.last['label'] as String;
   String? _error;
@@ -116,19 +115,28 @@ class _RecipeBrowserState extends State<RecipeBrowser> {
         queryParameters: {
           'q': _query,
           'offset': '${more ? _next ?? 0 : 0}',
-          'tree': '1',
+          'tree': more ? '0' : '1',
           if (_trail.isNotEmpty) 'scope': '${_trail.last['id']}',
         },
       ).query;
-      final data = await widget.request(
+      var data = await widget.request(
         '/households/${widget.householdId}/recipes?$query',
       );
+      if (!mounted || generation != _generation) return;
+      final nodes = recipeRows(data['category_nodes']);
+      if (!more && data['view'] == 'categories') {
+        final recipeQuery = Uri(
+          queryParameters: {...Uri.splitQueryString(query), 'tree': '0'},
+        ).query;
+        data = await widget.request(
+          '/households/${widget.householdId}/recipes?$recipeQuery',
+        );
+      }
       if (!mounted || generation != _generation) return;
       setState(() {
         _recipes.addAll(recipeRows(data['recipes']));
         _next = data['next_offset'] as int?;
-        _nodes = recipeRows(data['category_nodes']);
-        _categoryView = data['view'] == 'categories';
+        if (!more) _nodes = nodes;
       });
     } catch (error) {
       if (mounted && generation == _generation) {
@@ -288,15 +296,11 @@ class _RecipeBrowserState extends State<RecipeBrowser> {
                 ],
               ),
             ),
-          if (!_busy &&
-              _error == null &&
-              (_categoryView ? _nodes.isEmpty : _recipes.isEmpty))
+          if (!_busy && _error == null && _nodes.isEmpty && _recipes.isEmpty)
             Padding(
               padding: const EdgeInsets.all(24),
               child: Text(
-                _categoryView
-                    ? 'No recipes in this category yet.'
-                    : 'No recipes found in this scope. Try another search.',
+                'No recipes found in this scope. Try another search.',
               ),
             ),
           Expanded(
@@ -305,13 +309,17 @@ class _RecipeBrowserState extends State<RecipeBrowser> {
                 '${_trail.isEmpty ? "root" : _trail.last['id']}:$_query',
               ),
               padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
-              itemCount: _categoryView
-                  ? _nodes.length
-                  : _recipes.length + (_next != null ? 1 : 0),
+              itemCount:
+                  _nodes.length + 1 + _recipes.length + (_next != null ? 1 : 0),
               itemBuilder: (context, index) {
-                if (_categoryView) {
+                if (index < _nodes.length) {
                   final category = _nodes[index];
                   return Card(
+                    color: const Color(0xffdce5d3),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(24),
+                      side: const BorderSide(color: Color(0xff91a580)),
+                    ),
                     clipBehavior: Clip.antiAlias,
                     child: InkWell(
                       onTap: _busy ? null : () => _enterCategory(category),
@@ -354,7 +362,27 @@ class _RecipeBrowserState extends State<RecipeBrowser> {
                     ),
                   );
                 }
-                if (index == _recipes.length) {
+                final recipeIndex = index - _nodes.length - 1;
+                if (recipeIndex == -1) {
+                  return Padding(
+                    key: const ValueKey('scope-recipes-divider'),
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Divider(color: Color(0xff91a580), thickness: 2),
+                        const SizedBox(height: 12),
+                        Text(
+                          _trail.isEmpty
+                              ? 'All recipes'
+                              : 'Recipes in $_scopeLabel',
+                          style: Theme.of(context).textTheme.titleLarge,
+                        ),
+                      ],
+                    ),
+                  );
+                }
+                if (recipeIndex == _recipes.length) {
                   return Padding(
                     padding: const EdgeInsets.all(16),
                     child: OutlinedButton(
@@ -363,9 +391,10 @@ class _RecipeBrowserState extends State<RecipeBrowser> {
                     ),
                   );
                 }
-                final recipe = _recipes[index];
+                final recipe = _recipes[recipeIndex];
                 final summary = recipeSummary(recipe);
                 return Card(
+                  color: const Color(0xfffff9ee),
                   clipBehavior: Clip.antiAlias,
                   child: InkWell(
                     onTap: () => _open(recipe),
