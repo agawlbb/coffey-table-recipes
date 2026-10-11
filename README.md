@@ -72,3 +72,5 @@ retries missing artwork for previously imported categories. Category images use
 the backend media URL rather than the parent category asset.
 
 Imported category review shows Parent category before Category name. Imports generate missing recipe descriptions and classify filled pie shells as Pies under Desserts, including recipes without a title.
+
+Import offers Pasted recipe text and Describe how I make a dish separately. Source labels use plain language and remain identifiable after clarification. Cooking notes collect useful source tips; estimation commentary is omitted and import validation warnings appear separately during review.

@@ -107,6 +107,9 @@ class _RecipeEditorState extends State<RecipeEditor> {
         row['_parent_category'] = selected['parent_label'] ?? selected['label'];
       }
     }
+    if (_draft['source_type'] != null) {
+      _draft['source_type'] = recipeSourceLabel(_draft['source_type']);
+    }
     _draft['original_language'] ??= 'en';
     _draft['measurement_system'] ??= 'unspecified';
     offlineStatus.addListener(_connectionChanged);
@@ -1049,6 +1052,9 @@ class _RecipeEditorState extends State<RecipeEditor> {
                         padding: EdgeInsets.only(bottom: 16),
                         child: Text('Reconnect to save recipe changes.'),
                       ),
+                    if (_draft['import_warnings'] is List)
+                      for (final warning in _draft['import_warnings'] as List)
+                        _help(warning.toString()),
                     _section('Recipe details', Icons.restaurant_outlined, [
                       _field(
                         _draft,
@@ -1342,7 +1348,7 @@ class _RecipeEditorState extends State<RecipeEditor> {
                       _field(
                         _draft,
                         'source_type',
-                        'Source type',
+                        'Recipe source',
                         maxLength: 40,
                       ),
                       _field(

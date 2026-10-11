@@ -32,6 +32,15 @@ String recipeValue(Object? value) {
 List<Map<String, dynamic>> recipeRows(Object? value) =>
     List<Map<String, dynamic>>.from(value as List? ?? []);
 
+String recipeSourceLabel(Object? source) => switch (source) {
+  'ai_text' => 'Pasted text',
+  'ai_website' => 'Website link',
+  'ai_file' => 'Uploaded file',
+  'ai_camera' => 'Camera photo',
+  'ai_reviewed' => 'Imported recipe',
+  _ => source?.toString() ?? '',
+};
+
 String recipeSummary(Map<String, dynamic> recipe) {
   final parts = <String>[];
   if (recipe['total_minutes'] != null) {
@@ -920,6 +929,7 @@ class _RecipeDetailState extends State<RecipeDetail> {
                 ),
             ],
             if ([
+              'source_type',
               'source_title',
               'source_author',
               'source_url',
@@ -927,6 +937,7 @@ class _RecipeDetailState extends State<RecipeDetail> {
             ].any((key) => recipe[key] != null)) ...[
               _heading('Source'),
               for (final key in [
+                'source_type',
                 'source_title',
                 'source_author',
                 'source_url',
@@ -935,7 +946,11 @@ class _RecipeDetailState extends State<RecipeDetail> {
                 if (recipe[key] != null)
                   Padding(
                     padding: const EdgeInsets.only(bottom: 8),
-                    child: SelectableText(recipe[key] as String),
+                    child: SelectableText(
+                      key == 'source_type'
+                          ? recipeSourceLabel(recipe[key])
+                          : recipe[key] as String,
+                    ),
                   ),
             ],
             const SizedBox(height: 24),

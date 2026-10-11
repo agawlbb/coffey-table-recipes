@@ -138,7 +138,9 @@ class _RecipeImportState extends State<RecipeImport> {
     });
     try {
       final body = <String, dynamic>{
-        'kind': _draft == null ? _kind : 'answers',
+        'kind': _draft == null
+            ? (_kind == 'description' ? 'text' : _kind)
+            : 'answers',
       };
       if (_draft != null) {
         if (_answerFields.any((c) => c.text.trim().isEmpty)) {
@@ -159,7 +161,10 @@ class _RecipeImportState extends State<RecipeImport> {
               },
           ],
         });
-      } else if (_kind == 'text') {
+      } else if (_kind == 'text' || _kind == 'description') {
+        body['input_source'] = _kind == 'description'
+            ? 'written_description'
+            : 'pasted_text';
         if (_text.text.trim().isEmpty) {
           throw const FormatException(
             'Paste a recipe or describe how you make your dish.',
@@ -182,6 +187,7 @@ class _RecipeImportState extends State<RecipeImport> {
         final bytes = await _file!.readAsBytes();
         if (_file!.name.toLowerCase().endsWith('.txt')) {
           body['kind'] = 'text';
+          body['input_source'] = 'uploaded_text';
           body['text'] = utf8.decode(bytes);
         } else {
           body['file_base64'] = base64Encode(bytes);
@@ -309,7 +315,11 @@ class _RecipeImportState extends State<RecipeImport> {
                   items: const [
                     DropdownMenuItem(
                       value: 'text',
-                      child: Text('Text or describe a dish'),
+                      child: Text('Pasted recipe text'),
+                    ),
+                    DropdownMenuItem(
+                      value: 'description',
+                      child: Text('Describe how I make a dish'),
                     ),
                     DropdownMenuItem(
                       value: 'file',
@@ -333,7 +343,7 @@ class _RecipeImportState extends State<RecipeImport> {
                         }),
                 ),
                 const SizedBox(height: 16),
-                if (_kind == 'text')
+                if (_kind == 'text' || _kind == 'description')
                   TextField(
                     controller: _text,
                     enabled: !_busy,

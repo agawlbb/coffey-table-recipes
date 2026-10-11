@@ -24,6 +24,36 @@ Map<String, dynamic> draft(List<String> questions) => {
 };
 
 void main() {
+  testWidgets('written description sends a distinct source label', (
+    tester,
+  ) async {
+    var called = false;
+    await tester.pumpWidget(
+      MaterialApp(
+        home: RecipeImport(
+          householdId: '2',
+          request: (_, body) async {
+            called = true;
+            expect(body['kind'], 'text');
+            expect(body['input_source'], 'written_description');
+            return draft(['How much water?']);
+          },
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Pasted recipe text'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Describe how I make a dish').last);
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(TextField).first, 'I make soup');
+    await tester.ensureVisible(find.text('Continue'));
+    await tester.tap(find.text('Continue'));
+    await tester.pumpAndSettle();
+    expect(called, isTrue);
+    expect(find.text('How much water?'), findsOneWidget);
+  });
+
   for (final edited in [false, true]) {
     testWidgets('cancel import review returns to origin (edited: $edited)', (
       tester,
