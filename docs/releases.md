@@ -8,6 +8,8 @@ When the user says "create a release", review progress since the previous releas
 
 Version `0.4.0+5`, tagged `v0.4.0`, adds an offline mobile recipe library and recent-photo caching, scoped recipes below distinct category cards, backend-delivered verification emails, and administration of Firebase-only accounts. The existing hosted verification backend is already deployed; this release rebuilds and distributes the app without database or backend changes. All three platforms share this version and build number; iOS is unsigned for user-managed signing.
 
+The connectivity plugin requires the iOS 26 SDK. The iOS workflow selects Xcode 26.3 and supports manually rebuilding an existing release tag with updated workflow tooling, preserving the tag and application source.
+
 ## 0.3.0 — email verification and administration
 
 Version `0.3.0+4`, tagged `v0.3.0`, adds a dedicated email verification screen, explicit resend and refreshed verification claims before loading household invitations. Administration supports deleting accounts and unlinked table people. Android, web and unsigned iOS packages share this version and build number. The release tag publishes the hosted web app and builds iOS through GitHub Actions; signing and device installation remain user-managed.
