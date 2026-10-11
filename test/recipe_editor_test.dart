@@ -266,6 +266,50 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  testWidgets(
+    'quantity conflict opens the ingredient exact fields before save',
+    (tester) async {
+      var saved = false;
+      final draft = recipe();
+      (draft['ingredients'] as List).first.addAll({
+        'quantity_decimal': '0.5',
+        'quantity_numerator': 1,
+        'quantity_denominator': 2,
+      });
+      await tester.pumpWidget(
+        MaterialApp(
+          home: RecipeEditor(
+            recipe: draft,
+            householdId: '2',
+            save: (_, body) async {
+              saved = true;
+              return {'recipe': body};
+            },
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Save'));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 350));
+      await tester.pumpAndSettle();
+      expect(saved, isFalse);
+      final errors = find.text(
+        'Use decimal OR fraction; clear the other quantity fields.',
+      );
+      expect(errors, findsNWidgets(3));
+      final first = tester.getRect(errors.first);
+      expect(first.top, greaterThan(0));
+      expect(
+        first.bottom,
+        lessThan(
+          tester.view.physicalSize.height / tester.view.devicePixelRatio - 40,
+        ),
+      );
+      expect(tester.takeException(), isNull);
+    },
+  );
+
   test(
     'server-confirmed edits replace persisted offline recipe details',
     () async {

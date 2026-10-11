@@ -347,6 +347,23 @@ class _RecipeEditorState extends State<RecipeEditor> {
         if (maxLength != null && text.length > maxLength) {
           return 'Use at most $maxLength characters';
         }
+        if (key == 'quantity_decimal' ||
+            key == 'quantity_numerator' ||
+            key == 'quantity_denominator') {
+          final decimal = row['quantity_decimal']?.toString().trim() ?? '';
+          final numerator = row['quantity_numerator']?.toString().trim() ?? '';
+          final denominator =
+              row['quantity_denominator']?.toString().trim() ?? '';
+          if (decimal.isNotEmpty &&
+              (numerator.isNotEmpty || denominator.isNotEmpty)) {
+            return 'Use decimal OR fraction; clear the other quantity fields.';
+          }
+          if (numerator.isNotEmpty != denominator.isNotEmpty ||
+              (denominator.isNotEmpty &&
+                  (num.tryParse(denominator) ?? 0) <= 0)) {
+            return 'Enter both fraction fields with a denominator greater than zero.';
+          }
+        }
         if (text.isEmpty || numeric == null) return null;
         final number = num.tryParse(text);
         if (number == null ||
