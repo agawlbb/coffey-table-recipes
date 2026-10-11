@@ -669,17 +669,6 @@ class _RecipeDetailState extends State<RecipeDetail> {
     appBar: AppBar(
       leading: BackButton(onPressed: () => Navigator.of(context).pop()),
       title: Text(_recipe?['title'] as String? ?? widget.title),
-      actions: [
-        Builder(
-          builder: (anchor) => IconButton(
-            tooltip: 'Share recipe',
-            icon: const Icon(Icons.share),
-            onPressed: _recipe == null || _sharing
-                ? null
-                : () => _shareRecipe(anchor),
-          ),
-        ),
-      ],
     ),
     body: _error != null
         ? Center(
@@ -724,6 +713,13 @@ class _RecipeDetailState extends State<RecipeDetail> {
                     onPressed: _edit,
                     icon: const Icon(Icons.edit_outlined),
                   ),
+                Builder(
+                  builder: (anchor) => IconButton(
+                    tooltip: 'Share recipe',
+                    icon: const Icon(Icons.share),
+                    onPressed: _sharing ? null : () => _shareRecipe(anchor),
+                  ),
+                ),
               ],
             ),
             const SizedBox(height: 16),
