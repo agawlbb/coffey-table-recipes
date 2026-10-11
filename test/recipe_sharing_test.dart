@@ -1,4 +1,3 @@
-import 'package:coffey_table_recipes/src/api.dart';
 import 'package:coffey_table_recipes/src/recipe_browser.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -23,7 +22,7 @@ void main() {
       ),
     );
     const url =
-        'https://coffeybean.com/CoffeyTableRecipes/share.php?token=signed';
+        'https://coffeybean.com/CoffeyTableRecipes/share.php?id=3';
     await tester.pumpWidget(
       MaterialApp(
         home: RecipeDetail(
@@ -49,10 +48,13 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('share offers send a link and reports server failures', (
+  testWidgets('share offers a copyable link when native sharing is unavailable', (
     tester,
   ) async {
     final paths = <String>[];
+    const channel = MethodChannel('dev.fluttercommunity.plus/share');
+    tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(channel, (call) async => null);
+    addTearDown(() => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(channel, null));
     await tester.pumpWidget(
       MaterialApp(
         home: RecipeDetail(
@@ -61,9 +63,6 @@ void main() {
           title: 'Crêpes',
           request: (path) async {
             paths.add(path);
-            if (path.endsWith('/share')) {
-              throw ApiException(503, 'Sharing is unavailable.');
-            }
             return {
               'recipe': {'title': 'Crêpes', 'original_language': 'fr'},
             };
@@ -82,8 +81,11 @@ void main() {
     expect(paths.length, 1);
     await tester.tap(find.text('Send a link'));
     await tester.pumpAndSettle();
-    expect(paths.last, '/households/2/recipes/3/share');
-    expect(find.text('Sharing is unavailable.'), findsOneWidget);
+    expect(paths.length, 1);
+    expect(find.text('Copy link'), findsOneWidget);
+    expect(find.text('https://coffeybean.com/CoffeyTableRecipes/share.php?id=3'), findsOneWidget);
+    await tester.tap(find.text('Close'));
+    await tester.pumpAndSettle();
     expect(
       tester
           .widget<IconButton>(find.widgetWithIcon(IconButton, Icons.share))

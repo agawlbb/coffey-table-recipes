@@ -1,11 +1,9 @@
 # Recipe sharing
 
-Use the standard share icon on a recipe's display page, then choose **Send a link**. The native share sheet sends a server-generated URL; browsers without sharing support show a selectable link and **Copy link**. Sharing requires a connection. Server errors appear in a snackbar and can be retried.
+Use the standard share icon on a recipe display page, then choose **Send a link**. The app constructs `https://coffeybean.com/CoffeyTableRecipes/share.php?id={database recipe ID}` directly and opens native sharing. No API call or signing token is needed to create a link; if native sharing is unavailable, the selectable link and **Copy link** remain available.
 
-Anyone holding the signed link can read that recipe without an account. The PHP page displays the current recipe, in the app's cream, green and brown theme, with original measurements, photos, ingredients, method, notes, nutrition and source. Related recipe titles are displayed without granting access to other recipes. Import text and edit options are never rendered.
+The backend reads the current recipe by ID without requiring an account. Anyone can view an existing recipe by its ID. Missing recipes show a useful branded error. The cream, green and brown page includes the existing branding image, original measurements, photos, grouped ingredients, method, notes, nutrition and source. Photo surrounds match the page background. Step action chips and private import/edit data are omitted.
 
-The backend must deploy `share.php`, `src/RecipeShare.php`, `src/RecipeSharePage.php`, the API route change and configuration default. Set a private random `recipe_share_key` of at least 32 characters in hosted `config/local.php`. No database migration is needed. Rotating the key invalidates all links; deleting a recipe or removing the sender's household membership also makes its links unavailable. Links otherwise remain valid and show subsequent recipe edits.
+The revised backend was deployed and visually verified on 2026-10-11. The existing Mint Chip Ice Cream example is `https://coffeybean.com/CoffeyTableRecipes/share.php?id=9`. The hosted Flutter app was not republished.
 
-Validation: `flutter analyze`, `flutter test test/recipe_sharing_test.dart test/recipe_browser_test.dart test/recipe_photos_test.dart`; backend `php tests/recipe_sharing.php` and PHP lint. No hosted deployment is included in this change.
-
-Implementation verification: 10 targeted Flutter tests and 22 backend checks passed; PHP lint passed. Full-project analysis reported two warnings in concurrently edited `offline_recipes.dart`. The built-in browser could not reach the local preview, so browser visual verification remains pending.
+Validation: 10 targeted sharing/browser/photo tests passed; focused analysis passed. Backend validation passed 26 checks and PHP lint; live checks verified ID lookup, missing-recipe errors, branding and protected paths.

@@ -8,6 +8,7 @@ import 'package:flutter_cache_manager/flutter_cache_manager.dart';
 import 'api.dart';
 import 'cooking_mode.dart';
 import 'offline_recipes.dart';
+import 'recipe_sharing.dart';
 import 'recipe_editor.dart';
 
 final recipePhotoCache = CacheManager(
@@ -532,11 +533,7 @@ class _RecipeDetailState extends State<RecipeDetail> {
         : box.localToGlobal(Offset.zero) & box.size;
     setState(() => _sharing = true);
     try {
-      final data = await widget.request(
-        '/households/${widget.householdId}/recipes/${widget.recipeId}/share',
-      );
-      if (!mounted) return;
-      final link = data['url'] as String;
+      final link = recipeShareLink(widget.recipeId);
       var status = ShareResultStatus.unavailable;
       try {
         final result = await SharePlus.instance.share(
@@ -548,8 +545,7 @@ class _RecipeDetailState extends State<RecipeDetail> {
         );
         status = result.status;
       } catch (_) {
-        // Browsers can reject sharing after the asynchronous link request.
-        // Keep the generated link available to copy in that case.
+        // Keep the link available to copy if platform sharing is unavailable.
       }
       if (status == ShareResultStatus.unavailable && mounted) {
         await showDialog<void>(
