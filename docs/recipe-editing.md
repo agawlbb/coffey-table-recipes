@@ -5,6 +5,21 @@ existing Material theme, centered content, rounded cards, and expandable section
 Save commits the entire draft; Cancel and back navigation prompt before discarding
 unsaved changes. Errors keep the draft available for correction or retry.
 
+The editor now shows the recipe name and shortcuts to each section. A shortcut
+opens its section and scrolls it into view. Servings/yield and cooking times share
+rows when space permits; phone layouts stack fields as needed. Language and
+measurement settings are under Language & measurements.
+
+Ingredient rows preview their displayed quantities and preparation; step rows
+preview instructions. Open a row using its heading or expand arrow to edit it.
+Reorder and remove controls appear at the bottom of the expanded row. Grouping,
+scaling, and exact ingredient quantities have their own expandable settings.
+The displayed ingredient line is edited independently from search/scaling fields.
+
+A persistent footer shows unsaved changes and save errors. Validation opens the
+sections and rows containing the first invalid field, then scrolls to it. All edits
+remain in the same draft when moving between sections.
+
 Editable content includes the name, description, servings/yield, cooking times,
 language, measurement system, ingredient groups and all ingredient fields,
 ordered steps and their ordered cooking actions, photos/captions/credits/cover,
@@ -42,3 +57,11 @@ passed. Backend verification passed 28 edit checks and 55 existing schema checks
 using disposable local databases. Deployment status is recorded in the backend
 repository's docs/recipe-editing.md. Hosted Flutter publication requires the
 separate explicit release workflow.
+
+Editor refresh validation on 2026-10-11: all 79 Flutter tests passed and
+`flutter analyze --no-pub` reported no issues. Coverage includes section shortcuts,
+draft preservation, previews, validation visibility within the logical viewport,
+reordering/removal, photo drafts, save errors and a 360-pixel phone layout.
+The web build was published to local XAMPP using `tool/publish-local-web.ps1`.
+Integrated-browser visual checks passed at 360 and 1280 pixels wide using the
+hosted backend. This publication updates the local app only.

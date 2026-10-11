@@ -50,13 +50,96 @@ Map<String, dynamic> recipe() => {
 };
 
 Future<void> section(WidgetTester tester, String label) async {
-  final finder = find.text(label);
+  final finder = find.text(label).last;
   await tester.ensureVisible(finder);
   await tester.tap(finder);
   await tester.pumpAndSettle();
 }
 
 void main() {
+  testWidgets('section shortcuts preserve edits and show useful row previews', (
+    tester,
+  ) async {
+    Map<String, dynamic>? submitted;
+    await tester.pumpWidget(
+      MaterialApp(
+        home: RecipeEditor(
+          recipe: recipe(),
+          householdId: '2',
+          save: (_, body) async {
+            submitted = body;
+            throw ApiException(500, 'Draft retained');
+          },
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.byTooltip('Go to ingredients'));
+    await tester.pumpAndSettle();
+    expect(find.text('1 cup milk'), findsOneWidget);
+    await section(tester, '1. Milk');
+    final line = find.widgetWithText(
+      TextFormField,
+      'Ingredient line (as displayed)',
+    );
+    await tester.ensureVisible(line);
+    await tester.enterText(line, '2 cups milk');
+    await tester.pump();
+    expect(
+      find.text('Unsaved changes · Save when you’re ready'),
+      findsOneWidget,
+    );
+    await tester.ensureVisible(find.byTooltip('Go to steps & actions'));
+    await tester.tap(find.byTooltip('Go to steps & actions'));
+    await tester.pumpAndSettle();
+    expect(find.text('Simmer'), findsOneWidget);
+    await tester.tap(find.text('Save'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 350));
+    await tester.pumpAndSettle();
+    expect(
+      (submitted!['ingredients'] as List).single['original_text'],
+      '2 cups milk',
+    );
+    expect(find.text('Draft retained'), findsOneWidget);
+  });
+
+  testWidgets('save reveals and scrolls to errors inside collapsed sections', (
+    tester,
+  ) async {
+    var saved = false;
+    final draft = recipe();
+    (draft['steps'] as List).first['instruction'] = '';
+    await tester.pumpWidget(
+      MaterialApp(
+        home: RecipeEditor(
+          recipe: draft,
+          householdId: '2',
+          save: (_, body) async {
+            saved = true;
+            return {'recipe': body};
+          },
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Save'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 350));
+    await tester.pumpAndSettle();
+    expect(saved, isFalse);
+    expect(find.text('Enter Instructions'), findsOneWidget);
+    final error = tester.getRect(find.text('Enter Instructions'));
+    expect(error.top, greaterThan(0));
+    expect(
+      error.bottom,
+      lessThan(
+        tester.view.physicalSize.height / tester.view.devicePixelRatio - 40,
+      ),
+    );
+    expect(tester.takeException(), isNull);
+  });
+
   test(
     'server-confirmed edits replace persisted offline recipe details',
     () async {
@@ -190,6 +273,7 @@ void main() {
       await tester.pumpAndSettle();
       await section(tester, 'Steps & actions');
       await section(tester, 'Step 1');
+      await section(tester, 'Second timer');
       final action = find
           .ancestor(
             of: find.text('Second timer'),
@@ -215,7 +299,7 @@ void main() {
           .first;
       final remove = find
           .descendant(of: step, matching: find.byTooltip('Remove'))
-          .first;
+          .last;
       await tester.ensureVisible(remove);
       await tester.tap(remove);
       await tester.pumpAndSettle();
