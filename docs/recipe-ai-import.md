@@ -2,6 +2,12 @@
 
 The left navigation menu's Add recipe opens text/description, website, upload,
 and camera options for the selected household. An online connection is required.
+Available website recipe pictures are included in the review draft as the cover
+with website credit. They can be cropped, rotated, replaced or removed before
+Save. Pictures remain in memory across clarification questions and their bytes
+are not resubmitted to AI. Blocked website images show an import warning while
+the recipe itself remains importable. Import/source-picture tests and analysis
+pass, including cover/credit preservation through questions and Save.
 PDF, JPEG, PNG, WebP and UTF-8 text files up to 5 MB are accepted. Camera images
 are resized to 2400 pixels and JPEG quality 85 before upload. Existing iOS camera
 permission descriptions apply; browser camera access depends on the browser/device.

@@ -41,6 +41,7 @@ class _RecipeImportState extends State<RecipeImport> {
   List<String> _questions = [];
   String? _identity;
   List<Map<String, dynamic>> _photoSuggestions = [];
+  List<Map<String, dynamic>> _importPhotos = [];
   @override
   void initState() {
     super.initState();
@@ -208,7 +209,8 @@ class _RecipeImportState extends State<RecipeImport> {
         }
         body.addAll({
           'recipe': Map<String, dynamic>.from(_draft!)
-            ..remove('photo_suggestions'),
+            ..remove('photo_suggestions')
+            ..remove('photos'),
           'text': _draft!['source_text'] ?? '',
           'url': _draft!['source_url'],
           'import_identity': _identity,
@@ -263,6 +265,12 @@ class _RecipeImportState extends State<RecipeImport> {
       if (!mounted) return;
       final questions = (data['questions'] as List).cast<String>();
       final draft = data['recipe'] as Map<String, dynamic>;
+      if (draft['photos'] is List && (draft['photos'] as List).isNotEmpty) {
+        _importPhotos = List<Map<String, dynamic>>.from(
+          draft['photos'] as List,
+        );
+      }
+      if (_importPhotos.isNotEmpty) draft['photos'] = _importPhotos;
       if (draft['photo_suggestions'] is List &&
           (draft['photo_suggestions'] as List).isNotEmpty) {
         _photoSuggestions = List<Map<String, dynamic>>.from(

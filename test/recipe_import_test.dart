@@ -24,6 +24,61 @@ Map<String, dynamic> draft(List<String> questions) => {
 };
 
 void main() {
+  testWidgets(
+    'website cover survives clarification without resending picture bytes',
+    (tester) async {
+      const encoded =
+          'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aT1sAAAAASUVORK5CYII=';
+      Map<String, dynamic>? saved;
+      await tester.pumpWidget(
+        MaterialApp(
+          home: RecipeImport(
+            householdId: '2',
+            request: (path, body) async {
+              if (path.endsWith('/recipes')) {
+                saved = body;
+                return {
+                  'recipe': {...body, 'id': '30'},
+                };
+              }
+              if (body['kind'] == 'answers') {
+                expect((body['recipe'] as Map).containsKey('photos'), isFalse);
+                return draft([]);
+              }
+              final data = draft(['How much water?']);
+              (data['recipe'] as Map)['photos'] = [
+                {
+                  'id': 'new-website-photo',
+                  'image_base64': encoded,
+                  'is_cover': 1,
+                  'attribution': 'Photo from https://example.com/soup',
+                },
+              ];
+              return data;
+            },
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      await tester.enterText(
+        find.byType(TextField).first,
+        'Recipe source text',
+      );
+      await tester.ensureVisible(find.text('Continue'));
+      await tester.tap(find.text('Continue'));
+      await tester.pumpAndSettle();
+      await tester.enterText(find.byType(TextField).first, '2 cups');
+      await tester.ensureVisible(find.text('Continue'));
+      await tester.tap(find.text('Continue'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Save').first);
+      await tester.pumpAndSettle();
+      final photo = (saved!['photos'] as List).single as Map;
+      expect(photo['image_base64'], encoded);
+      expect(photo['is_cover'], 1);
+      expect(photo['attribution'], 'Photo from https://example.com/soup');
+    },
+  );
   for (final scheme in ['http', 'https']) {
     testWidgets('$scheme recipe website links reach the import backend', (
       tester,
