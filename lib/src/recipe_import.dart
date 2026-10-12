@@ -232,8 +232,12 @@ class _RecipeImportState extends State<RecipeImport> {
         body['text'] = _text.text.trim();
       } else if (_kind == 'website') {
         final uri = Uri.tryParse(_url.text.trim());
-        if (uri == null || uri.scheme != 'https' || uri.host.isEmpty) {
-          throw const FormatException('Enter a full https:// website link.');
+        if (uri == null ||
+            !['http', 'https'].contains(uri.scheme) ||
+            uri.host.isEmpty) {
+          throw const FormatException(
+            'Enter a full http:// or https:// website link.',
+          );
         }
         body['url'] = uri.toString();
       } else {

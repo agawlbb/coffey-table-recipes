@@ -24,6 +24,37 @@ Map<String, dynamic> draft(List<String> questions) => {
 };
 
 void main() {
+  for (final scheme in ['http', 'https']) {
+    testWidgets('$scheme recipe website links reach the import backend', (
+      tester,
+    ) async {
+      Map<String, dynamic>? submitted;
+      await tester.pumpWidget(
+        MaterialApp(
+          home: RecipeImport(
+            householdId: '2',
+            request: (_, body) async {
+              submitted = body;
+              return draft(['How much water?']);
+            },
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Pasted recipe text'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Website link').last);
+      await tester.pumpAndSettle();
+      final url =
+          '$scheme://www.foodnetwork.com/recipes/tyler-florence/caramelized-onion-and-cornbread-stuffing-recipe3.html';
+      await tester.enterText(find.byType(TextField).first, url);
+      await tester.ensureVisible(find.text('Continue'));
+      await tester.tap(find.text('Continue'));
+      await tester.pumpAndSettle();
+      expect(submitted?['kind'], 'website');
+      expect(submitted?['url'], url);
+    });
+  }
   testWidgets('written description sends a distinct source label', (
     tester,
   ) async {

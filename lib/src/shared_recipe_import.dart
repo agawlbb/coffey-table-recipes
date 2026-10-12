@@ -169,7 +169,7 @@ class SharedRecipeInbox extends ValueNotifier<List<SharedRecipeInput>>
       final text = media.content!.trim();
       final uri = Uri.tryParse(text);
       if (uri != null &&
-          uri.scheme == 'https' &&
+          ['http', 'https'].contains(uri.scheme) &&
           uri.host.isNotEmpty &&
           !text.contains(RegExp(r'\s'))) {
         _add(SharedRecipeInput(url: text));

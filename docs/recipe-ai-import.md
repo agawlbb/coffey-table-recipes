@@ -6,8 +6,14 @@ PDF, JPEG, PNG, WebP and UTF-8 text files up to 5 MB are accepted. Camera images
 are resized to 2400 pixels and JPEG quality 85 before upload. Existing iOS camera
 permission descriptions apply; browser camera access depends on the browser/device.
 
-The authenticated backend extracts Recipe JSON-LD from public HTTPS pages first,
-otherwise removes navigation, scripts and other page noise. Redirects are rejected:
+The importer accepts HTTP and HTTPS links; the backend upgrades HTTP to HTTPS.
+The authenticated backend extracts Recipe JSON-LD first, otherwise removes page
+noise. It follows a bounded set of redirects after checking every destination.
+If direct extraction fails, the same AI request can use cached public web search
+on the original website, retaining a verified canonical recipe source. A missing
+or mismatched source returns an actionable paste-text error rather than an
+invented recipe. HTTP/HTTPS frontend tests and shared-import regressions pass.
+The backend retains its website security checks:
 use the final URL or paste the recipe. DNS is checked and pinned to a public IP.
 Optional Poppler `pdftotext` and Tesseract OCR run locally on the server with a
 15 second timeout. Useful extracted text goes to AI instead of file/image data;
