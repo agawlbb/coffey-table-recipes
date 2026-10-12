@@ -59,11 +59,18 @@ xcodebuild test -project build/ios-share-probe/ShareProbe.xcodeproj \
   -resultBundlePath build/ios-share-probe/results.xcresult \
   -parallel-testing-enabled NO CODE_SIGNING_ALLOWED=NO
 
-group=$(xcrun simctl get_app_container "$device" com.coffeytable.coffeyTableRecipes group.com.coffeytable.coffeyTableRecipes)
-python3 - "$group" <<'PY'
-import json, sys
+python3 - "$device" <<'PY'
+import json, sys, plistlib
 from pathlib import Path
-root = Path(sys.argv[1])
+# Only the extension has run: simctl may not yet list Runner's group mapping.
+# Identify the existing shared container from its simulator metadata instead.
+groups = Path.home() / 'Library/Developer/CoreSimulator/Devices' / sys.argv[1] / 'data/Containers/Shared/AppGroup'
+roots = []
+for metadata in groups.glob('*/.com.apple.mobile_container_manager.metadata.plist'):
+    if plistlib.loads(metadata.read_bytes()).get('MCMMetadataIdentifier') == 'group.com.coffeytable.coffeyTableRecipes':
+        roots.append(metadata.parent)
+assert len(roots) == 1, 'Expected one registered recipe App Group container'
+root = roots[0]
 payloads = [json.loads(p.read_text()) for p in root.glob('RecipeShare-*.json')]
 assert any(p['content'] for p in payloads), 'Text share was not persisted'
 files = [Path(a['path']) for p in payloads for a in p['attachments']]
