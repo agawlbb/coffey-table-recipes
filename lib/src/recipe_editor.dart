@@ -6,6 +6,7 @@ import 'package:image_picker/image_picker.dart';
 
 import 'api.dart';
 import 'recipe_browser.dart';
+import 'source_photo_crop.dart';
 import 'offline_recipes.dart';
 
 typedef RecipeSave = Future<Map<String, dynamic>> Function(
@@ -33,6 +34,8 @@ class _RecipeEditorState extends State<RecipeEditor> {
   final _form = GlobalKey<FormState>();
   late final Map<String, dynamic> _draft;
   bool _dirty = false, _saving = false, _picking = false, _leaving = false;
+  final List<Map<String, dynamic>> _sourcePhotos = [];
+  bool _loadingSourcePhotos = false;
   String? _error;
   String? _photoError;
   bool _revealingErrors = false;
@@ -110,11 +113,47 @@ class _RecipeEditorState extends State<RecipeEditor> {
     if (_draft['source_type'] != null) {
       _draft['source_type'] = recipeSourceLabel(_draft['source_type']);
     }
+    _draft.remove('photo_suggestions');
+    _prepareSourcePhotos(widget.recipe['photo_suggestions']);
     _draft['original_language'] ??= 'en';
     _draft['measurement_system'] ??= 'unspecified';
     offlineStatus.addListener(_connectionChanged);
     _recoverPhoto();
   }
+
+  Future<void> _prepareSourcePhotos(Object? suggestions) async {
+    if (suggestions is! List || suggestions.isEmpty) return;
+    _loadingSourcePhotos = true;
+    final prepared = <Map<String, dynamic>>[];
+    for (final value in suggestions.take(6)) {
+      try {
+        prepared.add(
+          await prepareSourcePhoto(Map<String, dynamic>.from(value as Map)),
+        );
+      } catch (_) {
+        /* A source picture must not discard the recipe draft. */
+      }
+    }
+    if (mounted) {
+      setState(() {
+        _sourcePhotos.addAll(prepared);
+        _loadingSourcePhotos = false;
+      });
+    }
+  }
+
+  void _useSourcePhoto(Map<String, dynamic> photo) => _change(() {
+    _rows(
+      'photos',
+    ).add({...photo, 'id': _id(), 'is_cover': _rows('photos').isEmpty ? 1 : 0});
+    _sourcePhotos.remove(photo);
+  });
+  void _typeNewCategory(Map<String, dynamic> row) => _change(() {
+    row['parent_label'] = row['_parent_category'];
+    row.remove('category_id');
+    row['label'] = '';
+    row['_new_category'] = true;
+  });
 
   void _connectionChanged() {
     if (mounted) setState(() {});
@@ -321,6 +360,8 @@ class _RecipeEditorState extends State<RecipeEditor> {
     if (_picking ||
         _saving ||
         _rows('photos').isNotEmpty ||
+        _sourcePhotos.isNotEmpty ||
+        _loadingSourcePhotos ||
         recipeRows(widget.recipe['photos']).isNotEmpty) {
       return;
     }
@@ -1201,6 +1242,59 @@ class _RecipeEditorState extends State<RecipeEditor> {
                       'Photos',
                       Icons.photo_library_outlined,
                       [
+                        if (_loadingSourcePhotos)
+                          const LinearProgressIndicator(),
+                        if (_sourcePhotos.isNotEmpty) ...[
+                          const Text(
+                            'Pictures found in your import',
+                            style: TextStyle(fontWeight: FontWeight.bold),
+                          ),
+                          _help('Choose a picture to use for this recipe.'),
+                          for (final photo in List<Map<String, dynamic>>.from(
+                            _sourcePhotos,
+                          ))
+                            Card(
+                              child: Padding(
+                                padding: const EdgeInsets.all(12),
+                                child: Column(
+                                  children: [
+                                    Image.memory(
+                                      base64Decode(
+                                        photo['image_base64'] as String,
+                                      ),
+                                      height: 160,
+                                      fit: BoxFit.contain,
+                                    ),
+                                    Wrap(
+                                      spacing: 12,
+                                      children: [
+                                        FilledButton.icon(
+                                          onPressed: _saving
+                                              ? null
+                                              : () => _useSourcePhoto(photo),
+                                          icon: const Icon(
+                                            Icons.add_photo_alternate_outlined,
+                                          ),
+                                          label: const Text('Use this picture'),
+                                        ),
+                                        TextButton(
+                                          onPressed: _saving
+                                              ? null
+                                              : () => setState(
+                                                  () => _sourcePhotos.remove(
+                                                    photo,
+                                                  ),
+                                                ),
+                                          child: const Text('Skip picture'),
+                                        ),
+                                      ],
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                        ],
+
                         _help(
                           'Choose a cover for the recipe, then add captions or photo credits.',
                         ),
@@ -1223,6 +1317,8 @@ class _RecipeEditorState extends State<RecipeEditor> {
                               label: const Text('Use camera'),
                             ),
                             if (_rows('photos').isEmpty &&
+                                _sourcePhotos.isEmpty &&
+                                !_loadingSourcePhotos &&
                                 recipeRows(widget.recipe['photos']).isEmpty)
                               OutlinedButton.icon(
                                 onPressed: _picking || _saving
@@ -1245,6 +1341,8 @@ class _RecipeEditorState extends State<RecipeEditor> {
                             ),
                           ),
                         if (_rows('photos').isEmpty &&
+                            _sourcePhotos.isEmpty &&
+                            !_loadingSourcePhotos &&
                             recipeRows(widget.recipe['photos']).isEmpty)
                           _help('Generate an image with AI.'),
                         const Padding(
@@ -1253,7 +1351,7 @@ class _RecipeEditorState extends State<RecipeEditor> {
                         ),
                       ],
                       subtitle:
-                          '${_rows('photos').length} ${_rows('photos').length == 1 ? 'photo' : 'photos'}',
+                          '${_rows('photos').length} ${_rows('photos').length == 1 ? 'photo' : 'photos'}${_sourcePhotos.isEmpty ? '' : ' · ${_sourcePhotos.length} suggested from import'}',
                     ),
                     _section('Categories & tags', Icons.label_outline, [
                       ..._rows('category_assignments').map(
@@ -1268,7 +1366,10 @@ class _RecipeEditorState extends State<RecipeEditor> {
                                   'categories',
                                 ).where((c) => c['parent_label'] == null))
                                   '${c['label']}': '${c['label']}',
-                              }, nullable: true),
+                              }, nullable: r['_new_category'] != true),
+                              _help(
+                                'Edit the category name to use or add a different category.',
+                              ),
                               _field(
                                 r,
                                 'label',
@@ -1298,8 +1399,23 @@ class _RecipeEditorState extends State<RecipeEditor> {
                                 ))
                                   '${c['id']}': '${c['label']}',
                               }),
+                              TextButton.icon(
+                                onPressed: () => _typeNewCategory(r),
+                                icon: const Icon(Icons.edit_outlined),
+                                label: const Text('Type a new category'),
+                              ),
                             ],
                           ],
+                        ),
+                      ),
+                      _add(
+                        'Add a new category',
+                        () => _change(
+                          () => _rows('category_assignments').add({
+                            '_key': _id(),
+                            'label': '',
+                            '_new_category': true,
+                          }),
                         ),
                       ),
                       _add(
