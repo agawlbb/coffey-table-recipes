@@ -2,6 +2,16 @@
 
 Release dates and changes are reconstructed from annotated Git tags, commit history, and project release records. Versions before 1.0 are demonstration releases; 1.0 marks the first usable release. Android retains the existing signing identity; iOS packages are unsigned for user-managed signing.
 
+## 1.1.0 — 2026-10-11
+
+Build 8; tag `v1.1.0`.
+
+- Added source food-photo suggestions with crop review and typed category selection during import review.
+- Repaired iOS sharing with a visible handoff result and persistent shared input for pickup when the app opens.
+- Displayed and edited recipe durations in hours, minutes, and seconds.
+- Simplified recipe tiles and removed redundant header and offline-count clutter.
+- Corrected iOS extension build ordering introduced in 1.0.0.
+
 ## 1.0.0 — 2026-10-11
 
 Build 7; tag `v1.0.0`. First usable release.
