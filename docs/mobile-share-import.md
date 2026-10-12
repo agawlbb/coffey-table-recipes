@@ -36,7 +36,7 @@ If an identifier is unavailable in the new account, update it consistently in
 Xcode, both Info plists and both entitlements before signing. Update Firebase's
 main iOS app registration and Google callback if Runner's bundle ID changes.
 
-On a Mac, install Xcode and Flutter 3.47.6, add the paid account to Xcode Settings,
+On a Mac, install Xcode 27 or newer and Flutter 3.47.6, add the paid account to Xcode Settings,
 then open `ios/Runner.xcworkspace`. Select the paid team for Runner and
 ShareExtension and leave automatic signing enabled. Xcode must create a separate
 provisioning profile for each target with the same App Group membership. Do not
@@ -68,6 +68,16 @@ simulator App Group entitlements, selects it from actual PDF/text share sheets,
 checks the ready screen and Done, and verifies persisted PDF bytes and text.
 Flutter tests cover pending delivery, authentication gating, acknowledgment and
 recipe review. Simulator success does not validate paid provisioning on a phone.
+
+On 2026-10-12, source `e2198f5` passed the PDF and text receiver tests and verified
+the persisted PDF bytes/text in both SDK 26/iOS 26 and SDK 27/iOS 27 jobs of
+[workflow 38242987112](https://github.com/agawlbb/coffey_table_recipes/actions/runs/38242987112).
+The additional SDK 26-on-iOS 27 check passed text but failed to display the PDF
+receiver. That legacy compiler/runtime combination is not verified. Paid signing
+and unsigned device builds now use Xcode 27; the signed-build helper requires
+Xcode 27 or newer. Eight main-app sharing tests, five configuration checks, clean
+Flutter analysis and signing-script syntax checks passed locally. The actual
+paid archive/export cannot be validated until the team and signing identity exist.
 
 On 2026-10-12, physical iOS 27.0.1 reports for builds 8, 9 and 10 signed with
 Sideloadly 0.70.1 show `CODESIGNING`, code 2, `Invalid Page`. A fresh tap reproduced

@@ -1,6 +1,10 @@
 #!/bin/bash
 # Run on a Mac with Xcode, Flutter, and the paid Apple team added to Xcode.
 set -euo pipefail
+version=$(xcodebuild -version)
+[[ "$version" =~ Xcode[[:space:]]([0-9]+) ]] && (( ${BASH_REMATCH[1]} >= 27 )) || {
+  echo 'Use Xcode 27 or newer for the validated iOS 27 signing path'; exit 1;
+}
 : "${IOS_TEAM_ID:?Set IOS_TEAM_ID to your paid Apple developer team ID}"
 : "${IOS_FIREBASE_CONFIG:?Set IOS_FIREBASE_CONFIG to the ignored Firebase JSON file}"
 [[ "$IOS_TEAM_ID" =~ ^[A-Z0-9]{10}$ ]] || { echo 'Invalid Apple team ID'; exit 1; }
@@ -23,6 +27,7 @@ Path('build/ios/signing/ExportOptions.plist').write_bytes(plistlib.dumps({
 }))
 PY
 xcodebuild -workspace ios/Runner.xcworkspace -scheme Runner -configuration Release \
+  -destination 'generic/platform=iOS' \
   -archivePath build/ios/archive/Runner.xcarchive archive \
   DEVELOPMENT_TEAM="$IOS_TEAM_ID" CODE_SIGN_STYLE=Automatic CODE_SIGNING_ALLOWED=YES \
   -allowProvisioningUpdates

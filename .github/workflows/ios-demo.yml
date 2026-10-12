@@ -22,7 +22,7 @@ permissions:
 jobs:
   ios:
     if: ${{ !inputs.simulator_only }}
-    runs-on: macos-15
+    runs-on: xcode-27
     timeout-minutes: 45
     steps:
       - name: Validate manually selected build
@@ -40,9 +40,9 @@ jobs:
       - uses: actions/checkout@v4
         with:
           ref: ${{ inputs.release_tag || github.ref }}
-      - name: Select Xcode with iOS 26 SDK
+      - name: Select Xcode with iOS 27 SDK
         run: |
-          sudo xcode-select -s /Applications/Xcode_26.3.app/Contents/Developer
+          sudo xcode-select -s /Applications/Xcode_27.app/Contents/Developer
           xcodebuild -version
       - name: Install pinned Flutter
         run: |
@@ -150,56 +150,11 @@ jobs:
         env:
           IOS_RUNTIME_MAJOR: ${{ matrix.runtime }}
         run: bash tool/test-ios-share-simulator.sh
-      - name: Preserve SDK 26 simulator app for iOS 27 compatibility testing
-        if: ${{ matrix.runtime == '26' }}
-        run: tar -czf build/ios/Runner-sdk26-simulator.tar.gz -C build/ios/iphonesimulator Runner.app
-      - name: Upload SDK 26 simulator app
-        if: ${{ matrix.runtime == '26' }}
-        uses: actions/upload-artifact@v4
-        with:
-          name: iOS-share-sdk26-app-${{ github.sha }}
-          path: build/ios/Runner-sdk26-simulator.tar.gz
-          retention-days: 7
       - name: Save simulator evidence
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: iOS-share-simulator-${{ matrix.runtime }}-release-${{ github.sha }}
-          path: |
-            build/ios-share-probe/*.png
-            build/ios-share-probe/*.log
-            build/ios-share-probe/results.xcresult
-            build/ios-share-probe/screenshots
-            build/ios-share-probe/crashes
-          if-no-files-found: warn
-          retention-days: 14
-  simulator_compatibility:
-    if: ${{ github.event_name == 'workflow_dispatch' && inputs.simulator_only }}
-    needs: simulator
-    runs-on: xcode-27
-    timeout-minutes: 20
-    steps:
-      - uses: actions/checkout@v4
-      - name: Download app compiled with SDK 26
-        uses: actions/download-artifact@v4
-        with:
-          name: iOS-share-sdk26-app-${{ github.sha }}
-          path: build/ios
-      - name: Prepare the SDK 26 app on the iOS 27 runner
-        run: |
-          mkdir -p build/ios/iphonesimulator
-          tar -xzf build/ios/Runner-sdk26-simulator.tar.gz -C build/ios/iphonesimulator
-          xcodebuild -version
-          xcrun simctl list runtimes
-      - name: Test SDK 26 Release extension on iOS 27
-        env:
-          IOS_RUNTIME_MAJOR: '27'
-        run: bash tool/test-ios-share-simulator.sh
-      - name: Save compatibility evidence
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: iOS-share-sdk26-on-ios27-${{ github.sha }}
           path: |
             build/ios-share-probe/*.png
             build/ios-share-probe/*.log
