@@ -279,7 +279,7 @@ class _RecipeEditorState extends State<RecipeEditor> {
             {'category_id': category['category_id'].toString()},
           );
         } on ApiException catch (error) {
-          if (error.status == 404) continue;
+          if (error.status == 404 || error.status == 403) continue;
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
@@ -1390,7 +1390,12 @@ class _RecipeEditorState extends State<RecipeEditor> {
                                 !_loadingSourcePhotos &&
                                 recipeRows(widget.recipe['photos']).isEmpty)
                               OutlinedButton.icon(
-                                onPressed: _picking || _saving
+                                onPressed:
+                                    _picking ||
+                                        _saving ||
+                                        (_draft['edit_options']
+                                                as Map?)?['ai_images_enabled'] ==
+                                            false
                                     ? null
                                     : _generatePhoto,
                                 icon: const Icon(Icons.auto_awesome_outlined),
@@ -1398,6 +1403,12 @@ class _RecipeEditorState extends State<RecipeEditor> {
                               ),
                           ],
                         ),
+                        if ((_draft['edit_options']
+                                as Map?)?['ai_images_enabled'] ==
+                            false)
+                          _help(
+                            'AI image generation is disabled for this household. Ask the application administrator to enable it.',
+                          ),
                         if (_picking) const LinearProgressIndicator(),
                         if (_photoError != null)
                           Padding(

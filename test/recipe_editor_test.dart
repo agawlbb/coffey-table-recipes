@@ -57,6 +57,61 @@ Future<void> section(WidgetTester tester, String label) async {
 }
 
 void main() {
+  testWidgets(
+    'disabled household explains AI access and keeps uploads available',
+    (tester) async {
+      var writes = 0;
+      await tester.pumpWidget(
+        MaterialApp(
+          home: RecipeEditor(
+            recipe: {
+              ...recipe(),
+              'edit_options': {'ai_images_enabled': false},
+            },
+            householdId: '2',
+            save: (path, body) async {
+              writes++;
+              return {};
+            },
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      await section(tester, 'Photos');
+      final generate = find.widgetWithText(
+        OutlinedButton,
+        'Generate an image with AI',
+      );
+      await tester.ensureVisible(generate);
+      expect(tester.widget<OutlinedButton>(generate).onPressed, isNull);
+      expect(
+        tester
+            .widget<OutlinedButton>(
+              find.widgetWithText(OutlinedButton, 'Upload image'),
+            )
+            .onPressed,
+        isNotNull,
+      );
+      expect(
+        tester
+            .widget<OutlinedButton>(
+              find.widgetWithText(OutlinedButton, 'Use camera'),
+            )
+            .onPressed,
+        isNotNull,
+      );
+      expect(
+        find.text(
+          'AI image generation is disabled for this household. Ask the application administrator to enable it.',
+        ),
+        findsOneWidget,
+      );
+      await tester.tap(generate);
+      await tester.pumpAndSettle();
+      expect(writes, 0);
+    },
+  );
+
   testWidgets('time edits save seconds for actions and minutes for metadata', (
     tester,
   ) async {

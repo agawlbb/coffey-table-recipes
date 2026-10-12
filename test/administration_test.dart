@@ -8,6 +8,71 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  testWidgets(
+    'household switches save permission and retain value on failure',
+    (tester) async {
+      final writes = <Map<String, dynamic>>[];
+      var fail = false;
+      await tester.pumpWidget(
+        MaterialApp(
+          home: AdministrationPage(
+            request: (path, {body}) async {
+              if (path == '/me') {
+                return {
+                  'user': {'id': '1', 'account_role': 'administrator'},
+                };
+              }
+              if (path == '/admin/users') {
+                return {
+                  'users': [],
+                  'households': [
+                    {
+                      'id': '7',
+                      'name': 'Test household',
+                      'member_count': 3,
+                      'ai_images_enabled': false,
+                    },
+                  ],
+                };
+              }
+              expect(path, '/admin/households/7/ai-images');
+              writes.add(body!);
+              if (fail) {
+                throw ApiException(403, 'Administrator access is required.');
+              }
+              return {
+                'household': {'id': '7', 'ai_images_enabled': body['enabled']},
+              };
+            },
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(
+        tester.widget<SwitchListTile>(find.byType(SwitchListTile)).value,
+        isFalse,
+      );
+      await tester.tap(find.byType(SwitchListTile));
+      await tester.pumpAndSettle();
+      expect(writes, [
+        {'enabled': true},
+      ]);
+      expect(
+        tester.widget<SwitchListTile>(find.byType(SwitchListTile)).value,
+        isTrue,
+      );
+      fail = true;
+      await tester.tap(find.byType(SwitchListTile));
+      await tester.pumpAndSettle();
+      expect(writes.last, {'enabled': false});
+      expect(
+        tester.widget<SwitchListTile>(find.byType(SwitchListTile)).value,
+        isTrue,
+      );
+      expect(find.text('Administrator access is required.'), findsOneWidget);
+    },
+  );
+
   testWidgets('Firebase-only deletion uses UID after confirmation', (
     tester,
   ) async {

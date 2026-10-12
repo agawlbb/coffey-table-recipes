@@ -19,6 +19,7 @@ class AdministrationPage extends StatefulWidget {
 class _AdministrationPageState extends State<AdministrationPage> {
   List<Map<String, dynamic>> _users = [];
   List<Map<String, dynamic>> _people = [];
+  List<Map<String, dynamic>> _households = [];
   bool _deletedSelf = false;
   String? _actorId;
   String? _error;
@@ -50,6 +51,9 @@ class _AdministrationPageState extends State<AdministrationPage> {
       setState(() {
         _actorId = user['id'] as String;
         _users = List<Map<String, dynamic>>.from(data['users'] as List);
+        _households = List<Map<String, dynamic>>.from(
+          data['households'] as List? ?? [],
+        );
         _people = List<Map<String, dynamic>>.from(
           data['people'] as List? ?? [],
         );
@@ -59,6 +63,7 @@ class _AdministrationPageState extends State<AdministrationPage> {
         setState(() {
           _users = [];
           _people = [];
+          _households = [];
           _error = _message(error);
         });
       }
@@ -128,6 +133,39 @@ class _AdministrationPageState extends State<AdministrationPage> {
     }
   }
 
+  Future<void> _setAiImages(
+    Map<String, dynamic> household,
+    bool enabled,
+  ) async {
+    setState(() {
+      _busy = true;
+      _error = null;
+    });
+    try {
+      final result = await widget.request(
+        '/admin/households/${household['id']}/ai-images',
+        body: {'enabled': enabled},
+      );
+      if (!mounted) return;
+      final updated = result['household'] as Map;
+      setState(
+        () => household['ai_images_enabled'] =
+            updated['ai_images_enabled'] == true,
+      );
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'AI images ${enabled ? 'enabled' : 'disabled'} for ${household['name']}.',
+          ),
+        ),
+      );
+    } catch (error) {
+      if (mounted) setState(() => _error = _message(error));
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) => Scaffold(
     appBar: AppBar(
@@ -135,7 +173,7 @@ class _AdministrationPageState extends State<AdministrationPage> {
       actions: [
         IconButton(
           onPressed: _busy || _deletedSelf ? null : _load,
-          tooltip: 'Refresh users',
+          tooltip: 'Refresh administration',
           icon: const Icon(Icons.refresh),
         ),
       ],
@@ -161,42 +199,71 @@ class _AdministrationPageState extends State<AdministrationPage> {
                   'Your account has been permanently deleted. Close this window.',
                 ),
               ),
-            const Padding(
-              padding: EdgeInsets.all(16),
-              child: Text(
-                'Users & table people',
-                style: TextStyle(fontSize: 24),
-              ),
-            ),
             Expanded(
-              child: ListView.builder(
-                itemCount: _users.length + _people.length,
-                itemBuilder: (context, index) {
-                  final person = index >= _users.length;
-                  final user = person
-                      ? _people[index - _users.length]
-                      : _users[index];
-                  final own = !person && user['id'] == _actorId;
-                  return ListTile(
-                    title: Text(
-                      user['display_name'] as String? ??
-                          user['email'] as String? ??
-                          'User ${user['id']}',
+              child: ListView(
+                children: [
+                  if (!_deletedSelf) ...[
+                    const Padding(
+                      padding: EdgeInsets.all(16),
+                      child: Text(
+                        'Registered households',
+                        style: TextStyle(fontSize: 24),
+                      ),
                     ),
-                    subtitle: Text(
-                      person
-                          ? '${user['household_name']} · No linked account'
-                          : '${user['email'] ?? 'No email'} · ${user['email_verified'] == true ? 'Verified' : 'Unverified'} · ${user['account_role']}${own ? ' (you)' : ''}',
+                    const Padding(
+                      padding: EdgeInsets.symmetric(horizontal: 16),
+                      child: Text(
+                        'AI images start disabled. Enabling a household allows all its members to generate recipe and category images.',
+                      ),
                     ),
-                    trailing: IconButton(
-                      tooltip: person ? 'Delete person' : 'Delete user',
-                      onPressed: _busy || _deletedSelf
-                          ? null
-                          : () => _delete(user, person: person),
-                      icon: const Icon(Icons.delete_outline),
+                    if (_households.isEmpty && !_busy && _error == null)
+                      const ListTile(title: Text('No registered households.')),
+                    for (final household in _households)
+                      SwitchListTile(
+                        title: Text(household['name'] as String),
+                        subtitle: Text(
+                          '${household['member_count']} members · Allow AI image generation',
+                        ),
+                        value: household['ai_images_enabled'] == true,
+                        onChanged: _busy
+                            ? null
+                            : (enabled) => _setAiImages(household, enabled),
+                      ),
+                  ],
+                  const Padding(
+                    padding: EdgeInsets.all(16),
+                    child: Text(
+                      'Users & table people',
+                      style: TextStyle(fontSize: 24),
                     ),
-                  );
-                },
+                  ),
+                  ...List.generate(_users.length + _people.length, (index) {
+                    final person = index >= _users.length;
+                    final user = person
+                        ? _people[index - _users.length]
+                        : _users[index];
+                    final own = !person && user['id'] == _actorId;
+                    return ListTile(
+                      title: Text(
+                        user['display_name'] as String? ??
+                            user['email'] as String? ??
+                            'User ${user['id']}',
+                      ),
+                      subtitle: Text(
+                        person
+                            ? '${user['household_name']} · No linked account'
+                            : '${user['email'] ?? 'No email'} · ${user['email_verified'] == true ? 'Verified' : 'Unverified'} · ${user['account_role']}${own ? ' (you)' : ''}',
+                      ),
+                      trailing: IconButton(
+                        tooltip: person ? 'Delete person' : 'Delete user',
+                        onPressed: _busy || _deletedSelf
+                            ? null
+                            : () => _delete(user, person: person),
+                        icon: const Icon(Icons.delete_outline),
+                      ),
+                    );
+                  }),
+                ],
               ),
             ),
           ],

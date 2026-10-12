@@ -18,3 +18,25 @@ mismatches still fail.
 The API checks administration on every privileged request; hiding a menu is not
 authorization. Tests cover denied access, identity continuity, deletion rollback,
 self-deletion prevention, shared-content preservation, and deleted-account checks.
+
+## Household AI images
+
+Administration now lists registered households and member counts, with an
+"Allow AI image generation" switch for each household. Only application
+administrators can change it. Both existing and new households start disabled;
+enabling a household lets every member generate recipe images and category artwork.
+
+The server checks the current permission on each generation request, including
+requests from older apps or outside the UI. Existing images, camera uploads and
+AI recipe importing remain available. Revocation blocks subsequent requests but
+does not cancel an image already being generated. There is no spending cap for
+an enabled household.
+
+The editor explains disabled access and disables its AI image button. Automatic
+category artwork is skipped while permission is disabled. Reopen the editor after
+an administrator changes permission to refresh the displayed setting.
+
+Validation: Flutter analysis passed; 24 administrator and recipe-editor widget
+tests passed, including switch persistence/failure behavior and disabled image
+generation with camera/uploads still available. The separate image-editor suite
+also passed. No live paid AI request or macOS build was used for these checks.

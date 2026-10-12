@@ -18,6 +18,12 @@ Authentication, household checks, validation, timeouts and request-size limits
 remain. Public source does not grant anonymous AI access; account eligibility is
 the boundary. This is not a promise that any internet service is free of abuse risk.
 
+AI image generation also requires administrator approval of the household, with
+access disabled by default. The backend enforces this for recipe and missing
+category images, including requests outside the app. Household owners cannot enable
+themselves. Approved household members can generate images without a spending cap.
+Existing images and AI recipe importing retain their current access rules.
+
 Administration is determined by the database role linked to the Firebase user ID
 verified from the sign-in token. Neither an email address nor a client claim can
 grant that role. Google sign-in must resolve to the same Firebase user ID to retain
