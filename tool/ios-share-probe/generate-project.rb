@@ -23,6 +23,9 @@ tests.add_dependency(app)
 end
 app.build_configurations.each do |configuration|
   configuration.build_settings['INFOPLIST_KEY_CFBundleDisplayName'] = 'Share launch probe'
+  # Without a launch screen, UIKit runs the sender in legacy 320x480 compatibility mode.
+  configuration.build_settings['INFOPLIST_KEY_UILaunchScreen_Generation'] = 'YES'
+  configuration.build_settings['INFOPLIST_KEY_UIApplicationSceneManifest_Generation'] = 'YES'
 end
 tests.build_configurations.each do |configuration|
   configuration.build_settings['TEST_TARGET_NAME'] = 'ShareProbe'

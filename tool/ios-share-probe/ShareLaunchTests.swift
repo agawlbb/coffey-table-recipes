@@ -42,6 +42,11 @@ final class ShareLaunchTests: XCTestCase {
     XCTAssertTrue(opened, "Importer did not open: \(host.debugDescription)")
     XCTAssertTrue(host.webViews.textFields["Email"].exists)
     XCTAssertTrue(host.webViews.secureTextFields["Password"].exists)
+    let email = host.webViews.textFields["Email"].firstMatch
+    email.tap()
+    email.typeText("share-test@example.invalid")
+    XCTAssertEqual(email.value as? String, "share-test@example.invalid")
+    capture(host, name: "Interactive importer - \(input)")
     host.webViews.buttons["Cancel"].firstMatch.tap()
     XCTAssertTrue(share.waitForExistence(timeout: 15))
   }

@@ -3,13 +3,25 @@ import UIKit
 // Test-only host: invokes the system share sheet with sample input, never the API.
 @main
 final class ProbeApp: UIResponder, UIApplicationDelegate {
-  var window: UIWindow?
   func application(_ application: UIApplication,
                    didFinishLaunchingWithOptions options: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {
-    window = UIWindow(frame: UIScreen.main.bounds)
+    return true
+  }
+  func application(_ application: UIApplication, configurationForConnecting session: UISceneSession,
+                   options: UIScene.ConnectionOptions) -> UISceneConfiguration {
+    let configuration = UISceneConfiguration(name: "ShareProbe", sessionRole: session.role)
+    configuration.delegateClass = ProbeScene.self
+    return configuration
+  }
+}
+
+final class ProbeScene: UIResponder, UIWindowSceneDelegate {
+  var window: UIWindow?
+  func scene(_ scene: UIScene, willConnectTo session: UISceneSession, options: UIScene.ConnectionOptions) {
+    guard let windowScene = scene as? UIWindowScene else { return }
+    window = UIWindow(windowScene: windowScene)
     window?.rootViewController = ProbeController()
     window?.makeKeyAndVisible()
-    return true
   }
 }
 

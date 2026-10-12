@@ -10,6 +10,7 @@ for runtime in sorted(devices, reverse=True):
     if ".iOS-" in runtime and (not major or (".iOS-"+major+"-") in runtime):
         for device in devices[runtime]:
             if device["name"].startswith("iPhone") and device.get("isAvailable"):
+                print("Selected "+device["name"]+" on "+runtime, file=sys.stderr)
                 print(device["udid"])
                 sys.exit(0)
 sys.exit("No installed iPhone simulator is available")
@@ -28,8 +29,17 @@ ruby tool/ios-share-probe/generate-project.rb
 diagnostics() {
   xcrun simctl io "$device" screenshot build/ios-share-probe/final-screen.png || true
   xcrun simctl spawn "$device" log show --last 10m --style compact \
-    --predicate 'process == "ShareExtension" OR eventMessage CONTAINS "com.coffeytable.coffeyTableRecipes.ShareExtension"' \
+    --predicate 'process == "ShareProbe" OR process == "ShareExtension" OR eventMessage CONTAINS "com.coffeytable.coffeyTableRecipes.ShareExtension"' \
     > build/ios-share-probe/extension-launch.log 2>&1 || true
+  python3 - <<'PY'
+from pathlib import Path
+import shutil
+destination=Path('build/ios-share-probe/crashes')
+destination.mkdir(parents=True,exist_ok=True)
+for prefix in ['ShareProbe', 'ShareExtension']:
+    for report in (Path.home()/'Library/Logs/DiagnosticReports').glob(prefix+'*.ips'):
+        shutil.copy2(report,destination/report.name)
+PY
   if [[ -d build/ios-share-probe/results.xcresult ]]; then
     xcrun xcresulttool export attachments --path build/ios-share-probe/results.xcresult \
       --output-path build/ios-share-probe/screenshots || true
