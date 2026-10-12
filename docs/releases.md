@@ -6,6 +6,15 @@ When the user says "create a release", review progress since the previous releas
 
 `CHANGELOG.md` covers previous releases using Git history, tags, and the release records below. Every future release must update it with the version, release date, and meaningful changes since the prior release. Commit the changelog before tagging the release. Describe only changes supported by the project history.
 
+## iOS-only development builds
+
+The iOS workflow can build an explicitly selected branch without creating a release
+tag. Leave `release_tag` empty and optionally set a positive `build_number` to
+distinguish the development IPA from the last release. This builds unsigned iOS
+only; the tag-triggered release path and hosted web remain separate. Upload names
+use the source commit when no release tag is supplied, so branch names containing
+slashes are safe. Push the build branch only with the user's authorization.
+
 ## 1.1.1 — iOS-only startup and document-opening patch
 
 Version `1.1.1+9`, tagged `v1.1.1`, fixes share errors opening Add recipe on ordinary launches and adds a persistent app-sandbox file-opening inbox for PDFs, images and text. Only unsigned iOS is built and delivered to the desktop at the user's request; Android and hosted web stay on 1.1.0. Signed-device file delivery still requires validation; the App Group share extension remains dependent on its signing entitlements.
