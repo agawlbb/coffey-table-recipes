@@ -9,6 +9,14 @@ import unittest
 ROOT = Path(__file__).resolve().parents[1]
 
 class IOSShareConfigurationTests(unittest.TestCase):
+    def test_file_opening_uses_copy_mode_and_supported_recipe_documents(self):
+        runner = plistlib.loads((ROOT / 'ios/Runner/Info.plist').read_bytes())
+        self.assertFalse(runner['LSSupportsOpeningDocumentsInPlace'])
+        documents = runner['CFBundleDocumentTypes']
+        self.assertEqual(len(documents), 1)
+        self.assertEqual(documents[0]['CFBundleTypeRole'], 'Viewer')
+        self.assertEqual(set(documents[0]['LSItemContentTypes']), {'com.adobe.pdf', 'public.image', 'public.plain-text'})
+
     def test_extension_uses_visible_persistent_handoff_without_plugin_launch(self):
         source = (ROOT / 'ios/ShareExtension/ShareViewController.swift').read_text()
         project = (ROOT / 'ios/Runner.xcodeproj/project.pbxproj').read_text()

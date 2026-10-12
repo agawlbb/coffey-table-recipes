@@ -22,6 +22,7 @@ class SharedRecipeInbox extends ValueNotifier<List<SharedRecipeInput>>
   final _receivedIds = <String>{};
   bool _readingIOS = false;
   bool _observing = false;
+  String? _lastIOSFailure;
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
@@ -42,30 +43,37 @@ class SharedRecipeInbox extends ValueNotifier<List<SharedRecipeInput>>
         final item = Map<String, dynamic>.from(entry as Map);
         final id = item['id'] as String;
         if (!_receivedIds.contains(id)) {
-          await receive(
-            SharedMedia(
-              content: item['content'] as String?,
-              attachments: (item['attachments'] as List).map((value) {
-                final attachment = value as Map;
-                return SharedAttachment(
-                  path: attachment['path'] as String,
-                  type: SharedAttachmentType.file,
-                );
-              }).toList(),
-            ),
-          );
+          if (item['error'] is String) {
+            _add(SharedRecipeInput(error: item['error'] as String));
+          } else {
+            await receive(
+              SharedMedia(
+                content: item['content'] as String?,
+                attachments: (item['attachments'] as List).map((value) {
+                  final attachment = value as Map;
+                  return SharedAttachment(
+                    path: attachment['path'] as String,
+                    type: SharedAttachmentType.file,
+                  );
+                }).toList(),
+              ),
+            );
+          }
           _receivedIds.add(id);
         }
         await _iosInbox.invokeMethod<void>('acknowledge', id);
       }
     } on MissingPluginException {
-      // Older installed iOS builds still use the legacy plugin handoff.
+      // No native inbox is available; ordinary launch is not a recipe share.
     } catch (_) {
-      _add(
-        const SharedRecipeInput(
-          error: 'Could not read saved recipe shares. Try reopening the app.',
-        ),
-      );
+      if (_lastIOSFailure != 'storage') {
+        _lastIOSFailure = 'storage';
+        _add(
+          const SharedRecipeInput(
+            error: 'Could not read saved recipe shares. Try reopening the app.',
+          ),
+        );
+      }
     } finally {
       _readingIOS = false;
     }
@@ -82,8 +90,17 @@ class SharedRecipeInbox extends ValueNotifier<List<SharedRecipeInput>>
     if (defaultTargetPlatform == TargetPlatform.iOS && !_observing) {
       WidgetsBinding.instance.addObserver(this);
       _observing = true;
+      _iosInbox.setMethodCallHandler((call) async {
+        if (call.method == 'changed') {
+          _delivery = _delivery.then((_) => readSavedIOSShares());
+          await _delivery;
+        }
+      });
       await readSavedIOSShares();
     }
+    // iOS uses the native persistent inbox. The legacy plugin requires App
+    // Group storage and can throw on every ordinary launch after free signing.
+    if (defaultTargetPlatform == TargetPlatform.iOS) return;
     final handler = ShareHandler.instance;
     _subscription = handler.sharedMediaStream.listen(
       (media) {
@@ -164,7 +181,10 @@ class SharedRecipeInbox extends ValueNotifier<List<SharedRecipeInput>>
 
   @override
   void dispose() {
-    if (_observing) WidgetsBinding.instance.removeObserver(this);
+    if (_observing) {
+      WidgetsBinding.instance.removeObserver(this);
+      _iosInbox.setMethodCallHandler(null);
+    }
     _subscription?.cancel();
     super.dispose();
   }

@@ -5,6 +5,10 @@ import 'dart:convert';
 import 'package:better_share_handler/better_share_handler.dart';
 import 'package:coffey_table_recipes/src/shared_recipe_import.dart';
 import 'package:coffey_table_recipes/src/recipe_import.dart';
+import 'package:coffey_table_recipes/src/account_panel.dart';
+
+import 'home_design_test.dart' show TestUser;
+
 import 'package:file_selector/file_selector.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -14,9 +18,13 @@ import 'package:flutter_test/flutter_test.dart';
 class FakeShares extends ShareHandlerPlatform {
   final controller = StreamController<SharedMedia>.broadcast();
   var resets = 0;
+  var initialReads = 0;
   @override
-  Future<SharedMedia?> getInitialSharedMedia() async =>
-      SharedMedia(content: 'Cold recipe');
+  Future<SharedMedia?> getInitialSharedMedia() async {
+    initialReads++;
+    return SharedMedia(content: 'Cold recipe');
+  }
+
   @override
   Future<void> resetInitialSharedMedia() async {
     resets++;
@@ -28,6 +36,100 @@ class FakeShares extends ShareHandlerPlatform {
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
+  test(
+    'ordinary iOS launches ignore the legacy plugin and empty inbox',
+    () async {
+      const channel = MethodChannel('coffey_table_recipes/share_inbox');
+      final previous = ShareHandlerPlatform.instance;
+      final fake = FakeShares();
+      ShareHandlerPlatform.instance = fake;
+      debugDefaultTargetPlatformOverride = TargetPlatform.iOS;
+      final inbox = SharedRecipeInbox();
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(channel, (_) async => []);
+      try {
+        await inbox.start();
+        await inbox.readSavedIOSShares();
+        expect(inbox.value, isEmpty);
+        expect(fake.initialReads, 0);
+      } finally {
+        inbox.dispose();
+        await fake.controller.close();
+        ShareHandlerPlatform.instance = previous;
+        debugDefaultTargetPlatformOverride = null;
+        TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+            .setMockMethodCallHandler(channel, null);
+      }
+    },
+  );
+  test('iOS storage failure is reported once and file-open errors are acknowledged', () async {
+    const channel = MethodChannel('coffey_table_recipes/share_inbox');
+    debugDefaultTargetPlatformOverride = TargetPlatform.iOS;
+    final inbox = SharedRecipeInbox();
+    var fail = true;
+    var acknowledgements = 0;
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(channel, (call) async {
+          if (fail) throw PlatformException(code: 'share_storage');
+          if (call.method == 'pending') {
+            return [
+              {
+                'id': 'failed-document',
+                'error': 'Could not open the recipe file.',
+                'attachments': [],
+                'content': '',
+              },
+            ];
+          }
+          acknowledgements++;
+          return null;
+        });
+    try {
+      await inbox.readSavedIOSShares();
+      await inbox.readSavedIOSShares();
+      expect(inbox.value.length, 1);
+      inbox.take();
+      fail = false;
+      await inbox.readSavedIOSShares();
+      expect(inbox.take()!.error, 'Could not open the recipe file.');
+      expect(acknowledgements, 1);
+    } finally {
+      inbox.dispose();
+      debugDefaultTargetPlatformOverride = null;
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(channel, null);
+    }
+  });
+  testWidgets('share errors notify without opening Add recipe', (tester) async {
+    sharedRecipeInbox.value = [
+      const SharedRecipeInput(error: 'Share storage unavailable'),
+    ];
+    await tester.pumpWidget(
+      MaterialApp(
+        home: HouseholdPanel(
+          user: TestUser(),
+          request: (path, {body}) async {
+            if (path == '/me') {
+              return {
+                'user': {'id': '42'},
+                'households': [
+                  {'id': '2', 'name': 'Table'},
+                ],
+              };
+            }
+            if (path.endsWith('/people')) return {'people': []};
+            if (path.endsWith('/categories')) return {'categories': []};
+            return {'recipes': [], 'invitations': []};
+          },
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.byType(RecipeImport), findsNothing);
+    expect(find.text('Share storage unavailable'), findsOneWidget);
+    await tester.pumpWidget(const SizedBox());
+    sharedRecipeInbox.value = [];
+  });
   test('iOS saved shares copy files before acknowledgement and do not duplicate on retry', () async {
     const channel = MethodChannel('coffey_table_recipes/share_inbox');
     final folder = await Directory.systemTemp.createTemp('ios-recipe-share-');

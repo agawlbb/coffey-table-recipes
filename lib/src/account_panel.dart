@@ -376,6 +376,13 @@ class _HouseholdPanelState extends State<HouseholdPanel> {
       _sharedImportOpen = false;
       return;
     }
+    if (input.error != null) {
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text(input.error!)));
+      _sharedImportOpen = false;
+      _sharedRecipeChanged();
+      return;
+    }
     final householdId = _selected!;
     try {
       final saved = await Navigator.push<Map<String, dynamic>>(

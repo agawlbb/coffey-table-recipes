@@ -1,5 +1,17 @@
 # Receiving recipe shares
 
+## iOS startup and free-signing fallback
+
+An unavailable share container previously queued an error as a recipe import on startup/resume, causing Add recipe to open without a file. iOS now uses only the native inbox, not the legacy plugin startup query. Share errors are displayed as notifications rather than import routes, and repeated background storage failures are deduplicated.
+
+The existing share extension still needs valid matching App Group entitlements in the signed app and extension. A free-account Sideloadly installation must not be assumed to provide these. Apple's supported capabilities depend on program membership: https://developer.apple.com/help/account/reference/supported-capabilities-ios/ . If tapping the extension does nothing, its successful unsigned compilation does not prove signed-device launch or entitlement validity.
+
+For file delivery without App Groups, Runner registers PDF, image and plain-text document opening in copy mode. SceneDelegate captures cold-start and running-app file URLs into the app's own Application Support inbox, bounded to 5 MB, converts HEIC/HEIF images to JPEG, and notifies Dart after staging. Dart copies bytes before acknowledging and deleting the staging files. An absent App Group no longer prevents reading this local inbox. Non-file URLs continue through Flutter's normal handler, preserving Google sign-in. No AI request or recipe save occurs in native code.
+
+On an updated signed build, test Open in/Copy to Coffey Table Recipes from Files where offered, separately from the App Group share-extension button. The in-app Add recipe upload picker is also available without shared storage. Native Swift compilation and physical-device cold/running file handoff remain to be verified; this local fix does not update the installed app or hosted site.
+
+Local validation on 2026-10-11: analysis is clean, all 106 Flutter tests passed, and all five iOS configuration tests passed. Regression coverage includes ordinary iOS launches bypassing the legacy plugin, repeated storage-error suppression, file-open error acknowledgement, and an error notification without navigating to Add recipe. No Git push, hosted deployment, new IPA build, signing or device installation was performed.
+
 Android registers SEND and SEND_MULTIPLE for PDF, generic document, image and text
 MIME types. MainActivity uses singleTask so another share reaches the running app.
 The better_share_handler 1.1.0 plugin stages content URI attachments without broad
