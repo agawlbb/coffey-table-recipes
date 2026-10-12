@@ -10,6 +10,8 @@ When the user says "create a release", review progress since the previous releas
 
 Version `1.1.1+9`, tagged `v1.1.1`, fixes share errors opening Add recipe on ordinary launches and adds a persistent app-sandbox file-opening inbox for PDFs, images and text. Only unsigned iOS is built and delivered to the desktop at the user's request; Android and hosted web stay on 1.1.0. Signed-device file delivery still requires validation; the App Group share extension remains dependent on its signing entitlements.
 
+Verified on 2026-10-11: iOS workflow run `38192709614` passed analysis, all 106 Flutter tests, five iOS configuration checks, native Xcode compilation and unsigned IPA packaging. The app and embedded share extension both confirm 1.1.1/build 9, and the packaged app declares document-opening support. The unsigned IPA was copied to the desktop and its copy hash matched. Obsolete numbered unsigned desktop IPAs were eligible for removal only after replacement verification; signed and unrelated files were retained. No Android build or hosted deployment was performed. Signed-device normal-launch and file-opening tests remain pending.
+
 ## 1.1.0 — import photo review and mobile sharing refinements
 
 Version `1.1.0+8`, tagged `v1.1.0`, adds suggested source food photos/crop review, typed import categories, visible persistent iOS share handoff, readable duration editing, and simplified recipe tiles. Web, Android and unsigned iOS use the same version and build number. For this release only, the user requested that only `CHANGELOG.md` be copied to the desktop: Android remains in `G:\My Drive\recipe app`, and the unsigned IPA remains in the ignored project build folder. Existing desktop packages are retained.
