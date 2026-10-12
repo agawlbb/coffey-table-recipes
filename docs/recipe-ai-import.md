@@ -14,6 +14,13 @@ on the original website, retaining a verified canonical recipe source. A missing
 or mismatched source returns an actionable paste-text error rather than an
 invented recipe. HTTP/HTTPS frontend tests and shared-import regressions pass.
 The backend retains its website security checks:
+
+October 12, 2026 verification: 18 import/share tests and Flutter analysis pass.
+Backend deployment 6711c43 completed successfully. In the built-in browser,
+the exact original HTTP Food Network recipe3.html link reached Review recipe
+through the hosted API with eight ingredients and seven steps. Cancel returned
+to Recipes; no recipe was saved. The local web app was rebuilt. No frontend push,
+release, or macOS runner build was triggered.
 use the final URL or paste the recipe. DNS is checked and pinned to a public IP.
 Optional Poppler `pdftotext` and Tesseract OCR run locally on the server with a
 15 second timeout. Useful extracted text goes to AI instead of file/image data;
