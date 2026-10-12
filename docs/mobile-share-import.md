@@ -96,7 +96,38 @@ was copied to the desktop with a matching hash. Signing and physical-device test
 of the redesigned extension remain required. The prior build 9 IPA contains the
 old App Group extension; install build 10 to test the redesign.
 
-Signed-device checks for the next build:
+### Automated share-sheet launch checks
+
+`tool/test-ios-share-simulator.sh` installs the actual Flutter simulator app with
+its embedded extension, then builds a separate test-only sender and XCTest UI
+suite. The sender invokes Apple's share sheet with a generated PDF or recipe
+text. Tests select Coffey Table Recipes, wait for the native attachment read and
+web bridge to display sign-in, type into Email, and cancel back to the sender.
+They never sign in, call the import service, or save a recipe.
+
+Run the manual `ios-demo.yml` workflow with `simulator_only: true` to test Release
+extension compilation on iOS 26 and 27. A third job installs the SDK 26 build on
+iOS 27 to check compatibility with the SDK used for device build 10. The workflow
+preserves screenshots, XCTest results, extension launch logs and crash reports.
+On 2026-10-12, [workflow 38238645998](https://github.com/agawlbb/coffey_table_recipes/actions/runs/38238645998)
+from `d30ae96` passed both PDF and text launch/typing/cancel tests in all three
+configurations: Xcode 26.3/iOS 26, Xcode 27/iOS 27.0, and the SDK 26.3 app on
+iOS 27.0. Screenshot artifacts were downloaded and verified against GitHub's
+SHA-256 digests. Eight extension-flow and five configuration tests also passed
+locally. This validates the launch path without a provisioning profile.
+The test sender is not shipped in the IPA. Its UIScene lifecycle and generated
+launch screen avoid legacy presentation and launch failures on newer simulators;
+file activities may be accessibility Cells while text activities are Buttons.
+
+Simulator success cannot validate free-account provisioning, Sideloadly's
+re-signing, or the exact iOS 27.0.1 physical-device runtime. The user's build 10
+installation still fails to open from Files after signing with Sideloadly. Obtain
+the device system log while tapping the extension before attributing this failure
+to signing or changing the importer. Sideloadly offers Device System Logs and
+Hide Sensitive Info; retain the extension when signing. A paid account is not a
+verified remedy for this unresolved failure.
+
+Signed-device checks:
 1. Sign Runner and the embedded extension using a free Apple account, retaining
    the extension in the installation. Select it from Files/Photos/Safari and
    confirm that the sign-in screen appears.
