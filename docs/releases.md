@@ -15,6 +15,32 @@ only; the tag-triggered release path and hosted web remain separate. Upload name
 use the source commit when no release tag is supplied, so branch names containing
 slashes are safe. Push the build branch only with the user's authorization.
 
+### 1.1.1 build 10 — free-account share importer
+
+Built on 2026-10-12 from `cd75d29` on the authorized
+`codex/ios-free-account-share-build` branch, with the iOS build-number override
+set to 10 and no new release tag. The app includes the self-contained share-sheet
+importer without App Groups and refreshes recipes when returning to iOS. This is
+an iOS-only development build; the version in pubspec remains 1.1.1+9.
+
+Workflow [38233730579](https://github.com/agawlbb/coffey_table_recipes/actions/runs/38233730579)
+passed analysis, all 110 Flutter tests, five iOS configuration checks, eight
+extension-flow tests, native Xcode compilation and unsigned IPA packaging. The
+initial build failed embedded-extension validation because a custom top-level
+Resources directory is reserved by iOS; the successful source uses ShareUI and
+includes a regression check for that folder name.
+
+Downloaded artifact 11739777041 matched GitHub's artifact checksum. Runner and
+ShareExtension metadata both confirm 1.1.1/build 10. All four importer UI assets
+match the committed source, Firebase client configuration is present, the compiled
+extension contains the hosted API bridge, and neither target declares AppGroupId.
+The package contains no embedded provisioning profile. The verified IPA was saved
+as `C:\Users\developer\OneDrive\Desktop\CoffeyTableRecipes-1.1.1-build10-unsigned.ipa`;
+its SHA256 and desktop-copy hash are
+`0503deb23fd273387026c7c54ce3f8ab02a82d455ec115c0beffc86c673f9c1f`.
+Signing and physical-device share-sheet execution remain to be verified. The
+previous build 9 IPA was retained.
+
 ## 1.1.1 — iOS-only startup and document-opening patch
 
 Version `1.1.1+9`, tagged `v1.1.1`, fixes share errors opening Add recipe on ordinary launches and adds a persistent app-sandbox file-opening inbox for PDFs, images and text. Only unsigned iOS is built and delivered to the desktop at the user's request; Android and hosted web stay on 1.1.0. Signed-device file delivery still requires validation; the App Group share extension remains dependent on its signing entitlements.

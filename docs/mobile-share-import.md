@@ -89,9 +89,12 @@ editable ingredient/instruction review, and explicit-save completion.
 Flutter analysis is clean, and the review layout was inspected at a 390-pixel
 phone viewport. The generated Firebase share configuration is excluded from Git.
 
-This source change is not a release or an update to the installed app. Native
-Xcode compilation and physical-device testing of the redesigned extension remain
-required. The prior 1.1.1 IPA contains the old App Group extension.
+Unsigned iOS 1.1.1/build 10 was built on 2026-10-12 in workflow 38233730579 from
+`cd75d29`. Native Xcode compilation passed. Both target versions and the packaged
+ShareUI assets and generated sign-in configuration were verified, and the IPA
+was copied to the desktop with a matching hash. Signing and physical-device testing
+of the redesigned extension remain required. The prior build 9 IPA contains the
+old App Group extension; install build 10 to test the redesign.
 
 Signed-device checks for the next build:
 1. Sign Runner and the embedded extension using a free Apple account, retaining
