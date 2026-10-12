@@ -76,11 +76,14 @@ Imported category review shows Parent category before Category name. Imports gen
 Import offers Pasted recipe text and Describe how I make a dish separately. Source labels use plain language and remain identifiable after clarification. Cooking notes collect useful source tips; estimation commentary is omitted and import validation warnings appear separately during review.
 
 Android and iOS can receive shared PDFs, images, text files, recipe text and HTTPS
-links. The iOS extension supports free-account signing without App Groups: sign
-in with email/password within the share sheet, choose a table, prepare and review
-the recipe, then explicitly save. Android shares wait for sign-in and a household
-in the app before analysis. Multiple files are reviewed one at a time. Failed
+links. iOS sharing uses a paid developer team's App Group: the receiver stages
+the share, then you open the main app to review it with your existing sign-in.
+Both iOS targets require Apple-native signing with matching App Group membership.
+Android shares wait for sign-in and a household in the app before analysis.
+Multiple files are reviewed one at a time. Failed
 imports retain their input during the session; no recipe is saved automatically.
-See docs/mobile-share-import.md for setup, limitations and device validation.
+See [mobile sharing setup](docs/mobile-share-import.md) for signing, limitations
+and device validation. `tool/build-ios-signed.sh` archives and exports on a Mac
+after the paid account is configured in Xcode.
 
 Recipe review suggests food pictures from uploaded images and supported embedded PDF images. Pictures are cropped locally and saved only after choosing Use this picture and Save. Skip picture declines a suggestion. Categories offer Type a new category and Add a new category; select the parent first, then type the name. Matching categories are reused and new names are created on Save.
