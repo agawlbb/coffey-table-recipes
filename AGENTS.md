@@ -9,6 +9,7 @@ The user requests that all future project changes be committed to Git.
 
 # Hosted development workflow
 
+- Obtain the user's explicit approval every time before triggering a GitHub Actions build on a macOS runner because it costs money. This includes new runs, reruns, and pushes or tags that trigger such builds automatically. A request to create a release does not waive this approval requirement.
 - "Create a release" explicitly authorizes reviewing changes since the prior release, choosing and tagging an appropriate version, pushing the release, rebuilding web/Android/unsigned iOS, publishing the hosted app, saving the latest Android APK in the accessible "recipe app" folder, and saving the unsigned iOS IPA on the user's desktop. Remove obsolete release packages from their respective destinations only after replacements are verified. Retain unrelated files and signed packages. Record release validation in Git.
 - On every release, update `CHANGELOG.md` with the version, release date, and meaningful changes since the previous release. Its initial history was reconstructed from Git tags and release records in 0.5.0. Include the changelog in the release commit before tagging; do not invent unsupported history.
 - The Android release destination is `G:\My Drive\recipe app`. Save the latest verified APK there instead of on the desktop.
