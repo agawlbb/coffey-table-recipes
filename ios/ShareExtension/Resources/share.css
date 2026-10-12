@@ -1,0 +1,21 @@
+:root { font: 17px -apple-system, BlinkMacSystemFont, sans-serif; color: #382b22; background: #faf6eb; }
+* { box-sizing: border-box; }
+body { margin: 0; }
+header { display: flex; align-items: center; justify-content: space-between; padding: 12px 20px; border-bottom: 1px solid #d9ceb8; position: sticky; top: 0; z-index: 2; background: #faf6eb; }
+h1 { font-size: 22px; margin: 0; }
+h2 { font-size: 21px; }
+main { padding: 8px 20px 40px; max-width: 720px; margin: auto; }
+button, input, textarea, select { font: inherit; }
+button { min-height: 44px; padding: 10px 16px; border: 1px solid #657148; border-radius: 8px; background: #657148; color: white; margin: 8px 8px 8px 0; }
+header button, button.secondary { background: transparent; color: #382b22; }
+button:disabled { opacity: .5; }
+label { display: block; margin: 14px 0; }
+label span { display: block; margin-bottom: 6px; }
+input, textarea, select { width: 100%; padding: 10px; border: 1px solid #9e927e; border-radius: 6px; background: #fff; color: #382b22; }
+input[type=checkbox] { width: auto; min-width: 24px; min-height: 24px; }
+textarea { min-height: 90px; resize: vertical; }
+details { border-top: 1px solid #d9ceb8; padding: 14px 0; }
+summary { min-height: 30px; font-weight: 600; }
+fieldset { border: 1px solid #d9ceb8; border-radius: 8px; margin: 14px 0; padding: 12px; }
+#error { color: #8c2525; background: #ffe9df; padding: 12px; border-radius: 6px; }
+.hint { font-size: 15px; color: #675b4d; }

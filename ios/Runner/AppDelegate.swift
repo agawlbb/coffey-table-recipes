@@ -16,11 +16,7 @@ import UIKit
       let channel = FlutterMethodChannel(name: "coffey_table_recipes/share_inbox", binaryMessenger: registrar.messenger())
       channel.setMethodCallHandler { call, result in
         do {
-          var containers = [try RecipeDocumentInbox.directory()]
-          if let group = Bundle.main.object(forInfoDictionaryKey: "AppGroupId") as? String,
-             let shared = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: group) {
-            containers.append(shared)
-          }
+          let containers = [try RecipeDocumentInbox.directory()]
           if call.method == "pending" {
             let files = try containers.flatMap {
               try FileManager.default.contentsOfDirectory(at: $0, includingPropertiesForKeys: nil)

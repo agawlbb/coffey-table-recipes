@@ -3,6 +3,46 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  testWidgets('returning to iOS shows recipes saved by the share extension', (
+    tester,
+  ) async {
+    var sharedRecipeSaved = false;
+    final paths = <String>[];
+    await tester.pumpWidget(
+      MaterialApp(
+        home: RecipeBrowser(
+          householdId: '2',
+          householdName: 'Coffey',
+          request: (path) async {
+            paths.add(path);
+            return {
+              'recipes': [
+                {'id': '9', 'title': 'Original recipe'},
+                if (sharedRecipeSaved)
+                  {'id': '10', 'title': 'Recipe saved from share sheet'},
+              ],
+              'next_offset': null,
+            };
+          },
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('Recipe saved from share sheet'), findsNothing);
+    await tester.enterText(find.byType(TextField), 'recipe');
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.hidden);
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
+    sharedRecipeSaved = true;
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.hidden);
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+    await tester.pumpAndSettle();
+    expect(find.text('Recipe saved from share sheet'), findsOneWidget);
+    expect(Uri.parse(paths.last).queryParameters['q'], 'recipe');
+    await tester.pumpWidget(const SizedBox());
+  }, variant: TargetPlatformVariant.only(TargetPlatform.iOS));
+
   testWidgets('categories precede scoped recipes and survive pagination', (
     tester,
   ) async {

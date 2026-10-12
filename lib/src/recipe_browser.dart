@@ -86,7 +86,8 @@ class RecipeBrowser extends StatefulWidget {
   State<RecipeBrowser> createState() => _RecipeBrowserState();
 }
 
-class _RecipeBrowserState extends State<RecipeBrowser> {
+class _RecipeBrowserState extends State<RecipeBrowser>
+    with WidgetsBindingObserver {
   final _search = TextEditingController();
   final List<Map<String, dynamic>> _recipes = [];
   int? _next;
@@ -102,6 +103,9 @@ class _RecipeBrowserState extends State<RecipeBrowser> {
   @override
   void initState() {
     super.initState();
+    if (!kIsWeb && defaultTargetPlatform == TargetPlatform.iOS) {
+      WidgetsBinding.instance.addObserver(this);
+    }
     _wasOffline = offlineStatus.value;
     if (mobileOfflineEnabled) offlineStatus.addListener(_connectionChanged);
     _load();
@@ -109,6 +113,7 @@ class _RecipeBrowserState extends State<RecipeBrowser> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     offlineStatus.removeListener(_connectionChanged);
     _search.dispose();
     super.dispose();
@@ -118,6 +123,14 @@ class _RecipeBrowserState extends State<RecipeBrowser> {
     final recovered = _wasOffline && !offlineStatus.value;
     _wasOffline = offlineStatus.value;
     if (recovered && mounted) _load();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed && mounted) {
+      // The independent iOS share extension may have saved a recipe remotely.
+      _load();
+    }
   }
 
   Future<void> _load({bool more = false}) async {

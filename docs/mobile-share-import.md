@@ -1,74 +1,110 @@
 # Receiving recipe shares
 
-## iOS startup and free-signing fallback
+## iOS share sheet with free Apple signing
 
-An unavailable share container previously queued an error as a recipe import on startup/resume, causing Add recipe to open without a file. iOS now uses only the native inbox, not the legacy plugin startup query. Share errors are displayed as notifications rather than import routes, and repeated background storage failures are deduplicated.
+The share extension imports directly into the hosted table, within the share sheet.
+It does not use App Groups, a shared keychain, or an unsupported containing-app
+launch. Runner and ShareExtension both have empty entitlement files. The extension
+still must be embedded and signed with its own valid provisioning profile; the
+signing/install tool must retain extensions. Showing the app in the share sheet
+alone does not prove that its signed extension can launch.
 
-The existing share extension still needs valid matching App Group entitlements in the signed app and extension. A free-account Sideloadly installation must not be assumed to provide these. Apple's supported capabilities depend on program membership: https://developer.apple.com/help/account/reference/supported-capabilities-ios/ . If tapping the extension does nothing, its successful unsigned compilation does not prove signed-device launch or entitlement validity.
+Select Coffey Table Recipes, sign in with your app email/password, choose your
+table, and tap Prepare recipe. Answer clarification questions when asked, review
+and edit the draft, then tap Save recipe. Multiple attachments are reviewed and
+saved separately. Done closes the share sheet; open the main app to see the saved
+recipes. The main app is not launched automatically.
+Returning to the iOS app refreshes the recipe browser while retaining the search
+and category scope, so a recipe saved by the extension appears in the collection.
 
-For file delivery without App Groups, Runner registers PDF, image and plain-text document opening in copy mode. SceneDelegate captures cold-start and running-app file URLs into the app's own Application Support inbox, bounded to 5 MB, converts HEIC/HEIF images to JPEG, and notifies Dart after staging. Dart copies bytes before acknowledging and deleting the staging files. An absent App Group no longer prevents reading this local inbox. Non-file URLs continue through Flutter's normal handler, preserving Google sign-in. No AI request or recipe save occurs in native code.
+Sign-in belongs to this share session and is separate from the main app. Passwords
+and Firebase tokens are not persisted or passed to the main app. Google-only
+accounts need to establish an email password using Forgot password in the app
+before using this importer. A verified account and an existing table are required,
+just as with the main app's hosted API. Internet access is required. Cancelling,
+skipping and analysis do not save a recipe. Cancelling an already submitted Save
+cannot undo a server commit. If its response is lost, another Save is disabled;
+check the table in the main app before sharing again to avoid duplicate recipes.
 
-On an updated signed build, test Open in/Copy to Coffey Table Recipes from Files where offered, separately from the App Group share-extension button. The in-app Add recipe upload picker is also available without shared storage. Native Swift compilation and physical-device cold/running file handoff remain to be verified; this local fix does not update the installed app or hosted site.
+The extension ships a small local HTML/JavaScript review interface in a
+nonpersistent WKWebView. External navigation and web network access are blocked.
+A main-frame-only Swift bridge permits reading the share, signing in, analyzing
+and explicitly saving, using fixed Firebase and coffeybean.com endpoints. Input
+and recipe content are rendered as text, not executable HTML. The editor preserves
+structured quantities, categories, steps and timer/temperature actions. Suggested
+food photos are not fetched or attached in this lightweight extension; photos can
+be added in the main app after saving.
 
-Local validation on 2026-10-11: analysis is clean, all 106 Flutter tests passed, and all five iOS configuration tests passed. Regression coverage includes ordinary iOS launches bypassing the legacy plugin, repeated storage-error suppression, file-open error acknowledgement, and an error notification without navigating to Add recipe. No Git push, hosted deployment, new IPA build, signing or device installation was performed.
+PDF, image, UTF-8 text files, recipe text and HTTPS links are accepted. Files are
+copied while the source provider's temporary URL is valid. Each file is limited
+to 5 MB, with at most 10 files and 10 MB total per share. HEIC/HEIF images are
+converted to JPEG. Captions alongside files do not become additional recipes.
+Recipe text and UTF-8 text file content are limited to 60,000 bytes by the API.
+The extension deletes temporary copies after loading and releases attachment
+bytes as items are saved or discarded. Unsaved input remains only for the current
+share session; closing or terminating the extension discards it.
 
-Android registers SEND and SEND_MULTIPLE for PDF, generic document, image and text
-MIME types. MainActivity uses singleTask so another share reaches the running app.
-The better_share_handler 1.1.0 plugin stages content URI attachments without broad
-storage permissions. Text and HTTPS links are accepted as well as files.
+Run `tool/configure-ios.py` with the ignored Firebase build configuration before
+building iOS. It also generates ignored
+`ios/ShareExtension/Resources/FirebaseConfig.json` using `FIREBASE_IOS_API_KEY`,
+or `FIREBASE_SHARE_API_KEY` when provided. If the Firebase key has an iOS bundle
+restriction, allow the *signed extension's* bundle ID or supply an appropriate
+extension key. The native Firebase request includes X-Ios-Bundle-Identifier.
+The release workflow runs this configuration step before Xcode bundles Resources.
+No backend source or database change is needed.
 
-On iOS, Runner embeds a visible ShareExtension. Both targets use App Group
-`group.com.coffeytable.coffeyTableRecipes`. The extension copies files into a
-UUID-named staging folder and atomically writes a JSON manifest, then displays
-“Ready to import. Open Coffey Table Recipes to review your recipe.” Tap Done,
-then open the app. This does not depend on the plugin's hidden controller or
-responder-chain workaround to launch the containing app. Errors remain visible.
-Runner exposes saved shares over a method channel; Flutter reads them on startup
-and resume and acknowledges only after copying bytes. The manifest and staging
-folder are then removed. Pending iOS shares survive process termination until
-collected by the app. Once collected, the in-memory queue described below applies.
-HEIC/HEIF photos are converted locally to JPEG. Signed device builds require this
-App Group in both provisioning profiles. Legacy ShareMedia URL delivery remains
-supported, and Google callback configuration preserves that scheme.
+## Direct file opening and Android
 
-The inbox handles initial and running-app delivery. File bytes are copied into
-app-owned memory immediately so native staging cleanup cannot invalidate a pending
-import. Pending shares survive sign-in and household selection within the running
-process. If the process is terminated before import, share again; the in-memory
-queue is not durable storage. Multiple attachments are imported separately; a
-file caption does not create an extra recipe. Oversized/unreadable files produce
-an import error rather than an AI call. Existing 5 MB input and PDF/JPEG/PNG/WebP
-server format checks apply. Unsupported files show an actionable error.
+Runner also registers PDF, image and plain-text document opening in copy mode.
+Open in/Copy to Coffey Table Recipes, where offered by the source app, launches
+Runner directly. SceneDelegate captures cold-start and running-app file URLs in
+Runner's own Application Support inbox, bounded to 5 MB, converts HEIC/HEIF images,
+and notifies Dart after staging. Dart copies bytes before acknowledging and deleting
+staging files. Non-file URLs retain Flutter's normal handler and Google sign-in.
+Ordinary iOS launches bypass the legacy share plugin; errors are notifications
+rather than empty Add recipe routes. The native inbox now serves document opening
+only, with no App Group lookup.
 
-Once a household is available, sharing opens Add recipe and attempts analysis.
-Text files are read locally before submission. Clarification questions and editor
-review precede normal Save. Cancel and failures do not create database records;
-failed input remains available to retry. Saving refreshes the recipe collection
-and updates the normal mobile offline cache.
+Android registers SEND and SEND_MULTIPLE for document, image and text MIME types.
+MainActivity uses singleTask so another share reaches the running app. The
+better_share_handler 1.1.0 plugin stages attachments without broad storage
+permissions. Shared items wait for sign-in and table selection, then automatically
+attempt analysis. Multiple attachments are imported separately; failed input stays
+available for retry. Cancelling and analysis do not save recipes.
 
-Validation on 2026-10-11: incoming-share tests cover initial/running delivery,
-staging-file removal, and automatic text/text-file analysis without saving. Import
-and editor regressions pass; Android debug APK compiles. iOS plist/configuration
-tests verify matching groups, activation rules, and Google/share scheme coexistence;
-the Xcode project parses with target dependency and extension embedding intact.
-iOS compilation and physical share-sheet testing require macOS/Xcode and devices.
+## Validation
 
-Device checks before release:
-0. On iOS, verify the extension shows a success message, tap Done, and open the
-   app to import. Test cloud-backed Files items, HEIC photos, and a missing App
-   Group entitlement (which must show a visible error).
-1. Signed in, share a PDF from Files and an image from Photos; verify import review.
-2. Close the app and share again; verify cold launch and exactly one import.
-3. Signed out, share; sign in/select a household and verify the pending import opens.
-4. Share multiple files and confirm each is reviewed separately.
-5. Cancel or submit an unreadable/oversized file and confirm no recipe is created.
-6. Verify Google sign-in remains functional on the signed iOS build.
+Local checks on 2026-10-11 cover the extension import state machine, configuration
+and resource packaging declarations. Cases include explicit-save-only behavior,
+selected-table delivery, clarification identity, failed analysis/save retry,
+cancel/skip, double taps, sequential attachments, and a lost save response.
+The built-in browser checks use a local mock native bridge with sample data;
+they do not authenticate a real account, invoke AI or create hosted recipes.
+All eight extension-flow tests, five iOS configuration checks, and all 110 Flutter
+tests passed, including share imports and refresh after iOS resume. The browser
+verified sign-in, table selection,
+editable ingredient/instruction review, and explicit-save completion.
+Flutter analysis is clean, and the review layout was inspected at a 390-pixel
+phone viewport. The generated Firebase share configuration is excluded from Git.
 
-Plugin setup: https://pub.dev/packages/better_share_handler
+This source change is not a release or an update to the installed app. Native
+Xcode compilation and physical-device testing of the redesigned extension remain
+required. The prior 1.1.1 IPA contains the old App Group extension.
 
-iOS handoff repair validation: five Flutter share tests pass, including file-copy
-before acknowledgement and acknowledgement retry without duplicate imports. Four
-iOS configuration tests pass; Flutter analysis is clean. The extension no longer
-links the plugin's launch controller. Native Swift compilation and signed-device
-execution remain unverified on Windows. App Group storage follows Apple's guidance:
-https://developer.apple.com/library/archive/documentation/General/Conceptual/ExtensibilityPG/ExtensionScenarios.html
+Signed-device checks for the next build:
+1. Sign Runner and the embedded extension using a free Apple account, retaining
+   the extension in the installation. Select it from Files/Photos/Safari and
+   confirm that the sign-in screen appears.
+2. Sign in, choose a table, import a PDF, HEIC photo, text file and website link,
+   review and save. Open the app and verify the recipes are present.
+3. Share multiple files, saving one and discarding another. Confirm exactly the
+   selected recipes were saved.
+4. Cancel before Save, reject an oversized/unreadable input, and retry an analysis
+   failure. Confirm no recipe was created by these actions.
+5. Test a lost Save response and confirm Save cannot be submitted twice.
+6. Verify direct file opening, ordinary app startup and Google sign-in in Runner.
+
+References: [Apple extension architecture](https://developer.apple.com/library/archive/documentation/General/Conceptual/ExtensibilityPG/ExtensionOverview.html),
+[Apple provisioning capabilities](https://developer.apple.com/help/account/reference/supported-capabilities-ios/).
+The extension's password sign-in uses the documented
+[Firebase Auth REST endpoint](https://firebase.google.com/docs/reference/rest/auth#section-sign-in-email-password).
