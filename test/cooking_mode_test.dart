@@ -40,8 +40,8 @@ void main() {
     expect(find.text('• 250 g flour'), findsOneWidget);
     await tester.tap(find.text('Back to cooking'));
     await tester.pumpAndSettle();
-    await tester.scrollUntilVisible(find.text('Rest · 2 seconds'), 200);
-    await tester.tap(find.text('Rest · 2 seconds'));
+    await tester.scrollUntilVisible(find.text('Rest · 0 min 2 sec'), 200);
+    await tester.tap(find.text('Rest · 0 min 2 sec'));
     await tester.pump();
     expect(find.textContaining('Cancel'), findsOneWidget);
     now = now.add(const Duration(seconds: 3));
@@ -49,7 +49,7 @@ void main() {
     expect(find.textContaining('Time is up'), findsOneWidget);
     await tester.tap(find.textContaining('Cancel'));
     await tester.pump();
-    expect(find.text('Rest · 2 seconds'), findsOneWidget);
+    expect(find.text('Rest · 0 min 2 sec'), findsOneWidget);
     await tester.pumpWidget(const SizedBox());
     await tester.pump();
     expect(tester.takeException(), isNull);

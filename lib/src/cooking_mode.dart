@@ -3,6 +3,8 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:wakelock_plus/wakelock_plus.dart';
 
+import 'recipe_time.dart';
+
 class CookingMode extends StatefulWidget {
   const CookingMode({super.key, required this.recipe, this.now = DateTime.now});
   final Map<String, dynamic> recipe;
@@ -67,9 +69,10 @@ class _CookingModeState extends State<CookingMode> with WidgetsBindingObserver {
   }
 
   String _remaining(DateTime deadline) {
-    final seconds = (deadline.difference(widget.now()).inMilliseconds / 1000).ceil();
+    final seconds = (deadline.difference(widget.now()).inMilliseconds / 1000)
+        .ceil();
     if (seconds <= 0) return 'Time is up';
-    return '${seconds ~/ 60}:${(seconds % 60).toString().padLeft(2, '0')}';
+    return formatRecipeTime(seconds, clock: true);
   }
 
   void _timer(String id, int seconds) {
@@ -241,7 +244,7 @@ class _CookingModeState extends State<CookingMode> with WidgetsBindingObserver {
                                     label: Text(
                                       _timers.containsKey('${action['id']}')
                                           ? '${_remaining(_timers['${action['id']}']!)} · Cancel'
-                                          : '${action['label'] ?? 'Start timer'} · ${action['duration_seconds']} seconds',
+                                          : '${action['label'] ?? 'Start timer'} · ${formatRecipeTime(action['duration_seconds'])}',
                                     ),
                                   )
                                 : Text(

@@ -57,6 +57,45 @@ Future<void> section(WidgetTester tester, String label) async {
 }
 
 void main() {
+  testWidgets('time edits save seconds for actions and minutes for metadata', (
+    tester,
+  ) async {
+    Map<String, dynamic>? submitted;
+    await tester.pumpWidget(
+      MaterialApp(
+        home: RecipeEditor(
+          recipe: {...recipe(), 'prep_minutes': 90},
+          householdId: '2',
+          save: (_, body) async {
+            submitted = body;
+            throw ApiException(500, 'Test saved draft');
+          },
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    final prep = find.widgetWithText(TextFormField, 'Prep (h:mm)');
+    expect(tester.widget<TextFormField>(prep).initialValue, '1:30');
+    await tester.enterText(prep, '2:15');
+    await section(tester, 'Steps & actions');
+    await section(tester, 'Step 1');
+    await section(tester, 'Simmer timer');
+    final duration = find
+        .widgetWithText(TextFormField, 'Duration (m:ss or h:mm:ss)')
+        .first;
+    await tester.ensureVisible(duration);
+    await tester.enterText(duration, '1:02:03');
+    await tester.tap(find.text('Save'));
+    await tester.pumpAndSettle();
+    expect(submitted!['prep_minutes'], 135);
+    expect((submitted!['actions'] as List).first['duration_seconds'], 3723);
+    await tester.enterText(duration, '1:99');
+    submitted = null;
+    await tester.tap(find.text('Save'));
+    await tester.pumpAndSettle();
+    expect(submitted, isNull);
+    expect(find.textContaining('minutes/seconds must be'), findsOneWidget);
+  });
   testWidgets('saved category review shows parent before category', (
     tester,
   ) async {

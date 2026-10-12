@@ -7,6 +7,7 @@ import 'package:image_picker/image_picker.dart';
 import 'api.dart';
 import 'recipe_browser.dart';
 import 'source_photo_crop.dart';
+import 'recipe_time.dart';
 import 'offline_recipes.dart';
 
 typedef RecipeSave = Future<Map<String, dynamic>> Function(
@@ -430,7 +431,12 @@ class _RecipeEditorState extends State<RecipeEditor> {
         '${identityHashCode(row)}-$key',
         () => GlobalKey<FormFieldState<String>>(),
       ),
-      initialValue: row[key]?.toString() ?? '',
+      initialValue: numeric == 'duration' || numeric == 'minuteDuration'
+          ? recipeTimeInput(
+              row[key],
+              minutePrecision: numeric == 'minuteDuration',
+            )
+          : row[key]?.toString() ?? '',
       decoration: InputDecoration(
         labelText: label,
         alignLabelWithHint: lines > 1,
@@ -438,7 +444,9 @@ class _RecipeEditorState extends State<RecipeEditor> {
       ),
       minLines: lines,
       maxLines: lines > 1 ? lines + 3 : 1,
-      keyboardType: numeric != null
+      keyboardType: numeric == 'duration' || numeric == 'minuteDuration'
+          ? TextInputType.datetime
+          : numeric != null
           ? const TextInputType.numberWithOptions(decimal: true, signed: true)
           : lines > 1
           ? TextInputType.multiline
@@ -446,6 +454,19 @@ class _RecipeEditorState extends State<RecipeEditor> {
       validator: (value) {
         final text = value?.trim() ?? '';
         if (required && text.isEmpty) return 'Enter $label';
+        if (text.isNotEmpty &&
+            (numeric == 'duration' || numeric == 'minuteDuration')) {
+          final duration = parseRecipeTime(
+            text,
+            minutePrecision: numeric == 'minuteDuration',
+          );
+          if (duration == null || (required && duration == 0)) {
+            return numeric == 'minuteDuration'
+                ? 'Use h:mm, with minutes from 00 to 59'
+                : 'Use m:ss or h:mm:ss${required ? ' greater than zero' : ''}; minutes/seconds must be 00–59';
+          }
+          return null;
+        }
         if (maxLength != null && text.length > maxLength) {
           return 'Use at most $maxLength characters';
         }
@@ -478,7 +499,17 @@ class _RecipeEditorState extends State<RecipeEditor> {
         return null;
       },
       onChanged: (value) {
-        _change(() => row[key] = value.trim().isEmpty ? null : value);
+        _change(
+          () => row[key] = value.trim().isEmpty
+              ? null
+              : numeric == 'duration' || numeric == 'minuteDuration'
+              ? parseRecipeTime(
+                      value,
+                      minutePrecision: numeric == 'minuteDuration',
+                    ) ??
+                    value
+              : value,
+        );
       },
     ),
   );
@@ -802,9 +833,9 @@ class _RecipeEditorState extends State<RecipeEditor> {
             _field(
               row,
               'duration_seconds',
-              'Duration (seconds)',
+              'Duration (m:ss or h:mm:ss)',
               required: ['timer', 'rest'].contains(row['action_type']),
-              numeric: 'integer',
+              numeric: 'duration',
             ),
           if ([
                 'appliance_temperature',
@@ -913,12 +944,7 @@ class _RecipeEditorState extends State<RecipeEditor> {
     }
     final seconds = int.tryParse('${action['duration_seconds']}');
     if (seconds != null) {
-      final minutes = seconds ~/ 60, remainder = seconds % 60;
-      details.add(
-        minutes == 0
-            ? '$seconds sec'
-            : '$minutes min${remainder == 0 ? '' : ' $remainder sec'}',
-      );
+      details.add(formatRecipeTime(seconds));
     }
     if (action['temperature_value'] != null) {
       details.add(
@@ -1123,20 +1149,20 @@ class _RecipeEditorState extends State<RecipeEditor> {
                         _field(
                           _draft,
                           'prep_minutes',
-                          'Prep (minutes)',
-                          numeric: 'integer',
+                          'Prep (h:mm)',
+                          numeric: 'minuteDuration',
                         ),
                         _field(
                           _draft,
                           'cook_minutes',
-                          'Cook (minutes)',
-                          numeric: 'integer',
+                          'Cook (h:mm)',
+                          numeric: 'minuteDuration',
                         ),
                         _field(
                           _draft,
                           'total_minutes',
-                          'Total (minutes)',
-                          numeric: 'integer',
+                          'Total (h:mm)',
+                          numeric: 'minuteDuration',
                         ),
                       ], minWidth: 150),
                       ExpansionTile(

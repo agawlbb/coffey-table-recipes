@@ -10,6 +10,16 @@ opens its section and scrolls it into view. Servings/yield and cooking times sha
 rows when space permits; phone layouts stack fields as needed. Language and
 measurement settings are under Language & measurements.
 
+Cooking action durations edit as `m:ss` or `h:mm:ss` (for example `2:30` or
+`1:02:30`). Prep, cook and total times edit as `h:mm`, matching the database's
+whole-minute precision. Durations display in hours, minutes and seconds across
+recipe views, collapsed action previews and cooking mode; running timers switch
+to `h:mm:ss` at one hour. Input validation checks component ranges and positive
+timer durations. Storage remains seconds for actions and minutes for metadata.
+Validation covers duration round trips, invalid component ranges, editor save
+payloads and visible errors, recipe browsing and cooking timer regressions.
+Flutter analysis passes.
+
 Ingredient rows preview their displayed quantities and preparation; step rows
 preview instructions. Open a row using its heading or expand arrow to edit it.
 Reorder and remove controls appear at the bottom of the expanded row. Grouping,

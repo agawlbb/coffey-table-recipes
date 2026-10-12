@@ -10,6 +10,7 @@ import 'cooking_mode.dart';
 import 'offline_recipes.dart';
 import 'recipe_sharing.dart';
 import 'recipe_editor.dart';
+import 'recipe_time.dart';
 
 final recipePhotoCache = CacheManager(
   Config(
@@ -44,13 +45,19 @@ String recipeSourceLabel(Object? source) => switch (source) {
 String recipeSummary(Map<String, dynamic> recipe) {
   final parts = <String>[];
   if (recipe['total_minutes'] != null) {
-    parts.add('${recipe['total_minutes']} min total');
+    parts.add(
+      '${formatRecipeTime((num.tryParse('${recipe['total_minutes']}') ?? 0) * 60)} total',
+    );
   } else {
     if (recipe['prep_minutes'] != null) {
-      parts.add('${recipe['prep_minutes']} min prep');
+      parts.add(
+        '${formatRecipeTime((num.tryParse('${recipe['prep_minutes']}') ?? 0) * 60)} prep',
+      );
     }
     if (recipe['cook_minutes'] != null) {
-      parts.add('${recipe['cook_minutes']} min cook');
+      parts.add(
+        '${formatRecipeTime((num.tryParse('${recipe['cook_minutes']}') ?? 0) * 60)} cook',
+      );
     }
   }
   if (recipe['yield_text'] != null) {
@@ -853,7 +860,7 @@ class _RecipeDetailState extends State<RecipeDetail> {
                             [
                               if (action['label'] != null) '${action['label']}',
                               if (action['duration_seconds'] != null)
-                                '${action['duration_seconds']} seconds',
+                                formatRecipeTime(action['duration_seconds']),
                               if (action['temperature_value'] != null)
                                 '${recipeValue(action['temperature_value'])}°${action['temperature_unit']}',
                               if (action['label'] == null &&
