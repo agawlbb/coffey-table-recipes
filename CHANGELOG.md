@@ -2,6 +2,15 @@
 
 Release dates and changes are reconstructed from annotated Git tags, commit history, and project release records. Versions before 1.0 are demonstration releases; 1.0 marks the first usable release. Android retains the existing signing identity; iOS packages are unsigned for user-managed signing.
 
+## 1.2.0 — 2026-10-12
+
+Build 11; tag `v1.2.0`. Web and Android release only; no iOS build was requested.
+
+- Added local crop, rotate, horizontal flip, and resize tools to recipe photos before saving.
+- Published the sanitized source under AGPL-3.0-or-later with licensing, attribution, security, and self-hosting guidance.
+- Made iOS Actions builds manual-only with explicit approval required for each paid macOS run.
+- Included the accumulated iOS sharing/signing source refinements; this release does not distribute a new iOS package.
+
 ## 1.1.1 — 2026-10-11
 
 Build 9; tag `v1.1.1`. iOS-only patch; hosted web and Android remain on 1.1.0.

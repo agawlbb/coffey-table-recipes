@@ -6,6 +6,10 @@ When the user says "create a release", review progress since the previous releas
 
 `CHANGELOG.md` covers previous releases using Git history, tags, and the release records below. Every future release must update it with the version, release date, and meaningful changes since the prior release. Commit the changelog before tagging the release. Describe only changes supported by the project history.
 
+## 1.2.0 — web and Android photo editing release
+
+Version `1.2.0+11`, tagged `v1.2.0`, adds local recipe photo crop, rotation, flip and resize tools and includes the sanitized AGPL public-source publication. Build 11 follows the distributed iOS development build 10. Only web and Android are built at the user's request; no macOS workflow or iOS package is produced. The hosted app is explicitly deployed using the release tag, and the verified APK is saved in the configured recipe app destination. Previous iOS packages are retained.
+
 ## iOS-only development builds
 
 The iOS workflow can build an explicitly selected branch without creating a release
