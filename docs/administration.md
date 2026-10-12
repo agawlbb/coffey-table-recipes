@@ -1,24 +1,20 @@
 # Account administration
 
-Account roles are returned by authenticated `GET /me` as `user.account_role` (`user` or `administrator`). This is separate from household owner/admin/member roles. The server grants the initial administrator role to the verified Firebase account with email `admin@example.test`; a matching unverified email cannot grant it.
+Application administration is separate from household membership roles. The
+backend verifies the Firebase ID token and uses its stable UID to find the local
+user record. Administration requires that record's account_role to be administrator.
+An email address, Google OAuth client ID, or unverified client claim cannot grant it.
 
-Administrators see **Administration** in the user menu. Web opens `#/administration` in a separate browser window, restoring the Firebase session without putting tokens in the URL. Android opens a separate administration screen; a blocked browser popup also falls back to that screen. The administration route checks the server role before listing users. The API independently enforces permission on every administration request.
+Existing assigned administrators retain access, including when their email changes.
+New installations have no automatic administrator. A trusted database operator must
+assign the role to the intended verified Firebase UID using a parameterized database
+update after that account has signed in. Keep the deployment's actual UID private.
 
-The administration list contains database accounts, regardless of email verification, and all household people without linked accounts. Account rows show verification status; unlinked person rows show their household. Delete opens a confirmation dialog identifying the user and explaining permanent deletion. Cancel makes no write. Confirm sends `POST /admin/users/{id}/delete` with `{"confirm":true}`. Success removes the row; failure retains it and displays the error. Administrators can delete any account, including their own. Self-deletion requires the same explicit confirmation with an additional warning that administration access will be lost.
+Migration 008 adds the role column. The migration runner recognizes the exact
+original installed checksum as a legacy case after removal of its personal email
+grant; it does not rerun the migration or change existing roles. Other checksum
+mismatches still fail.
 
-Deletion removes the Firebase account, database user, memberships, linked household people and related invitations. Shared households, recipes and cooking history remain with account attribution cleared. This is a full delete, not an inactive flag. Unlinked people can be deleted directly via POST /admin/people/{id}/delete with confirmation; this removes their table entry, favorites and invitations without calling Firebase. Deletion does not prevent someone from deliberately registering a new Firebase account later.
-
-The apps retain `https://coffeybean.com/CoffeyTableRecipes/api/v1`. Hosted activation completed on 2026-10-10 after the user's approval: migration `008_administrators.sql`, coordinated backend deployment and `firebaseauth.users.delete` on the existing server Firebase service account. The existing Project administrator account with email `admin@example.test` was explicitly assigned administrator by database ID and email because its unverified-email flag excluded it from the automatic grant. Its email-verification status remains unchanged. Both the hosted and localhost web copies include the new UI. Server credentials never belong in client builds or Git.
-
-Validation: administrator widgets test menu visibility, navigation, confirmation/cancellation, self-delete protection, denied access and error feedback. The PHP administrator suite uses a disposable local database and a fake Firebase deleter to test authorization, rollback, foreign-key cleanup, shared content preservation and rejection of deleted-token reprovisioning. No real user is deleted during automated verification.
-
-Deployment validation confirmed the hosted database role, healthy API, authentication requirements on administrator routes, protected backups/credentials and an error-free hosted sign-in screen. Signed-in hosted verification confirmed the administrator menu, session restoration in a separate administration tab, user listing, disabled self-delete and permanent-delete confirmation with cancellation. The built-in browser did not expose the requested popup, so popup creation remains covered by implementation/widget validation rather than observed browser verification. No real account was deleted to verify deployment.
-
-
-The expanded screen reloads its list after successful deletion so related table entries disappear as well. Self-deletion clears the administration list and shows a close-window message. A person who became linked since listing is rejected with a refresh message rather than unexpectedly deleting their login.
-
-Hosted verification on 2026-10-10 confirmed the expanded Users & table people list, enabled deletion of the current administrator, and an unlinked Joe Test table entry. Both account and person confirmation dialogs were opened and cancelled; no live record was deleted. Validation passed all 39 Flutter tests, clean analysis and web/Android debug builds, plus 41 backend administrator and 59 invitation checks. The coordinated backend and web update is live on coffeybean.com; the local web copy uses the same hosted API.
-
-Administration includes Firebase-only accounts that have not finished account setup. Their deletion uses the Firebase UID, rechecks SQL registration, and preserves shared recipes. Unverified logins register with the existing /me endpoint without sending an additional verification email.
-
-Account lifecycle repair deployed 2026-10-10: app d9c7b55 and server 003fe36. Live administration now includes Firebase-only accounts. After explicit approval, deleted-user@example.test was deleted through the hosted administration UI; direct Firebase lookup confirmed absence, and the hosted database was checked for remaining user and invitation records. No verification emails were sent during this repair; Firebase throttling cannot be reset by this application.
+The API checks administration on every privileged request; hiding a menu is not
+authorization. Tests cover denied access, identity continuity, deletion rollback,
+self-deletion prevention, shared-content preservation, and deleted-account checks.

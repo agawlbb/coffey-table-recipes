@@ -58,3 +58,16 @@ app.*.map.json
 
 # Widget Preview related
 .widget_preview/
+
+# Apple signing material and private recovery archives
+*.p12
+*.pfx
+*.pem
+*.key
+*.mobileprovision
+*.provisionprofile
+*.p8
+*.cer
+*.certSigningRequest
+*.bundle
+/private-backup/

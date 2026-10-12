@@ -9,7 +9,7 @@ import zipfile
 import requests
 
 HOST = 'https://ecngx362.inmotionhosting.com:2083'
-DIRECTORY = '/home/hosting_account/coffeybean.com/CoffeyTableRecipes'
+DIRECTORY = '/home/' + os.environ.get('CPANEL_USER', 'hosting_account') + '/coffeybean.com/CoffeyTableRecipes'
 PUBLIC = 'https://coffeybean.com/CoffeyTableRecipes/app/'
 
 def deploy():

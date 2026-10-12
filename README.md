@@ -4,14 +4,14 @@ Flutter client for Android, iOS, and responsive web. The PHP API lives in `C:\xa
 
 ## Run locally
 
-The app defaults to https://coffeybean.com/CoffeyTableRecipes/api/v1 on every platform. The local PHP project and database remain available in XAMPP.
+The app defaults to https://coffeybean.com/CoffeyTableRecipes/api/v1 on every platform. The local PHP source remains available for development; the persistent database is hosted exclusively.
 
 ```powershell
 flutter run -d emulator-5554
 flutter run -d chrome --web-port=8080 --dart-define=API_BASE_URL=http://localhost/CoffeyTableRecipes/api/v1
 ```
 
-The first command uses the hosted backend. The second explicitly selects local Apache on port 80; start Apache and MySQL before using that override.
+The first command uses the hosted backend. The second is only for an independently configured backend; the retired local recipe database is not available.
 
 Override the address with `--dart-define=API_BASE_URL=https://your-host.example/api/v1`. Physical Android devices require the computer's reachable LAN address. Android debug builds allow local HTTP; deployed builds should use HTTPS.
 
@@ -87,3 +87,22 @@ and device validation. `tool/build-ios-signed.sh` archives and exports on a Mac
 after the paid account is configured in Xcode.
 
 Recipe review suggests food pictures from uploaded images and supported embedded PDF images. Pictures are cropped locally and saved only after choosing Use this picture and Save. Skip picture declines a suggestion. Categories offer Type a new category and Add a new category; select the parent first, then type the name. Matching categories are reused and new names are created on Save.
+
+## Open-source use
+
+This project is licensed under GNU AGPL-3.0-only. See LICENSE and NOTICE.md for
+source, network-service, artwork, and dependency notices. Source repositories:
+[Flutter app](https://github.com/agawlbb/coffey_table_recipes) and
+[PHP backend](https://github.com/agawlbb/coffey_table_recipes_server).
+
+Use your own Firebase project, database, hosting, email and optional AI credentials
+for independent installations. Local configuration, signing material, uploaded
+media, personal imports and generated packages must stay outside version control.
+The default coffeybean.com endpoint is the project deployment, not a free backend
+for unrelated installations. AI access and existing public recipe sharing remain
+unchanged by publication.
+
+History was sanitized before publication. Existing contributors must make a fresh
+clone rather than merging old history back. Earlier validation commit hashes and
+Actions links in release notes refer to private, retired pre-publication records;
+version labels and factual validation results are retained.
