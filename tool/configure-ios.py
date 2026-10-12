@@ -21,7 +21,7 @@ with path.open("wb") as target:
 
 # Client configuration, generated only for builds and deliberately excluded from Git.
 # A separate override supports API keys restricted to the extension's bundle ID.
-share_config = Path("ios/ShareExtension/Resources/FirebaseConfig.json")
+share_config = Path("ios/ShareExtension/ShareUI/FirebaseConfig.json")
 share_config.parent.mkdir(parents=True, exist_ok=True)
 share_config.write_text(json.dumps({
     "apiKey": config.get("FIREBASE_SHARE_API_KEY") or config["FIREBASE_IOS_API_KEY"],

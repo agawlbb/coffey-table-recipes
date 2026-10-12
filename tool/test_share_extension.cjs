@@ -1,6 +1,6 @@
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
-const { ShareImportModel } = require('../ios/ShareExtension/Resources/model.js');
+const { ShareImportModel } = require('../ios/ShareExtension/ShareUI/model.js');
 
 const draft = () => ({ title: 'Lime pie', original_language: 'en', measurement_system: 'us',
   import_key: 'a'.repeat(64), source_text: 'recipe text',

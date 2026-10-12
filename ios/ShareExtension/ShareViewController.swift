@@ -25,7 +25,7 @@ final class ShareViewController: UIViewController, WKScriptMessageHandler, WKNav
       web.leadingAnchor.constraint(equalTo: view.leadingAnchor),
       web.trailingAnchor.constraint(equalTo: view.trailingAnchor)
     ])
-    guard let page = Bundle.main.url(forResource: "index", withExtension: "html", subdirectory: "Resources") else {
+    guard let page = Bundle.main.url(forResource: "index", withExtension: "html", subdirectory: "ShareUI") else {
       let label = UILabel(frame: view.bounds)
       label.text = "Recipe sharing could not load. Please reinstall the app."
       label.numberOfLines = 0
@@ -72,7 +72,7 @@ final class ShareViewController: UIViewController, WKScriptMessageHandler, WKNav
         case "signIn":
           guard let email = body["email"] as? String, let password = body["password"] as? String,
                 !email.isEmpty, !password.isEmpty else { throw failure("Enter your email and password.") }
-          guard let file = Bundle.main.url(forResource: "FirebaseConfig", withExtension: "json", subdirectory: "Resources"),
+          guard let file = Bundle.main.url(forResource: "FirebaseConfig", withExtension: "json", subdirectory: "ShareUI"),
                 let config = try JSONSerialization.jsonObject(with: Data(contentsOf: file)) as? [String: String],
                 let key = config["apiKey"], !key.isEmpty,
                 let url = URL(string: "https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key=\(key)") else {

@@ -29,9 +29,11 @@ class IOSShareConfigurationTests(unittest.TestCase):
         self.assertIn('coffeybean.com/CoffeyTableRecipes/api/v1', source)
         self.assertIn('signInWithPassword', source)
         self.assertIn('C0FFE0000000000000000002,', project)
-        self.assertIn('lastKnownFileType = folder; path = Resources;', project)
+        self.assertIn('lastKnownFileType = folder; path = ShareUI;', project)
+        # Resources is reserved by CFBundle and breaks embedded-binary validation.
+        self.assertNotIn('path = Resources;', project)
         for file in ['index.html', 'share.css', 'share.js', 'model.js']:
-            self.assertTrue((ROOT / 'ios/ShareExtension/Resources' / file).is_file())
+            self.assertTrue((ROOT / 'ios/ShareExtension/ShareUI' / file).is_file())
 
     def test_extension_is_embedded_before_flutter_thinning(self):
         project = (ROOT / 'ios/Runner.xcodeproj/project.pbxproj').read_text()
@@ -54,13 +56,13 @@ class IOSShareConfigurationTests(unittest.TestCase):
             self.assertIn('ShareMedia-$(PRODUCT_BUNDLE_IDENTIFIER)', schemes)
             self.assertIn('com.googleusercontent.apps.fixture', schemes)
             self.assertEqual(len(schemes), 2)
-            share = json.loads((workspace / 'ios/ShareExtension/Resources/FirebaseConfig.json').read_text())
+            share = json.loads((workspace / 'ios/ShareExtension/ShareUI/FirebaseConfig.json').read_text())
             self.assertEqual(share, {'apiKey': 'fixture'})
             values = json.loads(config.read_text())
             values['FIREBASE_SHARE_API_KEY'] = 'extension-fixture'
             config.write_text(json.dumps(values))
             subprocess.run([sys.executable, str(ROOT / 'tool/configure-ios.py'), str(config)], cwd=workspace, check=True)
-            self.assertEqual(json.loads((workspace / 'ios/ShareExtension/Resources/FirebaseConfig.json').read_text()), {'apiKey': 'extension-fixture'})
+            self.assertEqual(json.loads((workspace / 'ios/ShareExtension/ShareUI/FirebaseConfig.json').read_text()), {'apiKey': 'extension-fixture'})
 
     def test_free_signing_entitlements_and_file_activation(self):
         runner = plistlib.loads((ROOT / 'ios/Runner/Info.plist').read_bytes())

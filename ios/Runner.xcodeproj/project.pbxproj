@@ -5,7 +5,7 @@
 	};
 	objectVersion = 54;
 	objects = {
-		C0FFE0000000000000000001 /* Share UI */ = { isa = PBXFileReference; lastKnownFileType = folder; path = Resources; sourceTree = "<group>"; };
+		C0FFE0000000000000000001 /* Share UI */ = { isa = PBXFileReference; lastKnownFileType = folder; path = ShareUI; sourceTree = "<group>"; };
 		C0FFE0000000000000000002 /* Share UI in Resources */ = { isa = PBXBuildFile; fileRef = C0FFE0000000000000000001; };
 		E77742C364C0FDA55E4D6DDF /* ShareExtension SourceBuild */ = { isa = PBXBuildFile; fileRef = 75EB1EF5A87F8C30CA2B4E22; };
 		9AD5D5250DFC056FA3E2190B /* ShareExtension ProductBuild */ = { isa = PBXBuildFile; fileRef = 2660D0E7D3E71E809C4AD8DE; settings = {ATTRIBUTES = (RemoveHeadersOnCopy,);}; };

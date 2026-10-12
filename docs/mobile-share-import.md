@@ -46,11 +46,13 @@ share session; closing or terminating the extension discards it.
 
 Run `tool/configure-ios.py` with the ignored Firebase build configuration before
 building iOS. It also generates ignored
-`ios/ShareExtension/Resources/FirebaseConfig.json` using `FIREBASE_IOS_API_KEY`,
+`ios/ShareExtension/ShareUI/FirebaseConfig.json` using `FIREBASE_IOS_API_KEY`,
 or `FIREBASE_SHARE_API_KEY` when provided. If the Firebase key has an iOS bundle
 restriction, allow the *signed extension's* bundle ID or supply an appropriate
 extension key. The native Firebase request includes X-Ios-Bundle-Identifier.
-The release workflow runs this configuration step before Xcode bundles Resources.
+The release workflow runs this configuration step before Xcode bundles ShareUI.
+The bundle uses the custom `ShareUI` directory; `Resources` is reserved by iOS
+bundle loading and must not be copied as a custom top-level folder.
 No backend source or database change is needed.
 
 ## Direct file opening and Android
