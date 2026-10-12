@@ -36,3 +36,20 @@ publisher photographs are not covered by the project's license grant.
 Existing clones must be replaced with fresh clones after the history rewrite.
 Avoid merging old branches back into the cleaned history. Private backups are
 for recovery only and must never be uploaded to a public repository.
+
+## Clean-history verification
+
+All 192 cleaned app/backend commits and 799 historical text blobs passed the
+privacy-pattern scan and Gitleaks 8.30.1 with zero findings. Atomic leased pushes
+replaced every published branch and tag; remote references matched the cleaned
+local history. No private Codex recovery references were published.
+
+GitHub still serves personal details through original detached commit IDs.
+Both repositories remain private pending the user's choice of fresh public
+repositories, a GitHub cache purge, or acceptance of that residual exposure.
+History rewriting alone does not erase GitHub's cached objects.
+
+The iOS workflow now starts only through manual dispatch after explicit approval;
+version tag pushes cannot automatically start macOS jobs. Backend main deployment
+remains automatic. Existing Actions records are privately backed up and retired
+before any publication.

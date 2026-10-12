@@ -1,7 +1,9 @@
 # App icon
 
 `app_icon.png` is the approved pot, leaves, and coffee beans artwork supplied for
-the app icon. It is kept separately from recipe photos and is not bundled as an
+the app icon. The project owner confirms it was AI generated; project rights in
+this artwork are offered under AGPL-3.0-only, as described in NOTICE.md.
+It is kept separately from recipe photos and is not bundled as an
 in-app image.
 
 To regenerate Android launcher icons, the iOS AppIcon catalog, and web/PWA icons:
