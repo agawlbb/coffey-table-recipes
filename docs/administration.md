@@ -40,3 +40,7 @@ Validation: Flutter analysis passed; 24 administrator and recipe-editor widget
 tests passed, including switch persistence/failure behavior and disabled image
 generation with camera/uploads still available. The separate image-editor suite
 also passed. No live paid AI request or macOS build was used for these checks.
+
+The backend permission policy and migration were deployed and verified on
+2026-10-12. Existing households are disabled. These Flutter UI changes are committed
+and tested; the hosted app UI awaits an explicitly authorized tagged app deployment.
