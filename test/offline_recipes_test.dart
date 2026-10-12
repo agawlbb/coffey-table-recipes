@@ -594,7 +594,8 @@ void main() {
           ),
         ),
       );
-      expect(find.text('Saving recipe text · 3 of 31'), findsOneWidget);
+      expect(find.text('Preparing recipes for offline use…'), findsOneWidget);
+      expect(find.textContaining('3 of 31'), findsNothing);
       expect(find.textContaining('All 31'), findsNothing);
       status.value = const RecipeSyncProgress(
         saved: 3,
@@ -610,7 +611,7 @@ void main() {
         ready: true,
       );
       await tester.pump();
-      expect(find.text('All 31 recipes saved offline'), findsOneWidget);
+      expect(find.text('All 31 recipes saved offline'), findsNothing);
       expect(find.text('Retry'), findsNothing);
       expect(tester.takeException(), isNull);
     },

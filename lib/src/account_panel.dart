@@ -807,7 +807,7 @@ class _HouseholdPanelState extends State<HouseholdPanel> {
       appBar: AppBar(
         title: Text(_settings ? 'Household & people' : 'Recipes'),
         actions: [
-          if (MediaQuery.sizeOf(context).width >= 600)
+          if (!kIsWeb && MediaQuery.sizeOf(context).width >= 600)
             Center(
               child: SizedBox(
                 width: 120,

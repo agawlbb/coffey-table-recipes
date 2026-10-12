@@ -5,6 +5,12 @@ Appetizers in illustrated cards styled like recipe cards. Select a main category
 to see its populated subcategories, then a subcategory to see its recipes.
 Recipe counts avoid counting the same recipe twice within a main category.
 
+Recipe tiles show only the recipe name and picture; descriptions, yield and time
+information remain in recipe details. The web header omits the account name next
+to the user menu. Mobile offline downloads show no recipe counts or completed
+download notice; preparation and actionable failure/retry status remain available.
+Validation: 28 browsing/offline regression tests pass and Flutter analysis is clean.
+
 Search from home searches all recipes available to the current household. At
 other levels it searches only the selected main category or subcategory. Search
 results open recipe details directly. Clear search to return to the current

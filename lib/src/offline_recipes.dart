@@ -660,38 +660,40 @@ class RecipeSyncStatus extends StatelessWidget {
   final ValueListenable<RecipeSyncProgress> progress;
   final VoidCallback retry;
   @override
-  Widget build(
-    BuildContext context,
-  ) => ValueListenableBuilder<RecipeSyncProgress>(
-    valueListenable: progress,
-    builder: (context, state, _) {
-      final text = state.ready
-          ? 'All ${state.total} recipes saved offline'
-          : state.error ??
-                (state.total == null
-                    ? 'Preparing recipes for offline use…'
-                    : '${state.working ? 'Saving recipe text' : 'Offline download paused'} · ${state.saved} of ${state.total}');
-      return Padding(
-        padding: const EdgeInsets.fromLTRB(20, 4, 20, 4),
-        child: Row(
-          children: [
-            Icon(
-              state.ready
-                  ? Icons.offline_pin_outlined
-                  : Icons.download_outlined,
-              size: 16,
+  Widget build(BuildContext context) =>
+      ValueListenableBuilder<RecipeSyncProgress>(
+        valueListenable: progress,
+        builder: (context, state, _) {
+          if (state.ready) return const SizedBox.shrink();
+          final text =
+              state.error ??
+              (state.working
+                  ? 'Preparing recipes for offline use…'
+                  : 'Offline download paused');
+          return Padding(
+            padding: const EdgeInsets.fromLTRB(20, 4, 20, 4),
+            child: Row(
+              children: [
+                Icon(
+                  state.ready
+                      ? Icons.offline_pin_outlined
+                      : Icons.download_outlined,
+                  size: 16,
+                ),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Text(
+                    text,
+                    style: Theme.of(context).textTheme.bodySmall,
+                  ),
+                ),
+                if (!state.ready && !state.working)
+                  TextButton(onPressed: retry, child: const Text('Retry')),
+              ],
             ),
-            const SizedBox(width: 6),
-            Expanded(
-              child: Text(text, style: Theme.of(context).textTheme.bodySmall),
-            ),
-            if (!state.ready && !state.working)
-              TextButton(onPressed: retry, child: const Text('Retry')),
-          ],
-        ),
+          );
+        },
       );
-    },
-  );
 }
 
 class OfflineIndicator extends StatelessWidget {

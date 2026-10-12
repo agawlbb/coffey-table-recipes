@@ -442,7 +442,6 @@ class _RecipeBrowserState extends State<RecipeBrowser> {
                   );
                 }
                 final recipe = _recipes[recipeIndex];
-                final summary = recipeSummary(recipe);
                 return Card(
                   color: const Color(0xfffff9ee),
                   clipBehavior: Clip.antiAlias,
@@ -461,31 +460,11 @@ class _RecipeBrowserState extends State<RecipeBrowser> {
                           ),
                           const SizedBox(width: 16),
                           Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  recipe['title'] as String,
-                                  style: Theme.of(context)
-                                      .textTheme
-                                      .titleMedium,
-                                ),
-                                if (summary.isNotEmpty) ...[
-                                  const SizedBox(height: 6),
-                                  Text(summary),
-                                ],
-                                if (recipe['description'] != null) ...[
-                                  const SizedBox(height: 6),
-                                  Text(
-                                    recipe['description'] as String,
-                                    maxLines: 2,
-                                    overflow: TextOverflow.ellipsis,
-                                  ),
-                                ],
-                              ],
+                            child: Text(
+                              recipe['title'] as String,
+                              style: Theme.of(context).textTheme.titleMedium,
                             ),
                           ),
-                          const Icon(Icons.chevron_right),
                         ],
                       ),
                     ),
