@@ -18,6 +18,12 @@ sys.exit("No installed iPhone simulator is available")
 echo "Using simulator $device"
 xcrun simctl boot "$device" || true
 xcrun simctl bootstatus "$device" -b
+# Give simulator processes the same App Group entitlement as the paid build.
+# This is local ad-hoc signing, not Apple device provisioning.
+codesign --force --sign - --entitlements ios/ShareExtension/ShareExtension.entitlements \
+  build/ios/iphonesimulator/Runner.app/PlugIns/ShareExtension.appex
+codesign --force --sign - --entitlements ios/Runner/Runner.entitlements \
+  build/ios/iphonesimulator/Runner.app
 xcrun simctl install "$device" build/ios/iphonesimulator/Runner.app
 
 if ! ruby -rxcodeproj -e 'puts Xcodeproj::VERSION'; then
@@ -52,3 +58,16 @@ xcodebuild test -project build/ios-share-probe/ShareProbe.xcodeproj \
   -derivedDataPath build/ios-share-probe/DerivedData \
   -resultBundlePath build/ios-share-probe/results.xcresult \
   -parallel-testing-enabled NO CODE_SIGNING_ALLOWED=NO
+
+group=$(xcrun simctl get_app_container "$device" com.coffeytable.coffeyTableRecipes group.com.coffeytable.coffeyTableRecipes)
+python3 - "$group" <<'PY'
+import json, sys
+from pathlib import Path
+root = Path(sys.argv[1])
+payloads = [json.loads(p.read_text()) for p in root.glob('RecipeShare-*.json')]
+assert any(p['content'] for p in payloads), 'Text share was not persisted'
+files = [Path(a['path']) for p in payloads for a in p['attachments']]
+assert any(p.suffix.lower() == '.pdf' and p.read_bytes().startswith(b'%PDF') for p in files), 'PDF bytes were not persisted'
+assert all(p.is_file() for p in files), 'Manifest points at a removed attachment'
+print('App Group PDF and text persistence verified')
+PY

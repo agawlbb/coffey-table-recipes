@@ -89,7 +89,7 @@ The initial demonstration is **0.1.0+1**, tagged `v0.1.0` in the app and backend
 
 `pubspec.yaml` is the authoritative app version: `major.minor.patch+build`. Before 1.0, minor versions add demonstration features and patch versions fix bugs. Increment the integer build number for every distributed build. At the user's request, 1.0.0 marks the first usable release with recipe import. Never move an existing release tag.
 
-All platforms in a release use the same version and build number. Android demonstrations use the existing debug signing identity. iOS Actions packages an unsigned release IPA for later signing with Sideloadly; it is not directly installable. Firebase iOS registration and device testing are required before calling iOS ready.
+All platforms in a release use the same version and build number. Android demonstrations use the existing debug signing identity. iOS Actions packages an unsigned release IPA for inspection; it is not directly installable. Current paid-account signing uses Apple-native archive/export with separate app and extension profiles and App Group membership (see mobile-share-import.md). Firebase iOS registration and device testing are required before calling iOS ready.
 
 Validate with `flutter analyze` and `flutter test`, build web and APK with the ignored `config/firebase.local.json`, then commit and create an annotated version tag. Push the commit and tag. The tag triggers the iOS workflow; its private artifact expires after 30 days, so keep a local copy.
 

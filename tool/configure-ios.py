@@ -1,4 +1,4 @@
-"""Apply ignored Firebase configuration to Google callbacks and the share importer."""
+"""Apply ignored Firebase configuration to the main app's Google callback."""
 import json
 import plistlib
 import sys
@@ -18,11 +18,3 @@ callbacks = [entry for entry in info.get("CFBundleURLTypes", [])
 info["CFBundleURLTypes"] = callbacks + [{"CFBundleTypeRole": "Editor", "CFBundleURLSchemes": [scheme]}]
 with path.open("wb") as target:
     plistlib.dump(info, target, sort_keys=False)
-
-# Client configuration, generated only for builds and deliberately excluded from Git.
-# A separate override supports API keys restricted to the extension's bundle ID.
-share_config = Path("ios/ShareExtension/ShareUI/FirebaseConfig.json")
-share_config.parent.mkdir(parents=True, exist_ok=True)
-share_config.write_text(json.dumps({
-    "apiKey": config.get("FIREBASE_SHARE_API_KEY") or config["FIREBASE_IOS_API_KEY"],
-}), encoding="utf-8")

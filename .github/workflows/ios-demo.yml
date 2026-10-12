@@ -71,7 +71,6 @@ jobs:
           path.write_text(text)
           PY
           python3 -m unittest discover -s tool -p test_configure_ios.py
-          node --test tool/test_share_extension.cjs
           plutil -lint ios/Runner/Info.plist ios/ShareExtension/Info.plist ios/Runner/Runner.entitlements ios/ShareExtension/ShareExtension.entitlements ios/Runner.xcodeproj/project.pbxproj
       - name: Configure iOS Google sign-in callback
         run: python3 tool/configure-ios.py "$RUNNER_TEMP/firebase.json"
@@ -82,7 +81,7 @@ jobs:
           args=()
           if [[ -n "$IOS_BUILD_NUMBER" ]]; then args+=("--build-number=$IOS_BUILD_NUMBER"); fi
           flutter build ios --release --no-codesign --dart-define-from-file="$RUNNER_TEMP/firebase.json" "${args[@]}"
-      - name: Package IPA for later Sideloadly signing
+      - name: Package unsigned IPA for inspection
         run: |
           mkdir -p build/ios/package/Payload
           cp -R build/ios/iphoneos/Runner.app build/ios/package/Payload/
@@ -129,7 +128,7 @@ jobs:
           test -n "$FIREBASE_CONFIG"
           printf '%s' "$FIREBASE_CONFIG" > "$RUNNER_TEMP/firebase.json"
       - run: flutter pub get
-      - name: Configure share sign-in
+      - name: Configure main app sign-in
         run: python3 tool/configure-ios.py "$RUNNER_TEMP/firebase.json"
       - name: Build simulator app and embedded extension
         run: flutter build ios --simulator --debug --no-codesign --dart-define-from-file="$RUNNER_TEMP/firebase.json"
@@ -181,7 +180,7 @@ jobs:
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
-      - name: Download app compiled with the same SDK as device build 10
+      - name: Download app compiled with SDK 26
         uses: actions/download-artifact@v4
         with:
           name: iOS-share-sdk26-app-${{ github.sha }}

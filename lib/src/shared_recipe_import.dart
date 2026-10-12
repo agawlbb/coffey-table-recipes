@@ -98,8 +98,8 @@ class SharedRecipeInbox extends ValueNotifier<List<SharedRecipeInput>>
       });
       await readSavedIOSShares();
     }
-    // iOS uses the native persistent inbox. The legacy plugin requires App
-    // Group storage and can throw on every ordinary launch after free signing.
+    // iOS reads the App Group and document-opening inbox through the native
+    // bridge on startup/resume. Android uses the share plugin's delivery stream.
     if (defaultTargetPlatform == TargetPlatform.iOS) return;
     final handler = ShareHandler.instance;
     _subscription = handler.sharedMediaStream.listen(

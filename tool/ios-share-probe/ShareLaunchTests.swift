@@ -4,12 +4,12 @@ final class ShareLaunchTests: XCTestCase {
   override func setUp() { continueAfterFailure = false }
 
   @MainActor
-  func testPDFShareLaunchesImporterAndCancelReturnsToHost() {
+  func testPDFSharePersistsAndDoneReturnsToHost() {
     checkShare("Share PDF")
   }
 
   @MainActor
-  func testTextShareLaunchesImporterAndCancelReturnsToHost() {
+  func testTextSharePersistsAndDoneReturnsToHost() {
     checkShare("Share text")
   }
 
@@ -32,19 +32,13 @@ final class ShareLaunchTests: XCTestCase {
     XCTAssertTrue(choice.waitForExistence(timeout: 15), "Extension missing from share sheet: \(host.debugDescription)")
     choice.tap()
 
-    // Native read -> WKWebView -> JS reply must complete before sign-in appears.
-    let signIn = host.webViews.buttons["Sign in"].firstMatch
-    let opened = signIn.waitForExistence(timeout: 45)
-    capture(host, name: "Importer launch - \(input)")
-    XCTAssertTrue(opened, "Importer did not open: \(host.debugDescription)")
-    XCTAssertTrue(host.webViews.textFields["Email"].exists)
-    XCTAssertTrue(host.webViews.secureTextFields["Password"].exists)
-    let email = host.webViews.textFields["Email"].firstMatch
-    email.tap()
-    email.typeText("share-test@example.invalid")
-    XCTAssertEqual(email.value as? String, "share-test@example.invalid")
-    capture(host, name: "Interactive importer - \(input)")
-    host.webViews.buttons["Cancel"].firstMatch.tap()
+    // The receiver atomically persists the share before announcing success.
+    let ready = host.staticTexts["Ready to import. Open Coffey Table Recipes to review your recipe."]
+    let opened = ready.waitForExistence(timeout: 45)
+    capture(host, name: "Receiver launch - \(input)")
+    XCTAssertTrue(opened, "Receiver did not open: \(host.debugDescription)")
+    XCTAssertEqual(host.webViews.count, 0)
+    host.buttons["Done"].firstMatch.tap()
     XCTAssertTrue(share.waitForExistence(timeout: 15))
   }
 

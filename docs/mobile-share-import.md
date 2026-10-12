@@ -1,153 +1,88 @@
-# Receiving recipe shares
+# Mobile recipe sharing
 
-## iOS share sheet with free Apple signing
+## iOS with paid Apple developer signing
 
-The share extension imports directly into the hosted table, within the share sheet.
-It does not use App Groups, a shared keychain, or an unsupported containing-app
-launch. Runner and ShareExtension both have empty entitlement files. The extension
-still must be embedded and signed with its own valid provisioning profile; the
-signing/install tool must retain extensions. Showing the app in the share sheet
-alone does not prove that its signed extension can launch.
+The share receiver accepts PDFs, images, text and website links from the iPhone
+share sheet. It stages files and atomically publishes a manifest in an App Group.
+It displays “Ready to import. Open Coffey Table Recipes to review your recipe.”
+Tap Done, then open the main app. iOS does not offer a supported automatic launch
+of the containing app from a Share extension. No separate account sign-in or web
+importer runs in the receiver.
 
-Select Coffey Table Recipes, sign in with your app email/password, choose your
-table, and tap Prepare recipe. Answer clarification questions when asked, review
-and edit the draft, then tap Save recipe. Multiple attachments are reviewed and
-saved separately. Done closes the share sheet; open the main app to see the saved
-recipes. The main app is not launched automatically.
-Returning to the iOS app refreshes the recipe browser while retaining the search
-and category scope, so a recipe saved by the extension appears in the collection.
+Runner reads both the shared container and its own document-opening inbox on
+startup and resume. Dart copies attachment bytes before acknowledging and removing
+staging files. Existing sign-in and table selection control import into the main
+app, followed by analysis, review and explicit Save. Signing out does not discard
+pending input. File captions do not create extra recipes. Each attachment has its
+own review. Failed analysis can be retried; Cancel does not save a recipe.
 
-Sign-in belongs to this share session and is separate from the main app. Passwords
-and Firebase tokens are not persisted or passed to the main app. Google-only
-accounts need to establish an email password using Forgot password in the app
-before using this importer. A verified account and an existing table are required,
-just as with the main app's hosted API. Internet access is required. Cancelling,
-skipping and analysis do not save a recipe. Cancelling an already submitted Save
-cannot undo a server commit. If its response is lost, another Save is disabled;
-check the table in the main app before sharing again to avoid duplicate recipes.
+Files are limited to 5 MB each and at most 10 per share. HEIC/HEIF images are
+converted to JPEG. Shared text is bounded to 60,000 bytes. Closing after successful
+staging preserves pending shares until the main app consumes them. The receiver
+does not contact the backend or hold credentials.
 
-The extension ships a small local HTML/JavaScript review interface in a
-nonpersistent WKWebView. External navigation and web network access are blocked.
-A main-frame-only Swift bridge permits reading the share, signing in, analyzing
-and explicitly saving, using fixed Firebase and coffeybean.com endpoints. Input
-and recipe content are rendered as text, not executable HTML. The editor preserves
-structured quantities, categories, steps and timer/temperature actions. Suggested
-food photos are not fetched or attached in this lightweight extension; photos can
-be added in the main app after saving.
+## Signing preparation
 
-PDF, image, UTF-8 text files, recipe text and HTTPS links are accepted. Files are
-copied while the source provider's temporary URL is valid. Each file is limited
-to 5 MB, with at most 10 files and 10 MB total per share. HEIC/HEIF images are
-converted to JPEG. Captions alongside files do not become additional recipes.
-Recipe text and UTF-8 text file content are limited to 60,000 bytes by the API.
-The extension deletes temporary copies after loading and releases attachment
-bytes as items are saved or discarded. Unsaved input remains only for the current
-share session; closing or terminating the extension discards it.
+Use the paid team in Xcode for both targets:
 
-Run `tool/configure-ios.py` with the ignored Firebase build configuration before
-building iOS. It also generates ignored
-`ios/ShareExtension/ShareUI/FirebaseConfig.json` using `FIREBASE_IOS_API_KEY`,
-or `FIREBASE_SHARE_API_KEY` when provided. If the Firebase key has an iOS bundle
-restriction, allow the *signed extension's* bundle ID or supply an appropriate
-extension key. The native Firebase request includes X-Ios-Bundle-Identifier.
-The release workflow runs this configuration step before Xcode bundles ShareUI.
-The bundle uses the custom `ShareUI` directory; `Resources` is reserved by iOS
-bundle loading and must not be copied as a custom top-level folder.
-No backend source or database change is needed.
+| Target | Bundle ID |
+| --- | --- |
+| Runner | `com.coffeytable.coffeyTableRecipes` |
+| ShareExtension | `com.coffeytable.coffeyTableRecipes.ShareExtension` |
+
+Register `group.com.coffeytable.coffeyTableRecipes` and enable it for both App IDs.
+Both committed entitlement files and both Info plists contain this same group.
+If an identifier is unavailable in the new account, update it consistently in
+Xcode, both Info plists and both entitlements before signing. Update Firebase's
+main iOS app registration and Google callback if Runner's bundle ID changes.
+
+On a Mac, install Xcode and Flutter 3.47.6, add the paid account to Xcode Settings,
+then open `ios/Runner.xcworkspace`. Select the paid team for Runner and
+ShareExtension and leave automatic signing enabled. Xcode must create a separate
+provisioning profile for each target with the same App Group membership. Do not
+reuse Runner's application-identifier entitlement for the extension.
+
+For a repeatable archive, set `IOS_TEAM_ID` and `IOS_FIREBASE_CONFIG` (the ignored
+Firebase JSON path), then run `bash tool/build-ios-signed.sh`. The script builds,
+archives with Apple's signing tools, checks both signatures, and exports to
+`build/ios/signed`. Its default `debugging` export installs on development devices;
+register the phone with the team. Set `IOS_EXPORT_METHOD=release-testing` for
+registered-device distribution, or `app-store-connect` to export for TestFlight.
+The script does not upload. Certificates, profiles, account credentials and build
+outputs stay outside Git. Actual signing needs the new account's team and valid
+signing identity; preparation alone is not a signed-device validation.
 
 ## Direct file opening and Android
 
-Runner also registers PDF, image and plain-text document opening in copy mode.
-Open in/Copy to Coffey Table Recipes, where offered by the source app, launches
-Runner directly. SceneDelegate captures cold-start and running-app file URLs in
-Runner's own Application Support inbox, bounded to 5 MB, converts HEIC/HEIF images,
-and notifies Dart after staging. Dart copies bytes before acknowledging and deleting
-staging files. Non-file URLs retain Flutter's normal handler and Google sign-in.
-Ordinary iOS launches bypass the legacy share plugin; errors are notifications
-rather than empty Add recipe routes. The native inbox now serves document opening
-only, with no App Group lookup.
+Runner registers PDF, image and plain-text document opening in copy mode. Where
+the source offers Open in/Copy to Coffey Table Recipes, the file reaches Runner's
+own inbox directly. SceneDelegate handles cold and running app delivery. Normal
+URLs retain Flutter and Google sign-in handling. Ordinary launches bypass the
+legacy iOS share plugin. Android continues to use its SEND/SEND_MULTIPLE receiver.
+The hosted coffeybean.com backend is unchanged.
 
-Android registers SEND and SEND_MULTIPLE for document, image and text MIME types.
-MainActivity uses singleTask so another share reaches the running app. The
-better_share_handler 1.1.0 plugin stages attachments without broad storage
-permissions. Shared items wait for sign-in and table selection, then automatically
-attempt analysis. Multiple attachments are imported separately; failed input stays
-available for retry. Cancelling and analysis do not save recipes.
+## Validation and known signing failure
 
-## Validation
+The simulator workflow builds the real embedded receiver in Release, ad-hoc signs
+simulator App Group entitlements, selects it from actual PDF/text share sheets,
+checks the ready screen and Done, and verifies persisted PDF bytes and text.
+Flutter tests cover pending delivery, authentication gating, acknowledgment and
+recipe review. Simulator success does not validate paid provisioning on a phone.
 
-Local checks on 2026-10-11 cover the extension import state machine, configuration
-and resource packaging declarations. Cases include explicit-save-only behavior,
-selected-table delivery, clarification identity, failed analysis/save retry,
-cancel/skip, double taps, sequential attachments, and a lost save response.
-The built-in browser checks use a local mock native bridge with sample data;
-they do not authenticate a real account, invoke AI or create hosted recipes.
-All eight extension-flow tests, five iOS configuration checks, and all 110 Flutter
-tests passed, including share imports and refresh after iOS resume. The browser
-verified sign-in, table selection,
-editable ingredient/instruction review, and explicit-save completion.
-Flutter analysis is clean, and the review layout was inspected at a 390-pixel
-phone viewport. The generated Firebase share configuration is excluded from Git.
+On 2026-10-12, physical iOS 27.0.1 reports for builds 8, 9 and 10 signed with
+Sideloadly 0.70.1 show `CODESIGNING`, code 2, `Invalid Page`. A fresh tap reproduced
+it. The kernel reports that the extension “has entitlements but is not a main
+binary”; AMFI logs show Runner's application-identifier in the extension's signing
+data. The provisioning profile is accepted. This happens before the importer can
+run. Earlier build 10 importer code passed PDF/text launch tests on iOS 26 and
+27, including an SDK 26 build on iOS 27, in workflow 38238645998. Those results
+belong to the retired separate importer, not this shared-inbox design.
 
-Unsigned iOS 1.1.1/build 10 was built on 2026-10-12 in workflow 38233730579 from
-`cd75d29`. Native Xcode compilation passed. Both target versions and the packaged
-ShareUI assets and generated sign-in configuration were verified, and the IPA
-was copied to the desktop with a matching hash. Signing and physical-device testing
-of the redesigned extension remain required. The prior build 9 IPA contains the
-old App Group extension; install build 10 to test the redesign.
+Use Apple-native signing to validate the new design; a paid account by itself
+does not establish that Sideloadly's output is corrected. Device logs remain only
+in ignored build storage. After signing, verify Files PDF, Photos HEIC, text and
+Safari URL delivery, both cold-start and resume; sign-in/table selection; multiple
+files; explicit save and cancellation; and Google sign-in in Runner.
 
-### Automated share-sheet launch checks
-
-`tool/test-ios-share-simulator.sh` installs the actual Flutter simulator app with
-its embedded extension, then builds a separate test-only sender and XCTest UI
-suite. The sender invokes Apple's share sheet with a generated PDF or recipe
-text. Tests select Coffey Table Recipes, wait for the native attachment read and
-web bridge to display sign-in, type into Email, and cancel back to the sender.
-They never sign in, call the import service, or save a recipe.
-
-Run the manual `ios-demo.yml` workflow with `simulator_only: true` to test Release
-extension compilation on iOS 26 and 27. A third job installs the SDK 26 build on
-iOS 27 to check compatibility with the SDK used for device build 10. The workflow
-preserves screenshots, XCTest results, extension launch logs and crash reports.
-On 2026-10-12, [workflow 38238645998](https://github.com/agawlbb/coffey_table_recipes/actions/runs/38238645998)
-from `d30ae96` passed both PDF and text launch/typing/cancel tests in all three
-configurations: Xcode 26.3/iOS 26, Xcode 27/iOS 27.0, and the SDK 26.3 app on
-iOS 27.0. Screenshot artifacts were downloaded and verified against GitHub's
-SHA-256 digests. Eight extension-flow and five configuration tests also passed
-locally. This validates the launch path without a provisioning profile.
-The test sender is not shipped in the IPA. Its UIScene lifecycle and generated
-launch screen avoid legacy presentation and launch failures on newer simulators;
-file activities may be accessibility Cells while text activities are Buttons.
-
-Simulator success cannot validate free-account provisioning, Sideloadly's
-re-signing, or the exact iOS 27.0.1 physical-device runtime. The user's build 10
-installation fails to open from Files after signing with Sideloadly 0.70.1.
-Physical-device reports retrieved on 2026-10-12 show builds 8, 9 and 10 terminated
-with `CODESIGNING`, code 2, `Invalid Page`. A fresh PDF share at 07:10 EDT on iOS
-27.0.1 reproduced it. The live kernel log reports the extension "has entitlements
-but is not a main binary". AMFI logs show the extension's application-identifier
-uses Runner's signed identity rather than its own extension identity; the profile
-is accepted. This identifies malformed extension signing metadata before the
-importer runs. It does not prove that merely upgrading the account repairs
-Sideloadly's output. Use native Apple signing for the next device validation,
-with distinct extension entitlements and proper executable signature flags.
-Raw device logs, identities and crash reports are retained only in ignored build
-storage. No credentials or device identifiers belong in Git.
-
-Signed-device checks:
-1. Sign Runner and the embedded extension using a free Apple account, retaining
-   the extension in the installation. Select it from Files/Photos/Safari and
-   confirm that the sign-in screen appears.
-2. Sign in, choose a table, import a PDF, HEIC photo, text file and website link,
-   review and save. Open the app and verify the recipes are present.
-3. Share multiple files, saving one and discarding another. Confirm exactly the
-   selected recipes were saved.
-4. Cancel before Save, reject an oversized/unreadable input, and retry an analysis
-   failure. Confirm no recipe was created by these actions.
-5. Test a lost Save response and confirm Save cannot be submitted twice.
-6. Verify direct file opening, ordinary app startup and Google sign-in in Runner.
-
-References: [Apple extension architecture](https://developer.apple.com/library/archive/documentation/General/Conceptual/ExtensibilityPG/ExtensionOverview.html),
-[Apple provisioning capabilities](https://developer.apple.com/help/account/reference/supported-capabilities-ios/).
-The extension's password sign-in uses the documented
-[Firebase Auth REST endpoint](https://firebase.google.com/docs/reference/rest/auth#section-sign-in-email-password).
+References: [Apple App Groups](https://developer.apple.com/documentation/xcode/configuring-app-groups),
+[Flutter iOS deployment](https://docs.flutter.dev/deployment/ios).
