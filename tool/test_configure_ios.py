@@ -9,6 +9,15 @@ import unittest
 ROOT = Path(__file__).resolve().parents[1]
 
 class IOSShareConfigurationTests(unittest.TestCase):
+    def test_extension_uses_visible_persistent_handoff_without_plugin_launch(self):
+        source = (ROOT / 'ios/ShareExtension/ShareViewController.swift').read_text()
+        project = (ROOT / 'ios/Runner.xcodeproj/project.pbxproj').read_text()
+        self.assertNotIn('ShareHandlerIosViewController', source)
+        self.assertNotIn('UIApplication', source)
+        self.assertNotIn('better-share-handler-models', project)
+        self.assertIn('Ready to import.', source)
+        self.assertIn('options: .atomic', source)
+
     def test_extension_is_embedded_before_flutter_thinning(self):
         project = (ROOT / 'ios/Runner.xcodeproj/project.pbxproj').read_text()
         runner = project.split('97C146ED1CF9000F007C117D /* Runner */ = {', 1)[1]

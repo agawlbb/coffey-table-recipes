@@ -7,25 +7,22 @@
 	objects = {
 		E77742C364C0FDA55E4D6DDF /* ShareExtension SourceBuild */ = { isa = PBXBuildFile; fileRef = 75EB1EF5A87F8C30CA2B4E22; };
 		9AD5D5250DFC056FA3E2190B /* ShareExtension ProductBuild */ = { isa = PBXBuildFile; fileRef = 2660D0E7D3E71E809C4AD8DE; settings = {ATTRIBUTES = (RemoveHeadersOnCopy,);}; };
-		2176EED4C956AD1748AFF979 /* ShareExtension FrameworkBuild */ = { isa = PBXBuildFile; productRef = 5754CD723C714C83DA6754A6; };
 		75EB1EF5A87F8C30CA2B4E22 /* ShareExtension Source */ = { isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShareViewController.swift; sourceTree = "<group>"; };
 		0AE57DE322681D22BA505E5E /* ShareExtension Info */ = { isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		6944F2B78BF85DEE4E6813C2 /* ShareExtension Entitlements */ = { isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = ShareExtension.entitlements; sourceTree = "<group>"; };
 		2660D0E7D3E71E809C4AD8DE /* ShareExtension Product */ = { isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; path = ShareExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		4ACC9988CBBD219107C7F75A /* ShareExtension Group */ = { isa = PBXGroup; children = (75EB1EF5A87F8C30CA2B4E22,0AE57DE322681D22BA505E5E,6944F2B78BF85DEE4E6813C2,); path = ShareExtension; sourceTree = "<group>"; };
 		4C90CA273A7368CF21AAA1C5 /* ShareExtension Sources */ = { isa = PBXSourcesBuildPhase; buildActionMask = 2147483647; files = (E77742C364C0FDA55E4D6DDF, ); runOnlyForDeploymentPostprocessing = 0; };
-		E680C95CF2B5438D5C4B8038 /* ShareExtension Frameworks */ = { isa = PBXFrameworksBuildPhase; buildActionMask = 2147483647; files = (2176EED4C956AD1748AFF979, ); runOnlyForDeploymentPostprocessing = 0; };
+		E680C95CF2B5438D5C4B8038 /* ShareExtension Frameworks */ = { isa = PBXFrameworksBuildPhase; buildActionMask = 2147483647; files = (); runOnlyForDeploymentPostprocessing = 0; };
 		1103AE888A0826DF1CF7FB37 /* ShareExtension Resources */ = { isa = PBXResourcesBuildPhase; buildActionMask = 2147483647; files = (); runOnlyForDeploymentPostprocessing = 0; };
 		7FEAB63A8052A2CE3F548F05 /* ShareExtension Embed */ = { isa = PBXCopyFilesBuildPhase; buildActionMask = 2147483647; dstPath = ""; dstSubfolderSpec = 13; files = (9AD5D5250DFC056FA3E2190B,); name = "Embed App Extensions"; runOnlyForDeploymentPostprocessing = 0; };
 		A608776A174F4C02C5D7A1DF /* ShareExtension Proxy */ = { isa = PBXContainerItemProxy; containerPortal = 97C146E61CF9000F007C117D; proxyType = 1; remoteGlobalIDString = 81C21B4894A5537807E44133; remoteInfo = ShareExtension; };
 		E75760248B2926A287D1DC1E /* ShareExtension Dependency */ = { isa = PBXTargetDependency; target = 81C21B4894A5537807E44133; targetProxy = A608776A174F4C02C5D7A1DF; };
-		81C21B4894A5537807E44133 /* ShareExtension Target */ = { isa = PBXNativeTarget; buildConfigurationList = 6B8B277F05DAD52CB80CC643; buildPhases = (4C90CA273A7368CF21AAA1C5,E680C95CF2B5438D5C4B8038,1103AE888A0826DF1CF7FB37,); buildRules = (); dependencies = (); name = ShareExtension; productName = ShareExtension; productReference = 2660D0E7D3E71E809C4AD8DE; productType = "com.apple.product-type.app-extension"; packageProductDependencies = (5754CD723C714C83DA6754A6,); };
+		81C21B4894A5537807E44133 /* ShareExtension Target */ = { isa = PBXNativeTarget; buildConfigurationList = 6B8B277F05DAD52CB80CC643; buildPhases = (4C90CA273A7368CF21AAA1C5,E680C95CF2B5438D5C4B8038,1103AE888A0826DF1CF7FB37,); buildRules = (); dependencies = (); name = ShareExtension; productName = ShareExtension; productReference = 2660D0E7D3E71E809C4AD8DE; productType = "com.apple.product-type.app-extension"; packageProductDependencies = (); };
 		1665A27D97BED603A0B91BF5 /* ShareExtension Debug */ = { isa = XCBuildConfiguration; baseConfigurationReference = 9740EEB21CF90195004384FC; buildSettings = {APPLICATION_EXTENSION_API_ONLY = YES; CODE_SIGN_ENTITLEMENTS = ShareExtension/ShareExtension.entitlements; CODE_SIGN_STYLE = Automatic; INFOPLIST_FILE = ShareExtension/Info.plist; IPHONEOS_DEPLOYMENT_TARGET = 15.0; PRODUCT_BUNDLE_IDENTIFIER = com.coffeytable.coffeyTableRecipes.ShareExtension; PRODUCT_NAME = "$(TARGET_NAME)"; SKIP_INSTALL = YES; SWIFT_VERSION = 5.0; TARGETED_DEVICE_FAMILY = "1,2"; GENERATE_INFOPLIST_FILE = NO;}; name = Debug; };
 		A402C6840BA131571831713E /* ShareExtension Release */ = { isa = XCBuildConfiguration; baseConfigurationReference = 7AFA3C8E1D35360C0083082E; buildSettings = {APPLICATION_EXTENSION_API_ONLY = YES; CODE_SIGN_ENTITLEMENTS = ShareExtension/ShareExtension.entitlements; CODE_SIGN_STYLE = Automatic; INFOPLIST_FILE = ShareExtension/Info.plist; IPHONEOS_DEPLOYMENT_TARGET = 15.0; PRODUCT_BUNDLE_IDENTIFIER = com.coffeytable.coffeyTableRecipes.ShareExtension; PRODUCT_NAME = "$(TARGET_NAME)"; SKIP_INSTALL = YES; SWIFT_VERSION = 5.0; TARGETED_DEVICE_FAMILY = "1,2"; GENERATE_INFOPLIST_FILE = NO;}; name = Release; };
 		AEBF1D5ED88A699CF739D6C2 /* ShareExtension Profile */ = { isa = XCBuildConfiguration; baseConfigurationReference = 7AFA3C8E1D35360C0083082E; buildSettings = {APPLICATION_EXTENSION_API_ONLY = YES; CODE_SIGN_ENTITLEMENTS = ShareExtension/ShareExtension.entitlements; CODE_SIGN_STYLE = Automatic; INFOPLIST_FILE = ShareExtension/Info.plist; IPHONEOS_DEPLOYMENT_TARGET = 15.0; PRODUCT_BUNDLE_IDENTIFIER = com.coffeytable.coffeyTableRecipes.ShareExtension; PRODUCT_NAME = "$(TARGET_NAME)"; SKIP_INSTALL = YES; SWIFT_VERSION = 5.0; TARGETED_DEVICE_FAMILY = "1,2"; GENERATE_INFOPLIST_FILE = NO;}; name = Profile; };
 		6B8B277F05DAD52CB80CC643 /* ShareExtension Configs */ = { isa = XCConfigurationList; buildConfigurations = (1665A27D97BED603A0B91BF5,A402C6840BA131571831713E,AEBF1D5ED88A699CF739D6C2,); defaultConfigurationIsVisible = 0; defaultConfigurationName = Release; };
-		5587D6F50E608BD1E62D041E /* ShareExtension Package */ = { isa = XCLocalSwiftPackageReference; relativePath = "Flutter/ephemeral/Packages/.packages/better_share_handler-1.1.0"; };
-		5754CD723C714C83DA6754A6 /* ShareExtension PackageProduct */ = { isa = XCSwiftPackageProductDependency; package = 5587D6F50E608BD1E62D041E; productName = "better-share-handler-models"; };
 
 
 /* Begin PBXBuildFile section */
@@ -227,7 +224,6 @@
 			);
 			mainGroup = 97C146E51CF9000F007C117D;
 			packageReferences = (
-				5587D6F50E608BD1E62D041E,
 				781AD8BC2B33823900A9FFBB /* XCLocalSwiftPackageReference "Flutter/ephemeral/Packages/FlutterGeneratedPluginSwiftPackage" */,
 			);
 			productRefGroup = 97C146EF1CF9000F007C117D /* Products */;

@@ -8,6 +8,7 @@ import 'package:coffey_table_recipes/src/recipe_import.dart';
 import 'package:file_selector/file_selector.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 class FakeShares extends ShareHandlerPlatform {
@@ -27,6 +28,53 @@ class FakeShares extends ShareHandlerPlatform {
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
+  test('iOS saved shares copy files before acknowledgement and do not duplicate on retry', () async {
+    const channel = MethodChannel('coffey_table_recipes/share_inbox');
+    final folder = await Directory.systemTemp.createTemp('ios-recipe-share-');
+    final file = File('${folder.path}/recipe.txt');
+    await file.writeAsString('Shared cookie recipe');
+    final inbox = SharedRecipeInbox();
+    var acknowledged = 0;
+    debugDefaultTargetPlatformOverride = TargetPlatform.iOS;
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(channel, (call) async {
+          if (call.method == 'pending') {
+            return [
+              {
+                'id': 'fixture-share',
+                'content': '',
+                'attachments': [
+                  {'path': file.path},
+                ],
+              },
+            ];
+          }
+          expect(
+            await inbox.value.first.file!.readAsString(),
+            'Shared cookie recipe',
+          );
+          acknowledged++;
+          if (acknowledged == 1) throw PlatformException(code: 'retry');
+          await file.delete();
+          return null;
+        });
+    try {
+      await inbox.readSavedIOSShares();
+      await inbox.readSavedIOSShares();
+      expect(acknowledged, 2);
+      expect(inbox.value.where((input) => input.file != null).length, 1);
+      expect(
+        await inbox.value.first.file!.readAsString(),
+        'Shared cookie recipe',
+      );
+    } finally {
+      inbox.dispose();
+      debugDefaultTargetPlatformOverride = null;
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(channel, null);
+      await folder.delete(recursive: true);
+    }
+  });
   test(
     'cold and running shares are queued until a household consumes them',
     () async {

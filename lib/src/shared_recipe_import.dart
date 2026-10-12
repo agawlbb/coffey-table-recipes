@@ -3,6 +3,8 @@ import 'dart:async';
 import 'package:better_share_handler/better_share_handler.dart';
 import 'package:file_selector/file_selector.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
+import 'package:flutter/widgets.dart';
 
 class SharedRecipeInput {
   const SharedRecipeInput({this.file, this.text, this.url, this.error});
@@ -11,10 +13,64 @@ class SharedRecipeInput {
 }
 
 /// Capture staging files immediately; authentication never discards pending shares.
-class SharedRecipeInbox extends ValueNotifier<List<SharedRecipeInput>> {
+class SharedRecipeInbox extends ValueNotifier<List<SharedRecipeInput>>
+    with WidgetsBindingObserver {
   SharedRecipeInbox() : super([]);
   StreamSubscription<SharedMedia>? _subscription;
   Future<void> _delivery = Future.value();
+  static const _iosInbox = MethodChannel('coffey_table_recipes/share_inbox');
+  final _receivedIds = <String>{};
+  bool _readingIOS = false;
+  bool _observing = false;
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      _delivery = _delivery.then((_) => readSavedIOSShares());
+    }
+  }
+
+  Future<void> readSavedIOSShares() async {
+    if (kIsWeb || defaultTargetPlatform != TargetPlatform.iOS || _readingIOS) {
+      return;
+    }
+    _readingIOS = true;
+    try {
+      final entries =
+          await _iosInbox.invokeListMethod<dynamic>('pending') ?? [];
+      for (final entry in entries) {
+        final item = Map<String, dynamic>.from(entry as Map);
+        final id = item['id'] as String;
+        if (!_receivedIds.contains(id)) {
+          await receive(
+            SharedMedia(
+              content: item['content'] as String?,
+              attachments: (item['attachments'] as List).map((value) {
+                final attachment = value as Map;
+                return SharedAttachment(
+                  path: attachment['path'] as String,
+                  type: SharedAttachmentType.file,
+                );
+              }).toList(),
+            ),
+          );
+          _receivedIds.add(id);
+        }
+        await _iosInbox.invokeMethod<void>('acknowledge', id);
+      }
+    } on MissingPluginException {
+      // Older installed iOS builds still use the legacy plugin handoff.
+    } catch (_) {
+      _add(
+        const SharedRecipeInput(
+          error: 'Could not read saved recipe shares. Try reopening the app.',
+        ),
+      );
+    } finally {
+      _readingIOS = false;
+    }
+  }
+
   Future<void> start() async {
     if (kIsWeb ||
         ![
@@ -22,6 +78,11 @@ class SharedRecipeInbox extends ValueNotifier<List<SharedRecipeInput>> {
           TargetPlatform.iOS,
         ].contains(defaultTargetPlatform)) {
       return;
+    }
+    if (defaultTargetPlatform == TargetPlatform.iOS && !_observing) {
+      WidgetsBinding.instance.addObserver(this);
+      _observing = true;
+      await readSavedIOSShares();
     }
     final handler = ShareHandler.instance;
     _subscription = handler.sharedMediaStream.listen(
@@ -103,6 +164,7 @@ class SharedRecipeInbox extends ValueNotifier<List<SharedRecipeInput>> {
 
   @override
   void dispose() {
+    if (_observing) WidgetsBinding.instance.removeObserver(this);
     _subscription?.cancel();
     super.dispose();
   }
