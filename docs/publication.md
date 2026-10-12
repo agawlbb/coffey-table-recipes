@@ -51,5 +51,11 @@ History rewriting alone does not erase GitHub's cached objects.
 
 The iOS workflow now starts only through manual dispatch after explicit approval;
 version tag pushes cannot automatically start macOS jobs. Backend main deployment
-remains automatic. Existing Actions records are privately backed up and retired
-before any publication.
+remains automatic. Existing Actions records are privately backed up and remain
+private. Their deletion requires explicit authorization; automatic approval review
+rejected permanently deleting them without that additional authorization.
+
+Backend deployment run 38264678428 was blocked before any step ran by GitHub's
+billing/spending restriction. No hosted files were changed. The hosting browser
+session also requires a fresh login. Existing repositories remain private and no
+macOS run was started. Publication and deployment await resolution of these items.
