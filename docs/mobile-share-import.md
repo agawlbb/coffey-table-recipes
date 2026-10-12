@@ -121,11 +121,18 @@ file activities may be accessibility Cells while text activities are Buttons.
 
 Simulator success cannot validate free-account provisioning, Sideloadly's
 re-signing, or the exact iOS 27.0.1 physical-device runtime. The user's build 10
-installation still fails to open from Files after signing with Sideloadly. Obtain
-the device system log while tapping the extension before attributing this failure
-to signing or changing the importer. Sideloadly offers Device System Logs and
-Hide Sensitive Info; retain the extension when signing. A paid account is not a
-verified remedy for this unresolved failure.
+installation fails to open from Files after signing with Sideloadly 0.70.1.
+Physical-device reports retrieved on 2026-10-12 show builds 8, 9 and 10 terminated
+with `CODESIGNING`, code 2, `Invalid Page`. A fresh PDF share at 07:10 EDT on iOS
+27.0.1 reproduced it. The live kernel log reports the extension "has entitlements
+but is not a main binary". AMFI logs show the extension's application-identifier
+uses Runner's signed identity rather than its own extension identity; the profile
+is accepted. This identifies malformed extension signing metadata before the
+importer runs. It does not prove that merely upgrading the account repairs
+Sideloadly's output. Use native Apple signing for the next device validation,
+with distinct extension entitlements and proper executable signature flags.
+Raw device logs, identities and crash reports are retained only in ignored build
+storage. No credentials or device identifiers belong in Git.
 
 Signed-device checks:
 1. Sign Runner and the embedded extension using a free Apple account, retaining
