@@ -95,12 +95,29 @@ jobs:
           retention-days: 30
   simulator:
     if: ${{ github.event_name == 'workflow_dispatch' && inputs.simulator_only }}
-    runs-on: macos-15
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: macos-15
+            runtime: '26'
+            xcode: '26.3'
+          - runner: xcode-27
+            runtime: '27'
+            xcode: default
+    runs-on: ${{ matrix.runner }}
     timeout-minutes: 35
     steps:
       - uses: actions/checkout@v4
       - name: Select Xcode
-        run: sudo xcode-select -s /Applications/Xcode_26.3.app/Contents/Developer
+        env:
+          XCODE_VERSION: ${{ matrix.xcode }}
+        run: |
+          if [[ "$XCODE_VERSION" != default ]]; then
+            sudo xcode-select -s "/Applications/Xcode_${XCODE_VERSION}.app/Contents/Developer"
+          fi
+          xcodebuild -version
+          xcrun simctl list runtimes
       - name: Install pinned Flutter
         run: |
           git clone --depth 1 --branch 3.47.6 https://github.com/flutter/flutter.git "$RUNNER_TEMP/flutter"
@@ -116,13 +133,29 @@ jobs:
         run: python3 tool/configure-ios.py "$RUNNER_TEMP/firebase.json"
       - name: Build simulator app and embedded extension
         run: flutter build ios --simulator --debug --no-codesign --dart-define-from-file="$RUNNER_TEMP/firebase.json"
+      - name: Replace simulator extension with Release compilation
+        run: |
+          xcodebuild build -project ios/Runner.xcodeproj -target ShareExtension \
+            -configuration Release -sdk iphonesimulator ARCHS=arm64 \
+            CODE_SIGNING_ALLOWED=NO FLUTTER_BUILD_NAME=1.1.1 FLUTTER_BUILD_NUMBER=10 \
+            CONFIGURATION_BUILD_DIR="$RUNNER_TEMP/release-extension"
+          python3 - <<'PY'
+          import os, shutil
+          from pathlib import Path
+          target = Path('build/ios/iphonesimulator/Runner.app/PlugIns/ShareExtension.appex')
+          assert target.resolve().is_relative_to(Path('build').resolve())
+          shutil.rmtree(target)
+          shutil.copytree(Path(os.environ['RUNNER_TEMP']) / 'release-extension/ShareExtension.appex', target)
+          PY
       - name: Select extension from real PDF and text share sheets
+        env:
+          IOS_RUNTIME_MAJOR: ${{ matrix.runtime }}
         run: bash tool/test-ios-share-simulator.sh
       - name: Save simulator evidence
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: iOS-share-simulator-${{ github.sha }}
+          name: iOS-share-simulator-${{ matrix.runtime }}-release-${{ github.sha }}
           path: |
             build/ios-share-probe/*.png
             build/ios-share-probe/*.log

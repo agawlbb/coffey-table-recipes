@@ -3,10 +3,11 @@ set -euo pipefail
 
 mkdir -p build/ios-share-probe
 device=$(xcrun simctl list devices available --json | python3 -c '
-import json,sys
+import json,sys,os
 devices=json.load(sys.stdin)["devices"]
 for runtime in sorted(devices, reverse=True):
-    if ".iOS-" in runtime:
+    major=os.environ.get("IOS_RUNTIME_MAJOR", "")
+    if ".iOS-" in runtime and (not major or (".iOS-"+major+"-") in runtime):
         for device in devices[runtime]:
             if device["name"].startswith("iPhone") and device.get("isAvailable"):
                 print(device["udid"])
