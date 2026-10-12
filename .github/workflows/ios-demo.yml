@@ -12,10 +12,16 @@ on:
         description: Optional iOS build number override
         required: false
         type: string
+      simulator_only:
+        description: Test the share extension in an iPhone simulator instead of packaging an IPA
+        required: false
+        type: boolean
+        default: false
 permissions:
   contents: read
 jobs:
   ios:
+    if: ${{ !inputs.simulator_only }}
     runs-on: macos-15
     timeout-minutes: 45
     steps:
@@ -87,3 +93,40 @@ jobs:
           name: CoffeyTableRecipes-iOS-unsigned-${{ inputs.release_tag || github.sha }}
           path: build/ios/CoffeyTableRecipes-unsigned.ipa
           retention-days: 30
+  simulator:
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.simulator_only }}
+    runs-on: macos-15
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+      - name: Select Xcode
+        run: sudo xcode-select -s /Applications/Xcode_26.3.app/Contents/Developer
+      - name: Install pinned Flutter
+        run: |
+          git clone --depth 1 --branch 3.47.6 https://github.com/flutter/flutter.git "$RUNNER_TEMP/flutter"
+          echo "$RUNNER_TEMP/flutter/bin" >> "$GITHUB_PATH"
+      - name: Restore Firebase client build configuration
+        env:
+          FIREBASE_CONFIG: ${{ secrets.FIREBASE_CONFIG_JSON }}
+        run: |
+          test -n "$FIREBASE_CONFIG"
+          printf '%s' "$FIREBASE_CONFIG" > "$RUNNER_TEMP/firebase.json"
+      - run: flutter pub get
+      - name: Configure share sign-in
+        run: python3 tool/configure-ios.py "$RUNNER_TEMP/firebase.json"
+      - name: Build simulator app and embedded extension
+        run: flutter build ios --simulator --debug --no-codesign --dart-define-from-file="$RUNNER_TEMP/firebase.json"
+      - name: Select extension from real PDF and text share sheets
+        run: bash tool/test-ios-share-simulator.sh
+      - name: Save simulator evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: iOS-share-simulator-${{ github.sha }}
+          path: |
+            build/ios-share-probe/*.png
+            build/ios-share-probe/*.log
+            build/ios-share-probe/results.xcresult
+            build/ios-share-probe/screenshots
+          if-no-files-found: warn
+          retention-days: 14
