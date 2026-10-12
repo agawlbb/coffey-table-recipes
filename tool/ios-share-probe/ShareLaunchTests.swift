@@ -22,14 +22,11 @@ final class ShareLaunchTests: XCTestCase {
     share.tap()
     capture(host, name: "System share sheet - \(input)")
 
-    var choice = host.buttons["Coffey Table Recipes"].firstMatch
+    var choice = activity(host, named: "Coffey Table Recipes")
     if !choice.waitForExistence(timeout: 5) || !choice.isHittable {
-      let more = host.buttons["More"].firstMatch
+      let more = activity(host, named: "More")
       if more.exists && more.isHittable { more.tap() }
-      choice = host.buttons["Coffey Table Recipes"].firstMatch
-      if !choice.waitForExistence(timeout: 5) {
-        choice = host.staticTexts["Coffey Table Recipes"].firstMatch
-      }
+      choice = activity(host, named: "Coffey Table Recipes")
     }
     capture(host, name: "Extension selection - \(input)")
     XCTAssertTrue(choice.waitForExistence(timeout: 15), "Extension missing from share sheet: \(host.debugDescription)")
@@ -49,6 +46,17 @@ final class ShareLaunchTests: XCTestCase {
     capture(host, name: "Interactive importer - \(input)")
     host.webViews.buttons["Cancel"].firstMatch.tap()
     XCTAssertTrue(share.waitForExistence(timeout: 15))
+  }
+
+  @MainActor
+  private func activity(_ app: XCUIApplication, named title: String) -> XCUIElement {
+    // File shares can expose activities as Cells; text shares can use Buttons.
+    // Match either role instead of mistaking a visible icon for a missing extension.
+    let cells = app.cells.matching(identifier: title).firstMatch
+    if cells.exists { return cells }
+    let buttons = app.buttons.matching(identifier: title).firstMatch
+    if buttons.exists { return buttons }
+    return app.staticTexts.matching(identifier: title).firstMatch
   }
 
   @MainActor
