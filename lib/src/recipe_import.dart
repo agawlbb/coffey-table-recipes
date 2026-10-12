@@ -8,6 +8,7 @@ import 'package:image_picker/image_picker.dart';
 import 'api.dart';
 import 'offline_recipes.dart';
 import 'recipe_editor.dart';
+import 'recipe_image_editor.dart';
 import 'shared_recipe_import.dart';
 
 class RecipeImport extends StatefulWidget {
@@ -147,6 +148,41 @@ class _RecipeImportState extends State<RecipeImport> {
         setState(
           () => _error = error is FormatException ? error.message : 'Could not open the file or camera. Check device permissions and try again.',
         );
+      }
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  Future<void> _editInputPicture() async {
+    final file = _file;
+    if (file == null) return;
+    setState(() {
+      _busy = true;
+      _error = null;
+    });
+    try {
+      final bytes = await file.readAsBytes();
+      if (!mounted) return;
+      final edited = await Navigator.push<Uint8List>(
+        context,
+        MaterialPageRoute(builder: (_) => RecipeImageEditor(bytes: bytes)),
+      );
+      if (edited != null && mounted) {
+        final name =
+            '${file.name.replaceFirst(RegExp(r'\.[^.]+$'), '')}-edited.png';
+        setState(
+          () => _file = XFile.fromData(
+            edited,
+            name: name,
+            path: name,
+            mimeType: 'image/png',
+          ),
+        );
+      }
+    } catch (_) {
+      if (mounted) {
+        setState(() => _error = 'Could not open this picture for editing.');
       }
     } finally {
       if (mounted) setState(() => _busy = false);
@@ -411,6 +447,18 @@ class _RecipeImportState extends State<RecipeImport> {
                     ),
                   ),
                   Text(_file?.name ?? 'No file selected (maximum 5 MB).'),
+                  if (_file != null &&
+                      (_kind == 'camera' ||
+                          _file!.mimeType?.startsWith('image/') == true ||
+                          RegExp(
+                            r'\.(png|jpe?g|webp|heic|heif)$',
+                            caseSensitive: false,
+                          ).hasMatch(_file!.name)))
+                    OutlinedButton.icon(
+                      onPressed: _busy ? null : _editInputPicture,
+                      icon: const Icon(Icons.crop_rotate),
+                      label: const Text('Edit picture'),
+                    ),
                 ],
               ] else ...[
                 const SizedBox(height: 20),

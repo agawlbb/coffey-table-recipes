@@ -1,5 +1,22 @@
 # Recipe editing
 
+Pictures in import review and the recipe editor have an **Edit picture** tool.
+Image uploads and camera pictures also have this tool on the initial import
+screen; extraction uses the edited PNG. PDF documents are not modified.
+Drag crop corners, rotate in either direction, flip horizontally, optionally
+resize, or reset. Apply updates only the recipe draft; Cancel preserves the
+previous picture. Normal recipe Save persists the edited bytes, preserving the
+photo ID, credit, caption and cover choice. Suggested import pictures can be
+edited before selecting Use this picture. Existing pictures load through the
+photo cache and require connectivity if not cached. Edits run locally on web,
+Android and iOS with Flutter image APIs, with no AI or image-service request.
+The existing 5 MB save limit applies; resize/crop smaller if needed.
+Validation includes pixel checks for crop/rotation/flip, resize dimensions,
+cancel/apply and metadata preservation, and edited PNG delivery to import.
+Recipe editor, import, shared-file and source-photo regressions pass; Flutter
+analysis is clean. Web/Android test builds compile. iOS uses the same Dart tool,
+but native iOS compilation and device validation require macOS/Xcode.
+
 Open a recipe and select the pencil beside its name. The editor uses the app's
 existing Material theme, centered content, rounded cards, and expandable sections.
 Save commits the entire draft; Cancel and back navigation prompt before discarding

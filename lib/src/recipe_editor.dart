@@ -8,6 +8,7 @@ import 'api.dart';
 import 'recipe_browser.dart';
 import 'source_photo_crop.dart';
 import 'recipe_time.dart';
+import 'recipe_image_editor.dart';
 import 'offline_recipes.dart';
 
 typedef RecipeSave = Future<Map<String, dynamic>> Function(
@@ -328,6 +329,36 @@ class _RecipeEditorState extends State<RecipeEditor> {
         'is_cover': _rows('photos').isEmpty ? 1 : 0,
       }),
     );
+  }
+
+  Future<void> _editPhoto(Map<String, dynamic> row) async {
+    setState(() {
+      _picking = true;
+      _error = null;
+    });
+    try {
+      final bytes = row['image_base64'] != null
+          ? base64Decode(row['image_base64'] as String)
+          : await (await recipePhotoCache.getSingleFile(
+              row['source_url'] as String,
+            )).readAsBytes();
+      if (!mounted) return;
+      final edited = await Navigator.push<Uint8List>(
+        context,
+        MaterialPageRoute(builder: (_) => RecipeImageEditor(bytes: bytes)),
+      );
+      if (edited != null && mounted) {
+        _change(() => row['image_base64'] = base64Encode(edited));
+      }
+    } catch (_) {
+      if (mounted) {
+        setState(
+          () => _error = 'Could not open this picture for editing. Check your connection and try again.',
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _picking = false);
+    }
   }
 
   Future<void> _photo(ImageSource source) async {
@@ -978,6 +1009,11 @@ class _RecipeEditorState extends State<RecipeEditor> {
               ),
       ),
       const SizedBox(height: 16),
+      OutlinedButton.icon(
+        onPressed: _saving || _picking ? null : () => _editPhoto(row),
+        icon: const Icon(Icons.crop_rotate),
+        label: const Text('Edit picture'),
+      ),
       _field(row, 'caption', 'Caption', lines: 2),
       _field(row, 'attribution', 'Photo credit', lines: 2),
       RadioGroup<String>(
@@ -1294,6 +1330,13 @@ class _RecipeEditorState extends State<RecipeEditor> {
                                     Wrap(
                                       spacing: 12,
                                       children: [
+                                        OutlinedButton.icon(
+                                          onPressed: _saving || _picking
+                                              ? null
+                                              : () => _editPhoto(photo),
+                                          icon: const Icon(Icons.crop_rotate),
+                                          label: const Text('Edit picture'),
+                                        ),
                                         FilledButton.icon(
                                           onPressed: _saving
                                               ? null
