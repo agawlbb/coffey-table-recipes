@@ -2,10 +2,12 @@
 
 Release dates and changes are reconstructed from annotated Git tags, commit history, and project release records. Versions before 1.0 are demonstration releases; 1.0 marks the first usable release. Android retains the existing signing identity; iOS packages are unsigned for user-managed signing.
 
-## Unreleased
+## 1.1.1 — 2026-10-11
+
+Build 9; tag `v1.1.1`. iOS-only patch; hosted web and Android remain on 1.1.0.
 
 - Fixed iOS share-storage errors opening Add recipe on ordinary launches; errors now notify without navigating and repeated storage failures are deduplicated.
-- Added iOS file-opening delivery through the app's own persistent inbox for PDFs, images and text, without requiring App Group storage. Native compilation and signed-device validation are pending.
+- Added iOS file-opening delivery through the app's own persistent inbox for PDFs, images and text, without requiring App Group storage. Signed-device validation is pending.
 
 ## 1.1.0 — 2026-10-11
 

@@ -6,6 +6,10 @@ When the user says "create a release", review progress since the previous releas
 
 `CHANGELOG.md` covers previous releases using Git history, tags, and the release records below. Every future release must update it with the version, release date, and meaningful changes since the prior release. Commit the changelog before tagging the release. Describe only changes supported by the project history.
 
+## 1.1.1 — iOS-only startup and document-opening patch
+
+Version `1.1.1+9`, tagged `v1.1.1`, fixes share errors opening Add recipe on ordinary launches and adds a persistent app-sandbox file-opening inbox for PDFs, images and text. Only unsigned iOS is built and delivered to the desktop at the user's request; Android and hosted web stay on 1.1.0. Signed-device file delivery still requires validation; the App Group share extension remains dependent on its signing entitlements.
+
 ## 1.1.0 — import photo review and mobile sharing refinements
 
 Version `1.1.0+8`, tagged `v1.1.0`, adds suggested source food photos/crop review, typed import categories, visible persistent iOS share handoff, readable duration editing, and simplified recipe tiles. Web, Android and unsigned iOS use the same version and build number. For this release only, the user requested that only `CHANGELOG.md` be copied to the desktop: Android remains in `G:\My Drive\recipe app`, and the unsigned IPA remains in the ignored project build folder. Existing desktop packages are retained.
