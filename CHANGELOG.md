@@ -1,6 +1,14 @@
 # Changelog
 
-Release dates and changes are reconstructed from annotated Git tags, commit history, and project release records. Versions before 1.0 are demonstration releases; 1.0 marks the first usable release. Android retains the existing signing identity; iOS packages are unsigned for user-managed signing.
+Release dates and changes are reconstructed from annotated Git tags, commit history, and project release records. Versions before 1.0 are demonstration releases; 1.0 marks the first usable release. Android retains the existing signing identity; iOS delivery and signing are recorded for each release.
+
+## 1.3.1 — 2026-10-13
+
+Build 14; tag `v1.3.1`. Build 13 was separately distributed for TestFlight as version 1.3.0.
+
+- Split parent and child category selection into separate controls and sorted category choices alphabetically.
+- Selected imported source photos by default while retaining review and deselection.
+- Included pinned workflow actions, the Flutter 3.47.7 build update, and validated iOS archive/export tooling. This release builds signed iOS and uploads to App Store Connect for TestFlight.
 
 ## 1.3.0 — 2026-10-12
 

@@ -6,6 +6,10 @@ When the user says "create a release", review progress since the previous releas
 
 `CHANGELOG.md` covers previous releases using Git history, tags, and the release records below. Every future release must update it with the version, release date, and meaningful changes since the prior release. Commit the changelog before tagging the release. Describe only changes supported by the project history.
 
+## 1.3.1 — category selection and imported-photo defaults
+
+Version `1.3.1+14`, tagged `v1.3.1`, separates parent/child category controls, sorts category selectors, and defaults imported photos to selected while preserving review. Build 14 follows the separately accepted TestFlight 1.3.0 build 13. Web and Android are rebuilt and the hosted app is explicitly published. The user revised the iOS delivery request to a signed build uploaded to TestFlight and separately approved one signed macOS build/upload on the public repository's standard `xcode-27` runner. No unsigned or simulator workflow is requested. App Store Connect processing and tester availability are verified separately after upload.
+
 ## 1.3.0 — recipe recovery and simpler editing
 
 Version `1.3.0+12`, tagged `v1.3.0`, adds recipe deletion, Undo and 30-day recovery, offline cache consistency, simplified import/editing with visible categories, and alphabetical browsing. Supporting backend migration 010 and scheduled expiry cleanup were already deployed and verified. Web and Android are built as part of the release; unsigned iOS is separately dispatched only after explicit approval, using the public repository's standard `xcode-27` runner. GitHub documents standard hosted runner usage as free for public repositories; this does not replace the project's per-run approval requirement or verify account billing independently.
