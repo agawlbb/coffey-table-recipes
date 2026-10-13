@@ -4,8 +4,9 @@ On opening import review or editing, Ingredients and Steps & actions show their
 lists, with existing ingredient and step details collapsed. Photos (including
 their previews) and Notes & source are open by default. Categories and tags appear
 at the bottom of Recipe details, with parent/category controls always visible.
-The category picker searches existing categories and offers creation from typed
-text; one Add category control handles both. Tags remain visible here too.
+Parent category is followed by a Category dropdown containing child names only
+and Add new category. New-name typing preserves the parent, and the dropdown
+remains available to switch back to an existing category. Tags remain visible here too.
 
 Import offers visible Text, Website, File and Camera choices. Text can be marked
 as a description of how the user makes a dish. Prepare recipe starts extraction;
@@ -25,14 +26,21 @@ The rebuilt Pixel 8 emulator was checked for import choices, single-row
 shortcuts, numeric/time fields, visible categorization, category picker cancel,
 flat ingredient rows, complete step instructions, timer badges and photo previews.
 
+2026-10-13 correction: parent and category use separate dropdowns, with only
+child names shown in Category. Its Add new category option keeps both selectors
+available. Clearing the new name preserves the parent. Prepared source pictures
+are included by default. All 32 editor/import/image/source-photo tests passed,
+including clearing a new category name, returning to an existing category and
+saving an automatically selected source picture. Flutter analysis was clean.
+
 Pictures in import review and the recipe editor have an **Edit picture** tool.
 Image uploads and camera pictures also have this tool on the initial import
 screen; extraction uses the edited PNG. PDF documents are not modified.
 Drag crop corners, rotate in either direction, flip horizontally, optionally
 resize, or reset. Apply updates only the recipe draft; Cancel preserves the
 previous picture. Normal recipe Save persists the edited bytes, preserving the
-photo ID, credit, caption and cover choice. Suggested import pictures can be
-edited before selecting Use this picture. Existing pictures load through the
+photo ID, credit, caption and cover choice. Imported pictures are selected automatically and the first becomes the cover
+when no cover exists; users can edit or remove them before saving. Existing pictures load through the
 photo cache and require connectivity if not cached. Edits run locally on web,
 Android and iOS with Flutter image APIs, with no AI or image-service request.
 The existing 5 MB save limit applies; resize/crop smaller if needed.

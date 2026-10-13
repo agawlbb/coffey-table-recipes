@@ -190,7 +190,7 @@ void main() {
     await section(tester, 'Recipe details');
     expect(
       tester.getTopLeft(find.text('Parent category')).dy,
-      lessThan(tester.getTopLeft(find.text('Desserts / Pies')).dy),
+      lessThan(tester.getTopLeft(find.text('Category')).dy),
     );
     expect(tester.takeException(), isNull);
   });

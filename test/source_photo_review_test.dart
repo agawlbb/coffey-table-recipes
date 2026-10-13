@@ -42,7 +42,7 @@ void main() {
     frame.image.dispose();
     codec.dispose();
   });
-  testWidgets('source picture is optional and only selected photos are saved', (
+  testWidgets('source picture is selected by default before save', (
     tester,
   ) async {
     Map<String, dynamic>? submitted;
@@ -62,21 +62,14 @@ void main() {
     await tester.pump();
     await tester.ensureVisible(find.text('Photos').last);
     await tester.pump();
-    for (
-      var i = 0;
-      i < 50 && find.text('Use this picture').evaluate().isEmpty;
-      i++
-    ) {
+    for (var i = 0; i < 50 && find.byType(Image).evaluate().isEmpty; i++) {
       await tester.runAsync(
         () => Future<void>.delayed(const Duration(milliseconds: 20)),
       );
       await tester.pump(const Duration(milliseconds: 20));
     }
-    expect(find.text('Use this picture'), findsOneWidget);
+    expect(find.text('Use this picture'), findsNothing);
     expect(submitted, isNull);
-    await tester.pumpAndSettle();
-    await tester.ensureVisible(find.text('Use this picture'));
-    await tester.tap(find.text('Use this picture'));
     await tester.pumpAndSettle();
     expect(find.text('Generate an image with AI'), findsNothing);
     await tester.tap(find.text('Save'));
@@ -114,35 +107,30 @@ void main() {
     await tester.pumpAndSettle();
     await tester.ensureVisible(find.text('Categories & tags'));
     await tester.pumpAndSettle();
-    await tester.ensureVisible(find.text('Desserts / Cookies'));
-    await tester.tap(find.text('Desserts / Cookies'));
-    await tester.pumpAndSettle();
-    await tester.enterText(
-      find.widgetWithText(TextField, 'Search categories'),
-      'Tarts',
+    await tester.ensureVisible(find.text('Category'));
+    await tester.tap(
+      find.widgetWithText(DropdownButtonFormField<String>, 'Category').last,
     );
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Create "Tarts"'));
+    await tester.tap(find.text('Add new category…').last);
     await tester.pumpAndSettle();
-    await tester.enterText(
-      find.widgetWithText(TextFormField, 'Category name'),
-      'Tarts',
-    );
+    final name = find.widgetWithText(TextFormField, 'New category name');
+    await tester.enterText(name, 'Tarts');
+    await tester.enterText(name, '');
+    expect(find.text('Desserts'), findsOneWidget);
+    await tester.enterText(name, 'Tarts');
     await tester.tap(find.text('Save'));
     await tester.pumpAndSettle();
     final category = (submitted!['category_assignments'] as List).single as Map;
     expect(category['label'], 'Tarts');
     expect(category['parent_label'], 'Desserts');
     expect(category['category_id'], isNull);
-    await tester.ensureVisible(find.text('Desserts / Tarts'));
-    await tester.tap(find.text('Desserts / Tarts'));
-    await tester.pumpAndSettle();
-    await tester.enterText(
-      find.widgetWithText(TextField, 'Search categories'),
-      'Cookies',
+    await tester.ensureVisible(find.text('Category'));
+    await tester.tap(
+      find.widgetWithText(DropdownButtonFormField<String>, 'Category').last,
     );
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Desserts / Cookies'));
+    await tester.tap(find.text('Cookies').last);
     await tester.pumpAndSettle();
     await tester.tap(find.text('Save'));
     await tester.pumpAndSettle();

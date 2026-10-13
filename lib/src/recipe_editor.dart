@@ -71,19 +71,6 @@ class _RecipeEditorState extends State<RecipeEditor> {
       (_draft[key] as List).cast<Map<String, dynamic>>();
   List<Map<String, dynamic>> _options(String key) =>
       recipeRows((_draft['edit_options'] as Map?)?[key]);
-  String _categoryTitle(Map<String, dynamic> row) {
-    final selected = row['label'] != null
-        ? row
-        : _options('categories')
-              .where(
-                (c) => c['id'].toString() == row['category_id']?.toString(),
-              )
-              .firstOrNull;
-    if (selected == null) return 'Browse category';
-    final parent = selected['parent_label'];
-    return '${parent == null || parent == '' ? '' : '$parent / '}${selected['label']}';
-  }
-
   @override
   void initState() {
     super.initState();
@@ -106,6 +93,7 @@ class _RecipeEditorState extends State<RecipeEditor> {
       }
     }
     for (final row in _rows('category_assignments')) {
+      row['_parent_category'] ??= row['parent_label'];
       final selected = _options('categories')
           .where((c) => c['id'].toString() == row['category_id']?.toString())
           .firstOrNull;
@@ -139,7 +127,13 @@ class _RecipeEditorState extends State<RecipeEditor> {
     }
     if (mounted) {
       setState(() {
-        _sourcePhotos.addAll(prepared);
+        for (final photo in prepared) {
+          _rows('photos').add({
+            ...photo,
+            'id': _id(),
+            'is_cover': _rows('photos').isEmpty ? 1 : 0,
+          });
+        }
         _loadingSourcePhotos = false;
       });
     }
@@ -151,122 +145,90 @@ class _RecipeEditorState extends State<RecipeEditor> {
     ).add({...photo, 'id': _id(), 'is_cover': _rows('photos').isEmpty ? 1 : 0});
     _sourcePhotos.remove(photo);
   });
-  Future<void> _pickCategory(Map<String, dynamic> row) async {
-    var search = '';
-    final result = await showDialog<Map<String, dynamic>>(
-      context: context,
-      builder: (dialogContext) => StatefulBuilder(
-        builder: (context, update) => AlertDialog(
-          title: const Text('Choose category'),
-          content: SizedBox(
-            width: 420,
-            height: 320,
-            child: Column(
-              children: [
-                TextField(
-                  autofocus: true,
-                  decoration: const InputDecoration(
-                    labelText: 'Search categories',
-                  ),
-                  onChanged: (value) => update(() => search = value.trim()),
-                ),
-                const SizedBox(height: 12),
-                Expanded(
-                  child: ListView(
-                    children: [
-                      for (final category in _options('categories').where(
-                        (c) => '${c['parent_label'] ?? ''} ${c['label']}'
-                            .toLowerCase()
-                            .contains(search.toLowerCase()),
-                      ))
-                        ListTile(
-                          title: Text(
-                            '${category['parent_label'] == null ? '' : '${category['parent_label']} / '}${category['label']}',
-                          ),
-                          onTap: () => Navigator.pop(dialogContext, category),
-                        ),
-                      if (search.isNotEmpty)
-                        ListTile(
-                          leading: const Icon(Icons.add),
-                          title: Text('Create "$search"'),
-                          onTap: () => Navigator.pop(dialogContext, {
-                            'label': search,
-                            '_new_category': true,
-                          }),
-                        ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(dialogContext),
-              child: const Text('Cancel'),
-            ),
-          ],
-        ),
-      ),
-    );
-    if (result == null || !mounted) return;
-    _change(() {
-      if (result['_new_category'] == true) {
-        row.remove('category_id');
-        row['label'] = result['label'];
-        row['parent_label'] = row['_parent_category'];
-        row['_new_category'] = true;
-      } else {
-        row.remove('label');
-        row.remove('parent_label');
-        row.remove('_new_category');
-        row['category_id'] = result['id'];
-        row['_parent_category'] = result['parent_label'] ?? result['label'];
-      }
-    });
-  }
-
-  Widget _category(Map<String, dynamic> row) => Padding(
-    padding: const EdgeInsets.only(top: 12, bottom: 12),
-    child: Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        _choice(
-          row,
-          row['label'] != null ? 'parent_label' : '_parent_category',
-          'Parent category',
-          {
+  Widget _category(Map<String, dynamic> row) {
+    final parent = row['parent_label'] ?? row['_parent_category'];
+    final options = _options('categories')
+        .where(
+          (c) =>
+              c['parent_label'] == parent ||
+              (c['parent_label'] == null && c['label'] == parent),
+        )
+        .toList();
+    final selected = row['label'] != null
+        ? '__new'
+        : row['category_id']?.toString();
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          _choice(row, '_parent_category', 'Parent category', {
             for (final c in _options(
               'categories',
             ).where((c) => c['parent_label'] == null))
               '${c['label']}': '${c['label']}',
-          },
-          nullable: row['_new_category'] != true,
-        ),
-        Row(
-          children: [
-            Expanded(
-              child: OutlinedButton.icon(
-                onPressed: () => _pickCategory(row),
-                icon: const Icon(Icons.search),
-                label: Text(_categoryTitle(row)),
+          }, nullable: true),
+          DropdownButtonFormField<String>(
+            key: ValueKey('${identityHashCode(row)}-$parent-$selected'),
+            initialValue:
+                selected == '__new' ||
+                    options.any((c) => '${c['id']}' == selected)
+                ? selected
+                : null,
+            isExpanded: true,
+            decoration: const InputDecoration(labelText: 'Category'),
+            items: [
+              for (final c in options)
+                DropdownMenuItem(
+                  value: '${c['id']}',
+                  child: Text('${c['label']}'),
+                ),
+              const DropdownMenuItem(
+                value: '__new',
+                child: Text('Add new category…'),
               ),
+            ],
+            validator: (_) => row['category_id'] == null && row['label'] == null
+                ? 'Choose a category'
+                : null,
+            onChanged: (value) => _change(() {
+              if (value == '__new') {
+                row.remove('category_id');
+                row['label'] = '';
+                row['parent_label'] = row['_parent_category'];
+                row['_new_category'] = true;
+              } else {
+                row['category_id'] = value;
+                row.remove('label');
+                row.remove('parent_label');
+                row.remove('_new_category');
+              }
+            }),
+          ),
+          if (row['label'] != null) ...[
+            const SizedBox(height: 12),
+            _field(
+              row,
+              'label',
+              'New category name',
+              required: true,
+              maxLength: 120,
+              changed: (value) => _change(() => row['label'] = value),
             ),
-            IconButton(
+          ],
+          Align(
+            alignment: Alignment.centerRight,
+            child: IconButton(
               tooltip: 'Remove category',
               onPressed: () =>
                   _change(() => _rows('category_assignments').remove(row)),
               icon: const Icon(Icons.close),
             ),
-          ],
-        ),
-        if (row['label'] != null) ...[
-          const SizedBox(height: 12),
-          _field(row, 'label', 'Category name', required: true, maxLength: 120),
+          ),
         ],
-      ],
-    ),
-  );
+      ),
+    );
+  }
 
   void _connectionChanged() {
     if (mounted) setState(() {});
@@ -780,7 +742,12 @@ class _RecipeEditorState extends State<RecipeEditor> {
         ],
         onChanged: (value) => _change(() {
           row[key] = value == '' ? null : value;
-          if (key == '_parent_category') row['category_id'] = null;
+          if (key == '_parent_category') {
+            row['category_id'] = null;
+            if (row['label'] != null) {
+              row['parent_label'] = row['_parent_category'];
+            }
+          }
           if (key == 'action_type') {
             final timed = ['timer', 'rest'].contains(value);
             final temperature = [
@@ -1506,15 +1473,14 @@ class _RecipeEditorState extends State<RecipeEditor> {
                         style: TextStyle(fontWeight: FontWeight.w600),
                       ),
                       ..._rows('category_assignments').map(_category),
-                      _add('Add category', () async {
-                        final row = <String, dynamic>{'_key': _id()};
-                        await _pickCategory(row);
-                        if (mounted &&
-                            (row['category_id'] != null ||
-                                row['label'] != null)) {
-                          _change(() => _rows('category_assignments').add(row));
-                        }
-                      }),
+                      _add(
+                        'Add category',
+                        () => _change(
+                          () =>
+                              _rows('category_assignments')
+                                  .add({'_key': _id()}),
+                        ),
+                      ),
                       ..._rows('tags').map(
                         (r) => _item(
                           r['label']?.toString() ?? 'New tag',
