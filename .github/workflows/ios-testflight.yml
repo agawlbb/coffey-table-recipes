@@ -78,6 +78,16 @@ jobs:
           IOS_BUILD_NUMBER: ${{ inputs.build_number }}
           IOS_UPLOAD: ${{ inputs.upload }}
         run: bash tool/build-ios-signed.sh
+      - name: Verify exported signed package without publishing
+        if: ${{ !inputs.upload }}
+        env:
+          IOS_TEAM_ID: ${{ secrets.IOS_TEAM_ID }}
+          IOS_BUILD_NUMBER: ${{ inputs.build_number }}
+        run: |
+          shopt -s nullglob
+          packages=(build/ios/signed/*.ipa)
+          [[ ${#packages[@]} == 1 ]] || { echo 'Expected exactly one signed IPA'; exit 1; }
+          python3 tool/verify-ios-ipa.py "${packages[0]}"
       - name: Save signed IPA and debugging symbols
         if: ${{ !inputs.upload }}
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
@@ -85,6 +95,7 @@ jobs:
           name: CoffeyTableRecipes-signed-iOS-${{ inputs.build_number }}-${{ github.sha }}
           path: |
             build/ios/signed/*.ipa
+            build/ios/signed/verification.json
             build/ios/archive/Runner.xcarchive/dSYMs
           if-no-files-found: error
           retention-days: 14

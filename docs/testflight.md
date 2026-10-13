@@ -208,3 +208,7 @@ start/resume, multiple files, explicit Save and Cancel. See
 - [Apple: automatic/cloud signing with API authentication](https://developer.apple.com/videos/play/wwdc2021/10204/)
 - [Apple: cloud-managed certificates](https://developer.apple.com/help/account/certificates/cloud-managed-certificates/)
 - [Apple: TestFlight overview](https://developer.apple.com/help/app-store-connect/test-a-beta-version/testflight-overview/)
+
+## Build-only verification (2026-10-13)
+
+Both upload-enabled attempts are confirmed canceled (38466229058 and 38474737732). The next approved diagnostic uses upload=false. Exported packages must pass strict codesign checks for the app and share extension, match the requested build/version and Apple team, contain valid unexpired App Store profiles and signed App Group entitlements, and include a SHA-256 verification report. Local Python syntax and workflow YAML validation passed; macOS signature verification runs on the build host before artifact upload.
