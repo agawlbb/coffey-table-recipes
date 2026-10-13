@@ -35,7 +35,7 @@ jobs:
           if [[ -n "$IOS_BUILD_NUMBER" ]]; then
             [[ "$IOS_BUILD_NUMBER" =~ ^[1-9][0-9]{0,8}$ ]] || { echo 'Provide a positive numeric build number'; exit 1; }
           fi
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           ref: ${{ inputs.release_tag || github.ref }}
       - name: Select Xcode with iOS 27 SDK
@@ -44,7 +44,7 @@ jobs:
           xcodebuild -version
       - name: Install pinned Flutter
         run: |
-          git clone --depth 1 --branch 3.47.6 https://github.com/flutter/flutter.git "$RUNNER_TEMP/flutter"
+          git clone --depth 1 --branch 3.47.7 https://github.com/flutter/flutter.git "$RUNNER_TEMP/flutter"
           echo "$RUNNER_TEMP/flutter/bin" >> "$GITHUB_PATH"
       - name: Restore private Firebase build configuration
         env:
@@ -85,7 +85,7 @@ jobs:
           cp -R build/ios/iphoneos/Runner.app build/ios/package/Payload/
           cd build/ios/package
           zip -qry ../CoffeyTableRecipes-unsigned.ipa Payload
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: CoffeyTableRecipes-iOS-unsigned-${{ inputs.release_tag || github.sha }}
           path: build/ios/CoffeyTableRecipes-unsigned.ipa
@@ -105,7 +105,7 @@ jobs:
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 35
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       - name: Select Xcode
         env:
           XCODE_VERSION: ${{ matrix.xcode }}
@@ -117,7 +117,7 @@ jobs:
           xcrun simctl list runtimes
       - name: Install pinned Flutter
         run: |
-          git clone --depth 1 --branch 3.47.6 https://github.com/flutter/flutter.git "$RUNNER_TEMP/flutter"
+          git clone --depth 1 --branch 3.47.7 https://github.com/flutter/flutter.git "$RUNNER_TEMP/flutter"
           echo "$RUNNER_TEMP/flutter/bin" >> "$GITHUB_PATH"
       - name: Restore Firebase client build configuration
         env:
@@ -150,7 +150,7 @@ jobs:
         run: bash tool/test-ios-share-simulator.sh
       - name: Save simulator evidence
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: iOS-share-simulator-${{ matrix.runtime }}-release-${{ github.sha }}
           path: |

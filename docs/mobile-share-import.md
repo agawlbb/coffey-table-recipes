@@ -36,7 +36,7 @@ If an identifier is unavailable in the new account, update it consistently in
 Xcode, both Info plists and both entitlements before signing. Update Firebase's
 main iOS app registration and Google callback if Runner's bundle ID changes.
 
-On a Mac, install Xcode 27 or newer and Flutter 3.47.6, add the paid account to Xcode Settings,
+On a Mac, install Xcode 27 or newer and Flutter 3.47.7, add the paid account to Xcode Settings,
 then open `ios/Runner.xcworkspace`. Select the paid team for Runner and
 ShareExtension and leave automatic signing enabled. Xcode must create a separate
 provisioning profile for each target with the same App Group membership. Do not
