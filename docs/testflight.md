@@ -17,6 +17,14 @@ no executed steps and reported waiting for the assigned hosted runner to come
 online. No signed package, successful upload or TestFlight availability has yet
 been verified. No rerun was triggered; any rerun requires a new explicit approval.
 
+After approximately 16 minutes with no Mac steps executed, the owner explicitly
+approved cancellation and one retry. GitHub accepted normal cancellation; the
+job later confirmed `cancelled`. A force-cancel request returned HTTP 409, followed
+by confirmation that cancellation had already completed. Re-ran only the
+`signed-ios` job once using GitHub's job rerun endpoint; GitHub returned success.
+The retry keeps source `a0fe44d`, build 13 and upload enabled. Its final signing
+and upload outcome remains pending; no additional retry is authorized.
+
 Prepared on 2026-10-13. Signing, upload and physical-device acceptance remain
 pending. This setup uses Apple's automatic provisioning and cloud
 distribution signing through an App Store Connect team API key. No Apple password,
