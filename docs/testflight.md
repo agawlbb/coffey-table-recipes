@@ -1,7 +1,7 @@
 # Signed iOS builds and TestFlight
 
-Prepared on 2026-10-13. Apple account registration, signing, upload and physical-device
-acceptance remain pending. This setup uses Apple's automatic provisioning and cloud
+Prepared on 2026-10-13. Signing, upload and physical-device acceptance remain
+pending. This setup uses Apple's automatic provisioning and cloud
 distribution signing through an App Store Connect team API key. No Apple password,
 signing certificate or private key belongs in source control.
 
@@ -9,6 +9,15 @@ Local validation on 2026-10-13: all five iOS configuration tests passed; Bash
 syntax checks passed for the signing helper and all workflow shell steps; the
 workflow YAML parsed successfully and its manual-only trigger and preflight
 dependency were checked. No Mac workflow was started and no build was uploaded.
+
+Apple portal setup on 2026-10-13: verified active paid membership; registered the
+project's main and ShareExtension App IDs and shared App Group, and assigned the
+group to both. Created the iOS App Store Connect record
+[Coffey Table Recipes](https://appstoreconnect.apple.com/apps/6822451610/distribution)
+with SKU `coffey-table-recipes-ios` and English (U.S.). Retained the existing
+Sideloadly-suffixed identifier. API access requires the account owner's agreement;
+the request dialog was opened without accepting or submitting. API key creation,
+GitHub secret configuration, source push and first Mac run remain pending.
 
 ## Apple account setup
 
