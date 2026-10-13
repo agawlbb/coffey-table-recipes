@@ -23,6 +23,9 @@ does not contact the backend or hold credentials.
 
 ## Signing preparation
 
+For GitHub-hosted signed builds and TestFlight account setup, see
+[TestFlight setup](testflight.md). Each Mac workflow run requires user approval.
+
 Use the paid team in Xcode for both targets:
 
 | Target | Bundle ID |

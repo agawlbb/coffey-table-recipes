@@ -1,0 +1,97 @@
+name: Signed iOS and TestFlight
+on:
+  workflow_dispatch:
+    inputs:
+      build_number:
+        description: Unique positive iOS build number (greater than the last uploaded build)
+        required: true
+        type: string
+      upload:
+        description: Upload to App Store Connect for TestFlight
+        type: boolean
+        default: false
+permissions:
+  contents: read
+concurrency:
+  group: ios-testflight
+  cancel-in-progress: false
+jobs:
+  preflight:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check inputs and required secrets before using a Mac runner
+        env:
+          IOS_BUILD_NUMBER: ${{ inputs.build_number }}
+          IOS_TEAM_ID: ${{ secrets.IOS_TEAM_ID }}
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+          ASC_PRIVATE_KEY: ${{ secrets.ASC_PRIVATE_KEY }}
+          FIREBASE_CONFIG: ${{ secrets.FIREBASE_CONFIG_JSON }}
+        run: |
+          [[ "$IOS_BUILD_NUMBER" =~ ^[1-9][0-9]{0,8}$ ]] || { echo 'Invalid build number'; exit 1; }
+          [[ "$IOS_TEAM_ID" =~ ^[A-Z0-9]{10}$ ]] || { echo 'Configure IOS_TEAM_ID'; exit 1; }
+          for name in ASC_KEY_ID ASC_ISSUER_ID ASC_PRIVATE_KEY FIREBASE_CONFIG; do
+            [[ -n "${!name}" ]] || { echo "Missing $name"; exit 1; }
+          done
+  signed-ios:
+    needs: preflight
+    runs-on: xcode-27
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - name: Select Xcode
+        run: |
+          sudo xcode-select -s /Applications/Xcode_27.app/Contents/Developer
+          xcodebuild -version
+      - name: Install pinned Flutter
+        run: |
+          git clone --depth 1 --branch 3.47.7 https://github.com/flutter/flutter.git "$RUNNER_TEMP/flutter"
+          echo "$RUNNER_TEMP/flutter/bin" >> "$GITHUB_PATH"
+      - name: Restore private configuration and create temporary signing keychain
+        env:
+          FIREBASE_CONFIG: ${{ secrets.FIREBASE_CONFIG_JSON }}
+          ASC_PRIVATE_KEY: ${{ secrets.ASC_PRIVATE_KEY }}
+        run: |
+          umask 077
+          printf '%s' "$FIREBASE_CONFIG" > "$RUNNER_TEMP/firebase.json"
+          printf '%s' "$ASC_PRIVATE_KEY" > "$RUNNER_TEMP/AuthKey.p8"
+          password=$(openssl rand -hex 32)
+          echo "::add-mask::$password"
+          security create-keychain -p "$password" "$RUNNER_TEMP/ios-signing.keychain-db"
+          security set-keychain-settings -lut 21600 "$RUNNER_TEMP/ios-signing.keychain-db"
+          security unlock-keychain -p "$password" "$RUNNER_TEMP/ios-signing.keychain-db"
+          security list-keychains -d user -s "$RUNNER_TEMP/ios-signing.keychain-db" login.keychain-db
+          security default-keychain -d user -s "$RUNNER_TEMP/ios-signing.keychain-db"
+      - run: flutter pub get
+      - run: flutter analyze
+      - run: flutter test
+      - run: python3 -m unittest discover -s tool -p test_configure_ios.py
+      - name: Archive, sign and optionally upload
+        env:
+          IOS_TEAM_ID: ${{ secrets.IOS_TEAM_ID }}
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+          ASC_KEY_PATH: ${{ runner.temp }}/AuthKey.p8
+          IOS_FIREBASE_CONFIG: ${{ runner.temp }}/firebase.json
+          IOS_EXPORT_METHOD: app-store-connect
+          IOS_BUILD_NUMBER: ${{ inputs.build_number }}
+          IOS_UPLOAD: ${{ inputs.upload }}
+        run: bash tool/build-ios-signed.sh
+      - name: Save signed IPA and debugging symbols
+        if: ${{ !inputs.upload }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: CoffeyTableRecipes-signed-iOS-${{ inputs.build_number }}-${{ github.sha }}
+          path: |
+            build/ios/signed/*.ipa
+            build/ios/archive/Runner.xcarchive/dSYMs
+          if-no-files-found: error
+          retention-days: 14
+      - name: Remove temporary credentials and keychain
+        if: always()
+        run: |
+          security default-keychain -d user -s login.keychain-db || true
+          if [[ -f "$RUNNER_TEMP/ios-signing.keychain-db" ]]; then
+            security delete-keychain "$RUNNER_TEMP/ios-signing.keychain-db"
+          fi
+          rm -f "$RUNNER_TEMP/AuthKey.p8" "$RUNNER_TEMP/firebase.json"
