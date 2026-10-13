@@ -150,7 +150,10 @@ void main() {
       Future<void> expand(String label) async {
         final target = find.text(label).last;
         await tester.ensureVisible(target);
-        await tester.tap(target);
+        final tile = tester.widget<ExpansionTile>(
+          find.ancestor(of: target, matching: find.byType(ExpansionTile)).first,
+        );
+        if (!tile.controller!.isExpanded) await tester.tap(target);
         await tester.pumpAndSettle();
       }
 

@@ -61,7 +61,6 @@ void main() {
     );
     await tester.pump();
     await tester.ensureVisible(find.text('Photos').last);
-    await tester.tap(find.text('Photos').last);
     await tester.pump();
     for (
       var i = 0;
@@ -114,7 +113,6 @@ void main() {
     );
     await tester.pumpAndSettle();
     await tester.ensureVisible(find.text('Categories & tags'));
-    await tester.tap(find.text('Categories & tags'));
     await tester.pumpAndSettle();
     await tester.ensureVisible(find.text('Type a new category'));
     await tester.tap(find.text('Type a new category'));

@@ -605,7 +605,7 @@ class _RecipeEditorState extends State<RecipeEditor> {
     String title,
     IconData icon,
     List<Widget> children, {
-    bool open = false,
+    bool? open,
     String? subtitle,
   }) => Card(
     key: _sections.putIfAbsent(title, GlobalKey.new),
@@ -615,7 +615,15 @@ class _RecipeEditorState extends State<RecipeEditor> {
       maintainState: true,
       controller: _controller(title),
       expansionAnimationStyle: _expansionStyle,
-      initiallyExpanded: open,
+      initiallyExpanded:
+          open ??
+          const {
+            'Ingredients',
+            'Steps & actions',
+            'Photos',
+            'Categories & tags',
+            'Notes & source',
+          }.contains(title),
       leading: CircleAvatar(
         backgroundColor: Theme.of(context).colorScheme.primary
             .withValues(alpha: .09),
@@ -1033,6 +1041,7 @@ class _RecipeEditorState extends State<RecipeEditor> {
         ),
       ),
     ],
+    initiallyExpanded: true,
   );
   @override
   Widget build(BuildContext context) => PopScope(

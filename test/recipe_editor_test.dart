@@ -52,7 +52,10 @@ Map<String, dynamic> recipe() => {
 Future<void> section(WidgetTester tester, String label) async {
   final finder = find.text(label).last;
   await tester.ensureVisible(finder);
-  await tester.tap(finder);
+  final tile = tester.widget<ExpansionTile>(
+    find.ancestor(of: finder, matching: find.byType(ExpansionTile)).first,
+  );
+  if (!tile.controller!.isExpanded) await tester.tap(finder);
   await tester.pumpAndSettle();
 }
 
@@ -257,7 +260,7 @@ void main() {
     expect(find.text('Generate an image with AI'), findsOneWidget);
   });
 
-  testWidgets('imported ingredients start collapsed without list numbers', (
+  testWidgets('import lists open with item details collapsed and no numbers', (
     tester,
   ) async {
     final imported = recipe()..remove('id');
@@ -272,10 +275,33 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
+    for (final title in [
+      'Ingredients',
+      'Steps & actions',
+      'Photos',
+      'Categories & tags',
+      'Notes & source',
+    ]) {
+      final sectionTile = tester.widget<ExpansionTile>(
+        find.byWidgetPredicate(
+          (widget) =>
+              widget is ExpansionTile &&
+              widget.title is Text &&
+              (widget.title as Text).data == title,
+          skipOffstage: false,
+        ),
+      );
+      expect(sectionTile.controller!.isExpanded, isTrue, reason: title);
+    }
     await tester.tap(find.byTooltip('Go to ingredients'));
     await tester.pumpAndSettle();
     final tile = tester.widget<ExpansionTile>(
-      find.widgetWithText(ExpansionTile, '1 cup milk').last,
+      find.byWidgetPredicate(
+        (widget) =>
+            widget is ExpansionTile &&
+            widget.title is Text &&
+            (widget.title as Text).data == '1 cup milk',
+      ),
     );
     expect(tile.initiallyExpanded, isFalse);
     expect(find.text('1. Milk'), findsNothing);
@@ -292,7 +318,12 @@ void main() {
     expect(
       tester
           .widget<ExpansionTile>(
-            find.widgetWithText(ExpansionTile, 'Step 1').last,
+            find.byWidgetPredicate(
+              (widget) =>
+                  widget is ExpansionTile &&
+                  widget.title is Text &&
+                  (widget.title as Text).data == 'Step 1',
+            ),
           )
           .initiallyExpanded,
       isFalse,
@@ -304,7 +335,12 @@ void main() {
     expect(
       tester
           .widget<ExpansionTile>(
-            find.widgetWithText(ExpansionTile, 'Simmer timer').last,
+            find.byWidgetPredicate(
+              (widget) =>
+                  widget is ExpansionTile &&
+                  widget.title is Text &&
+                  (widget.title as Text).data == 'Simmer timer',
+            ),
           )
           .initiallyExpanded,
       isFalse,
