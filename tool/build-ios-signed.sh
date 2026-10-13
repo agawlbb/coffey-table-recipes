@@ -1,6 +1,25 @@
 #!/bin/bash
 # Run on a Mac with Xcode, Flutter, and the paid Apple team added to Xcode.
 set -euo pipefail
+heartbeat_pid=''
+cleanup_heartbeat() {
+  if [[ -n "$heartbeat_pid" ]]; then
+    kill "$heartbeat_pid" 2>/dev/null || true
+    wait "$heartbeat_pid" 2>/dev/null || true
+  fi
+}
+trap cleanup_heartbeat EXIT
+# Report executable names only; command arguments can contain signing credentials.
+(
+  while true; do
+    sleep 60
+    echo "::group::Signing build heartbeat $(date -u '+%Y-%m-%dT%H:%M:%SZ')"
+    ps -axo pid,pcpu,pmem,comm | sort -k2 -nr | head -12 || true
+    vm_stat || true
+    echo '::endgroup::'
+  done
+) &
+heartbeat_pid=$!
 version=$(xcodebuild -version)
 [[ "$version" =~ Xcode[[:space:]]([0-9]+) ]] && (( ${BASH_REMATCH[1]} >= 27 )) || {
   echo 'Use Xcode 27 or newer for the validated iOS 27 signing path'; exit 1;
@@ -29,6 +48,7 @@ if [[ -n "${IOS_BUILD_NUMBER:-}" ]]; then
   build_args+=("--build-number=$IOS_BUILD_NUMBER")
 fi
 python3 tool/configure-ios.py "$IOS_FIREBASE_CONFIG"
+echo '::notice::Stage: prepare unsigned Flutter app'
 flutter pub get
 flutter build ios --release --no-codesign --dart-define-from-file="$IOS_FIREBASE_CONFIG" "${build_args[@]}"
 mkdir -p build/ios/signing
@@ -43,6 +63,7 @@ Path('build/ios/signing/ExportOptions.plist').write_bytes(plistlib.dumps({
     'destination': 'upload' if os.environ['IOS_UPLOAD'] == 'true' else 'export',
 }))
 PY
+echo '::notice::Stage: Apple archive and automatic provisioning'
 xcodebuild -workspace ios/Runner.xcworkspace -scheme Runner -configuration Release \
   -destination 'generic/platform=iOS' \
   -archivePath build/ios/archive/Runner.xcarchive archive \
@@ -51,6 +72,7 @@ xcodebuild -workspace ios/Runner.xcworkspace -scheme Runner -configuration Relea
 app=build/ios/archive/Runner.xcarchive/Products/Applications/Runner.app
 codesign --verify --strict "$app/PlugIns/ShareExtension.appex"
 codesign --verify --strict "$app"
+echo '::notice::Stage: Apple export and optional TestFlight upload'
 xcodebuild -exportArchive -archivePath build/ios/archive/Runner.xcarchive \
   -exportPath build/ios/signed -exportOptionsPlist build/ios/signing/ExportOptions.plist \
   -allowProvisioningUpdates "${auth[@]}"

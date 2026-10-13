@@ -51,6 +51,15 @@ check there is no verified archive/export/upload success, while GitHub still
 reports the job in progress. Do not infer completion or a billing root cause
 from the delayed status alone. No additional build was started.
 
+At the subsequent check, Apple API authentication succeeded and the app's builds
+endpoint returned no uploads. GitHub then reflected passed Flutter/iOS tests and
+an in-progress archive step, but detailed logs still stopped at 17:24 EDT and the
+job remained in progress beyond its configured 45-minute limit. Prepared local
+archive diagnostics: named stage notices, a 60-second machine-activity heartbeat
+that excludes process arguments, and a 25-minute archive/upload step limit. Bash
+syntax, workflow YAML and all five iOS configuration tests passed. These changes
+are not deployed or executed yet; a new Mac run requires explicit approval.
+
 Prepared on 2026-10-13. Signing, upload and physical-device acceptance remain
 pending. This setup uses Apple's automatic provisioning and cloud
 distribution signing through an App Store Connect team API key. No Apple password,
