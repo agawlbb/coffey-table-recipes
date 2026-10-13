@@ -60,6 +60,14 @@ that excludes process arguments, and a 25-minute archive/upload step limit. Bash
 syntax, workflow YAML and all five iOS configuration tests passed. These changes
 are not deployed or executed yet; a new Mac run requires explicit approval.
 
+With explicit owner approval, pushed diagnostics through `214f2aa` and requested
+force cancellation of the stale run (GitHub HTTP 202). Dispatched exactly one new
+diagnostic run from `main`, build 13, upload enabled (GitHub HTTP 204):
+[run 38474737732](https://github.com/agawlbb/coffey-table-recipes/actions/runs/38474737732).
+GitHub verified its source SHA matches `214f2aa`. At creation it was pending behind
+the old run's unfinished cancellation; the signing concurrency group prevents
+overlap. Do not report cancellation or the new build as completed until verified.
+
 Prepared on 2026-10-13. Signing, upload and physical-device acceptance remain
 pending. This setup uses Apple's automatic provisioning and cloud
 distribution signing through an App Store Connect team API key. No Apple password,
