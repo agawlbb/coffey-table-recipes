@@ -1,5 +1,14 @@
 # Signed iOS builds and TestFlight
 
+Current status (2026-10-13): Apple app/extension/App Group registration is complete.
+The current team API key was verified as Admin and its private PEM downloaded and
+verified through Chrome. After owner GitHub account verification, the current key
+ID update succeeded and `ASC_PRIVATE_KEY` was saved. All five required secret
+names were verified in repository settings, with existing hosting secrets retained.
+The signing workflow is committed locally. Source push, first macOS signing/upload
+run, TestFlight processing and physical-device acceptance remain pending. Each
+macOS run requires separate explicit user approval. No private key is in Git.
+
 Prepared on 2026-10-13. Signing, upload and physical-device acceptance remain
 pending. This setup uses Apple's automatic provisioning and cloud
 distribution signing through an App Store Connect team API key. No Apple password,
