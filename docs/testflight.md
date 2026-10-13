@@ -25,6 +25,20 @@ by confirmation that cancellation had already completed. Re-ran only the
 The retry keeps source `a0fe44d`, build 13 and upload enabled. Its final signing
 and upload outcome remains pending; no additional retry is authorized.
 
+Runner investigation on 2026-10-13: compared GitHub API job metadata and prior
+successful logs. Run 38332017587 requested the same `xcode-27` label, began nine
+seconds after submission, and completed 16 steps in 8m49s. Its runner image was
+`xcode-27-arm64` version `20261006.0244.1`, macOS 27.0.1, region westus/MacCloud.
+The current retry was assigned `GitHub Actions 1000000115` but still had zero
+steps; the first attempt had been assigned a different runner, 1000000114.
+Linux preflight succeeded. This locates the stall before job setup, checkout,
+Flutter, Xcode, or Apple authentication. It is consistent with a GitHub hosted
+runner startup/connection problem; the exact infrastructure cause is not exposed
+by the available API/UI. GitHub's unresolved-incidents API reported no active
+incidents at the check. These observations do not establish a billing cause or
+prove which image version the current runner would have used. No run was started
+or canceled during this read-only investigation.
+
 Prepared on 2026-10-13. Signing, upload and physical-device acceptance remain
 pending. This setup uses Apple's automatic provisioning and cloud
 distribution signing through an App Store Connect team API key. No Apple password,
