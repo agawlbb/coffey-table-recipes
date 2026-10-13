@@ -9,6 +9,14 @@ The signing workflow is committed locally. Source push, first macOS signing/uplo
 run, TestFlight processing and physical-device acceptance remain pending. Each
 macOS run requires separate explicit user approval. No private key is in Git.
 
+First authorized upload run (2026-10-13): with explicit owner approval, pushed
+through `a0fe44d` and dispatched exactly one workflow from `main`, build number
+`13`, upload enabled. [Run 38466229058](https://github.com/agawlbb/coffey-table-recipes/actions/runs/38466229058)
+passed the Linux preflight. At the last check, `signed-ios` was in progress with
+no executed steps and reported waiting for the assigned hosted runner to come
+online. No signed package, successful upload or TestFlight availability has yet
+been verified. No rerun was triggered; any rerun requires a new explicit approval.
+
 Prepared on 2026-10-13. Signing, upload and physical-device acceptance remain
 pending. This setup uses Apple's automatic provisioning and cloud
 distribution signing through an App Store Connect team API key. No Apple password,
