@@ -186,6 +186,14 @@ sign-in instructions/access if required. Tester invitations require explicit
 authorization and actual tester addresses. Install Apple's TestFlight app on each
 device, accept the invitation and install the build. Builds expire after 90 days.
 
+## Export declaration and France distribution policy
+
+Future Runner and ShareExtension builds contain `ITSAppUsesNonExemptEncryption = false`. This declares **no non-exempt encryption**, not absence of encryption: the current app uses HTTPS/TLS and Firebase/Google authentication and contains no custom encryption feature. Review the declaration if networking, cryptographic features or linked dependencies change. [Apple's guidance](https://developer.apple.com/documentation/security/complying-with-encryption-export-regulations) allows this value for encryption exempt from export-documentation requirements, including qualifying third-party library use. The Firebase configuration step is checked to preserve the declaration.
+
+The user explicitly excludes France from future iOS distribution. If Apple asks whether the app will be distributed in France, answer No while this policy remains in force. Exclude France when configuring App Store availability and do not distribute TestFlight builds to testers in France. There is no France availability key in these property lists; the encryption declaration does not enforce a geographical restriction. No App Store territory settings were changed by this source-only update, and already-uploaded build 14 is unchanged.
+
+Validated locally on 2026-10-13 with the five iOS configuration checks, property-list parsing and diff whitespace checks. No macOS build was dispatched.
+
 ## Switching from Sideloadly
 
 Keep existing copies until the TestFlight build is ready. Verify recipes saved to

@@ -44,6 +44,7 @@ class IOSShareConfigurationTests(unittest.TestCase):
             for _ in range(2):
                 subprocess.run([sys.executable, str(ROOT / 'tool/configure-ios.py'), str(config)], cwd=workspace, check=True)
             info = plistlib.loads(plist.read_bytes())
+            self.assertIs(info['ITSAppUsesNonExemptEncryption'], False)
             schemes = [value for entry in info['CFBundleURLTypes'] for value in entry['CFBundleURLSchemes']]
             self.assertIn('ShareMedia-$(PRODUCT_BUNDLE_IDENTIFIER)', schemes)
             self.assertIn('com.googleusercontent.apps.fixture', schemes)
