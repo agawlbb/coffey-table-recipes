@@ -114,8 +114,15 @@ void main() {
     await tester.pumpAndSettle();
     await tester.ensureVisible(find.text('Categories & tags'));
     await tester.pumpAndSettle();
-    await tester.ensureVisible(find.text('Type a new category'));
-    await tester.tap(find.text('Type a new category'));
+    await tester.ensureVisible(find.text('Desserts / Cookies'));
+    await tester.tap(find.text('Desserts / Cookies'));
+    await tester.pumpAndSettle();
+    await tester.enterText(
+      find.widgetWithText(TextField, 'Search categories'),
+      'Tarts',
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Create "Tarts"'));
     await tester.pumpAndSettle();
     await tester.enterText(
       find.widgetWithText(TextFormField, 'Category name'),
@@ -127,5 +134,21 @@ void main() {
     expect(category['label'], 'Tarts');
     expect(category['parent_label'], 'Desserts');
     expect(category['category_id'], isNull);
+    await tester.ensureVisible(find.text('Desserts / Tarts'));
+    await tester.tap(find.text('Desserts / Tarts'));
+    await tester.pumpAndSettle();
+    await tester.enterText(
+      find.widgetWithText(TextField, 'Search categories'),
+      'Cookies',
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Desserts / Cookies'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Save'));
+    await tester.pumpAndSettle();
+    final existing = (submitted!['category_assignments'] as List).single as Map;
+    expect(existing['category_id'], '2');
+    expect(existing.containsKey('label'), isFalse);
+    expect(existing.containsKey('_new_category'), isFalse);
   });
 }

@@ -132,27 +132,37 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
-    final prep = find.widgetWithText(TextFormField, 'Prep (h:mm)');
-    expect(tester.widget<TextFormField>(prep).initialValue, '1:30');
-    await tester.enterText(prep, '2:15');
+    final prep = find.widgetWithText(TextFormField, 'Prep Hours');
+    expect(tester.widget<TextFormField>(prep).initialValue, '1');
+    await tester.enterText(prep, '2');
+    await tester.enterText(
+      find.widgetWithText(TextFormField, 'Prep Minutes'),
+      '15',
+    );
     await section(tester, 'Steps & actions');
     await section(tester, 'Step 1');
     await section(tester, 'Simmer timer');
-    final duration = find
-        .widgetWithText(TextFormField, 'Duration (m:ss or h:mm:ss)')
-        .first;
+    final duration = find.widgetWithText(TextFormField, 'Seconds').first;
     await tester.ensureVisible(duration);
-    await tester.enterText(duration, '1:02:03');
+    await tester.enterText(
+      find.widgetWithText(TextFormField, 'Hours').first,
+      '1',
+    );
+    await tester.enterText(
+      find.widgetWithText(TextFormField, 'Minutes').first,
+      '2',
+    );
+    await tester.enterText(duration, '3');
     await tester.tap(find.text('Save'));
     await tester.pumpAndSettle();
     expect(submitted!['prep_minutes'], 135);
     expect((submitted!['actions'] as List).first['duration_seconds'], 3723);
-    await tester.enterText(duration, '1:99');
+    await tester.enterText(duration, '99');
     submitted = null;
     await tester.tap(find.text('Save'));
     await tester.pumpAndSettle();
     expect(submitted, isNull);
-    expect(find.textContaining('minutes/seconds must be'), findsOneWidget);
+    expect(find.text('Use 0–59'), findsOneWidget);
   });
   testWidgets('saved category review shows parent before category', (
     tester,
@@ -178,12 +188,9 @@ void main() {
     );
     await tester.pumpAndSettle();
     await section(tester, 'Recipe details');
-    if (find.text('Parent category').evaluate().isEmpty) {
-      await section(tester, 'Desserts / Pies');
-    }
     expect(
       tester.getTopLeft(find.text('Parent category')).dy,
-      lessThan(tester.getTopLeft(find.text('Category')).dy),
+      lessThan(tester.getTopLeft(find.text('Desserts / Pies')).dy),
     );
     expect(tester.takeException(), isNull);
   });
@@ -224,6 +231,8 @@ void main() {
     await tester.pumpAndSettle();
     expect(generated, 1);
     expect(find.text('Generate an image with AI'), findsNothing);
+    expect(find.byType(Image), findsWidgets);
+    await section(tester, 'More options');
     expect(
       find.widgetWithText(TextFormField, 'AI-generated soup'),
       findsOneWidget,

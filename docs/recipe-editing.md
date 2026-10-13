@@ -3,7 +3,27 @@
 On opening import review or editing, Ingredients and Steps & actions show their
 lists, with existing ingredient and step details collapsed. Photos (including
 their previews) and Notes & source are open by default. Categories and tags appear
-at the bottom of Recipe details.
+at the bottom of Recipe details, with parent/category controls always visible.
+The category picker searches existing categories and offers creation from typed
+text; one Add category control handles both. Tags remain visible here too.
+
+Import offers visible Text, Website, File and Camera choices. Text can be marked
+as a description of how the user makes a dish. Prepare recipe starts extraction;
+clarification answers use Update recipe, then Review recipe opens the editor.
+Section shortcuts occupy one horizontally scrolling row. Ingredient rows are
+flat and show the ingredient line, quantity and unit when opened, with less-used
+fields under More options. Complete step instructions and timer/temperature
+badges remain visible with editing details collapsed. Photo previews and Edit
+picture stay visible; captions, credits, cover and ordering use More options.
+Numbers omit unnecessary decimal zeros. Recipe times use hours/minutes fields;
+timers add seconds. Minutes/seconds are restricted to 0–59 and timer durations
+must be greater than zero. The saved API units remain minutes and seconds.
+
+Verified on 2026-10-12: all 32 editor/import/image/source-photo tests passed,
+Flutter analysis was clean, and local web and Android debug builds succeeded.
+The rebuilt Pixel 8 emulator was checked for import choices, single-row
+shortcuts, numeric/time fields, visible categorization, category picker cancel,
+flat ingredient rows, complete step instructions, timer badges and photo previews.
 
 Pictures in import review and the recipe editor have an **Edit picture** tool.
 Image uploads and camera pictures also have this tool on the initial import

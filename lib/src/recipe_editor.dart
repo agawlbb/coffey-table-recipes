@@ -47,6 +47,7 @@ class _RecipeEditorState extends State<RecipeEditor> {
   final _sections = <String, GlobalKey>{};
   final _expansions = <String, ExpansibleController>{};
   final _fields = <String, GlobalKey<FormFieldState<String>>>{};
+  final _timeParts = <String, Map<String, dynamic>>{};
   ExpansibleController _controller(String key) =>
       _expansions.putIfAbsent(key, ExpansibleController.new);
 
@@ -150,12 +151,122 @@ class _RecipeEditorState extends State<RecipeEditor> {
     ).add({...photo, 'id': _id(), 'is_cover': _rows('photos').isEmpty ? 1 : 0});
     _sourcePhotos.remove(photo);
   });
-  void _typeNewCategory(Map<String, dynamic> row) => _change(() {
-    row['parent_label'] = row['_parent_category'];
-    row.remove('category_id');
-    row['label'] = '';
-    row['_new_category'] = true;
-  });
+  Future<void> _pickCategory(Map<String, dynamic> row) async {
+    var search = '';
+    final result = await showDialog<Map<String, dynamic>>(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (context, update) => AlertDialog(
+          title: const Text('Choose category'),
+          content: SizedBox(
+            width: 420,
+            height: 320,
+            child: Column(
+              children: [
+                TextField(
+                  autofocus: true,
+                  decoration: const InputDecoration(
+                    labelText: 'Search categories',
+                  ),
+                  onChanged: (value) => update(() => search = value.trim()),
+                ),
+                const SizedBox(height: 12),
+                Expanded(
+                  child: ListView(
+                    children: [
+                      for (final category in _options('categories').where(
+                        (c) => '${c['parent_label'] ?? ''} ${c['label']}'
+                            .toLowerCase()
+                            .contains(search.toLowerCase()),
+                      ))
+                        ListTile(
+                          title: Text(
+                            '${category['parent_label'] == null ? '' : '${category['parent_label']} / '}${category['label']}',
+                          ),
+                          onTap: () => Navigator.pop(dialogContext, category),
+                        ),
+                      if (search.isNotEmpty)
+                        ListTile(
+                          leading: const Icon(Icons.add),
+                          title: Text('Create "$search"'),
+                          onTap: () => Navigator.pop(dialogContext, {
+                            'label': search,
+                            '_new_category': true,
+                          }),
+                        ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: const Text('Cancel'),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (result == null || !mounted) return;
+    _change(() {
+      if (result['_new_category'] == true) {
+        row.remove('category_id');
+        row['label'] = result['label'];
+        row['parent_label'] = row['_parent_category'];
+        row['_new_category'] = true;
+      } else {
+        row.remove('label');
+        row.remove('parent_label');
+        row.remove('_new_category');
+        row['category_id'] = result['id'];
+        row['_parent_category'] = result['parent_label'] ?? result['label'];
+      }
+    });
+  }
+
+  Widget _category(Map<String, dynamic> row) => Padding(
+    padding: const EdgeInsets.only(top: 12, bottom: 12),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        _choice(
+          row,
+          row['label'] != null ? 'parent_label' : '_parent_category',
+          'Parent category',
+          {
+            for (final c in _options(
+              'categories',
+            ).where((c) => c['parent_label'] == null))
+              '${c['label']}': '${c['label']}',
+          },
+          nullable: row['_new_category'] != true,
+        ),
+        Row(
+          children: [
+            Expanded(
+              child: OutlinedButton.icon(
+                onPressed: () => _pickCategory(row),
+                icon: const Icon(Icons.search),
+                label: Text(_categoryTitle(row)),
+              ),
+            ),
+            IconButton(
+              tooltip: 'Remove category',
+              onPressed: () =>
+                  _change(() => _rows('category_assignments').remove(row)),
+              icon: const Icon(Icons.close),
+            ),
+          ],
+        ),
+        if (row['label'] != null) ...[
+          const SizedBox(height: 12),
+          _field(row, 'label', 'Category name', required: true, maxLength: 120),
+        ],
+      ],
+    ),
+  );
 
   void _connectionChanged() {
     if (mounted) setState(() {});
@@ -455,6 +566,8 @@ class _RecipeEditorState extends State<RecipeEditor> {
     String? numeric,
     int? maxLength,
     String? hint,
+    ValueChanged<String>? changed,
+    String? Function(String)? validate,
   }) => Padding(
     padding: const EdgeInsets.only(bottom: 14),
     child: TextFormField(
@@ -467,6 +580,10 @@ class _RecipeEditorState extends State<RecipeEditor> {
               row[key],
               minutePrecision: numeric == 'minuteDuration',
             )
+          : numeric != null && num.tryParse('${row[key]}') != null
+          ? num.parse('${row[key]}')
+                .toString()
+                .replaceFirst(RegExp(r'\.0+$'), '')
           : row[key]?.toString() ?? '',
       decoration: InputDecoration(
         labelText: label,
@@ -484,6 +601,7 @@ class _RecipeEditorState extends State<RecipeEditor> {
           : TextInputType.text,
       validator: (value) {
         final text = value?.trim() ?? '';
+        if (validate != null) return validate(text);
         if (required && text.isEmpty) return 'Enter $label';
         if (text.isNotEmpty &&
             (numeric == 'duration' || numeric == 'minuteDuration')) {
@@ -530,6 +648,10 @@ class _RecipeEditorState extends State<RecipeEditor> {
         return null;
       },
       onChanged: (value) {
+        if (changed != null) {
+          changed(value);
+          return;
+        }
         _change(
           () => row[key] = value.trim().isEmpty
               ? null
@@ -544,6 +666,83 @@ class _RecipeEditorState extends State<RecipeEditor> {
       },
     ),
   );
+  Widget _timeFields(
+    Map<String, dynamic> row,
+    String key,
+    String label, {
+    bool minutesOnly = false,
+    bool required = false,
+  }) {
+    final parts = _timeParts.putIfAbsent('${identityHashCode(row)}-$key', () {
+      final raw = num.tryParse('${row[key]}')?.toInt();
+      final seconds = raw == null ? null : raw * (minutesOnly ? 60 : 1);
+      return {
+        'hours': seconds == null ? null : seconds ~/ 3600,
+        'minutes': seconds == null ? null : seconds % 3600 ~/ 60,
+        'seconds': seconds == null ? null : seconds % 60,
+      };
+    });
+    int total() =>
+        (int.tryParse('${parts['hours']}') ?? 0) * 3600 +
+        (int.tryParse('${parts['minutes']}') ?? 0) * 60 +
+        (int.tryParse('${parts['seconds']}') ?? 0);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.only(bottom: 8),
+          child: Text(
+            label,
+            style: const TextStyle(fontWeight: FontWeight.w600),
+          ),
+        ),
+        Row(
+          children: [
+            for (final part in [
+              'hours',
+              'minutes',
+              if (!minutesOnly) 'seconds',
+            ]) ...[
+              if (part != 'hours') const SizedBox(width: 8),
+              Expanded(
+                child: _field(
+                  parts,
+                  part,
+                  '${label == 'Duration' ? '' : '$label '}${part == 'hours'
+                      ? 'Hours'
+                      : part == 'minutes'
+                      ? 'Minutes'
+                      : 'Seconds'}',
+                  numeric: 'integer',
+                  validate: (text) {
+                    if (text.isNotEmpty &&
+                        (!RegExp(r'^\d+$').hasMatch(text) ||
+                            (part != 'hours' &&
+                                (int.tryParse(text) ?? 60) > 59))) {
+                      return part == 'hours' ? 'Use whole hours' : 'Use 0–59';
+                    }
+                    if (required && part == 'seconds' && total() <= 0) {
+                      return 'Enter a duration greater than zero';
+                    }
+                    return null;
+                  },
+                  changed: (value) => _change(() {
+                    parts[part] = value.trim().isEmpty ? null : value;
+                    row[key] = parts.values.every((v) => v == null)
+                        ? null
+                        : minutesOnly
+                        ? total() ~/ 60
+                        : total();
+                  }),
+                ),
+              ),
+            ],
+          ],
+        ),
+      ],
+    );
+  }
+
   bool _bool(Object? value) => value == true || value == 1 || value == '1';
   Widget _toggle(Map<String, dynamic> row, String key, String label) =>
       SwitchListTile.adaptive(
@@ -608,6 +807,7 @@ class _RecipeEditorState extends State<RecipeEditor> {
     bool? open,
     String? subtitle,
   }) => Card(
+    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
     key: _sections.putIfAbsent(title, GlobalKey.new),
     margin: const EdgeInsets.only(bottom: 16),
     clipBehavior: Clip.antiAlias,
@@ -690,9 +890,16 @@ class _RecipeEditorState extends State<RecipeEditor> {
     String? preview,
     bool? initiallyExpanded,
     Widget? summary,
+    bool flat = false,
+    bool controls = true,
   }) {
     final index = rows.indexOf(row);
     return Card(
+      elevation: 0,
+      shape: flat
+          ? const RoundedRectangleBorder()
+          : RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+      color: flat ? Colors.transparent : null,
       key: ValueKey('item-${row['id'] ?? row['_key']}'),
       margin: const EdgeInsets.only(bottom: 12),
       clipBehavior: Clip.antiAlias,
@@ -711,47 +918,48 @@ class _RecipeEditorState extends State<RecipeEditor> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   if (preview != null && preview.trim().isNotEmpty)
-                    Text(preview, maxLines: 2, overflow: TextOverflow.ellipsis),
+                    Text(preview),
                   ?summary,
                 ],
               ),
         childrenPadding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
         children: [
           ...children,
-          const Divider(),
-          Row(
-            children: [
-              IconButton(
-                tooltip: 'Move up',
-                onPressed: index == 0
-                    ? null
-                    : () => _change(() {
-                        _move(rows, row, index - 1);
-                      }),
-                icon: const Icon(Icons.arrow_upward, size: 20),
-              ),
-              IconButton(
-                tooltip: 'Move down',
-                onPressed: index == rows.length - 1
-                    ? null
-                    : () => _change(() {
-                        _move(rows, row, index + 1);
-                      }),
-                icon: const Icon(Icons.arrow_downward, size: 20),
-              ),
-              IconButton(
-                tooltip: 'Remove',
-                onPressed: () => _change(remove ?? () => rows.remove(row)),
-                icon: const Icon(Icons.delete_outline),
-              ),
-              const Flexible(
-                child: Text(
-                  'Reorder or remove',
-                  style: TextStyle(fontSize: 12),
+          if (controls) const Divider(),
+          if (controls)
+            Row(
+              children: [
+                IconButton(
+                  tooltip: 'Move up',
+                  onPressed: index == 0
+                      ? null
+                      : () => _change(() {
+                          _move(rows, row, index - 1);
+                        }),
+                  icon: const Icon(Icons.arrow_upward, size: 20),
                 ),
-              ),
-            ],
-          ),
+                IconButton(
+                  tooltip: 'Move down',
+                  onPressed: index == rows.length - 1
+                      ? null
+                      : () => _change(() {
+                          _move(rows, row, index + 1);
+                        }),
+                  icon: const Icon(Icons.arrow_downward, size: 20),
+                ),
+                IconButton(
+                  tooltip: 'Remove',
+                  onPressed: () => _change(remove ?? () => rows.remove(row)),
+                  icon: const Icon(Icons.delete_outline),
+                ),
+                const Flexible(
+                  child: Text(
+                    'Reorder or remove',
+                    style: TextStyle(fontSize: 12),
+                  ),
+                ),
+              ],
+            ),
         ],
       ),
     );
@@ -775,79 +983,86 @@ class _RecipeEditorState extends State<RecipeEditor> {
         lines: 2,
         hint: 'e.g. 2 cups milk, warmed',
       ),
-      _help(
-        'This line is shown while viewing and cooking. The fields below describe the ingredient for search and serving adjustments.',
-      ),
-      _field(
-        row,
-        'ingredient_name',
-        'Ingredient',
-        required: true,
-        maxLength: 300,
-      ),
       _columns([
         _field(row, 'quantity_text', 'Quantity as written', maxLength: 120),
         _field(row, 'original_unit', 'Unit', maxLength: 80),
       ], minWidth: 140),
-      _field(
-        row,
-        'preparation',
-        'Preparation (e.g. finely chopped)',
-        maxLength: 300,
-      ),
       ExpansionTile(
         maintainState: true,
-        controller: _controller('ingredient-settings-${identityHashCode(row)}'),
-        expansionAnimationStyle: _expansionStyle,
-        title: const Text('Grouping & scaling'),
-        children: [
-          _choice(row, 'group_id', 'Ingredient group', {
-            for (final g in _rows('groups'))
-              '${g['id']}': '${g['title'] ?? 'New group'}',
-          }, nullable: true),
-          _toggle(row, 'is_optional', 'Optional ingredient'),
-          _toggle(row, 'is_main_ingredient', 'Main ingredient'),
-          _toggle(
-            row,
-            'scale_quantity',
-            'Adjust quantity when scaling servings',
-          ),
-        ],
-      ),
-      ExpansionTile(
-        maintainState: true,
-        controller: _controller('quantities-${identityHashCode(row)}'),
-        expansionAnimationStyle: _expansionStyle,
-        title: const Text('Exact quantities'),
+        controller: _controller('more-ingredient-${identityHashCode(row)}'),
+        title: const Text('More options'),
         children: [
           _field(
             row,
-            'quantity_decimal',
-            'Decimal quantity',
-            numeric: 'nonnegative',
+            'ingredient_name',
+            'Ingredient',
+            required: true,
+            maxLength: 300,
           ),
           _field(
             row,
-            'quantity_numerator',
-            'Fraction numerator',
-            numeric: 'integer',
+            'preparation',
+            'Preparation (e.g. finely chopped)',
+            maxLength: 300,
           ),
-          _field(
-            row,
-            'quantity_denominator',
-            'Fraction denominator',
-            numeric: 'integer',
+          ExpansionTile(
+            maintainState: true,
+            controller: _controller(
+              'ingredient-settings-${identityHashCode(row)}',
+            ),
+            expansionAnimationStyle: _expansionStyle,
+            title: const Text('Grouping & scaling'),
+            children: [
+              _choice(row, 'group_id', 'Ingredient group', {
+                for (final g in _rows('groups'))
+                  '${g['id']}': '${g['title'] ?? 'New group'}',
+              }, nullable: true),
+              _toggle(row, 'is_optional', 'Optional ingredient'),
+              _toggle(row, 'is_main_ingredient', 'Main ingredient'),
+              _toggle(
+                row,
+                'scale_quantity',
+                'Adjust quantity when scaling servings',
+              ),
+            ],
           ),
-          _field(
-            row,
-            'quantity_max_decimal',
-            'Maximum quantity (for ranges)',
-            numeric: 'nonnegative',
+          ExpansionTile(
+            maintainState: true,
+            controller: _controller('quantities-${identityHashCode(row)}'),
+            expansionAnimationStyle: _expansionStyle,
+            title: const Text('Exact quantities'),
+            children: [
+              _field(
+                row,
+                'quantity_decimal',
+                'Decimal quantity',
+                numeric: 'nonnegative',
+              ),
+              _field(
+                row,
+                'quantity_numerator',
+                'Fraction numerator',
+                numeric: 'integer',
+              ),
+              _field(
+                row,
+                'quantity_denominator',
+                'Fraction denominator',
+                numeric: 'integer',
+              ),
+              _field(
+                row,
+                'quantity_max_decimal',
+                'Maximum quantity (for ranges)',
+                numeric: 'nonnegative',
+              ),
+              _field(row, 'unit_code', 'Standard unit code', maxLength: 40),
+            ],
           ),
-          _field(row, 'unit_code', 'Standard unit code', maxLength: 40),
         ],
       ),
     ],
+    flat: true,
     initiallyExpanded: (row['original_text']?.toString().trim().isEmpty ?? true)
         ? null
         : false,
@@ -868,12 +1083,11 @@ class _RecipeEditorState extends State<RecipeEditor> {
           _field(row, 'label', 'Label', maxLength: 300),
           if (['timer', 'rest'].contains(row['action_type']) ||
               row['duration_seconds'] != null)
-            _field(
+            _timeFields(
               row,
               'duration_seconds',
-              'Duration (m:ss or h:mm:ss)',
+              'Duration',
               required: ['timer', 'rest'].contains(row['action_type']),
-              numeric: 'duration',
             ),
           if ([
                 'appliance_temperature',
@@ -939,8 +1153,13 @@ class _RecipeEditorState extends State<RecipeEditor> {
                     style: const TextStyle(fontWeight: FontWeight.w600),
                   ),
                   for (final action in actions)
-                    Padding(
-                      padding: const EdgeInsets.only(top: 4),
+                    Container(
+                      margin: const EdgeInsets.only(top: 4),
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: Theme.of(context).colorScheme.secondaryContainer,
+                        borderRadius: BorderRadius.circular(8),
+                      ),
                       child: Row(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
@@ -1021,25 +1240,69 @@ class _RecipeEditorState extends State<RecipeEditor> {
         icon: const Icon(Icons.crop_rotate),
         label: const Text('Edit picture'),
       ),
-      _field(row, 'caption', 'Caption', lines: 2),
-      _field(row, 'attribution', 'Photo credit', lines: 2),
-      RadioGroup<String>(
-        groupValue: _rows('photos')
-            .where((p) => _bool(p['is_cover']))
-            .firstOrNull?['id']
-            ?.toString(),
-        onChanged: (value) => _change(() {
-          for (final p in _rows('photos')) {
-            p['is_cover'] = p['id'] == value;
-          }
-        }),
-        child: RadioListTile<String>(
-          value: row['id'].toString(),
-          title: const Text('Use as cover photo'),
-          contentPadding: EdgeInsets.zero,
-        ),
+      ExpansionTile(
+        maintainState: true,
+        controller: _controller('photo-options-${identityHashCode(row)}'),
+        title: const Text('More options'),
+        children: [
+          _field(row, 'caption', 'Caption', lines: 2),
+          _field(row, 'attribution', 'Photo credit', lines: 2),
+          RadioGroup<String>(
+            groupValue: _rows('photos')
+                .where((p) => _bool(p['is_cover']))
+                .firstOrNull?['id']
+                ?.toString(),
+            onChanged: (value) => _change(() {
+              for (final p in _rows('photos')) {
+                p['is_cover'] = p['id'] == value;
+              }
+            }),
+            child: RadioListTile<String>(
+              value: row['id'].toString(),
+              title: const Text('Use as cover photo'),
+              contentPadding: EdgeInsets.zero,
+            ),
+          ),
+          Row(
+            children: [
+              IconButton(
+                tooltip: 'Move photo up',
+                onPressed: _rows('photos').indexOf(row) == 0
+                    ? null
+                    : () => _change(
+                        () => _move(
+                          _rows('photos'),
+                          row,
+                          _rows('photos').indexOf(row) - 1,
+                        ),
+                      ),
+                icon: const Icon(Icons.arrow_upward),
+              ),
+              IconButton(
+                tooltip: 'Move photo down',
+                onPressed:
+                    _rows('photos').indexOf(row) == _rows('photos').length - 1
+                    ? null
+                    : () => _change(
+                        () => _move(
+                          _rows('photos'),
+                          row,
+                          _rows('photos').indexOf(row) + 1,
+                        ),
+                      ),
+                icon: const Icon(Icons.arrow_downward),
+              ),
+              IconButton(
+                tooltip: 'Remove photo',
+                onPressed: () => _change(() => _rows('photos').remove(row)),
+                icon: const Icon(Icons.delete_outline),
+              ),
+            ],
+          ),
+        ],
       ),
     ],
+    controls: false,
     initiallyExpanded: true,
   );
   @override
@@ -1133,28 +1396,30 @@ class _RecipeEditorState extends State<RecipeEditor> {
                           ?.copyWith(fontWeight: FontWeight.w600),
                     ),
                     const SizedBox(height: 8),
-                    _help(
-                      'Make it your own. Edit a section below, then save your changes together.',
-                    ),
-                    Wrap(
-                      spacing: 8,
-                      runSpacing: 8,
-                      children: [
-                        for (final entry in const {
-                          'Recipe details': 'Details',
-                          'Ingredients': 'Ingredients',
-                          'Steps & actions': 'Method',
-                          'Photos': 'Photos',
-                          'Notes & source': 'Notes',
-                          'Related recipes': 'Related',
-                          'Nutrition': 'Nutrition',
-                        }.entries)
-                          ActionChip(
-                            label: Text(entry.value),
-                            tooltip: 'Go to ${entry.key.toLowerCase()}',
-                            onPressed: () => _jumpTo(entry.key),
-                          ),
-                      ],
+                    _help('Review your recipe, then save.'),
+                    SingleChildScrollView(
+                      scrollDirection: Axis.horizontal,
+                      child: Row(
+                        children: [
+                          for (final entry in const {
+                            'Recipe details': 'Details',
+                            'Ingredients': 'Ingredients',
+                            'Steps & actions': 'Method',
+                            'Photos': 'Photos',
+                            'Notes & source': 'Notes',
+                            'Related recipes': 'Related',
+                            'Nutrition': 'Nutrition',
+                          }.entries)
+                            Padding(
+                              padding: const EdgeInsets.only(right: 8),
+                              child: ActionChip(
+                                label: Text(entry.value),
+                                tooltip: 'Go to ${entry.key.toLowerCase()}',
+                                onPressed: () => _jumpTo(entry.key),
+                              ),
+                            ),
+                        ],
+                      ),
                     ),
                     const SizedBox(height: 20),
                     if (offlineStatus.value)
@@ -1189,23 +1454,23 @@ class _RecipeEditorState extends State<RecipeEditor> {
                         ),
                       ]),
                       _columns([
-                        _field(
+                        _timeFields(
                           _draft,
                           'prep_minutes',
-                          'Prep (h:mm)',
-                          numeric: 'minuteDuration',
+                          'Prep',
+                          minutesOnly: true,
                         ),
-                        _field(
+                        _timeFields(
                           _draft,
                           'cook_minutes',
-                          'Cook (h:mm)',
-                          numeric: 'minuteDuration',
+                          'Cook',
+                          minutesOnly: true,
                         ),
-                        _field(
+                        _timeFields(
                           _draft,
                           'total_minutes',
-                          'Total (h:mm)',
-                          numeric: 'minuteDuration',
+                          'Total',
+                          minutesOnly: true,
                         ),
                       ], minWidth: 150),
                       ExpansionTile(
@@ -1240,78 +1505,16 @@ class _RecipeEditorState extends State<RecipeEditor> {
                         'Categories & tags',
                         style: TextStyle(fontWeight: FontWeight.w600),
                       ),
-                      ..._rows('category_assignments').map(
-                        (r) => _item(
-                          _categoryTitle(r),
-                          _rows('category_assignments'),
-                          r,
-                          [
-                            if (r['label'] != null) ...[
-                              _choice(r, 'parent_label', 'Parent category', {
-                                for (final c in _options(
-                                  'categories',
-                                ).where((c) => c['parent_label'] == null))
-                                  '${c['label']}': '${c['label']}',
-                              }, nullable: r['_new_category'] != true),
-                              _help(
-                                'Edit the category name to use or add a different category.',
-                              ),
-                              _field(
-                                r,
-                                'label',
-                                'Category name',
-                                required: true,
-                                maxLength: 120,
-                              ),
-                            ] else ...[
-                              _choice(
-                                r,
-                                '_parent_category',
-                                'Parent category',
-                                {
-                                  for (final c in _options(
-                                    'categories',
-                                  ).where((c) => c['parent_label'] == null))
-                                    '${c['label']}': '${c['label']}',
-                                },
-                              ),
-                              _choice(r, 'category_id', 'Category', {
-                                for (final c in _options('categories').where(
-                                  (c) =>
-                                      c['parent_label'] ==
-                                          r['_parent_category'] ||
-                                      (c['parent_label'] == null &&
-                                          c['label'] == r['_parent_category']),
-                                ))
-                                  '${c['id']}': '${c['label']}',
-                              }),
-                              TextButton.icon(
-                                onPressed: () => _typeNewCategory(r),
-                                icon: const Icon(Icons.edit_outlined),
-                                label: const Text('Type a new category'),
-                              ),
-                            ],
-                          ],
-                        ),
-                      ),
-                      _add(
-                        'Add a new category',
-                        () => _change(
-                          () => _rows('category_assignments').add({
-                            '_key': _id(),
-                            'label': '',
-                            '_new_category': true,
-                          }),
-                        ),
-                      ),
-                      _add(
-                        'Add browse category',
-                        () => _change(
-                          () =>
-                              _rows('category_assignments')
-                                  .add({'_key': _id()}),
-                        ),
-                      ),
+                      ..._rows('category_assignments').map(_category),
+                      _add('Add category', () async {
+                        final row = <String, dynamic>{'_key': _id()};
+                        await _pickCategory(row);
+                        if (mounted &&
+                            (row['category_id'] != null ||
+                                row['label'] != null)) {
+                          _change(() => _rows('category_assignments').add(row));
+                        }
+                      }),
                       ..._rows('tags').map(
                         (r) => _item(
                           r['label']?.toString() ?? 'New tag',
@@ -1404,7 +1607,7 @@ class _RecipeEditorState extends State<RecipeEditor> {
                     ], subtitle: '${_rows('ingredients').length} ingredients'),
                     _section('Steps & actions', Icons.format_list_numbered, [
                       _help(
-                        'Open a step to edit the instructions. Add timers, temperatures or reminders when helpful.',
+                        'Open a step to edit it or add a timer or appliance temperature.',
                       ),
                       ..._rows('steps').map(_step),
                       _add(
@@ -1540,7 +1743,7 @@ class _RecipeEditorState extends State<RecipeEditor> {
                             _sourcePhotos.isEmpty &&
                             !_loadingSourcePhotos &&
                             recipeRows(widget.recipe['photos']).isEmpty)
-                          _help('Generate an image with AI.'),
+                          const SizedBox.shrink(),
                         const Padding(
                           padding: EdgeInsets.only(top: 12),
                           child: Text('JPEG, PNG or WebP · up to 5 MB each'),

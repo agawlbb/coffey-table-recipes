@@ -371,12 +371,10 @@ class _RecipeImportState extends State<RecipeImport> {
           child: ListView(
             padding: const EdgeInsets.all(20),
             children: [
-              const Text(
-                'Import a recipe, or tell us how you make a dish. AI will organize it and may ask about missing details. Review and edit before saving.',
-              ),
+              const Text('Choose a source. Review your recipe before saving.'),
               const SizedBox(height: 12),
               const Text(
-                'Your input is sent to the recipe AI service when you continue.',
+                'AI organizes your input and may ask about missing details.',
               ),
               if (offlineStatus.value)
                 const Padding(
@@ -387,39 +385,44 @@ class _RecipeImportState extends State<RecipeImport> {
                 ),
               if (_draft == null) ...[
                 const SizedBox(height: 16),
-                DropdownButtonFormField<String>(
-                  initialValue: _kind,
-                  decoration: const InputDecoration(labelText: 'Import from'),
-                  items: const [
-                    DropdownMenuItem(
-                      value: 'text',
-                      child: Text('Pasted recipe text'),
-                    ),
-                    DropdownMenuItem(
-                      value: 'description',
-                      child: Text('Describe how I make a dish'),
-                    ),
-                    DropdownMenuItem(
-                      value: 'file',
-                      child: Text('Upload a file'),
-                    ),
-                    DropdownMenuItem(
-                      value: 'camera',
-                      child: Text('Device camera'),
-                    ),
-                    DropdownMenuItem(
-                      value: 'website',
-                      child: Text('Website link'),
-                    ),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    for (final option in const [
+                      ('text', 'Text', Icons.notes),
+                      ('website', 'Website', Icons.link),
+                      ('file', 'File', Icons.upload_file),
+                      ('camera', 'Camera', Icons.camera_alt_outlined),
+                    ])
+                      ChoiceChip(
+                        avatar: Icon(option.$3, size: 18),
+                        label: Text(option.$2),
+                        selected:
+                            option.$1 ==
+                            (_kind == 'description' ? 'text' : _kind),
+                        onSelected: _busy
+                            ? null
+                            : (_) => setState(() {
+                                _kind = option.$1;
+                                _file = null;
+                                _error = null;
+                              }),
+                      ),
                   ],
-                  onChanged: _busy
-                      ? null
-                      : (v) => setState(() {
-                          _kind = v!;
-                          _file = null;
-                          _error = null;
-                        }),
                 ),
+                if (_kind == 'text' || _kind == 'description')
+                  CheckboxListTile(
+                    contentPadding: EdgeInsets.zero,
+                    title: const Text('Describe how I make a dish'),
+                    value: _kind == 'description',
+                    onChanged: _busy
+                        ? null
+                        : (value) => setState(
+                            () =>
+                                _kind = value == true ? 'description' : 'text',
+                          ),
+                  ),
                 const SizedBox(height: 16),
                 if (_kind == 'text' || _kind == 'description')
                   TextField(
@@ -428,8 +431,11 @@ class _RecipeImportState extends State<RecipeImport> {
                     minLines: 6,
                     maxLines: 14,
                     maxLength: 60000,
-                    decoration: const InputDecoration(
-                      labelText: 'Recipe or description',
+                    decoration: InputDecoration(
+                      alignLabelWithHint: true,
+                      labelText: _kind == 'description'
+                          ? 'How do you make it?'
+                          : 'Paste your recipe',
                       hintText: 'For example: I sauté onions in butter, add rice and broth, then simmer…',
                       border: OutlineInputBorder(),
                     ),
@@ -531,7 +537,9 @@ class _RecipeImportState extends State<RecipeImport> {
                       ? 'Preparing recipe…'
                       : _draft != null && _questions.isEmpty
                       ? 'Review recipe'
-                      : 'Continue',
+                      : _draft != null
+                      ? 'Update recipe'
+                      : 'Prepare recipe',
                 ),
               ),
             ],

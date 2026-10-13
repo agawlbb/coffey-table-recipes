@@ -64,9 +64,7 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Pasted recipe text'));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('Upload a file').last);
+    await tester.tap(find.text('File').last);
     await tester.pumpAndSettle();
     await tester.tap(find.text('Choose PDF, image, or text file'));
     await tester.pumpAndSettle();
@@ -90,8 +88,10 @@ void main() {
     await tester.tap(find.text('Apply'));
     await settleImage();
     expect(find.text('recipe-edited.png'), findsOneWidget);
-    await tester.ensureVisible(find.text('Continue'));
-    await tester.tap(find.text('Continue'));
+    await tester.ensureVisible(
+      find.textContaining(RegExp(r'^(Prepare|Update) recipe$')),
+    );
+    await tester.tap(find.textContaining(RegExp(r'^(Prepare|Update) recipe$')));
     await tester.pumpAndSettle();
     await tester.runAsync(() async {
       final codec = await ui.instantiateImageCodec(
