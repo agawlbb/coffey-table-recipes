@@ -220,3 +220,7 @@ Signed build-only run 38476192864 and unsigned comparison 38477465592 both compl
 Signed artifact ID: 11856970609. Downloaded artifact SHA-256 matched GitHub: ed621d05fdf0fa2f9a3a07356fbc93bd65e91fade6d91193d5f703cf1994efd3. Extracted IPA SHA-256 matched verification.json: 5181260a3e1af611192443cd0e04ef3f765cebf36eb292d257887adb6aee2862. Local package is under ignored build/verified-ios-13/package/signed/. No generated package or signing credentials are committed.
 
 GitHub step/log reporting lagged actual execution by several minutes and showed inconsistent intermediate statuses. Logs prove the signed job built the unsigned app at 22:22 UTC and exported successfully at 22:29 UTC; the comparison built at 22:31 UTC. Signing is now demonstrated to work, but the cause of earlier stopped runs remains unproven.
+
+## Upload the verified package
+
+The manual ios-upload.yml workflow downloads an existing signed Actions artifact instead of rebuilding. It verifies the artifact digest/source, the IPA checksum and report, then reruns macOS signature/profile checks before using the existing App Store Connect API secret with Apple's altool. Temporary packages and credentials are removed after the job. Defaults select verified build 13 from c3b92ef. Each macOS dispatch still needs explicit user approval. Uploading does not submit an App Store release; Apple must process the build before TestFlight assignment. YAML parsing, shell syntax and diff whitespace checks passed locally.

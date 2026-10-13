@@ -1,0 +1,107 @@
+name: Upload verified iOS package to TestFlight
+on:
+  workflow_dispatch:
+    inputs:
+      artifact_id:
+        description: Successful signed-package artifact ID
+        required: true
+        default: '11856970609'
+        type: string
+      source_commit:
+        description: Exact source commit of the verified package
+        required: true
+        default: c3b92efbf42d7542b6ca1ad4253446e445d4fdd2
+        type: string
+      archive_sha256:
+        description: GitHub artifact archive SHA-256
+        required: true
+        default: ed621d05fdf0fa2f9a3a07356fbc93bd65e91fade6d91193d5f703cf1994efd3
+        type: string
+      build_number:
+        description: Build number inside the signed package
+        required: true
+        default: '13'
+        type: string
+permissions:
+  contents: read
+  actions: read
+concurrency:
+  group: ios-testflight
+  cancel-in-progress: false
+jobs:
+  upload:
+    runs-on: xcode-27
+    timeout-minutes: 25
+    steps:
+      - name: Validate package selection
+        env:
+          ARTIFACT_ID: ${{ inputs.artifact_id }}
+          SOURCE_COMMIT: ${{ inputs.source_commit }}
+          ARCHIVE_SHA256: ${{ inputs.archive_sha256 }}
+          BUILD_NUMBER: ${{ inputs.build_number }}
+        run: |
+          [[ "$ARTIFACT_ID" =~ ^[1-9][0-9]+$ ]]
+          [[ "$SOURCE_COMMIT" =~ ^[a-f0-9]{40}$ ]]
+          [[ "$ARCHIVE_SHA256" =~ ^[a-f0-9]{64}$ ]]
+          [[ "$BUILD_NUMBER" =~ ^[1-9][0-9]{0,8}$ ]]
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: ${{ inputs.source_commit }}
+      - name: Select Xcode
+        run: sudo xcode-select -s /Applications/Xcode_27.app/Contents/Developer
+      - name: Download and verify the existing signed package
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ARTIFACT_ID: ${{ inputs.artifact_id }}
+          ARCHIVE_SHA256: ${{ inputs.archive_sha256 }}
+          GITHUB_SHA: ${{ inputs.source_commit }}
+          IOS_TEAM_ID: ${{ secrets.IOS_TEAM_ID }}
+          IOS_BUILD_NUMBER: ${{ inputs.build_number }}
+        run: |
+          mkdir -p "$RUNNER_TEMP/ios-upload/package"
+          gh api "repos/$GITHUB_REPOSITORY/actions/artifacts/$ARTIFACT_ID" > "$RUNNER_TEMP/ios-upload/artifact.json"
+          python3 - <<'PY'
+          import json, os
+          from pathlib import Path
+          metadata = json.loads((Path(os.environ['RUNNER_TEMP']) / 'ios-upload/artifact.json').read_text())
+          assert not metadata['expired'], 'Artifact expired'
+          assert metadata['workflow_run']['head_sha'] == os.environ['GITHUB_SHA'], 'Wrong source commit'
+          assert metadata['digest'] == 'sha256:' + os.environ['ARCHIVE_SHA256'], 'Wrong artifact digest'
+          PY
+          gh api "repos/$GITHUB_REPOSITORY/actions/artifacts/$ARTIFACT_ID/zip" > "$RUNNER_TEMP/ios-upload/artifact.zip"
+          printf '%s  %s\n' "$ARCHIVE_SHA256" "$RUNNER_TEMP/ios-upload/artifact.zip" | shasum -a 256 -c -
+          ditto -x -k "$RUNNER_TEMP/ios-upload/artifact.zip" "$RUNNER_TEMP/ios-upload/package"
+          python3 - <<'PY'
+          import hashlib, json, os, subprocess
+          from pathlib import Path
+          root = Path(os.environ['RUNNER_TEMP']) / 'ios-upload/package'
+          packages = list(root.rglob('*.ipa'))
+          reports = list(root.rglob('verification.json'))
+          assert len(packages) == len(reports) == 1, 'Expected one IPA and verification report'
+          report = json.loads(reports[0].read_text())
+          assert report['source_commit'] == os.environ['GITHUB_SHA'], 'Wrong report source'
+          assert report['export_method'] == 'app-store-connect', 'Wrong export method'
+          assert report['sha256'] == hashlib.sha256(packages[0].read_bytes()).hexdigest(), 'IPA checksum mismatch'
+          subprocess.run(['python3', 'tool/verify-ios-ipa.py', str(packages[0])], check=True)
+          with open(os.environ['GITHUB_ENV'], 'a') as environment:
+              environment.write('SIGNED_IPA=' + str(packages[0]) + '\n')
+          PY
+      - name: Upload package to Apple
+        timeout-minutes: 15
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+          ASC_PRIVATE_KEY: ${{ secrets.ASC_PRIVATE_KEY }}
+          API_PRIVATE_KEYS_DIR: ${{ runner.temp }}/ios-upload/private_keys
+        run: |
+          [[ "$ASC_KEY_ID" =~ ^[A-Z0-9]{10}$ ]]
+          test -n "$ASC_ISSUER_ID"
+          test -n "$ASC_PRIVATE_KEY"
+          umask 077
+          mkdir -p "$API_PRIVATE_KEYS_DIR"
+          printf '%s' "$ASC_PRIVATE_KEY" > "$API_PRIVATE_KEYS_DIR/AuthKey_${ASC_KEY_ID}.p8"
+          xcrun altool --upload-app --file "$SIGNED_IPA" --type ios \
+            --apiKey "$ASC_KEY_ID" --apiIssuer "$ASC_ISSUER_ID" --output-format json
+      - name: Remove temporary package and Apple key
+        if: always()
+        run: rm -rf "$RUNNER_TEMP/ios-upload"
