@@ -13,6 +13,7 @@ import 'email_verification_screen.dart';
 import 'invitation_dialogs.dart';
 import 'invitation_entry.dart';
 import 'recipe_browser.dart';
+import 'recipe_trash.dart';
 import 'recipe_import.dart';
 import 'shared_recipe_import.dart';
 import 'offline_recipes.dart';
@@ -415,6 +416,20 @@ class _HouseholdPanelState extends State<HouseholdPanel> {
       _sharedImportOpen = false;
       _sharedRecipeChanged();
     }
+  }
+
+  Future<Map<String, dynamic>> _saveRecipe(
+    String path,
+    Map<String, dynamic> body,
+  ) async {
+    final data = await _request(path, body: body);
+    await _offline?.rememberSavedRecipe(path, data);
+    if (_offline != null) {
+      unawaited(
+        _offline!.sync(_households.map((h) => h['id'] as String).toList()),
+      );
+    }
+    return data;
   }
 
   Future<Map<String, dynamic>> _request(
@@ -960,6 +975,28 @@ class _HouseholdPanelState extends State<HouseholdPanel> {
                       },
               ),
               ListTile(
+                leading: const Icon(Icons.delete_outline),
+                title: const Text('Recently Deleted'),
+                enabled: selected != null,
+                onTap: selected == null
+                    ? null
+                    : () async {
+                        final householdId = _selected!;
+                        Navigator.pop(context);
+                        await Navigator.push<void>(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => RecipeTrash(
+                              householdId: householdId,
+                              request: (path) => _request(path),
+                              save: _saveRecipe,
+                            ),
+                          ),
+                        );
+                        if (mounted) setState(() => _recipeRefresh++);
+                      },
+              ),
+              ListTile(
                 leading: const Icon(Icons.settings_outlined),
                 title: const Text('Household & people'),
                 selected: _settings,
@@ -1015,20 +1052,7 @@ class _HouseholdPanelState extends State<HouseholdPanel> {
                         householdId: _selected!,
                         householdName: selected['name'] as String,
                         request: (path) => _request(path),
-                        save: (path, body) async {
-                          final data = await _request(path, body: body);
-                          await _offline?.rememberSavedRecipe(path, data);
-                          if (_offline != null) {
-                            unawaited(
-                              _offline!.sync(
-                                _households
-                                    .map((h) => h['id'] as String)
-                                    .toList(),
-                              ),
-                            );
-                          }
-                          return data;
-                        },
+                        save: _saveRecipe,
                       ),
                 Center(
                   child: ConstrainedBox(

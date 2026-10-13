@@ -1,9 +1,8 @@
 # Recipe deletion and recovery
 
-Use the recipe detail menu's **Delete recipe** action. Confirming moves the
+Use the **Delete recipe** trash icon beside Edit and Share on recipe details. Confirming moves the
 recipe to **Recently Deleted** for 30 days. **Undo** immediately restores it.
-The recipe browser includes a Recently Deleted button, including its embedded
-household view. The recovery screen shows the deletion date and time remaining,
+Open **Recently Deleted** from the left hamburger menu. The recovery screen shows the deletion date and time remaining,
 supports pagination, and restores the same recipe with its details and links.
 
 Deletion, recovery, and the recovery list require a connection. Other devices
@@ -35,3 +34,12 @@ recipe, Recently Deleted and the 30-day recovery text, and retains coffeybean.co
 hosted API URL. Responses use `Cache-Control: no-store, max-age=0` and versioned
 icon font URLs. Generated assets and local Firebase configuration remain outside
 Git. No hosted Flutter app deployment or release was performed.
+
+## Recovery controls placement (2026-10-12)
+
+Moved Delete to a trash icon beside Edit and Share on recipe details. Moved
+Recently Deleted from the recipe browser into the household's left hamburger
+menu. Both locations retain the existing confirmation, Undo, restoration and
+local-cache behavior. Static analysis and 16 focused recovery, household-menu
+and recipe-browser tests passed. Rebuilt and published the localhost web app;
+Apache returned HTTP 200 and the copied JavaScript matched the generated build.

@@ -11,7 +11,6 @@ import 'offline_recipes.dart';
 import 'recipe_sharing.dart';
 import 'recipe_editor.dart';
 import 'recipe_time.dart';
-import 'recipe_trash.dart';
 
 final recipePhotoCache = CacheManager(
   Config(
@@ -286,26 +285,6 @@ class _RecipeBrowserState extends State<RecipeBrowser>
       constraints: const BoxConstraints(maxWidth: 1100),
       child: Column(
         children: [
-          if (widget.save != null)
-            Align(
-              alignment: Alignment.centerRight,
-              child: TextButton.icon(
-                icon: const Icon(Icons.delete_outline),
-                label: const Text('Recently Deleted'),
-                onPressed: () async {
-                  await Navigator.of(context).push(
-                    MaterialPageRoute<void>(
-                      builder: (_) => RecipeTrash(
-                        householdId: widget.householdId,
-                        request: widget.request,
-                        save: widget.save!,
-                      ),
-                    ),
-                  );
-                  if (mounted) _load();
-                },
-              ),
-            ),
           Padding(
             padding: const EdgeInsets.all(20),
             child: TextField(
@@ -831,19 +810,6 @@ class _RecipeDetailState extends State<RecipeDetail> {
     appBar: AppBar(
       leading: BackButton(onPressed: () => Navigator.of(context).pop()),
       title: Text(_recipe?['title'] as String? ?? widget.title),
-      actions: [
-        if (widget.save != null && _recipe != null && _error == null)
-          PopupMenuButton<String>(
-            enabled: !_deleting,
-            onSelected: (_) => _delete(),
-            itemBuilder: (_) => [
-              const PopupMenuItem(
-                value: 'delete',
-                child: Text('Delete recipe'),
-              ),
-            ],
-          ),
-      ],
     ),
     body: _error != null
         ? Center(
@@ -895,6 +861,12 @@ class _RecipeDetailState extends State<RecipeDetail> {
                     onPressed: _sharing ? null : () => _shareRecipe(anchor),
                   ),
                 ),
+                if (widget.save != null)
+                  IconButton(
+                    tooltip: 'Delete recipe',
+                    onPressed: _deleting ? null : _delete,
+                    icon: const Icon(Icons.delete_outline),
+                  ),
               ],
             ),
             const SizedBox(height: 16),

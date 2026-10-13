@@ -21,6 +21,44 @@ class TestUser implements User {
 }
 
 void main() {
+  testWidgets('Recently Deleted is reached through the left menu', (
+    tester,
+  ) async {
+    final fetched = <String>[];
+    await tester.pumpWidget(
+      MaterialApp(
+        home: HouseholdPanel(
+          user: TestUser(),
+          request: (path, {body}) async {
+            fetched.add(path);
+            if (path == '/me') {
+              return {
+                'user': {'id': '42'},
+                'households': [
+                  {'id': '2', 'name': 'Coffey', 'role': 'member'},
+                ],
+              };
+            }
+            if (path.endsWith('/people')) return {'people': []};
+            return {'recipes': [], 'next_offset': null};
+          },
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('Recently Deleted'), findsNothing);
+    await tester.tap(find.byTooltip('Open navigation menu'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Recently Deleted'));
+    await tester.pumpAndSettle();
+    expect(fetched, contains('/households/2/recipes/deleted?offset=0'));
+    expect(find.text('No recently deleted recipes.'), findsOneWidget);
+    await tester.pageBack();
+    await tester.pumpAndSettle();
+    expect(find.text('Recently Deleted'), findsNothing);
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets(
     'table name edits own household person independently of account name',
     (tester) async {

@@ -154,9 +154,11 @@ void main() {
       );
       await tester.tap(find.text('Open'));
       await tester.pumpAndSettle();
-      await tester.tap(find.byType(PopupMenuButton<String>));
-      await tester.pumpAndSettle();
-      await tester.tap(find.text('Delete recipe'));
+      expect(
+        tester.getTopLeft(find.byTooltip('Delete recipe')).dx,
+        greaterThan(tester.getTopLeft(find.byTooltip('Share recipe')).dx),
+      );
+      await tester.tap(find.byTooltip('Delete recipe'));
       await tester.pumpAndSettle();
       expect(paths, isEmpty);
       expect(find.textContaining('restore it for 30 days'), findsOneWidget);
