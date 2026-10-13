@@ -177,7 +177,7 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
-    await section(tester, 'Categories & tags');
+    await section(tester, 'Recipe details');
     if (find.text('Parent category').evaluate().isEmpty) {
       await section(tester, 'Desserts / Pies');
     }
@@ -279,7 +279,7 @@ void main() {
       'Ingredients',
       'Steps & actions',
       'Photos',
-      'Categories & tags',
+      'Recipe details',
       'Notes & source',
     ]) {
       final sectionTile = tester.widget<ExpansionTile>(

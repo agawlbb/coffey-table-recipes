@@ -621,7 +621,6 @@ class _RecipeEditorState extends State<RecipeEditor> {
             'Ingredients',
             'Steps & actions',
             'Photos',
-            'Categories & tags',
             'Notes & source',
           }.contains(title),
       leading: CircleAvatar(
@@ -1146,7 +1145,6 @@ class _RecipeEditorState extends State<RecipeEditor> {
                           'Ingredients': 'Ingredients',
                           'Steps & actions': 'Method',
                           'Photos': 'Photos',
-                          'Categories & tags': 'Categories',
                           'Notes & source': 'Notes',
                           'Related recipes': 'Related',
                           'Nutrition': 'Nutrition',
@@ -1168,6 +1166,115 @@ class _RecipeEditorState extends State<RecipeEditor> {
                       for (final warning in _draft['import_warnings'] as List)
                         _help(warning.toString()),
                     _section('Recipe details', Icons.restaurant_outlined, [
+                      const Text(
+                        'Categories & tags',
+                        style: TextStyle(fontWeight: FontWeight.w600),
+                      ),
+                      ..._rows('category_assignments').map(
+                        (r) => _item(
+                          _categoryTitle(r),
+                          _rows('category_assignments'),
+                          r,
+                          [
+                            if (r['label'] != null) ...[
+                              _choice(r, 'parent_label', 'Parent category', {
+                                for (final c in _options(
+                                  'categories',
+                                ).where((c) => c['parent_label'] == null))
+                                  '${c['label']}': '${c['label']}',
+                              }, nullable: r['_new_category'] != true),
+                              _help(
+                                'Edit the category name to use or add a different category.',
+                              ),
+                              _field(
+                                r,
+                                'label',
+                                'Category name',
+                                required: true,
+                                maxLength: 120,
+                              ),
+                            ] else ...[
+                              _choice(
+                                r,
+                                '_parent_category',
+                                'Parent category',
+                                {
+                                  for (final c in _options(
+                                    'categories',
+                                  ).where((c) => c['parent_label'] == null))
+                                    '${c['label']}': '${c['label']}',
+                                },
+                              ),
+                              _choice(r, 'category_id', 'Category', {
+                                for (final c in _options('categories').where(
+                                  (c) =>
+                                      c['parent_label'] ==
+                                          r['_parent_category'] ||
+                                      (c['parent_label'] == null &&
+                                          c['label'] == r['_parent_category']),
+                                ))
+                                  '${c['id']}': '${c['label']}',
+                              }),
+                              TextButton.icon(
+                                onPressed: () => _typeNewCategory(r),
+                                icon: const Icon(Icons.edit_outlined),
+                                label: const Text('Type a new category'),
+                              ),
+                            ],
+                          ],
+                        ),
+                      ),
+                      _add(
+                        'Add a new category',
+                        () => _change(
+                          () => _rows('category_assignments').add({
+                            '_key': _id(),
+                            'label': '',
+                            '_new_category': true,
+                          }),
+                        ),
+                      ),
+                      _add(
+                        'Add browse category',
+                        () => _change(
+                          () =>
+                              _rows('category_assignments')
+                                  .add({'_key': _id()}),
+                        ),
+                      ),
+                      ..._rows('tags').map(
+                        (r) => _item(
+                          r['label']?.toString() ?? 'New tag',
+                          _rows('tags'),
+                          r,
+                          [
+                            _choice(r, 'kind', 'Tag type', const {
+                              'cuisine': 'Cuisine',
+                              'category': 'Category tag',
+                              'technique': 'Technique',
+                              'equipment': 'Equipment',
+                            }),
+                            _field(
+                              r,
+                              'label',
+                              'Tag',
+                              required: true,
+                              maxLength: 120,
+                            ),
+                          ],
+                        ),
+                      ),
+                      _add(
+                        'Add tag',
+                        () => _change(
+                          () => _rows('tags').add({
+                            '_key': _id(),
+                            'kind': 'cuisine',
+                            'label': '',
+                          }),
+                        ),
+                      ),
+                      const Divider(),
                       _field(
                         _draft,
                         'title',
@@ -1442,112 +1549,6 @@ class _RecipeEditorState extends State<RecipeEditor> {
                       subtitle:
                           '${_rows('photos').length} ${_rows('photos').length == 1 ? 'photo' : 'photos'}${_sourcePhotos.isEmpty ? '' : ' · ${_sourcePhotos.length} suggested from import'}',
                     ),
-                    _section('Categories & tags', Icons.label_outline, [
-                      ..._rows('category_assignments').map(
-                        (r) => _item(
-                          _categoryTitle(r),
-                          _rows('category_assignments'),
-                          r,
-                          [
-                            if (r['label'] != null) ...[
-                              _choice(r, 'parent_label', 'Parent category', {
-                                for (final c in _options(
-                                  'categories',
-                                ).where((c) => c['parent_label'] == null))
-                                  '${c['label']}': '${c['label']}',
-                              }, nullable: r['_new_category'] != true),
-                              _help(
-                                'Edit the category name to use or add a different category.',
-                              ),
-                              _field(
-                                r,
-                                'label',
-                                'Category name',
-                                required: true,
-                                maxLength: 120,
-                              ),
-                            ] else ...[
-                              _choice(
-                                r,
-                                '_parent_category',
-                                'Parent category',
-                                {
-                                  for (final c in _options(
-                                    'categories',
-                                  ).where((c) => c['parent_label'] == null))
-                                    '${c['label']}': '${c['label']}',
-                                },
-                              ),
-                              _choice(r, 'category_id', 'Category', {
-                                for (final c in _options('categories').where(
-                                  (c) =>
-                                      c['parent_label'] ==
-                                          r['_parent_category'] ||
-                                      (c['parent_label'] == null &&
-                                          c['label'] == r['_parent_category']),
-                                ))
-                                  '${c['id']}': '${c['label']}',
-                              }),
-                              TextButton.icon(
-                                onPressed: () => _typeNewCategory(r),
-                                icon: const Icon(Icons.edit_outlined),
-                                label: const Text('Type a new category'),
-                              ),
-                            ],
-                          ],
-                        ),
-                      ),
-                      _add(
-                        'Add a new category',
-                        () => _change(
-                          () => _rows('category_assignments').add({
-                            '_key': _id(),
-                            'label': '',
-                            '_new_category': true,
-                          }),
-                        ),
-                      ),
-                      _add(
-                        'Add browse category',
-                        () => _change(
-                          () =>
-                              _rows('category_assignments')
-                                  .add({'_key': _id()}),
-                        ),
-                      ),
-                      ..._rows('tags').map(
-                        (r) => _item(
-                          r['label']?.toString() ?? 'New tag',
-                          _rows('tags'),
-                          r,
-                          [
-                            _choice(r, 'kind', 'Tag type', const {
-                              'cuisine': 'Cuisine',
-                              'category': 'Category tag',
-                              'technique': 'Technique',
-                              'equipment': 'Equipment',
-                            }),
-                            _field(
-                              r,
-                              'label',
-                              'Tag',
-                              required: true,
-                              maxLength: 120,
-                            ),
-                          ],
-                        ),
-                      ),
-                      _add(
-                        'Add tag',
-                        () => _change(
-                          () => _rows('tags').add({
-                            '_key': _id(),
-                            'kind': 'cuisine',
-                            'label': '',
-                          }),
-                        ),
-                      ),
-                    ]),
                     _section('Notes & source', Icons.notes_outlined, [
                       _field(_draft, 'notes', 'Recipe notes', lines: 3),
                       _field(
