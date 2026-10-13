@@ -230,3 +230,7 @@ Upload-only run 38479372780 stopped before contacting Apple because GitHub does 
 ## Apple upload accepted (2026-10-13)
 
 Corrected upload-only run 38479599513 completed successfully using workflow commit 77d0d371ace05494bf650d6c388fab4298e70fa4. The existing version 1.3.0 build 13 IPA from c3b92ef was reverified without rebuilding. Apple altool reported UPLOAD SUCCEEDED with no errors at 22:44:59 UTC, delivery UUID 8487d206-da46-499e-be83-f034f44aea8c. Apple's builds API subsequently returned build 13 with processingState VALID. Internal tester/group assignment and any required compliance responses remain separate TestFlight setup steps. No App Store release was submitted.
+
+## Release 1.3.1 signed upload (2026-10-13)
+
+The user separately approved signed build/upload run 38485430242 from immutable v1.3.1 source 62055747acf64dec8e513e1ff96d5c5223f3ea3d. Xcode 27 archived the app and share extension, strict signature checks passed, and direct export/upload succeeded at 23:51:29 UTC. App Store Connect received 1.3.1/build 14 with delivery ID bed37ac6-2987-47c3-b3b3-86322bda6b94. Apple finished processing and TestFlight now requires the user's encryption declaration (`Missing Compliance`). The existing internal testing group has automatic Xcode build distribution enabled, but build 14 tester availability has not yet been confirmed. No public App Store submission occurred. The upload workflow intentionally skips downloadable signed-IPA artifacts; this release requested TestFlight delivery rather than an unsigned desktop package.
