@@ -69,8 +69,18 @@ class _RecipeEditorState extends State<RecipeEditor> {
   String _id() => 'new-${_nextId++}';
   List<Map<String, dynamic>> _rows(String key) =>
       (_draft[key] as List).cast<Map<String, dynamic>>();
-  List<Map<String, dynamic>> _options(String key) =>
-      recipeRows((_draft['edit_options'] as Map?)?[key]);
+  List<Map<String, dynamic>> _options(String key) {
+    final options = recipeRows((_draft['edit_options'] as Map?)?[key]);
+    if (key == 'categories') {
+      options.sort(
+        (a, b) => '${a['label'] ?? ''}'.toLowerCase().compareTo(
+          '${b['label'] ?? ''}'.toLowerCase(),
+        ),
+      );
+    }
+    return options;
+  }
+
   @override
   void initState() {
     super.initState();
