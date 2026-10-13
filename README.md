@@ -56,6 +56,8 @@ For a phone connected through a hotspot or local Wi-Fi, open http://<laptop-IP>/
 
 ## Home screen design
 
+Main categories retain their established display order (Main dishes, Side dishes, etc.). Within a category, subcategories display alphabetically, and recipe lists use alphabetical title order, ignoring letter case. This applies to online and cached offline browsing and to loaded recipe pages.
+
 The signed-in home opens directly to recipe search and the collection. The app bar avatar opens a standard user menu with account identity, Change name at the table, Change account display name, Household & people, and Log out. Account display names save to Firebase. Your name at the table updates your existing household member record, independently for each household; the same editor is available beside your own name in People at your table. Log out requires confirmation. The navigation menu opens Household & people for household selection, setup, and member management; returning to Recipes preserves the search. Signed-out users land directly on the sign-in form, including after logout. Artwork remains bundled for future branding use but is not shown on the home screen. The app retains its parchment, olive, coffee, and copper palette.
 
 On mouse-only web devices, scrollable lists and photo strips use persistent, slim 7-pixel scrollbars with a muted olive thumb and no visible track. Drag the thumb or click its track area to navigate. Browsers reporting touch capability (including hybrid laptops) hide the bars and retain swipe scrolling. Native mobile scrolling is unchanged.

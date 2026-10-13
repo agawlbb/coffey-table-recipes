@@ -159,6 +159,9 @@ class _RecipeBrowserState extends State<RecipeBrowser>
       );
       if (!mounted || generation != _generation) return;
       final nodes = recipeRows(data['category_nodes']);
+      if (_trail.isNotEmpty) {
+        nodes.sort((a, b) => _alphabeticalCompare(a, b, 'label'));
+      }
       for (final category in nodes.where(
         (node) => node['needs_ai_image'] == true,
       )) {
@@ -185,6 +188,7 @@ class _RecipeBrowserState extends State<RecipeBrowser>
       if (!mounted || generation != _generation) return;
       setState(() {
         _recipes.addAll(recipeRows(data['recipes']));
+        _recipes.sort((a, b) => _alphabeticalCompare(a, b, 'title'));
         _next = data['next_offset'] as int?;
         if (!more) _nodes = nodes;
       });
@@ -203,6 +207,20 @@ class _RecipeBrowserState extends State<RecipeBrowser>
         });
       }
     }
+  }
+
+  int _alphabeticalCompare(
+    Map<String, dynamic> a,
+    Map<String, dynamic> b,
+    String field,
+  ) {
+    final order = recipeValue(a[field])
+        .trim()
+        .toLowerCase()
+        .compareTo(recipeValue(b[field]).trim().toLowerCase());
+    return order != 0
+        ? order
+        : recipeValue(a['id']).compareTo(recipeValue(b['id']));
   }
 
   void _enterCategory(Map<String, dynamic> category) {

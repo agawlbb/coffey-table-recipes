@@ -3,6 +3,68 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  testWidgets('keeps main category order and alphabetizes nested browsing', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(1000, 1800);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    await tester.pumpWidget(
+      MaterialApp(
+        home: RecipeBrowser(
+          householdId: '2',
+          householdName: 'Coffey',
+          request: (path) async {
+            final query = Uri.parse(path).queryParameters;
+            if (query['tree'] == '1') {
+              final nested = query.containsKey('scope');
+              return {
+                'view': 'categories',
+                'category_nodes': [
+                  {
+                    'id': '1',
+                    'label': nested ? 'Zucchini' : 'Main dishes',
+                    'recipe_count': 2,
+                  },
+                  {
+                    'id': '2',
+                    'label': nested ? 'apple sides' : 'Side dishes',
+                    'recipe_count': 2,
+                  },
+                  if (!nested)
+                    {'id': '3', 'label': 'Breakfast', 'recipe_count': 2},
+                ],
+              };
+            }
+            return {
+              'recipes': [
+                if (query['offset'] == '0') ...[
+                  {'id': '9', 'title': 'Zesty soup'},
+                  {'id': '10', 'title': 'apple pie'},
+                ] else
+                  {'id': '11', 'title': 'Banana bread'},
+              ],
+              'next_offset': query['offset'] == '0' ? 2 : null,
+            };
+          },
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    double y(String title) => tester.getTopLeft(find.text(title)).dy;
+    expect(y('Main dishes'), lessThan(y('Side dishes')));
+    expect(y('Side dishes'), lessThan(y('Breakfast')));
+    expect(y('apple pie'), lessThan(y('Zesty soup')));
+    await tester.tap(find.text('Main dishes'));
+    await tester.pumpAndSettle();
+    expect(y('apple sides'), lessThan(y('Zucchini')));
+    await tester.tap(find.text('Load more recipes'));
+    await tester.pumpAndSettle();
+    expect(y('apple pie'), lessThan(y('Banana bread')));
+    expect(y('Banana bread'), lessThan(y('Zesty soup')));
+  });
+
   testWidgets('returning to iOS shows recipes saved by the share extension', (
     tester,
   ) async {
