@@ -28,6 +28,10 @@ version=$(xcodebuild -version)
 : "${IOS_FIREBASE_CONFIG:?Set IOS_FIREBASE_CONFIG to the ignored Firebase JSON file}"
 [[ "$IOS_TEAM_ID" =~ ^[A-Z0-9]{10}$ ]] || { echo 'Invalid Apple team ID'; exit 1; }
 [[ -f "$IOS_FIREBASE_CONFIG" ]] || { echo 'Firebase configuration file not found'; exit 1; }
+# Standard Apple Silicon runners have limited memory. Bound native concurrency
+# while keeping the compiler and SDK identical to the previously validated path.
+IOS_XCODE_JOBS="${IOS_XCODE_JOBS:-2}"
+[[ "$IOS_XCODE_JOBS" =~ ^[1-9][0-9]?$ ]] || { echo 'Invalid Xcode job count'; exit 1; }
 export IOS_EXPORT_METHOD="${IOS_EXPORT_METHOD:-debugging}"
 case "$IOS_EXPORT_METHOD" in debugging|release-testing|app-store-connect) ;; *) echo 'Unsupported export method'; exit 1 ;; esac
 export IOS_TEAM_ID
@@ -65,6 +69,7 @@ Path('build/ios/signing/ExportOptions.plist').write_bytes(plistlib.dumps({
 PY
 echo '::notice::Stage: Apple archive and automatic provisioning'
 xcodebuild -workspace ios/Runner.xcworkspace -scheme Runner -configuration Release \
+  -jobs "$IOS_XCODE_JOBS" \
   -destination 'generic/platform=iOS' \
   -archivePath build/ios/archive/Runner.xcarchive archive \
   DEVELOPMENT_TEAM="$IOS_TEAM_ID" CODE_SIGN_STYLE=Automatic CODE_SIGNING_ALLOWED=YES \

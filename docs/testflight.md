@@ -68,6 +68,16 @@ GitHub verified its source SHA matches `214f2aa`. At creation it was pending beh
 the old run's unfinished cancellation; the signing concurrency group prevents
 overlap. Do not report cancellation or the new build as completed until verified.
 
+Build-only coordination: the current requested scope excludes TestFlight/App
+Store upload. Fresh API checks still showed old run 38466229058 in progress and
+diagnostic 38474737732 pending, both originally upload-enabled. Requested force
+cancellation for both (HTTP 202), without claiming either had completed. The
+next authorized run must use `upload=false`. Native archive concurrency now
+defaults to two Xcode jobs, configurable with a validated `IOS_XCODE_JOBS`, to
+reduce memory pressure on the standard 7 GB runner. This is a diagnostic
+mitigation, not a proven fix for the underlying archive stall. Existing safe
+heartbeat and timeout limits remain. No new Mac run was dispatched here.
+
 Prepared on 2026-10-13. Signing, upload and physical-device acceptance remain
 pending. This setup uses Apple's automatic provisioning and cloud
 distribution signing through an App Store Connect team API key. No Apple password,
