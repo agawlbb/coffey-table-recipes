@@ -212,3 +212,11 @@ start/resume, multiple files, explicit Save and Cancel. See
 ## Build-only verification (2026-10-13)
 
 Both upload-enabled attempts are confirmed canceled (38466229058 and 38474737732). The next approved diagnostic uses upload=false. Exported packages must pass strict codesign checks for the app and share extension, match the requested build/version and Apple team, contain valid unexpired App Store profiles and signed App Group entitlements, and include a SHA-256 verification report. Local Python syntax and workflow YAML validation passed; macOS signature verification runs on the build host before artifact upload.
+
+## Verified build outcome (2026-10-13)
+
+Signed build-only run 38476192864 and unsigned comparison 38477465592 both completed successfully from c3b92efbf42d7542b6ca1ad4253446e445d4fdd2 using xcode-27. Signed archive/export completed and the verifier accepted version 1.3.0 build 13 for Runner and ShareExtension, including strict signatures, team, App Group and unexpired App Store profiles. Nothing was uploaded to App Store Connect or TestFlight.
+
+Signed artifact ID: 11856970609. Downloaded artifact SHA-256 matched GitHub: ed621d05fdf0fa2f9a3a07356fbc93bd65e91fade6d91193d5f703cf1994efd3. Extracted IPA SHA-256 matched verification.json: 5181260a3e1af611192443cd0e04ef3f765cebf36eb292d257887adb6aee2862. Local package is under ignored build/verified-ios-13/package/signed/. No generated package or signing credentials are committed.
+
+GitHub step/log reporting lagged actual execution by several minutes and showed inconsistent intermediate statuses. Logs prove the signed job built the unsigned app at 22:22 UTC and exported successfully at 22:29 UTC; the comparison built at 22:31 UTC. Signing is now demonstrated to work, but the cause of earlier stopped runs remains unproven.
