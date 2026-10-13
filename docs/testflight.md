@@ -39,6 +39,18 @@ incidents at the check. These observations do not establish a billing cause or
 prove which image version the current runner would have used. No run was started
 or canceled during this read-only investigation.
 
+Correction after detailed-log retrieval on 2026-10-13: GitHub's step/status API
+and UI proved inconsistent with its detailed logs. Attempt 2 logs show runner
+setup at 17:12 EDT, Flutter tests followed by five iOS configuration tests at
+17:15, unsigned Runner.app compilation completed at 17:21, and native archive
+compilation through 17:24. These timestamps precede the owner's later account
+budget adjustment, so the budget change cannot be credited with starting the
+retry. Earlier observations of zero steps described the returned status, not
+proof that no code executed. The detailed logs supersede that inference. At this
+check there is no verified archive/export/upload success, while GitHub still
+reports the job in progress. Do not infer completion or a billing root cause
+from the delayed status alone. No additional build was started.
+
 Prepared on 2026-10-13. Signing, upload and physical-device acceptance remain
 pending. This setup uses Apple's automatic provisioning and cloud
 distribution signing through an App Store Connect team API key. No Apple password,
