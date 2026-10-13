@@ -210,8 +210,9 @@ class OfflineRecipes with WidgetsBindingObserver {
 
   bool _cacheable(String path) =>
       path == '/me' ||
-      RegExp(r'^/households/[^/]+/(people|recipes)(/[^/?]+)?(\?.*)?$')
-          .hasMatch(path);
+      (!Uri.parse(path).path.endsWith('/recipes/deleted') &&
+          RegExp(r'^/households/[^/]+/(people|recipes)(/[^/?]+)?(\?.*)?$')
+              .hasMatch(path));
 
   /// Use the server-confirmed save response immediately, including offline reads.
   Future<void> rememberSavedRecipe(
@@ -221,12 +222,48 @@ class OfflineRecipes with WidgetsBindingObserver {
     await _load();
     if (_closed) return;
     final segments = Uri.parse(path).pathSegments;
-    if (segments.length != 4 || segments[2] != 'recipes') return;
+    if (segments.length < 4 || segments[2] != 'recipes') return;
+    final root = '/households/${segments[1]}/recipes';
+    path = '$root/${segments[3]}';
+    if (data['deleted_recipe_id'] != null) {
+      _accessVersion++;
+      final id = '${data['deleted_recipe_id']}';
+      _responses.removeWhere(
+        (key, _) => Uri.parse(key).path == root || key == '$root/$id',
+      );
+      final library = _libraries[segments[1]] as Map?;
+      (library?['rows'] as List?)?.removeWhere((row) => '${row['id']}' == id);
+      if (library != null) {
+        library['synced_at'] = '1970-01-01T00:00:00Z';
+        library['scopes'] = <String, dynamic>{};
+        (library['ids'] as Map).forEach((_, ids) => (ids as List).remove(id));
+      }
+      _pending.remove(segments[1]);
+      for (final entry in _responses.entries.where(
+        (entry) => entry.key.startsWith('$root/'),
+      )) {
+        final recipe = entry.value['recipe'] as Map?;
+        for (final key in ['related', 'pairings']) {
+          (recipe?[key] as List?)?.removeWhere((row) => '${row['id']}' == id);
+        }
+        (recipe?['edit_options']?['recipes'] as List?)?.removeWhere(
+          (row) => '${row['id']}' == id,
+        );
+      }
+      await _save();
+      return;
+    }
+    if (data['recipe'] is! Map) return;
+    _accessVersion++;
     final recipe = data['recipe'] as Map<String, dynamic>;
     _responses[path] = jsonDecode(jsonEncode(data));
     final household = segments[1];
     final library = _libraries[household] as Map?;
     if (library != null) {
+      if (!(library['rows'] as List).any((row) => row['id'] == recipe['id'])) {
+        (library['rows'] as List).add({'id': recipe['id']});
+        ((library['ids'] as Map)[''] as List).add(recipe['id']);
+      }
       for (final row in library['rows'] as List) {
         if (row['id'] == recipe['id']) {
           for (final field in [
@@ -254,7 +291,6 @@ class OfflineRecipes with WidgetsBindingObserver {
       // Force the next sync to refresh categories and related recipes as well.
       library['synced_at'] = '1970-01-01T00:00:00Z';
     }
-    final root = '/households/$household/recipes';
     _responses.removeWhere((key, _) => Uri.parse(key).path == root);
     await _save();
   }
@@ -269,9 +305,10 @@ class OfflineRecipes with WidgetsBindingObserver {
         'This content has not been saved on this device yet. Connect to the internet and try again.',
       );
     }
+    final version = _accessVersion;
     try {
       final data = await fetch(path);
-      if (_closed) return data;
+      if (_closed || version != _accessVersion) return data;
       offlineStatus.value = false;
       if (_cacheable(path)) {
         _responses[path] = data;
@@ -466,6 +503,41 @@ class OfflineRecipes with WidgetsBindingObserver {
             DateTime.now().difference(lastSync) < const Duration(hours: 24);
         // Always check the inventory: a recent snapshot may lack newly added recipes.
         final rows = await pages(root, '');
+        if (_closed || accessVersion != _accessVersion) return;
+        final inventoryIds = rows.map((row) => row['id']).toSet();
+        final removed = (previous?['rows'] as List? ?? []).any(
+          (row) => !inventoryIds.contains(row['id']),
+        );
+        if (removed && previous != null) {
+          previous['scopes'] = <String, dynamic>{};
+          (previous['ids'] as Map).forEach(
+            (_, ids) =>
+                (ids as List).removeWhere((id) => !inventoryIds.contains(id)),
+          );
+          for (final entry in _responses.entries.where(
+            (entry) => entry.key.startsWith('$root/'),
+          )) {
+            final recipe = entry.value['recipe'] as Map?;
+            for (final key in ['related', 'pairings']) {
+              (recipe?[key] as List?)?.removeWhere(
+                (row) => !inventoryIds.contains(row['id']),
+              );
+            }
+            (recipe?['edit_options']?['recipes'] as List?)?.removeWhere(
+              (row) => !inventoryIds.contains(row['id']),
+            );
+          }
+        }
+        (previous?['rows'] as List?)?.removeWhere(
+          (row) => !inventoryIds.contains(row['id']),
+        );
+        _responses.removeWhere(
+          (path, _) =>
+              (removed && Uri.parse(path).path == root) ||
+              (path.startsWith('$root/') &&
+                  !inventoryIds.contains(Uri.parse(path).pathSegments.last)),
+        );
+        await _save(required: true);
         final previousRows = {
           for (final row in previous?['rows'] as List? ?? []) row['id']: row,
         };

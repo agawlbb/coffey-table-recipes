@@ -102,6 +102,73 @@ void main() {
     offlineStatus.value = false;
   });
 
+  test('confirmed deletion removes offline text and restore returns it immediately', () async {
+    final c = cache();
+    await c.sync(['1']);
+    final detail = await server('$root/1');
+    await c.rememberSavedRecipe('$root/1/delete', {'deleted_recipe_id': '1'});
+    connected = false;
+    offlineStatus.value = true;
+    expect(
+      (await c.request(
+        '$root?offset=0',
+      ))['recipes'].any((row) => row['id'] == '1'),
+      isFalse,
+    );
+    await expectLater(c.request('$root/1'), throwsA(isA<ApiException>()));
+    await c.rememberSavedRecipe('$root/1/restore', detail);
+    expect((await c.request('$root/1'))['recipe']['id'], '1');
+    expect(
+      (await c.request(
+        '$root?offset=30',
+      ))['recipes'].any((row) => row['id'] == '1'),
+      isTrue,
+    );
+    c.close();
+  });
+
+  test('Recently Deleted never falls back to offline cached data', () async {
+    final c = cache(
+      fetch: (path) async {
+        if (!connected) throw http.ClientException('No internet');
+        return {'recipes': [], 'next_offset': null};
+      },
+    );
+    await c.request('$root/deleted?offset=0');
+    connected = false;
+    await expectLater(
+      c.request('$root/deleted?offset=0'),
+      throwsA(isA<http.ClientException>()),
+    );
+    c.close();
+  });
+
+  test(
+    'deletion during sync cannot put an old detail back in the cache',
+    () async {
+      final waiting = Completer<Map<String, dynamic>>();
+      final started = Completer<void>();
+      final c = cache(
+        fetch: (path) async {
+          if (path == '$root/1') {
+            started.complete();
+            return waiting.future;
+          }
+          return server(path);
+        },
+      );
+      final sync = c.sync(['1']);
+      await started.future;
+      await c.rememberSavedRecipe('$root/1/delete', {'deleted_recipe_id': '1'});
+      waiting.complete(await server('$root/1'));
+      await sync;
+      connected = false;
+      offlineStatus.value = true;
+      await expectLater(c.request('$root/1'), throwsA(isA<ApiException>()));
+      c.close();
+    },
+  );
+
   test('sync fetches all pages and unvisited details; restart works without internet', () async {
     final first = cache();
     await first.request('/me');

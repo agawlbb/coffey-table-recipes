@@ -11,6 +11,7 @@ import 'offline_recipes.dart';
 import 'recipe_sharing.dart';
 import 'recipe_editor.dart';
 import 'recipe_time.dart';
+import 'recipe_trash.dart';
 
 final recipePhotoCache = CacheManager(
   Config(
@@ -254,6 +255,9 @@ class _RecipeBrowserState extends State<RecipeBrowser>
           title: recipe['title'] as String,
           request: widget.request,
           save: widget.save,
+          onChanged: () {
+            if (mounted) _load();
+          },
         ),
       ),
     );
@@ -282,6 +286,26 @@ class _RecipeBrowserState extends State<RecipeBrowser>
       constraints: const BoxConstraints(maxWidth: 1100),
       child: Column(
         children: [
+          if (widget.save != null)
+            Align(
+              alignment: Alignment.centerRight,
+              child: TextButton.icon(
+                icon: const Icon(Icons.delete_outline),
+                label: const Text('Recently Deleted'),
+                onPressed: () async {
+                  await Navigator.of(context).push(
+                    MaterialPageRoute<void>(
+                      builder: (_) => RecipeTrash(
+                        householdId: widget.householdId,
+                        request: widget.request,
+                        save: widget.save!,
+                      ),
+                    ),
+                  );
+                  if (mounted) _load();
+                },
+              ),
+            ),
           Padding(
             padding: const EdgeInsets.all(20),
             child: TextField(
@@ -551,18 +575,105 @@ class RecipeDetail extends StatefulWidget {
     required this.title,
     required this.request,
     this.save,
+    this.onChanged,
   });
   final String householdId;
   final String recipeId;
   final String title;
   final RecipeRequest request;
   final RecipeSave? save;
+  final VoidCallback? onChanged;
   @override
   State<RecipeDetail> createState() => _RecipeDetailState();
 }
 
 class _RecipeDetailState extends State<RecipeDetail> {
   bool _sharing = false;
+  bool _deleting = false;
+
+  Future<void> _delete() async {
+    if (offlineStatus.value) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Connect to the internet to delete a recipe.'),
+        ),
+      );
+      return;
+    }
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Delete recipe?'),
+        content: const Text(
+          'Move this recipe to Recently Deleted? You can restore it for 30 days. It will then be permanently removed.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Delete recipe'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    setState(() => _deleting = true);
+    final path = '/households/${widget.householdId}/recipes/${widget.recipeId}';
+    final save = widget.save!;
+    final onChanged = widget.onChanged;
+    try {
+      await save('$path/delete', {'revision': _recipe!['revision']});
+      if (!mounted) return;
+      final messenger = ScaffoldMessenger.of(context);
+      messenger.showSnackBar(
+        SnackBar(
+          content: const Text('Recipe moved to Recently Deleted'),
+          action: SnackBarAction(
+            label: 'Undo',
+            onPressed: () async {
+              try {
+                await save('$path/restore', {});
+                onChanged?.call();
+                if (messenger.mounted) {
+                  messenger.showSnackBar(
+                    const SnackBar(content: Text('Recipe restored')),
+                  );
+                }
+              } catch (error) {
+                if (messenger.mounted) {
+                  messenger.showSnackBar(
+                    SnackBar(
+                      content: Text(
+                        error is ApiException ? error.message : 'Could not restore recipe. Check your connection and retry.',
+                      ),
+                    ),
+                  );
+                }
+              }
+            },
+          ),
+        ),
+      );
+      Navigator.of(context).pop();
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              error is ApiException
+                  ? error.message
+                  : 'Could not delete recipe. Check your connection and retry.',
+            ),
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _deleting = false);
+    }
+  }
 
   Future<void> _shareRecipe(BuildContext anchor) async {
     final choice = await showModalBottomSheet<bool>(
@@ -710,6 +821,7 @@ class _RecipeDetailState extends State<RecipeDetail> {
         title: row['title'] as String,
         request: widget.request,
         save: widget.save,
+        onChanged: widget.onChanged,
       ),
     ),
   );
@@ -719,6 +831,19 @@ class _RecipeDetailState extends State<RecipeDetail> {
     appBar: AppBar(
       leading: BackButton(onPressed: () => Navigator.of(context).pop()),
       title: Text(_recipe?['title'] as String? ?? widget.title),
+      actions: [
+        if (widget.save != null && _recipe != null && _error == null)
+          PopupMenuButton<String>(
+            enabled: !_deleting,
+            onSelected: (_) => _delete(),
+            itemBuilder: (_) => [
+              const PopupMenuItem(
+                value: 'delete',
+                child: Text('Delete recipe'),
+              ),
+            ],
+          ),
+      ],
     ),
     body: _error != null
         ? Center(
@@ -760,7 +885,7 @@ class _RecipeDetailState extends State<RecipeDetail> {
                 if (widget.save != null)
                   IconButton(
                     tooltip: 'Edit recipe',
-                    onPressed: _edit,
+                    onPressed: _deleting ? null : _edit,
                     icon: const Icon(Icons.edit_outlined),
                   ),
                 Builder(
