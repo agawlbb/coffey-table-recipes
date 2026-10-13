@@ -54,7 +54,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           ARTIFACT_ID: ${{ inputs.artifact_id }}
           ARCHIVE_SHA256: ${{ inputs.archive_sha256 }}
-          GITHUB_SHA: ${{ inputs.source_commit }}
+          SOURCE_COMMIT: ${{ inputs.source_commit }}
           IOS_TEAM_ID: ${{ secrets.IOS_TEAM_ID }}
           IOS_BUILD_NUMBER: ${{ inputs.build_number }}
         run: |
@@ -65,7 +65,7 @@ jobs:
           from pathlib import Path
           metadata = json.loads((Path(os.environ['RUNNER_TEMP']) / 'ios-upload/artifact.json').read_text())
           assert not metadata['expired'], 'Artifact expired'
-          assert metadata['workflow_run']['head_sha'] == os.environ['GITHUB_SHA'], 'Wrong source commit'
+          assert metadata['workflow_run']['head_sha'] == os.environ['SOURCE_COMMIT'], 'Wrong source commit'
           assert metadata['digest'] == 'sha256:' + os.environ['ARCHIVE_SHA256'], 'Wrong artifact digest'
           PY
           gh api "repos/$GITHUB_REPOSITORY/actions/artifacts/$ARTIFACT_ID/zip" > "$RUNNER_TEMP/ios-upload/artifact.zip"
@@ -79,10 +79,11 @@ jobs:
           reports = list(root.rglob('verification.json'))
           assert len(packages) == len(reports) == 1, 'Expected one IPA and verification report'
           report = json.loads(reports[0].read_text())
-          assert report['source_commit'] == os.environ['GITHUB_SHA'], 'Wrong report source'
+          assert report['source_commit'] == os.environ['SOURCE_COMMIT'], 'Wrong report source'
           assert report['export_method'] == 'app-store-connect', 'Wrong export method'
           assert report['sha256'] == hashlib.sha256(packages[0].read_bytes()).hexdigest(), 'IPA checksum mismatch'
-          subprocess.run(['python3', 'tool/verify-ios-ipa.py', str(packages[0])], check=True)
+          subprocess.run(['python3', 'tool/verify-ios-ipa.py', str(packages[0])], check=True,
+                         env=dict(os.environ, GITHUB_SHA=os.environ['SOURCE_COMMIT']))
           with open(os.environ['GITHUB_ENV'], 'a') as environment:
               environment.write('SIGNED_IPA=' + str(packages[0]) + '\n')
           PY
