@@ -25,6 +25,12 @@ Apple removed the one-time download control. The private key file location and
 `ASC_PRIVATE_KEY` secret are not yet verified. Source push and first Mac run
 remain pending. No build has been started and no tester invitation sent.
 
+With explicit owner approval, revoked the unavailable original key and generated
+a replacement Admin team key on 2026-10-13. The replacement private key's saved
+location remains unverified. Updating `ASC_KEY_ID` encountered GitHub's Confirm
+access prompt and was not verified as saved; complete GitHub reauthentication
+before finishing the replacement key configuration. No Mac run was triggered.
+
 ## Apple account setup
 
 1. Sign in at https://developer.apple.com/account. Under Membership details, copy
