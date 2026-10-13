@@ -2,6 +2,16 @@
 
 Release dates and changes are reconstructed from annotated Git tags, commit history, and project release records. Versions before 1.0 are demonstration releases; 1.0 marks the first usable release. Android retains the existing signing identity; iOS packages are unsigned for user-managed signing.
 
+## 1.3.0 — 2026-10-12
+
+Build 12; tag `v1.3.0`.
+
+- Added recipe deletion with immediate Undo and a Recently Deleted screen for recovery within 30 days.
+- Kept offline caches synchronized with confirmed deletions and restores.
+- Simplified recipe import and editing, with visible categorization and expanded editing sections.
+- Sorted subcategories and recipes alphabetically and improved step numbering and category/tag placement in details.
+- First three-platform release build from the public repository; standard public-repository macOS runner use is documented as free by GitHub, with separate approval still required for every iOS run.
+
 ## 1.2.0 — 2026-10-12
 
 Build 11; tag `v1.2.0`. Web and Android release only; no iOS build was requested.
