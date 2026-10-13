@@ -24,3 +24,14 @@ publish the hosted Flutter app or create a release.
 
 Local validation: Flutter static analysis passed, and 54 focused Flutter tests
 passed across recovery, offline storage, browsing, editing and sharing.
+
+## Localhost web publication (2026-10-12)
+
+Rebuilt and published source commit `80694a49d29f965e2557452dfd14b884a355c799`
+with `tool/publish-local-web.ps1` to the ignored XAMPP app directory. The web build
+succeeded. Apache returned HTTP 200 for the app and JavaScript; the copied script
+matched the generated build by SHA-256. The served JavaScript includes Delete
+recipe, Recently Deleted and the 30-day recovery text, and retains coffeybean.com's
+hosted API URL. Responses use `Cache-Control: no-store, max-age=0` and versioned
+icon font URLs. Generated assets and local Firebase configuration remain outside
+Git. No hosted Flutter app deployment or release was performed.
