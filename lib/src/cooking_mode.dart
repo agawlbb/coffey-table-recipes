@@ -205,7 +205,7 @@ class _CookingModeState extends State<CookingMode> with WidgetsBindingObserver {
                           contentPadding: EdgeInsets.zero,
                           controlAffinity: ListTileControlAffinity.leading,
                           title: Text(
-                            'Step ${step['position']}',
+                            'Step ${step['position']}${step['section_title']?.toString().trim().isNotEmpty == true ? ' · ${step['section_title']}' : ''}',
                             style: Theme.of(context).textTheme.titleLarge,
                           ),
                           value: _completed.contains('${step['id']}'),
@@ -217,11 +217,6 @@ class _CookingModeState extends State<CookingMode> with WidgetsBindingObserver {
                             }
                           }),
                         ),
-                        if (step['section_title'] != null)
-                          Text(
-                            step['section_title'] as String,
-                            style: Theme.of(context).textTheme.titleLarge,
-                          ),
                         Text(
                           step['instruction'] as String,
                           style: const TextStyle(fontSize: 22, height: 1.6),

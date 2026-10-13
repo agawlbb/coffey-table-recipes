@@ -1,5 +1,9 @@
 # Browsing recipes by category
 
+Recipe detail steps show the step number before the heading, followed by the
+instructions. Cooking mode includes the heading alongside its numbered step.
+Steps without headings retain their normal numbered instructions.
+
 The recipe home lists Main dishes, Side dishes, Desserts, Drinks, Breakfast and
 Appetizers in illustrated cards styled like recipe cards. Select a main category
 to see its populated subcategories, then a subcategory to see its recipes.

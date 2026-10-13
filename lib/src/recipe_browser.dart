@@ -827,13 +827,14 @@ class _RecipeDetailState extends State<RecipeDetail> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    if (step['section_title'] != null)
+                    if (step['section_title']?.toString().trim().isNotEmpty ==
+                        true)
                       Text(
-                        step['section_title'] as String,
+                        '${step['position']}. ${step['section_title']}',
                         style: Theme.of(context).textTheme.titleMedium,
                       ),
                     Text(
-                      '${step['position']}. ${step['instruction']}',
+                      '${step['section_title']?.toString().trim().isNotEmpty == true ? '' : '${step['position']}. '}${step['instruction']}',
                       style: Theme.of(context).textTheme.bodyLarge
                           ?.copyWith(height: 1.6),
                     ),
