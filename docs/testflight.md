@@ -31,6 +31,15 @@ location remains unverified. Updating `ASC_KEY_ID` encountered GitHub's Confirm
 access prompt and was not verified as saved; complete GitHub reauthentication
 before finishing the replacement key configuration. No Mac run was triggered.
 
+Chrome recovery on 2026-10-13: after explicit approvals, revoked the second key
+whose built-in-browser download was stopped, then revoked an inadvertently created
+App Manager key. Generated a replacement and verified **Admin** access before and
+after generation. Chrome saved its .p8 in the owner's Downloads folder; a read-only
+check confirmed a nonempty private-key PEM without displaying its contents. Both
+previously downloaded/unavailable keys are revoked. GitHub requires account
+verification before accepting the current key ID and private-key secret. All
+private-key files remain outside Git. Source push and first Mac run remain pending.
+
 ## Apple account setup
 
 1. Sign in at https://developer.apple.com/account. Under Membership details, copy
