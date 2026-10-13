@@ -1166,6 +1166,76 @@ class _RecipeEditorState extends State<RecipeEditor> {
                       for (final warning in _draft['import_warnings'] as List)
                         _help(warning.toString()),
                     _section('Recipe details', Icons.restaurant_outlined, [
+                      _field(
+                        _draft,
+                        'title',
+                        'Recipe name',
+                        required: true,
+                        maxLength: 300,
+                      ),
+                      _field(_draft, 'description', 'Description', lines: 3),
+                      _columns([
+                        _field(
+                          _draft,
+                          'servings',
+                          'Servings',
+                          numeric: 'positive',
+                        ),
+                        _field(
+                          _draft,
+                          'yield_text',
+                          'Yield (e.g. 12 muffins)',
+                          maxLength: 200,
+                        ),
+                      ]),
+                      _columns([
+                        _field(
+                          _draft,
+                          'prep_minutes',
+                          'Prep (h:mm)',
+                          numeric: 'minuteDuration',
+                        ),
+                        _field(
+                          _draft,
+                          'cook_minutes',
+                          'Cook (h:mm)',
+                          numeric: 'minuteDuration',
+                        ),
+                        _field(
+                          _draft,
+                          'total_minutes',
+                          'Total (h:mm)',
+                          numeric: 'minuteDuration',
+                        ),
+                      ], minWidth: 150),
+                      ExpansionTile(
+                        maintainState: true,
+                        controller: _controller('recipe-settings'),
+                        expansionAnimationStyle: _expansionStyle,
+                        tilePadding: EdgeInsets.zero,
+                        title: const Text('Language & measurements'),
+                        children: [
+                          _choice(
+                            _draft,
+                            'measurement_system',
+                            'Measurement system',
+                            const {
+                              'us': 'US customary',
+                              'metric': 'Metric',
+                              'mixed': 'Mixed',
+                              'unspecified': 'Unspecified',
+                            },
+                          ),
+                          _field(
+                            _draft,
+                            'original_language',
+                            'Original language (e.g. en)',
+                            required: true,
+                            maxLength: 35,
+                          ),
+                        ],
+                      ),
+                      const Divider(),
                       const Text(
                         'Categories & tags',
                         style: TextStyle(fontWeight: FontWeight.w600),
@@ -1273,76 +1343,6 @@ class _RecipeEditorState extends State<RecipeEditor> {
                             'label': '',
                           }),
                         ),
-                      ),
-                      const Divider(),
-                      _field(
-                        _draft,
-                        'title',
-                        'Recipe name',
-                        required: true,
-                        maxLength: 300,
-                      ),
-                      _field(_draft, 'description', 'Description', lines: 3),
-                      _columns([
-                        _field(
-                          _draft,
-                          'servings',
-                          'Servings',
-                          numeric: 'positive',
-                        ),
-                        _field(
-                          _draft,
-                          'yield_text',
-                          'Yield (e.g. 12 muffins)',
-                          maxLength: 200,
-                        ),
-                      ]),
-                      _columns([
-                        _field(
-                          _draft,
-                          'prep_minutes',
-                          'Prep (h:mm)',
-                          numeric: 'minuteDuration',
-                        ),
-                        _field(
-                          _draft,
-                          'cook_minutes',
-                          'Cook (h:mm)',
-                          numeric: 'minuteDuration',
-                        ),
-                        _field(
-                          _draft,
-                          'total_minutes',
-                          'Total (h:mm)',
-                          numeric: 'minuteDuration',
-                        ),
-                      ], minWidth: 150),
-                      ExpansionTile(
-                        maintainState: true,
-                        controller: _controller('recipe-settings'),
-                        expansionAnimationStyle: _expansionStyle,
-                        tilePadding: EdgeInsets.zero,
-                        title: const Text('Language & measurements'),
-                        children: [
-                          _choice(
-                            _draft,
-                            'measurement_system',
-                            'Measurement system',
-                            const {
-                              'us': 'US customary',
-                              'metric': 'Metric',
-                              'mixed': 'Mixed',
-                              'unspecified': 'Unspecified',
-                            },
-                          ),
-                          _field(
-                            _draft,
-                            'original_language',
-                            'Original language (e.g. en)',
-                            required: true,
-                            maxLength: 35,
-                          ),
-                        ],
                       ),
                     ], open: true),
                     _section('Ingredients', Icons.shopping_basket_outlined, [

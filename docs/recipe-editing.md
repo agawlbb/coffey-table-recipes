@@ -3,7 +3,7 @@
 On opening import review or editing, Ingredients and Steps & actions show their
 lists, with existing ingredient and step details collapsed. Photos (including
 their previews) and Notes & source are open by default. Categories and tags appear
-at the top of Recipe details.
+at the bottom of Recipe details.
 
 Pictures in import review and the recipe editor have an **Edit picture** tool.
 Image uploads and camera pictures also have this tool on the initial import
