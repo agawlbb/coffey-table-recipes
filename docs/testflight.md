@@ -16,8 +16,14 @@ group to both. Created the iOS App Store Connect record
 [Coffey Table Recipes](https://appstoreconnect.apple.com/apps/6822451610/distribution)
 with SKU `coffey-table-recipes-ios` and English (U.S.). Retained the existing
 Sideloadly-suffixed identifier. API access requires the account owner's agreement;
-the request dialog was opened without accepting or submitting. API key creation,
-GitHub secret configuration, source push and first Mac run remain pending.
+the account owner accepted and submitted the agreement and Apple approved access.
+With explicit owner approval, generated the `Coffey Table Recipes CI` team key
+with Admin access. Verified `IOS_TEAM_ID`, `ASC_KEY_ID`, and `ASC_ISSUER_ID` were
+saved in the public repository's encrypted Actions secrets; existing Firebase and
+hosting secrets were retained. The browser download operation timed out after
+Apple removed the one-time download control. The private key file location and
+`ASC_PRIVATE_KEY` secret are not yet verified. Source push and first Mac run
+remain pending. No build has been started and no tester invitation sent.
 
 ## Apple account setup
 
