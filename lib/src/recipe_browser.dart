@@ -825,27 +825,25 @@ class _RecipeDetailState extends State<RecipeDetail> {
         mounted &&
         generation == _imagePrefetchGeneration &&
         !offlineStatus.value;
-    unawaited(prefetchRecipeImages(
-      recipe: recipe,
-      active: active,
-      loadRecipe: (id) async {
-        final data = await widget.request(
-          '/households/${widget.householdId}/recipes/$id',
-        );
-        return data['recipe'] as Map<String, dynamic>;
-      },
-      cacheImage: (url) async {
-        if (mobileOfflineEnabled) {
-          await recipePhotoCache.getSingleFile(url);
-        } else if (active()) {
-          await precacheImage(
-            NetworkImage(url),
-            context,
-            onError: (_, _) {},
+    unawaited(
+      prefetchRecipeImages(
+        recipe: recipe,
+        active: active,
+        loadRecipe: (id) async {
+          final data = await widget.request(
+            '/households/${widget.householdId}/recipes/$id',
           );
-        }
-      },
-    ));
+          return data['recipe'] as Map<String, dynamic>;
+        },
+        cacheImage: (url) async {
+          if (mobileOfflineEnabled) {
+            await recipePhotoCache.getSingleFile(url);
+          } else if (active()) {
+            await precacheImage(NetworkImage(url), context, onError: (_, _) {});
+          }
+        },
+      ),
+    );
   }
 
   Widget _heading(String text) => Padding(
@@ -1070,21 +1068,18 @@ class _RecipeDetailState extends State<RecipeDetail> {
                   label: const Text('Request variation'),
                 ),
               ),
+            if (recipe['description'] != null)
+              Padding(
+                padding: const EdgeInsets.only(top: 16),
+                child: Text(
+                  recipe['description'] as String,
+                  style: Theme.of(context).textTheme.bodyLarge,
+                ),
+              ),
             if (summary.isNotEmpty)
               Padding(
                 padding: const EdgeInsets.only(top: 12),
                 child: Text(summary),
-              ),
-            Padding(
-              padding: const EdgeInsets.only(top: 8),
-              child: Text(
-                'Original language: ${recipe['original_language']} · Original measurements',
-              ),
-            ),
-            if (recipe['description'] != null)
-              Padding(
-                padding: const EdgeInsets.only(top: 16),
-                child: Text(recipe['description'] as String),
               ),
             if (photos.isNotEmpty) ...[
               const SizedBox(height: 20),
