@@ -164,3 +164,13 @@ Backend fixtures validate visual input, suitability decisions, attribution,
 image-change cache invalidation and independent persistence.
 
 Live validation on backend 8f35ae3: the mild jerk-chicken variation explanation confirmed reuse of the suitable parent image, and Photos displayed the matching image as Photo 1 / Cover. The draft was left unsaved. Flutter analysis is clean.
+
+## Variation titles
+
+New variations use the main family title followed by ` - ` and a short variation
+phrase, for example `Smoked Jerk Chicken Thighs - boneless thighs`. The backend
+assembles this title from its trusted main title and the AI's variation label.
+Variations of variations keep the same main title rather than stacking full
+parent titles. Existing saved recipes are not automatically renamed.
+
+Live verification against backend bcb7800 returned exactly Smoked Jerk Chicken Thighs - boneless thighs for the request uses boneless thighs. The test draft was not saved. Backend validation passed all 599 PHP fixture checks.
