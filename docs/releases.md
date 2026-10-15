@@ -2,9 +2,15 @@
 
 ## Release command
 
-When the user says "create a release", review progress since the previous release, choose an appropriate version and increment its build number, validate and commit, create and push an immutable annotated tag, rebuild web/Android/unsigned iOS, explicitly dispatch hosted deployment using the release tag, save the verified Android APK in the accessible "recipe app" folder, and save the unsigned IPA on the desktop. Then remove obsolete release packages from their respective destinations, retaining unrelated files and signed packages. A tag by itself does not authorize hosted deployment; the web workflow is manual-only and requires a release tag.
+When the user says "create a release", review progress since the previous release, choose an appropriate version and increment its build number, validate and commit, create and push an immutable annotated tag, rebuild web/Android/signed iOS, explicitly dispatch hosted deployment using the release tag, save the verified Android APK in the accessible "recipe app" folder, and upload signed iOS to TestFlight. Every macOS run requires separate explicit approval. Verify Apple processing and internal distribution, observing the France exclusion policy. Then remove obsolete release packages from their respective destinations, retaining unrelated files and signed packages. A tag by itself does not authorize hosted deployment; the web workflow is manual-only and requires a release tag.
 
 `CHANGELOG.md` covers previous releases using Git history, tags, and the release records below. Every future release must update it with the version, release date, and meaningful changes since the prior release. Commit the changelog before tagging the release. Describe only changes supported by the project history.
+
+## 1.4.0 — reviewed recipe variations
+
+Version `1.4.0+15`, tagged `v1.4.0`, adds reviewed recipe adaptations, family browsing and variation navigation, temporary change explanations, approved parent-photo reuse, clickable source links, recipe-title layout and cooking-temperature fixes. It includes the Android wrapper security update and the exempt-encryption declaration. Supporting backend variation work is recorded separately in the server repository. The user separately approved one signed `xcode-27` build and TestFlight upload for build 15. Web is explicitly deployed and Android delivered to `G:\My Drive\recipe app`; iOS is delivered through TestFlight, excluding France. Release validation follows below after each platform completes.
+
+Local release validation on 2026-10-15: Flutter analysis passed, all 195 Flutter tests passed, and all five iOS configuration checks passed. The full suite initially exposed a source-link integration test inspecting offscreen inline children; it now scrolls the complete source paragraph into view before checking both link destinations. The focused 41 source-link checks and full suite passed afterward. Latest functional backend deployment run `38741522409` succeeded from `bcb7800`; subsequent backend HEAD `ee83c7d` records live validation without runtime changes.
 
 ## 1.3.1 — category selection and imported-photo defaults
 

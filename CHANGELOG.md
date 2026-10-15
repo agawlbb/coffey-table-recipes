@@ -2,6 +2,17 @@
 
 Release dates and changes are reconstructed from annotated Git tags, commit history, and project release records. Versions before 1.0 are demonstration releases; 1.0 marks the first usable release. Android retains the existing signing identity; iOS delivery and signing are recorded for each release.
 
+## 1.4.0 — 2026-10-15
+
+Build 15; tag `v1.4.0`.
+
+- Added recipe variations: request changes, answer follow-up questions, review the adaptation and save a new recipe without changing the original.
+- Grouped recipe families into one browsing entry with a Variations menu for switching between family members, including offline safeguards.
+- Added temporary explanations of variation changes during review and reuse of an approved parent cover photo when suitable.
+- Made recipe source website links clickable and gave recipe titles full width above the action row.
+- Corrected cooking-temperature formatting and updated the Android Gradle wrapper with a verified distribution checksum.
+- Included the exempt-encryption declaration in future iOS builds; retained the policy excluding France from iOS distribution.
+
 ## 1.3.1 — 2026-10-13
 
 Build 14; tag `v1.3.1`. Build 13 was separately distributed for TestFlight as version 1.3.0.

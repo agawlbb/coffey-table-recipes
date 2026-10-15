@@ -162,6 +162,17 @@ void main() {
       expect(find.text('Website link'), findsOneWidget);
       expect(find.text('Family cookbook'), findsOneWidget);
       expect(find.text('A. Writer'), findsOneWidget);
+      // Inline WidgetSpan children are built when their paragraph is visible.
+      await tester.scrollUntilVisible(
+        find.byWidgetPredicate(
+          (widget) =>
+              widget is RecipeSourceText &&
+              widget.text == 'Also www.example.org. Printed page 42.',
+        ),
+        150,
+        scrollable: find.byType(Scrollable).first,
+      );
+      await tester.pumpAndSettle();
       final urls = tester
           .widgetList<Link>(find.byType(Link))
           .map((link) => link.uri.toString());
