@@ -139,9 +139,9 @@ Manual review checklist after tooling and backend configuration are available:
 
 ## Compact variation selector
 
-The Variations label and small chevron sit at the right edge beside the recipe title. Family
+The title uses the full recipe content width. The Variations label and small chevron sit on the left of the edit/share/delete row below it. Family
 choices appear only when tapped; the current recipe has a checkmark. The menu
-keeps its right alignment while long titles wrap on narrow screens and is omitted when no other
+keeps long titles separate from the controls on narrow screens and is omitted when no other
 family member exists. The large outlined selector beneath the title is removed.
 
 Validation: Flutter analysis is clean; all 22 variation/browser tests pass, including the inline menu at 400px width, initially hidden choices, family navigation and omission on recipes without alternatives.
@@ -175,4 +175,4 @@ parent titles. Existing saved recipes are not automatically renamed.
 
 Live verification against backend bcb7800 returned exactly Smoked Jerk Chicken Thighs - boneless thighs for the request uses boneless thighs. The test draft was not saved. Backend validation passed all 599 PHP fixture checks.
 
-Right-alignment update: the compact Variations control is pinned to the right edge of the title row while the title wraps in the remaining space. Flutter analysis is clean and all 23 variation/browser tests pass, including an explicit right-edge check at 400px width. The Android debug build succeeded and was installed/launched on the Pixel 8 API 36 emulator; the app's MainActivity was confirmed in the foreground.
+Action-row layout: the title uses the full content width. The compact Variations control sits below it on the left, with edit, share and delete on the right. Flutter analysis is clean and all 23 variation/browser tests pass, including title width and action alignment at 400px. The web build was published to localhost, its JavaScript hash matches the build, and the recipe layout was visually verified. The Android debug build was installed and launched on the Pixel 8 API 36 emulator; MainActivity was confirmed in the foreground.

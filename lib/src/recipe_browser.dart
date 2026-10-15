@@ -932,18 +932,16 @@ class _RecipeDetailState extends State<RecipeDetail> {
             Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
+                Text(
+                  recipe['title'] as String,
+                  style: Theme.of(context).textTheme.headlineLarge,
+                ),
+                const SizedBox(height: 8),
                 Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Expanded(
-                      child: Text(
-                        recipe['title'] as String,
-                        style: Theme.of(context).textTheme.headlineLarge,
-                      ),
-                    ),
                     if (family.isNotEmpty)
                       Padding(
-                        padding: const EdgeInsets.only(left: 8),
+                        padding: EdgeInsets.zero,
                         child: PopupMenuButton<String>(
                           tooltip: 'Choose a recipe variation',
                           enabled: !_openingRelated && !_deleting,
@@ -990,12 +988,7 @@ class _RecipeDetailState extends State<RecipeDetail> {
                           ),
                         ),
                       ),
-                  ],
-                ),
-                const SizedBox(height: 8),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.end,
-                  children: [
+                    const Spacer(),
                     if (widget.save != null)
                       IconButton(
                         tooltip: 'Edit recipe',

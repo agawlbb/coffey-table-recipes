@@ -543,8 +543,22 @@ void main() {
       ]) {
         expect(find.text('Variations'), findsOneWidget);
         expect(
-          tester.getTopRight(find.byType(PopupMenuButton<String>)).dx,
-          closeTo(376, 0.1),
+          tester.getTopLeft(find.byType(PopupMenuButton<String>)).dx,
+          closeTo(24, 0.1),
+        );
+        final titleFinder = find.descendant(
+          of: find.byType(ListView),
+          matching: find.text('Dairy-free soup'),
+        );
+        final title = tester.getRect(titleFinder);
+        expect(title.width, closeTo(352, 0.1));
+        expect(
+          tester.getBottomLeft(titleFinder).dy,
+          lessThan(tester.getTopLeft(find.byType(PopupMenuButton<String>)).dy),
+        );
+        expect(
+          tester.getCenter(find.byType(PopupMenuButton<String>)).dy,
+          closeTo(tester.getCenter(find.byTooltip('Edit recipe')).dy, 0.1),
         );
         expect(
           tester.getTopLeft(find.byType(PopupMenuButton<String>)).dy,
