@@ -41,3 +41,5 @@ and the bottom buttons returning from details and the recipe list.
 Home search for muffins finds both Bran Flax Muffins and the stuffing recipe
 that contains cornmeal muffins. The three-level navigation test also passes at
 a 320px phone width without layout errors.
+
+2026-10-15: Category navigation reads saved mobile browse text before making a network request, and reuses visited browse responses during the current session on all platforms. Refresh, search, recipe changes and reconnect reload from the server and clear session responses. Missing cached scopes still load normally. Category artwork is fetched after text is displayed and cannot hold navigation open; late image results are ignored after changing scope. Validation: 38 browser/offline cache tests pass, including delayed-network and delayed-artwork regressions.

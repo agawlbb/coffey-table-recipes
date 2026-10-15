@@ -330,6 +330,19 @@ class OfflineRecipes with WidgetsBindingObserver {
     await _save();
   }
 
+  /// Read saved browse text without waiting for a network timeout.
+  Future<Map<String, dynamic>?> cachedBrowse(String path) async {
+    await _load();
+    final parts = Uri.parse(path).pathSegments;
+    if (_closed ||
+        parts.length != 3 ||
+        parts[0] != 'households' ||
+        parts[2] != 'recipes') {
+      return null;
+    }
+    return _cached(path);
+  }
+
   Future<Map<String, dynamic>> request(String path) async {
     await _load();
     if (offlineStatus.value && _cacheable(path)) {

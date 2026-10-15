@@ -106,11 +106,13 @@ class RecipeBrowser extends StatefulWidget {
     required this.householdName,
     required this.request,
     this.embedded = false,
+    this.cachedRequest,
     this.save,
   });
   final String householdId;
   final String householdName;
   final RecipeRequest request;
+  final Future<Map<String, dynamic>?> Function(String path)? cachedRequest;
   final RecipeSave? save;
   final bool embedded;
   @override
@@ -123,6 +125,7 @@ class _RecipeBrowserState extends State<RecipeBrowser>
   final List<Map<String, dynamic>> _recipes = [];
   int? _next;
   int _generation = 0;
+  final Map<String, Map<String, dynamic>> _browseCache = {};
   String _query = '';
   final List<Map<String, dynamic>> _trail = [];
   List<Map<String, dynamic>> _nodes = [];
@@ -139,7 +142,7 @@ class _RecipeBrowserState extends State<RecipeBrowser>
     }
     _wasOffline = offlineStatus.value;
     if (mobileOfflineEnabled) offlineStatus.addListener(_connectionChanged);
-    _load();
+    _load(useCached: true);
   }
 
   @override
@@ -164,7 +167,19 @@ class _RecipeBrowserState extends State<RecipeBrowser>
     }
   }
 
-  Future<void> _load({bool more = false}) async {
+  Future<Map<String, dynamic>> _browse(String path, bool useCached) async {
+    if (useCached) {
+      final cached =
+          _browseCache[path] ?? await widget.cachedRequest?.call(path);
+      if (cached != null) return cached;
+    }
+    final data = await widget.request(path);
+    _browseCache[path] = data;
+    return data;
+  }
+
+  Future<void> _load({bool more = false, bool useCached = false}) async {
+    if (!more && !useCached) _browseCache.clear();
     final generation = ++_generation;
     if (!more) _query = _search.text.trim();
     setState(() {
@@ -186,35 +201,22 @@ class _RecipeBrowserState extends State<RecipeBrowser>
           if (_trail.isNotEmpty) 'scope': '${_trail.last['id']}',
         },
       ).query;
-      var data = await widget.request(
+      var data = await _browse(
         '/households/${widget.householdId}/recipes?$query',
+        useCached || more,
       );
       if (!mounted || generation != _generation) return;
       final nodes = recipeRows(data['category_nodes']);
       if (_trail.isNotEmpty) {
         nodes.sort((a, b) => _alphabeticalCompare(a, b, 'label'));
       }
-      for (final category in nodes.where(
-        (node) => node['needs_ai_image'] == true,
-      )) {
-        if (widget.save == null) break;
-        try {
-          final image = await widget.save!(
-            '/households/${widget.householdId}/category-image',
-            {'category_id': category['id'].toString()},
-          );
-          category['image_url'] = image['image_url'];
-        } catch (_) {
-          // Keep browsing available; a later visit can retry a failed generation.
-        }
-      }
-
       if (!more && data['view'] == 'categories') {
         final recipeQuery = Uri(
           queryParameters: {...Uri.splitQueryString(query), 'tree': '0'},
         ).query;
-        data = await widget.request(
+        data = await _browse(
           '/households/${widget.householdId}/recipes?$recipeQuery',
+          useCached,
         );
       }
       if (!mounted || generation != _generation) return;
@@ -224,6 +226,7 @@ class _RecipeBrowserState extends State<RecipeBrowser>
         _next = data['next_offset'] as int?;
         if (!more) _nodes = nodes;
       });
+      if (!more) unawaited(_loadCategoryImages(nodes, generation));
     } catch (error) {
       if (mounted && generation == _generation) {
         setState(() {
@@ -237,6 +240,28 @@ class _RecipeBrowserState extends State<RecipeBrowser>
         setState(() {
           _busy = false;
         });
+      }
+    }
+  }
+
+  Future<void> _loadCategoryImages(
+    List<Map<String, dynamic>> nodes,
+    int generation,
+  ) async {
+    if (widget.save == null) return;
+    for (final category in nodes.where(
+      (node) => node['needs_ai_image'] == true && node['image_url'] == null,
+    )) {
+      if (!mounted || generation != _generation) return;
+      try {
+        final image = await widget.save!(
+          '/households/${widget.householdId}/category-image',
+          {'category_id': category['id'].toString()},
+        );
+        if (!mounted || generation != _generation) return;
+        setState(() => category['image_url'] = image['image_url']);
+      } catch (_) {
+        // Text remains usable while artwork is unavailable.
       }
     }
   }
@@ -261,7 +286,7 @@ class _RecipeBrowserState extends State<RecipeBrowser>
       _search.clear();
       _next = null;
     });
-    _load();
+    _load(useCached: true);
   }
 
   void _back() {
@@ -274,7 +299,7 @@ class _RecipeBrowserState extends State<RecipeBrowser>
       _search.clear();
       _next = null;
     });
-    _load();
+    _load(useCached: true);
   }
 
   Future<void> _open(Map<String, dynamic> recipe) async {

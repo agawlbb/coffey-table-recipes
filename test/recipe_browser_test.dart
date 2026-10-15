@@ -1,9 +1,103 @@
+import 'dart:async';
+
 import 'package:coffey_table_recipes/src/recipe_browser.dart';
 import 'package:coffey_table_recipes/src/recipe_value.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  testWidgets(
+    'cached category navigation avoids slow requests and refresh fetches',
+    (tester) async {
+      var calls = 0;
+      final pending = Completer<Map<String, dynamic>>();
+      await tester.pumpWidget(
+        MaterialApp(
+          home: RecipeBrowser(
+            householdId: '2',
+            householdName: 'Coffey',
+            cachedRequest: (path) async {
+              final q = Uri.parse(path).queryParameters;
+              return q['scope'] == null
+                  ? {
+                      'category_nodes': [
+                        {'id': '5', 'label': 'Breakfast', 'recipe_count': 1},
+                      ],
+                      'recipes': <Map<String, dynamic>>[],
+                    }
+                  : {
+                      'recipes': [
+                        {'id': '9', 'title': 'Cached muffins'},
+                      ],
+                    };
+            },
+            request: (_) {
+              calls++;
+              return pending.future;
+            },
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Breakfast'));
+      await tester.pumpAndSettle();
+      expect(find.text('Cached muffins'), findsOneWidget);
+      expect(calls, 0);
+      await tester.tap(find.byTooltip('Back one level'));
+      await tester.pumpAndSettle();
+      expect(find.text('Breakfast'), findsOneWidget);
+      expect(calls, 0);
+      await tester.tap(find.byTooltip('Refresh recipes'));
+      await tester.pump();
+      expect(calls, 1);
+      pending.complete({
+        'recipes': [
+          {'id': '10', 'title': 'Fresh recipe'},
+        ],
+      });
+      await tester.pumpAndSettle();
+      expect(find.text('Fresh recipe'), findsOneWidget);
+    },
+  );
+
+  testWidgets('slow category artwork never blocks text or navigation', (
+    tester,
+  ) async {
+    final image = Completer<Map<String, dynamic>>();
+    await tester.pumpWidget(
+      MaterialApp(
+        home: RecipeBrowser(
+          householdId: '2',
+          householdName: 'Coffey',
+          request: (_) async => {
+            'category_nodes': [
+              {
+                'id': '5',
+                'label': 'Breakfast',
+                'recipe_count': 1,
+                'needs_ai_image': true,
+              },
+            ],
+            'recipes': [
+              {'id': '9', 'title': 'Muffins'},
+            ],
+          },
+          save: (_, body) => image.future,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('Muffins'), findsOneWidget);
+    expect(find.byType(LinearProgressIndicator), findsNothing);
+    await tester.tap(find.text('Breakfast'));
+    await tester.pumpAndSettle();
+    expect(find.byTooltip('Back one level'), findsOneWidget);
+    await tester.pumpWidget(const SizedBox());
+    image.complete({'image_url': 'https://example.test/category.jpg'});
+    await tester.pump();
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('keeps main category order and alphabetizes nested browsing', (
     tester,
   ) async {

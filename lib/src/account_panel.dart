@@ -1054,6 +1054,7 @@ class _HouseholdPanelState extends State<HouseholdPanel> {
                         householdId: _selected!,
                         householdName: selected['name'] as String,
                         request: (path) => _request(path),
+                        cachedRequest: _offline?.cachedBrowse,
                         save: _saveRecipe,
                       ),
                 Center(

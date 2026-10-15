@@ -102,6 +102,20 @@ void main() {
     offlineStatus.value = false;
   });
 
+  test(
+    'saved browse text is available online without a network fetch',
+    () async {
+      final c = cache();
+      await c.sync(['1']);
+      fetched.clear();
+      final data = await c.cachedBrowse('$root?tree=1&scope=20');
+      expect(data, isNotNull);
+      expect(fetched, isEmpty);
+      expect(await c.cachedBrowse('$root/1'), isNull);
+      c.close();
+    },
+  );
+
   test('confirmed deletion removes offline text and restore returns it immediately', () async {
     final c = cache();
     await c.sync(['1']);
