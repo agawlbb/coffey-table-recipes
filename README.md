@@ -7,7 +7,7 @@ Flutter client for Android, iOS, and responsive web. The PHP API lives in `C:\xa
 The app defaults to https://coffeybean.com/CoffeyTableRecipes/api/v1 on every platform. The local PHP source remains available for development; the persistent database is hosted exclusively.
 
 ```powershell
-flutter run -d emulator-5554
+flutter run -d emulator-5554 --dart-define-from-file=config/firebase.local.json
 flutter run -d chrome --web-port=8080 --dart-define=API_BASE_URL=http://localhost/CoffeyTableRecipes/api/v1
 ```
 
