@@ -929,94 +929,96 @@ class _RecipeDetailState extends State<RecipeDetail> {
         child: ListView(
           padding: const EdgeInsets.all(24),
           children: [
-            Row(
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                Expanded(
-                  child: Text.rich(
-                    TextSpan(
-                      text: recipe['title'] as String,
-                      children: [
-                        if (family.isNotEmpty)
-                          WidgetSpan(
-                            alignment: PlaceholderAlignment.middle,
-                            child: Padding(
-                              padding: const EdgeInsets.only(left: 8),
-                              child: PopupMenuButton<String>(
-                                tooltip: 'Choose a recipe variation',
-                                enabled: !_openingRelated && !_deleting,
-                                onSelected: (id) {
-                                  if (id == recipe['id'].toString()) return;
-                                  _openRelated(
-                                    family.firstWhere(
-                                      (row) => row['id'].toString() == id,
+                Text.rich(
+                  TextSpan(
+                    text: recipe['title'] as String,
+                    children: [
+                      if (family.isNotEmpty)
+                        WidgetSpan(
+                          alignment: PlaceholderAlignment.middle,
+                          child: Padding(
+                            padding: const EdgeInsets.only(left: 8),
+                            child: PopupMenuButton<String>(
+                              tooltip: 'Choose a recipe variation',
+                              enabled: !_openingRelated && !_deleting,
+                              onSelected: (id) {
+                                if (id == recipe['id'].toString()) return;
+                                _openRelated(
+                                  family.firstWhere(
+                                    (row) => row['id'].toString() == id,
+                                  ),
+                                );
+                              },
+                              itemBuilder: (_) => [
+                                CheckedPopupMenuItem(
+                                  value: recipe['id'].toString(),
+                                  checked: true,
+                                  child: Text(recipe['title'] as String),
+                                ),
+                                for (final row in family)
+                                  PopupMenuItem(
+                                    value: row['id'].toString(),
+                                    child: Text(row['title'] as String),
+                                  ),
+                              ],
+                              child: Padding(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 4,
+                                  vertical: 8,
+                                ),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Text(
+                                      'Variations',
+                                      style: Theme.of(context)
+                                          .textTheme
+                                          .labelLarge
+                                          ?.copyWith(
+                                            color: Theme.of(context)
+                                                .colorScheme
+                                                .primary,
+                                          ),
                                     ),
-                                  );
-                                },
-                                itemBuilder: (_) => [
-                                  CheckedPopupMenuItem(
-                                    value: recipe['id'].toString(),
-                                    checked: true,
-                                    child: Text(recipe['title'] as String),
-                                  ),
-                                  for (final row in family)
-                                    PopupMenuItem(
-                                      value: row['id'].toString(),
-                                      child: Text(row['title'] as String),
-                                    ),
-                                ],
-                                child: Padding(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 4,
-                                    vertical: 8,
-                                  ),
-                                  child: Row(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      Text(
-                                        'Variations',
-                                        style: Theme.of(context)
-                                            .textTheme
-                                            .labelLarge
-                                            ?.copyWith(
-                                              color: Theme.of(context)
-                                                  .colorScheme
-                                                  .primary,
-                                            ),
-                                      ),
-                                      const Icon(
-                                        Icons.arrow_drop_down,
-                                        size: 18,
-                                      ),
-                                    ],
-                                  ),
+                                    const Icon(Icons.arrow_drop_down, size: 18),
+                                  ],
                                 ),
                               ),
                             ),
                           ),
-                      ],
+                        ),
+                    ],
+                  ),
+                  style: Theme.of(context).textTheme.headlineLarge,
+                ),
+                const SizedBox(height: 8),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    if (widget.save != null)
+                      IconButton(
+                        tooltip: 'Edit recipe',
+                        onPressed: _deleting ? null : _edit,
+                        icon: const Icon(Icons.edit_outlined),
+                      ),
+                    Builder(
+                      builder: (anchor) => IconButton(
+                        tooltip: 'Share recipe',
+                        icon: const Icon(Icons.share),
+                        onPressed: _sharing ? null : () => _shareRecipe(anchor),
+                      ),
                     ),
-                    style: Theme.of(context).textTheme.headlineLarge,
-                  ),
+                    if (widget.save != null)
+                      IconButton(
+                        tooltip: 'Delete recipe',
+                        onPressed: _deleting ? null : _delete,
+                        icon: const Icon(Icons.delete_outline),
+                      ),
+                  ],
                 ),
-                if (widget.save != null)
-                  IconButton(
-                    tooltip: 'Edit recipe',
-                    onPressed: _deleting ? null : _edit,
-                    icon: const Icon(Icons.edit_outlined),
-                  ),
-                Builder(
-                  builder: (anchor) => IconButton(
-                    tooltip: 'Share recipe',
-                    icon: const Icon(Icons.share),
-                    onPressed: _sharing ? null : () => _shareRecipe(anchor),
-                  ),
-                ),
-                if (widget.save != null)
-                  IconButton(
-                    tooltip: 'Delete recipe',
-                    onPressed: _deleting ? null : _delete,
-                    icon: const Icon(Icons.delete_outline),
-                  ),
               ],
             ),
             const SizedBox(height: 16),
