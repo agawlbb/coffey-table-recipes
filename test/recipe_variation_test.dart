@@ -451,16 +451,18 @@ void main() {
   });
 
   testWidgets(
-    'detail offers variations and navigates parent sibling and child recipes',
+    'dropdown beneath title navigates the complete variation family',
     (tester) async {
       final paths = <String>[];
       final recipe = {
         ...(variationDraft()['recipe'] as Map<String, dynamic>),
         'id': '11',
-        'related': [
+        'variation_family': [
+          {'id': '11', 'title': 'Dairy-free soup'},
           {'id': '10', 'title': 'Original soup', 'relationship': 'parent'},
           {'id': '12', 'title': 'Spicy soup', 'relationship': 'sibling'},
           {'id': '13', 'title': 'Slow cooker soup', 'relationship': 'child'},
+          {'id': '14', 'title': 'Slow cooker ginger soup'},
         ],
       };
       await tester.pumpWidget(
@@ -477,7 +479,7 @@ void main() {
                   ...recipe,
                   'id': path.split('/').last,
                   'title': 'Opened relative',
-                  'related': [],
+                  'variation_family': [],
                 },
               };
             },
@@ -492,19 +494,24 @@ void main() {
         ('Original soup', '10', 'Parent recipe'),
         ('Spicy soup', '12', 'Sibling variation'),
         ('Slow cooker soup', '13', 'Child variation'),
+        ('Slow cooker ginger soup', '14', 'Family variation'),
       ]) {
-        await tester.scrollUntilVisible(
-          find.text(entry.$1),
-          300,
-          scrollable: find.byType(Scrollable).first,
+        expect(find.text('Recipe variations'), findsOneWidget);
+        expect(
+          tester.getTopLeft(find.byType(DropdownButton<String>)).dy,
+          lessThan(tester.getTopLeft(find.text('Start cooking')).dy),
         );
-        expect(find.text(entry.$3), findsOneWidget);
-        await tester.tap(find.text(entry.$1));
+        expect(find.text('Recipe family'), findsNothing);
+        await tester.tap(find.byType(DropdownButton<String>));
+        await tester.pumpAndSettle();
+        await tester.tap(find.text(entry.$1).last);
         await tester.pumpAndSettle();
         expect(paths, contains('/households/2/recipes/${entry.$2}'));
+        expect(find.text('Recipe variations'), findsNothing);
         await tester.tap(find.byType(BackButton).first);
         await tester.pumpAndSettle();
       }
+      expect(tester.takeException(), isNull);
     },
   );
 }

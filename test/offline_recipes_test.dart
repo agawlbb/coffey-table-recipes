@@ -177,6 +177,17 @@ void main() {
       expect(results.single['id'], '32');
       expect(results.single['parent_recipe_id'], '1');
       expect(results.single['is_variation'], isTrue);
+      final grouped =
+          (await c.request('$root?families=1&offset=0'))['recipes'] as List;
+      expect(grouped.any((row) => row['id'] == '32'), isFalse);
+      expect(grouped.any((row) => row['id'] == '1'), isTrue);
+      final foundFamily =
+          (await c.request('$root?families=1&q=Approved'))['recipes'] as List;
+      expect(foundFamily.single['id'], '1');
+      expect(
+        (await c.request('$root/32'))['recipe']['title'],
+        'Approved variation',
+      );
     },
   );
 

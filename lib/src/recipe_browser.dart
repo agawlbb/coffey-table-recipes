@@ -179,6 +179,7 @@ class _RecipeBrowserState extends State<RecipeBrowser>
           'q': _query,
           'offset': '${more ? _next ?? 0 : 0}',
           'tree': more ? '0' : '1',
+          'families': '1',
           if (_trail.isNotEmpty) 'scope': '${_trail.last['id']}',
         },
       ).query;
@@ -919,6 +920,9 @@ class _RecipeDetailState extends State<RecipeDetail> {
     final photos = distinctRecipePhotos(recipeRows(recipe['photos']));
     final nutrition = recipe['nutrition'] as Map<String, dynamic>?;
     final summary = recipeSummary(recipe);
+    final family = recipeRows(recipe['variation_family'] ?? recipe['related'])
+        .where((row) => row['id'].toString() != recipe['id'].toString())
+        .toList();
     return Center(
       child: ConstrainedBox(
         constraints: const BoxConstraints(maxWidth: 900),
@@ -954,6 +958,51 @@ class _RecipeDetailState extends State<RecipeDetail> {
                   ),
               ],
             ),
+            if (family.isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.only(top: 12),
+                child: InputDecorator(
+                  decoration: const InputDecoration(
+                    labelText: 'Recipe variations',
+                    border: OutlineInputBorder(),
+                  ),
+                  child: DropdownButtonHideUnderline(
+                    child: DropdownButton<String>(
+                      value: recipe['id'].toString(),
+                      isExpanded: true,
+                      items: [
+                        DropdownMenuItem(
+                          value: recipe['id'].toString(),
+                          child: Text(
+                            recipe['title'] as String,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                        for (final row in family)
+                          DropdownMenuItem(
+                            value: row['id'].toString(),
+                            child: Text(
+                              row['title'] as String,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                      ],
+                      onChanged: _openingRelated || _deleting
+                          ? null
+                          : (id) {
+                              if (id == null || id == recipe['id'].toString()) {
+                                return;
+                              }
+                              _openRelated(
+                                family.firstWhere(
+                                  (row) => row['id'].toString() == id,
+                                ),
+                              );
+                            },
+                    ),
+                  ),
+                ),
+              ),
             const SizedBox(height: 16),
             FilledButton.icon(
               onPressed: steps.isEmpty
@@ -1117,17 +1166,6 @@ class _RecipeDetailState extends State<RecipeDetail> {
                 ],
               ),
               Text('Method: ${nutrition['method']}'),
-            ],
-            if (recipeRows(recipe['related']).isNotEmpty) ...[
-              _heading('Recipe family'),
-              for (final row in recipeRows(recipe['related']))
-                ListTile(
-                  contentPadding: EdgeInsets.zero,
-                  title: Text(row['title'] as String),
-                  subtitle: Text(recipeRelationshipLabel(recipe, row)),
-                  trailing: const Icon(Icons.chevron_right),
-                  onTap: () => _openRelated(row),
-                ),
             ],
             if (recipeRows(recipe['pairings']).isNotEmpty) ...[
               _heading('Serve alongside'),

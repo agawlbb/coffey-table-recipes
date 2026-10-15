@@ -347,7 +347,10 @@ void main() {
     await tester.enterText(find.byType(TextField), 'farine');
     await tester.tap(find.byTooltip('Search recipes'));
     await tester.pumpAndSettle();
-    expect(paths.last, '/households/2/recipes?q=farine&offset=0&tree=1');
+    expect(
+      paths.last,
+      '/households/2/recipes?q=farine&offset=0&tree=1&families=1',
+    );
     await tester.tap(find.text('Crêpes'));
     await tester.pumpAndSettle();
     expect(paths.last, '/households/2/recipes/9');

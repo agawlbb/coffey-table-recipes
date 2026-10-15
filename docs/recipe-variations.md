@@ -4,8 +4,10 @@ Each editable recipe detail has **Request variation**. Describe the changes,
 answer any AI follow-up questions, then use the existing import review editor.
 Only **Save** creates the new recipe. The chosen parent is fixed during review,
 and the parent recipe is never edited by this flow. Saved variations open
-immediately, display a Variation badge, and link to their parent, siblings, and
-children in Recipe family. List cards also show the Variation badge.
+immediately and display a Variation badge. The recipe browser shows one entry per
+variation family. Beneath the recipe title, **Recipe variations** lets the user
+switch to any live member of the family, including nested variations. Recipes
+without other family members show no dropdown.
 
 Cancel or Back in the prompt asks before discarding entered work. Cancel or Back
 in review uses the existing editor's discard confirmation and returns to the
@@ -42,6 +44,26 @@ under its own ID; a preview cannot replace the cached original.
 The UI falls back to parent IDs for older responses. `is_variation` or a non-null
 `parent_recipe_id` supplies the explicit badge even if editable tags change.
 
+## Grouped browsing
+
+Browser requests include `families=1`. The backend filters/searches all members,
+then returns one representative per matching family before pagination. A search
+for a variation's title or ingredients therefore finds its family without adding
+a separate variation card. Category counts count each family once. The original
+is the representative while it is live; if deleted, one remaining member keeps
+the family reachable.
+
+Detail responses include `variation_family` (all live connected family members)
+and `family_representative_id`. Deleted links may connect live descendants, but
+deleted recipes and other households never appear in the dropdown. The older
+`related` response remains a fallback for older servers. The old bottom-of-page
+family list is replaced by the dropdown.
+
+Offline inventory sync still downloads every saved variation. Only browser
+results are grouped, including offline search; dropdown navigation still opens
+the cached variation details. Save refreshes family lists in cached relatives;
+deletion removes the deleted entry from those lists.
+
 The backend enables generation for all authenticated household members by default.
 An explicitly disabled or restricted backend policy still displays its error and
 leaves the user's input available.
@@ -64,6 +86,15 @@ for consistent generation retries. Older responses without an explanation remain
 reviewable without an empty information card.
 
 ## Validation
+
+Family browser update (October 15, 2026): all 194 Flutter tests pass and analysis
+reports no issues. Backend validation passed 569 PHP fixture checks and 65 Python
+deployment checks. Backend `a3b1a33` deployed successfully with matching source
+hashes and hosted receipt; the rebuilt localhost JavaScript matches the build.
+Live built-in-browser verification found one jerk-chicken search entry, opened
+the title dropdown on Smoked Jerk Chicken Thighs, and switched successfully to
+the saved Smoked Jerk Boneless Chicken Thighs. No recipe data was modified by this
+verification. The dropdown remains available on the selected variation.
 
 Local integration on October 15, 2026: merged the feature branch into `main` and
 deleted the local feature branch. Flutter analysis reports no issues and all 194

@@ -257,8 +257,18 @@ class OfflineRecipes with WidgetsBindingObserver {
         (entry) => entry.key.startsWith('$root/'),
       )) {
         final recipe = entry.value['recipe'] as Map?;
-        for (final key in ['related', 'pairings']) {
+        for (final key in ['related', 'variation_family', 'pairings']) {
           (recipe?[key] as List?)?.removeWhere((row) => '${row['id']}' == id);
+        }
+        final remainingFamily = recipe?['variation_family'] as List?;
+        if (remainingFamily != null && remainingFamily.isNotEmpty) {
+          final representative = remainingFamily.first['id'];
+          recipe!['family_representative_id'] = representative;
+          for (final row in library?['rows'] as List? ?? []) {
+            if ('${row['id']}' == '${recipe['id']}') {
+              row['family_representative_id'] = representative;
+            }
+          }
         }
         (recipe?['edit_options']?['recipes'] as List?)?.removeWhere(
           (row) => '${row['id']}' == id,
@@ -271,6 +281,15 @@ class OfflineRecipes with WidgetsBindingObserver {
     _accessVersion++;
     final recipe = data['recipe'] as Map<String, dynamic>;
     _responses[path] = jsonDecode(jsonEncode(data));
+    for (final member in recipe['variation_family'] as List? ?? []) {
+      final cached = _responses['$root/${member['id']}']?['recipe'] as Map?;
+      if (cached != null) {
+        cached['variation_family'] = jsonDecode(
+          jsonEncode(recipe['variation_family']),
+        );
+        cached['family_representative_id'] = recipe['family_representative_id'];
+      }
+    }
     final household = segments[1];
     final library = _libraries[household] as Map?;
     if (library != null) {
@@ -291,6 +310,7 @@ class OfflineRecipes with WidgetsBindingObserver {
             'total_minutes',
             'parent_recipe_id',
             'is_variation',
+            'family_representative_id',
           ]) {
             row[field] = recipe[field];
           }
@@ -436,7 +456,7 @@ class OfflineRecipes with WidgetsBindingObserver {
         }
         final ids = (library['ids'] as Map)[scope] as List?;
         if (ids != null) {
-          final rows = (library['rows'] as List).where((row) {
+          var rows = (library['rows'] as List).where((row) {
             if (!ids.contains(row['id'])) return false;
             final detail =
                 _responses['/households/${segments[1]}/recipes/${row['id']}'];
@@ -455,6 +475,17 @@ class OfflineRecipes with WidgetsBindingObserver {
             ].join(' ').toLowerCase();
             return searchable.contains(q);
           }).toList();
+          if (uri.queryParameters['families'] == '1') {
+            final representatives = rows
+                .map(
+                  (row) =>
+                      '${row['family_representative_id'] ?? row['parent_recipe_id'] ?? row['id']}',
+                )
+                .toSet();
+            rows = (library['rows'] as List)
+                .where((row) => representatives.contains('${row['id']}'))
+                .toList();
+          }
           final offset =
               int.tryParse(uri.queryParameters['offset'] ?? '0') ?? 0;
           return {
@@ -533,7 +564,7 @@ class OfflineRecipes with WidgetsBindingObserver {
             (entry) => entry.key.startsWith('$root/'),
           )) {
             final recipe = entry.value['recipe'] as Map?;
-            for (final key in ['related', 'pairings']) {
+            for (final key in ['related', 'variation_family', 'pairings']) {
               (recipe?[key] as List?)?.removeWhere(
                 (row) => !inventoryIds.contains(row['id']),
               );
@@ -685,7 +716,7 @@ class OfflineRecipes with WidgetsBindingObserver {
           for (var index = 0; index < queue.length; index++) {
             final scope = queue[index];
             final tree = await fetch(
-              '$root?tree=1${scope.isEmpty ? '' : '&scope=$scope'}',
+              '$root?tree=1&families=1${scope.isEmpty ? '' : '&scope=$scope'}',
             );
             if (_closed || accessVersion != _accessVersion) return;
             scopes[scope] = tree;
