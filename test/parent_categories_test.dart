@@ -5,6 +5,49 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  testWidgets('failed automatic cover keeps category and offers retry', (
+    tester,
+  ) async {
+    var generated = false;
+    var reads = 0;
+    await tester.pumpWidget(
+      MaterialApp(
+        home: ParentCategories(
+          request: (path, {body}) async {
+            if (path.endsWith('/category-image')) {
+              expect(path, '/admin/parent-categories/7/category-image');
+              expect(body, isEmpty);
+              generated = true;
+              return {'image_url': 'https://example.test/category-7.jpg'};
+            }
+            reads++;
+            return {
+              'categories': [
+                {
+                  'id': '7',
+                  'label': 'Pantry',
+                  'can_delete': true,
+                  'needs_ai_image': !generated,
+                },
+              ],
+              'cover_warning': generated
+                  ? null
+                  : 'Category added, but its AI cover could not be generated.',
+            };
+          },
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('Pantry'), findsOneWidget);
+    expect(find.textContaining('could not be generated'), findsOneWidget);
+    await tester.tap(find.byTooltip('Generate cover for Pantry'));
+    await tester.pumpAndSettle();
+    expect(generated, isTrue);
+    expect(reads, 2);
+    expect(find.byTooltip('Generate cover for Pantry'), findsNothing);
+    expect(find.textContaining('could not be generated'), findsNothing);
+  });
   testWidgets('administrator panel opens parent category management', (
     tester,
   ) async {

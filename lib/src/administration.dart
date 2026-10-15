@@ -322,7 +322,14 @@ class _AuthenticatedAdministrationState
         path,
         token,
         body: body,
-        timeout: const Duration(seconds: 60),
+        timeout: Duration(
+          seconds:
+              path.endsWith('/category-image') ||
+                  (path == '/admin/parent-categories' &&
+                      body?['action'] == 'add')
+              ? 180
+              : 60,
+        ),
       );
     } on ApiException catch (error) {
       if (error.status != 401) rethrow;
@@ -332,7 +339,14 @@ class _AuthenticatedAdministrationState
         path,
         refreshed,
         body: body,
-        timeout: const Duration(seconds: 60),
+        timeout: Duration(
+          seconds:
+              path.endsWith('/category-image') ||
+                  (path == '/admin/parent-categories' &&
+                      body?['action'] == 'add')
+              ? 180
+              : 60,
+        ),
       );
     }
   }

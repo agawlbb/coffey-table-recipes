@@ -35,6 +35,9 @@ class _ParentCategoriesState extends State<ParentCategories> {
             data['categories'] as List,
           ),
         );
+        if (data['cover_warning'] is String) {
+          setState(() => _error = data['cover_warning'] as String);
+        }
       }
     } catch (error) {
       if (mounted) {
@@ -122,6 +125,30 @@ class _ParentCategoriesState extends State<ParentCategories> {
     }
   }
 
+  Future<void> _generateCover(Map<String, dynamic> category) async {
+    setState(() {
+      _busy = true;
+      _error = null;
+    });
+    try {
+      await widget.request(
+        '/admin/parent-categories/${category['id']}/category-image',
+        body: {},
+      );
+      if (mounted) await _load();
+    } catch (error) {
+      if (mounted) {
+        setState(
+          () => _error = error is ApiException
+              ? error.message
+              : 'Could not generate the cover. Please try again.',
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) => Scaffold(
     appBar: AppBar(
@@ -146,6 +173,12 @@ class _ParentCategoriesState extends State<ParentCategories> {
                 'This catalog is shared across all households. Only parents with no subcategories or recipe assignments (including Recently Deleted) can be deleted.',
               ),
             ),
+            const Padding(
+              padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              child: Text(
+                'New parent categories get an AI-generated cover. This can take a couple of minutes.',
+              ),
+            ),
             FilledButton.icon(
               onPressed: _busy ? null : () => _edit(),
               icon: const Icon(Icons.add),
@@ -166,6 +199,26 @@ class _ParentCategoriesState extends State<ParentCategories> {
                     const ListTile(title: Text('No parent categories.')),
                   for (final category in _categories)
                     ListTile(
+                      leading: SizedBox(
+                        width: 48,
+                        height: 48,
+                        child: category['image_url'] is String
+                            ? Image.network(
+                                category['image_url'] as String,
+                                fit: BoxFit.cover,
+                                errorBuilder: (_, error, stack) =>
+                                    const Icon(Icons.category_outlined),
+                              )
+                            : category['image_key'] is String &&
+                                  (category['image_key'] as String).isNotEmpty
+                            ? Image.asset(
+                                'assets/categories/${category['image_key']}.png',
+                                fit: BoxFit.cover,
+                                errorBuilder: (_, error, stack) =>
+                                    const Icon(Icons.category_outlined),
+                              )
+                            : const Icon(Icons.category_outlined),
+                      ),
                       title: Text(category['label'] as String),
                       subtitle: Text(
                         category['can_delete'] == true
@@ -175,6 +228,15 @@ class _ParentCategoriesState extends State<ParentCategories> {
                       trailing: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
+                          if (category['needs_ai_image'] == true)
+                            IconButton(
+                              tooltip:
+                                  'Generate cover for ${category['label']}',
+                              onPressed: _busy
+                                  ? null
+                                  : () => _generateCover(category),
+                              icon: const Icon(Icons.auto_awesome_outlined),
+                            ),
                           IconButton(
                             tooltip: 'Rename ${category['label']}',
                             onPressed: _busy ? null : () => _edit(category),

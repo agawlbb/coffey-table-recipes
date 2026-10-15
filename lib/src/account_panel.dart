@@ -463,7 +463,9 @@ class _HouseholdPanelState extends State<HouseholdPanel> {
         timeout: Duration(
           seconds:
               (path.endsWith('/recipe-photo') ||
-                  path.endsWith('/category-image'))
+                  path.endsWith('/category-image') ||
+                  (path == '/admin/parent-categories' &&
+                      body?['action'] == 'add'))
               ? 180
               : (path.endsWith('/recipe-import') || path.endsWith('/variation'))
               ? 110
@@ -485,7 +487,9 @@ class _HouseholdPanelState extends State<HouseholdPanel> {
         timeout: Duration(
           seconds:
               (path.endsWith('/recipe-photo') ||
-                  path.endsWith('/category-image'))
+                  path.endsWith('/category-image') ||
+                  (path == '/admin/parent-categories' &&
+                      body?['action'] == 'add'))
               ? 180
               : (path.endsWith('/recipe-import') || path.endsWith('/variation'))
               ? 110
