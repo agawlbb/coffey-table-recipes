@@ -1,5 +1,13 @@
 # Recipe variations
 
+Opening a recipe prefetches all photos for that recipe, every member of its
+variation family, and recipes explicitly linked under **Serve alongside**.
+Images use the existing mobile disk cache (90 days, up to 100 objects) or the
+web image cache. Prefetching runs in the background, deduplicates recipes and
+URLs within the batch, tolerates unavailable recipes/images, and stops queued
+work when the detail view is disposed or the app goes offline. It does not
+recursively follow links from the related recipes or match ordinary category tags.
+
 Each editable recipe detail has **Request variation**. Describe the changes,
 answer any AI follow-up questions, then use the existing import review editor.
 Only **Save** creates the new recipe. The chosen parent is fixed during review,

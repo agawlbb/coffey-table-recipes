@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -14,6 +16,7 @@ import 'recipe_time.dart';
 import 'recipe_value.dart';
 import 'recipe_source_links.dart';
 import 'recipe_variation.dart';
+import 'recipe_image_prefetch.dart';
 
 final recipePhotoCache = CacheManager(
   Config(
@@ -768,6 +771,7 @@ class _RecipeDetailState extends State<RecipeDetail> {
   }
 
   Map<String, dynamic>? _recipe;
+  int _imagePrefetchGeneration = 0;
   String? _error;
   bool _wasOffline = false;
   @override
@@ -802,6 +806,7 @@ class _RecipeDetailState extends State<RecipeDetail> {
         setState(() {
           _recipe = data['recipe'] as Map<String, dynamic>;
         });
+        _prefetchImages(_recipe!);
       }
     } catch (error) {
       if (mounted) {
@@ -812,6 +817,35 @@ class _RecipeDetailState extends State<RecipeDetail> {
         });
       }
     }
+  }
+
+  void _prefetchImages(Map<String, dynamic> recipe) {
+    final generation = ++_imagePrefetchGeneration;
+    bool active() =>
+        mounted &&
+        generation == _imagePrefetchGeneration &&
+        !offlineStatus.value;
+    unawaited(prefetchRecipeImages(
+      recipe: recipe,
+      active: active,
+      loadRecipe: (id) async {
+        final data = await widget.request(
+          '/households/${widget.householdId}/recipes/$id',
+        );
+        return data['recipe'] as Map<String, dynamic>;
+      },
+      cacheImage: (url) async {
+        if (mobileOfflineEnabled) {
+          await recipePhotoCache.getSingleFile(url);
+        } else if (active()) {
+          await precacheImage(
+            NetworkImage(url),
+            context,
+            onError: (_, _) {},
+          );
+        }
+      },
+    ));
   }
 
   Widget _heading(String text) => Padding(
@@ -830,6 +864,7 @@ class _RecipeDetailState extends State<RecipeDetail> {
     );
     if (updated != null && mounted) {
       setState(() => _recipe = updated);
+      _prefetchImages(updated);
       ScaffoldMessenger.of(context)
           .showSnackBar(const SnackBar(content: Text('Recipe saved')));
     }
