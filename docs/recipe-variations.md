@@ -147,3 +147,20 @@ family member exists. The large outlined selector beneath the title is removed.
 Validation: Flutter analysis is clean; all 22 variation/browser tests pass, including the inline menu at 400px width, initially hidden choices, family navigation and omission on recipes without alternatives.
 
 Rebuilt and published localhost; JavaScript hashes match. Live built-in-browser verification on Smoked Jerk Chicken Thighs confirmed the inline label, hidden choices until tapping, the checked current recipe, and both family choices.
+
+## Parent cover reuse
+
+The backend visually reviews the parent's cover during generation. When the AI
+judges it still representative of the variation, the review draft includes a new
+photo containing those pixels and the original caption/attribution. The existing
+Photos editor previews it and Save creates an independent photo record and file.
+Unsuitable, uncertain or unreadable covers are omitted. The temporary variation
+explanation describes that decision; the parent is never modified. No extra
+image-generation request is made, and the decision is not a saved recipe field.
+
+The 17 variation widget tests pass, including previewing and saving an approved
+cover with a fresh photo identity and without submitting parent_cover_review.
+Backend fixtures validate visual input, suitability decisions, attribution,
+image-change cache invalidation and independent persistence.
+
+Live validation on backend 8f35ae3: the mild jerk-chicken variation explanation confirmed reuse of the suitable parent image, and Photos displayed the matching image as Photo 1 / Cover. The draft was left unsaved. Flutter analysis is clean.

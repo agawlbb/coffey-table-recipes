@@ -69,6 +69,47 @@ void main() {
   setUp(() => offlineStatus.value = false);
   tearDown(() => offlineStatus.value = false);
 
+  testWidgets('AI-approved parent cover previews and saves as a new photo', (
+    tester,
+  ) async {
+    const image =
+        'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADElEQVR4nGNoaGgAAAMEAYFL09IQAAAAAElFTkSuQmCC';
+    Map<String, dynamic>? saved;
+    final response = variationDraft();
+    response['parent_cover_review'] = {
+      'appropriate': true,
+      'reason': 'The finished dish looks the same.',
+    };
+    (response['recipe'] as Map)['photos'] = [
+      {
+        'id': 'new-parent-cover',
+        'image_base64': image,
+        'caption': 'Original cover',
+        'attribution': 'Original photographer',
+        'is_cover': 1,
+      },
+    ];
+    await openVariation(tester, (path, body) async {
+      if (path.endsWith('/variation')) return response;
+      saved = body;
+      return {
+        'recipe': {...body, 'id': '11'},
+      };
+    });
+    await prepare(tester);
+    final editor = tester.widget<RecipeEditor>(find.byType(RecipeEditor));
+    expect((editor.recipe['photos'] as List).single['image_base64'], image);
+    expect(find.byType(Image), findsWidgets);
+    await tester.tap(find.text('Save'));
+    await tester.pumpAndSettle();
+    final photo = (saved!['photos'] as List).single as Map;
+    expect(photo['id'], startsWith('new-'));
+    expect(photo['image_base64'], image);
+    expect(photo['attribution'], 'Original photographer');
+    expect(saved!.containsKey('parent_cover_review'), isFalse);
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets(
     'clarifies cumulatively and saves a new recipe only on approval',
     (tester) async {
