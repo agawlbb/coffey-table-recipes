@@ -11,6 +11,7 @@ import 'offline_recipes.dart';
 import 'recipe_sharing.dart';
 import 'recipe_editor.dart';
 import 'recipe_time.dart';
+import 'recipe_value.dart';
 
 final recipePhotoCache = CacheManager(
   Config(
@@ -21,14 +22,6 @@ final recipePhotoCache = CacheManager(
 );
 
 typedef RecipeRequest = Future<Map<String, dynamic>> Function(String path);
-
-String recipeValue(Object? value) {
-  if (value == null) return '';
-  return value
-      .toString()
-      .replaceFirstMapped(RegExp(r'(\.\d*?[1-9])0+$'), (match) => match[1]!)
-      .replaceFirst(RegExp(r'\.0+$'), '');
-}
 
 List<Map<String, dynamic>> recipeRows(Object? value) =>
     List<Map<String, dynamic>>.from(value as List? ?? []);

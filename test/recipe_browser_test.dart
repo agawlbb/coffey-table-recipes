@@ -1,4 +1,5 @@
 import 'package:coffey_table_recipes/src/recipe_browser.dart';
+import 'package:coffey_table_recipes/src/recipe_value.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 

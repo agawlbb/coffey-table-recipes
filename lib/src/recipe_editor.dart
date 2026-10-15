@@ -8,6 +8,7 @@ import 'api.dart';
 import 'recipe_browser.dart';
 import 'source_photo_crop.dart';
 import 'recipe_time.dart';
+import 'recipe_value.dart';
 import 'recipe_image_editor.dart';
 import 'offline_recipes.dart';
 
