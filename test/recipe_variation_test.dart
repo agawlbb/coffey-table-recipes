@@ -543,6 +543,10 @@ void main() {
       ]) {
         expect(find.text('Variations'), findsOneWidget);
         expect(
+          tester.getTopRight(find.byType(PopupMenuButton<String>)).dx,
+          closeTo(376, 0.1),
+        );
+        expect(
           tester.getTopLeft(find.byType(PopupMenuButton<String>)).dy,
           lessThan(tester.getTopLeft(find.text('Start cooking')).dy),
         );

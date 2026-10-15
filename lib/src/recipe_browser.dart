@@ -932,67 +932,65 @@ class _RecipeDetailState extends State<RecipeDetail> {
             Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                Text.rich(
-                  TextSpan(
-                    text: recipe['title'] as String,
-                    children: [
-                      if (family.isNotEmpty)
-                        WidgetSpan(
-                          alignment: PlaceholderAlignment.middle,
-                          child: Padding(
-                            padding: const EdgeInsets.only(left: 8),
-                            child: PopupMenuButton<String>(
-                              tooltip: 'Choose a recipe variation',
-                              enabled: !_openingRelated && !_deleting,
-                              onSelected: (id) {
-                                if (id == recipe['id'].toString()) return;
-                                _openRelated(
-                                  family.firstWhere(
-                                    (row) => row['id'].toString() == id,
-                                  ),
-                                );
-                              },
-                              itemBuilder: (_) => [
-                                CheckedPopupMenuItem(
-                                  value: recipe['id'].toString(),
-                                  checked: true,
-                                  child: Text(recipe['title'] as String),
-                                ),
-                                for (final row in family)
-                                  PopupMenuItem(
-                                    value: row['id'].toString(),
-                                    child: Text(row['title'] as String),
-                                  ),
-                              ],
-                              child: Padding(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 4,
-                                  vertical: 8,
-                                ),
-                                child: Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    Text(
-                                      'Variations',
-                                      style: Theme.of(context)
-                                          .textTheme
-                                          .labelLarge
-                                          ?.copyWith(
-                                            color: Theme.of(context)
-                                                .colorScheme
-                                                .primary,
-                                          ),
-                                    ),
-                                    const Icon(Icons.arrow_drop_down, size: 18),
-                                  ],
-                                ),
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(
+                      child: Text(
+                        recipe['title'] as String,
+                        style: Theme.of(context).textTheme.headlineLarge,
+                      ),
+                    ),
+                    if (family.isNotEmpty)
+                      Padding(
+                        padding: const EdgeInsets.only(left: 8),
+                        child: PopupMenuButton<String>(
+                          tooltip: 'Choose a recipe variation',
+                          enabled: !_openingRelated && !_deleting,
+                          onSelected: (id) {
+                            if (id == recipe['id'].toString()) return;
+                            _openRelated(
+                              family.firstWhere(
+                                (row) => row['id'].toString() == id,
                               ),
+                            );
+                          },
+                          itemBuilder: (_) => [
+                            CheckedPopupMenuItem(
+                              value: recipe['id'].toString(),
+                              checked: true,
+                              child: Text(recipe['title'] as String),
+                            ),
+                            for (final row in family)
+                              PopupMenuItem(
+                                value: row['id'].toString(),
+                                child: Text(row['title'] as String),
+                              ),
+                          ],
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 4,
+                              vertical: 8,
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Text(
+                                  'Variations',
+                                  style: Theme.of(context).textTheme.labelLarge
+                                      ?.copyWith(
+                                        color: Theme.of(context)
+                                            .colorScheme
+                                            .primary,
+                                      ),
+                                ),
+                                const Icon(Icons.arrow_drop_down, size: 18),
+                              ],
                             ),
                           ),
                         ),
-                    ],
-                  ),
-                  style: Theme.of(context).textTheme.headlineLarge,
+                      ),
+                  ],
                 ),
                 const SizedBox(height: 8),
                 Row(
