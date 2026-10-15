@@ -5,7 +5,7 @@ answer any AI follow-up questions, then use the existing import review editor.
 Only **Save** creates the new recipe. The chosen parent is fixed during review,
 and the parent recipe is never edited by this flow. Saved variations open
 immediately and display a Variation badge. The recipe browser shows one entry per
-variation family. Beneath the recipe title, **Recipe variations** lets the user
+variation family. Next to the recipe title, a compact **Variations** menu lets the user
 switch to any live member of the family, including nested variations. Recipes
 without other family members show no dropdown.
 
@@ -57,7 +57,7 @@ Detail responses include `variation_family` (all live connected family members)
 and `family_representative_id`. Deleted links may connect live descendants, but
 deleted recipes and other households never appear in the dropdown. The older
 `related` response remains a fallback for older servers. The old bottom-of-page
-family list is replaced by the dropdown.
+family list is replaced by the menu.
 
 Offline inventory sync still downloads every saved variation. Only browser
 results are grouped, including offline search; dropdown navigation still opens
@@ -136,3 +136,14 @@ Manual review checklist after tooling and backend configuration are available:
    intact and only the approved variation is available offline.
 7. Verify disabled/access-denied errors, connection recovery, narrow-screen
    layout, and that the existing standard import/edit flows still work.
+
+## Compact variation selector
+
+The Variations label and small chevron sit inline with the recipe title. Family
+choices appear only when tapped; the current recipe has a checkmark. The menu
+wraps naturally with long titles on narrow screens and is omitted when no other
+family member exists. The large outlined selector beneath the title is removed.
+
+Validation: Flutter analysis is clean; all 22 variation/browser tests pass, including the inline menu at 400px width, initially hidden choices, family navigation and omission on recipes without alternatives.
+
+Rebuilt and published localhost; JavaScript hashes match. Live built-in-browser verification on Smoked Jerk Chicken Thighs confirmed the inline label, hidden choices until tapping, the checked current recipe, and both family choices.

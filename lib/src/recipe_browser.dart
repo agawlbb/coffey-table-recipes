@@ -932,8 +932,69 @@ class _RecipeDetailState extends State<RecipeDetail> {
             Row(
               children: [
                 Expanded(
-                  child: Text(
-                    recipe['title'] as String,
+                  child: Text.rich(
+                    TextSpan(
+                      text: recipe['title'] as String,
+                      children: [
+                        if (family.isNotEmpty)
+                          WidgetSpan(
+                            alignment: PlaceholderAlignment.middle,
+                            child: Padding(
+                              padding: const EdgeInsets.only(left: 8),
+                              child: PopupMenuButton<String>(
+                                tooltip: 'Choose a recipe variation',
+                                enabled: !_openingRelated && !_deleting,
+                                onSelected: (id) {
+                                  if (id == recipe['id'].toString()) return;
+                                  _openRelated(
+                                    family.firstWhere(
+                                      (row) => row['id'].toString() == id,
+                                    ),
+                                  );
+                                },
+                                itemBuilder: (_) => [
+                                  CheckedPopupMenuItem(
+                                    value: recipe['id'].toString(),
+                                    checked: true,
+                                    child: Text(recipe['title'] as String),
+                                  ),
+                                  for (final row in family)
+                                    PopupMenuItem(
+                                      value: row['id'].toString(),
+                                      child: Text(row['title'] as String),
+                                    ),
+                                ],
+                                child: Padding(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 4,
+                                    vertical: 8,
+                                  ),
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Text(
+                                        'Variations',
+                                        style: Theme.of(context)
+                                            .textTheme
+                                            .labelLarge
+                                            ?.copyWith(
+                                              color: Theme.of(context)
+                                                  .colorScheme
+                                                  .primary,
+                                            ),
+                                      ),
+                                      const Icon(
+                                        Icons.arrow_drop_down,
+                                        size: 18,
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                      ],
+                    ),
                     style: Theme.of(context).textTheme.headlineLarge,
                   ),
                 ),
@@ -958,51 +1019,6 @@ class _RecipeDetailState extends State<RecipeDetail> {
                   ),
               ],
             ),
-            if (family.isNotEmpty)
-              Padding(
-                padding: const EdgeInsets.only(top: 12),
-                child: InputDecorator(
-                  decoration: const InputDecoration(
-                    labelText: 'Recipe variations',
-                    border: OutlineInputBorder(),
-                  ),
-                  child: DropdownButtonHideUnderline(
-                    child: DropdownButton<String>(
-                      value: recipe['id'].toString(),
-                      isExpanded: true,
-                      items: [
-                        DropdownMenuItem(
-                          value: recipe['id'].toString(),
-                          child: Text(
-                            recipe['title'] as String,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                        for (final row in family)
-                          DropdownMenuItem(
-                            value: row['id'].toString(),
-                            child: Text(
-                              row['title'] as String,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ),
-                      ],
-                      onChanged: _openingRelated || _deleting
-                          ? null
-                          : (id) {
-                              if (id == null || id == recipe['id'].toString()) {
-                                return;
-                              }
-                              _openRelated(
-                                family.firstWhere(
-                                  (row) => row['id'].toString() == id,
-                                ),
-                              );
-                            },
-                    ),
-                  ),
-                ),
-              ),
             const SizedBox(height: 16),
             FilledButton.icon(
               onPressed: steps.isEmpty

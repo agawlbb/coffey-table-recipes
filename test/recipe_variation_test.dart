@@ -451,8 +451,12 @@ void main() {
   });
 
   testWidgets(
-    'dropdown beneath title navigates the complete variation family',
+    'compact title menu opens on tap and navigates the variation family',
     (tester) async {
+      tester.view.physicalSize = const Size(400, 900);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
       final paths = <String>[];
       final recipe = {
         ...(variationDraft()['recipe'] as Map<String, dynamic>),
@@ -496,18 +500,19 @@ void main() {
         ('Slow cooker soup', '13', 'Child variation'),
         ('Slow cooker ginger soup', '14', 'Family variation'),
       ]) {
-        expect(find.text('Recipe variations'), findsOneWidget);
+        expect(find.text('Variations'), findsOneWidget);
         expect(
-          tester.getTopLeft(find.byType(DropdownButton<String>)).dy,
+          tester.getTopLeft(find.byType(PopupMenuButton<String>)).dy,
           lessThan(tester.getTopLeft(find.text('Start cooking')).dy),
         );
         expect(find.text('Recipe family'), findsNothing);
-        await tester.tap(find.byType(DropdownButton<String>));
+        expect(find.text(entry.$1), findsNothing);
+        await tester.tap(find.byType(PopupMenuButton<String>));
         await tester.pumpAndSettle();
         await tester.tap(find.text(entry.$1).last);
         await tester.pumpAndSettle();
         expect(paths, contains('/households/2/recipes/${entry.$2}'));
-        expect(find.text('Recipe variations'), findsNothing);
+        expect(find.text('Variations'), findsNothing);
         await tester.tap(find.byType(BackButton).first);
         await tester.pumpAndSettle();
       }
