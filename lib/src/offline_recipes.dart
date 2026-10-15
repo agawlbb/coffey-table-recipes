@@ -223,13 +223,15 @@ class OfflineRecipes with WidgetsBindingObserver {
     if (segments.length < 3 ||
         segments[0] != 'households' ||
         segments[2] != 'recipes' ||
-        segments.length > 5)
+        segments.length > 5) {
       return;
+    }
     // Preview/generation endpoints must never enter the saved recipe cache.
     if (segments.length == 5 &&
         segments[4] != 'delete' &&
-        segments[4] != 'restore')
+        segments[4] != 'restore') {
       return;
+    }
     final savedId =
         data['deleted_recipe_id'] ?? (data['recipe'] as Map?)?['id'];
     if (savedId == null || savedId.toString().isEmpty) return;

@@ -34,6 +34,7 @@ class _RecipeVariationState extends State<RecipeVariation> {
   String? _attemptedChanges;
   List<String> _questions = [];
   Map<String, dynamic>? _draft;
+  String? _changeDescription;
   String? _submittedChanges;
   String? _error;
   bool _busy = false, _reviewing = false, _leaving = false, _closing = false;
@@ -119,6 +120,9 @@ class _RecipeVariationState extends State<RecipeVariation> {
           ..clear()
           ..addAll(answers);
         _draft = draft;
+        _changeDescription = data['change_description'] is String
+            ? (data['change_description'] as String).trim()
+            : null;
         _questions = questions;
         _answerFields
           ..clear()
@@ -149,6 +153,7 @@ class _RecipeVariationState extends State<RecipeVariation> {
           recipe: _draft!,
           householdId: widget.householdId,
           variationParentTitle: widget.parentTitle,
+          variationChangeDescription: _changeDescription,
           save: widget.request,
         ),
       ),

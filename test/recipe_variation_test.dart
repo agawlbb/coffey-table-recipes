@@ -11,6 +11,7 @@ import 'package:flutter_test/flutter_test.dart';
 
 Map<String, dynamic> variationDraft([List<String> questions = const []]) => {
   'questions': questions,
+  'change_description': 'Replaced cream with oat milk and reduced simmering to keep the soup smooth.',
   'recipe': {
     'title': 'Dairy-free soup',
     'original_language': 'en',
@@ -79,8 +80,9 @@ void main() {
             'recipe': {...body, 'id': '11'},
           };
         }
-        if (calls.length == 1)
+        if (calls.length == 1) {
           return variationDraft(['Which milk alternative?']);
+        }
         if (calls.length == 2) return variationDraft(['Keep the butter?']);
         return variationDraft();
       });
@@ -96,6 +98,13 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.text('Review recipe'), findsOneWidget);
       expect(find.byType(RecipeEditor), findsOneWidget);
+      expect(find.text('How the recipe changed'), findsOneWidget);
+      expect(
+        find.text(
+          'Replaced cream with oat milk and reduced simmering to keep the soup smooth.',
+        ),
+        findsOneWidget,
+      );
       expect(find.text('Variation'), findsWidgets);
       expect(calls.length, 3);
       final first = calls.first['body'] as Map;
@@ -115,6 +124,14 @@ void main() {
       expect((calls.last['body'] as Map)['import_key'], 'stable-variation-key');
       expect((calls.last['body'] as Map)['source_type'], 'ai_variation');
       expect((calls.last['body'] as Map).containsKey('id'), isFalse);
+      expect(
+        (calls.last['body'] as Map).containsKey('change_description'),
+        isFalse,
+      );
+      expect(
+        jsonEncode(calls.last['body']),
+        isNot(contains('Replaced cream with oat milk')),
+      );
       expect(find.text('Open variation'), findsOneWidget);
     },
   );
@@ -125,8 +142,9 @@ void main() {
     final bodies = <Map<String, dynamic>>[];
     await openVariation(tester, (_, body) async {
       bodies.add(body);
-      if (bodies.length == 1)
+      if (bodies.length == 1) {
         throw ApiException(503, 'Please try again later.');
+      }
       return variationDraft(['Which milk alternative?']);
     });
     await prepare(tester);
@@ -210,8 +228,9 @@ void main() {
       final bodies = <Map<String, dynamic>>[];
       await openVariation(tester, (_, body) async {
         bodies.add(jsonDecode(jsonEncode(body)) as Map<String, dynamic>);
-        if (bodies.length == 1)
+        if (bodies.length == 1) {
           return variationDraft(['Which milk alternative?']);
+        }
         if (bodies.length == 2) throw ApiException(503, 'Retry the question.');
         return variationDraft();
       });

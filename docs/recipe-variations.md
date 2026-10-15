@@ -26,7 +26,7 @@ POST `/households/{household}/recipes/{parent}/variation` with:
 - `answers`: cumulative `{question, answer}` pairs when present; answers at
   most 2,000 characters each
 
-The response is the import-compatible `{recipe, questions}` envelope. Generation
+The response is the import-compatible `{recipe, questions, change_description}` envelope. Generation
 uses the same 110-second client timeout as import, including after token refresh.
 The backend owns the parent binding, stable `import_key`, and `ai_variation`
 source type. The editor preserves that machine source type rather than replacing
@@ -42,11 +42,38 @@ under its own ID; a preview cannot replace the cached original.
 The UI falls back to parent IDs for older responses. `is_variation` or a non-null
 `parent_recipe_id` supplies the explicit badge even if editable tags change.
 
-The backend defaults generation to disabled until its model, billing, and access
-policy are configured. That error appears normally and leaves the user's input
-available. No provider success or production rollout is implied by this client.
+The backend enables generation for all authenticated household members by default.
+An explicitly disabled or restricted backend policy still displays its error and
+leaves the user's input available.
+
+## Complete adaptations and review explanation
+
+Generation reviews all affected recipe details, including quantities, ingredient
+preparation, cooking instructions, equipment, temperatures, timers, prep/cook/total
+times, resting, yield, notes, categories, description and title. A substitution
+must carry through to the method and timing; a title that no longer describes the
+dish must change. Revised step instructions supply the matching timer and
+temperature actions. Unaffected details remain intact.
+
+The review editor shows **How the recipe changed** above the recipe fields.
+`change_description` explains the actual modifications and their cooking effects.
+It is held separately from the recipe in widget state and is never submitted in
+the Save payload, appended to notes or description, or written to the database.
+The server's private retry cache retains the response, including the explanation,
+for consistent generation retries. Older responses without an explanation remain
+reviewable without an empty information card.
 
 ## Validation
+
+Local integration on October 15, 2026: merged the feature branch into `main` and
+deleted the local feature branch. Flutter analysis reports no issues and all 194
+tests pass, including 45 variation/offline tests. Coverage verifies explanation
+display through clarification rounds and exclusion from Save payloads. The web
+build succeeded and was republished to localhost. Backend commit `138efbf` passed
+the Linux deployment workflow; the hosted version receipt matches and API health
+is OK. Backend validation includes 550 PHP fixture checks, including database
+exclusion of the review explanation. Provider responses were mocked; live AI
+cooking quality still requires review when generating a variation.
 
 Automated coverage is written in `test/recipe_variation_test.dart` and
 `test/offline_recipes_test.dart`. Run:

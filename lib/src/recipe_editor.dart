@@ -25,11 +25,14 @@ class RecipeEditor extends StatefulWidget {
     required this.save,
     this.pickImage,
     this.variationParentTitle,
+    this.variationChangeDescription,
   });
   final Map<String, dynamic> recipe;
   final String householdId;
   final RecipeSave save;
   final String? variationParentTitle;
+  // Review information only; kept outside the recipe and save payload.
+  final String? variationChangeDescription;
   final Future<XFile?> Function(ImageSource source)? pickImage;
   @override
   State<RecipeEditor> createState() => _RecipeEditorState();
@@ -1393,6 +1396,25 @@ class _RecipeEditorState extends State<RecipeEditor> {
                       _help(
                         'Variation of ${widget.variationParentTitle}. Save creates a new recipe; the original stays unchanged.',
                       ),
+                      if (widget.variationChangeDescription?.isNotEmpty == true)
+                        Card(
+                          child: Padding(
+                            padding: const EdgeInsets.all(16),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'How the recipe changed',
+                                  style: Theme.of(context)
+                                      .textTheme
+                                      .titleMedium,
+                                ),
+                                const SizedBox(height: 8),
+                                Text(widget.variationChangeDescription!),
+                              ],
+                            ),
+                          ),
+                        ),
                     ],
                     SingleChildScrollView(
                       scrollDirection: Axis.horizontal,
