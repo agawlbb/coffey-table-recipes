@@ -967,6 +967,7 @@ class _RecipeDetailState extends State<RecipeDetail> {
               children: [
                 Text(
                   recipe['title'] as String,
+                  textAlign: TextAlign.center,
                   style: Theme.of(context).textTheme.headlineLarge,
                 ),
                 const SizedBox(height: 8),
