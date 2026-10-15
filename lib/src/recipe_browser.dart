@@ -12,6 +12,7 @@ import 'recipe_sharing.dart';
 import 'recipe_editor.dart';
 import 'recipe_time.dart';
 import 'recipe_value.dart';
+import 'recipe_source_links.dart';
 
 final recipePhotoCache = CacheManager(
   Config(
@@ -1054,7 +1055,7 @@ class _RecipeDetailState extends State<RecipeDetail> {
                 if (recipe[key] != null)
                   Padding(
                     padding: const EdgeInsets.only(bottom: 8),
-                    child: SelectableText(
+                    child: RecipeSourceText(
                       key == 'source_type'
                           ? recipeSourceLabel(recipe[key])
                           : recipe[key] as String,
