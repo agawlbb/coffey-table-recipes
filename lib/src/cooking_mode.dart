@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:wakelock_plus/wakelock_plus.dart';
 
 import 'recipe_time.dart';
+import 'recipe_value.dart';
 
 class CookingMode extends StatefulWidget {
   const CookingMode({super.key, required this.recipe, this.now = DateTime.now});
@@ -243,7 +244,7 @@ class _CookingModeState extends State<CookingMode> with WidgetsBindingObserver {
                                     ),
                                   )
                                 : Text(
-                                    '${action['label'] ?? 'Target'}${action['temperature_value'] != null ? ': ${action['temperature_value']}°${action['temperature_unit']}' : ''}',
+                                    '${action['label'] ?? 'Target'}${action['temperature_value'] != null ? ': ${recipeValue(action['temperature_value'])}°${action['temperature_unit']}' : ''}',
                                     style: Theme.of(context)
                                         .textTheme
                                         .titleMedium,
