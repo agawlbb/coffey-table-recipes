@@ -2,6 +2,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
 import 'api.dart';
+import 'parent_categories.dart';
 
 typedef AdministrationRequest = Future<Map<String, dynamic>> Function(
   String path, {
@@ -203,6 +204,20 @@ class _AdministrationPageState extends State<AdministrationPage> {
               child: ListView(
                 children: [
                   if (!_deletedSelf) ...[
+                    ListTile(
+                      leading: const Icon(Icons.category_outlined),
+                      title: const Text('Manage parent categories'),
+                      subtitle: const Text('Shared across all households'),
+                      trailing: const Icon(Icons.chevron_right),
+                      enabled: !_busy && _actorId != null && _error == null,
+                      onTap: () => Navigator.push<void>(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) =>
+                              ParentCategories(request: widget.request),
+                        ),
+                      ),
+                    ),
                     const Padding(
                       padding: EdgeInsets.all(16),
                       child: Text(
