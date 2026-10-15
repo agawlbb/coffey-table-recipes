@@ -423,6 +423,8 @@ class _HouseholdPanelState extends State<HouseholdPanel> {
     Map<String, dynamic> body,
   ) async {
     final data = await _request(path, body: body);
+    // Generation returns an unsaved draft, not a replacement for its parent.
+    if (path.endsWith('/variation')) return data;
     await _offline?.rememberSavedRecipe(path, data);
     if (_offline != null) {
       unawaited(
@@ -463,7 +465,7 @@ class _HouseholdPanelState extends State<HouseholdPanel> {
               (path.endsWith('/recipe-photo') ||
                   path.endsWith('/category-image'))
               ? 180
-              : path.endsWith('/recipe-import')
+              : (path.endsWith('/recipe-import') || path.endsWith('/variation'))
               ? 110
               : path.startsWith('/admin/')
               ? 60
@@ -485,7 +487,7 @@ class _HouseholdPanelState extends State<HouseholdPanel> {
               (path.endsWith('/recipe-photo') ||
                   path.endsWith('/category-image'))
               ? 180
-              : path.endsWith('/recipe-import')
+              : (path.endsWith('/recipe-import') || path.endsWith('/variation'))
               ? 110
               : path.startsWith('/admin/')
               ? 60

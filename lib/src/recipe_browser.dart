@@ -13,6 +13,7 @@ import 'recipe_editor.dart';
 import 'recipe_time.dart';
 import 'recipe_value.dart';
 import 'recipe_source_links.dart';
+import 'recipe_variation.dart';
 
 final recipePhotoCache = CacheManager(
   Config(
@@ -33,8 +34,41 @@ String recipeSourceLabel(Object? source) => switch (source) {
   'ai_file' => 'Uploaded file',
   'ai_camera' => 'Camera photo',
   'ai_reviewed' => 'Imported recipe',
+  'ai_variation' => 'AI recipe variation',
   _ => source?.toString() ?? '',
 };
+
+bool isRecipeVariation(Map<String, dynamic> recipe) =>
+    recipe['is_variation'] == true ||
+    recipe['is_variation'] == 1 ||
+    recipe['parent_recipe_id'] != null;
+
+String recipeRelationshipLabel(
+  Map<String, dynamic> recipe,
+  Map<String, dynamic> related,
+) {
+  switch (related['relationship']) {
+    case 'parent':
+      return 'Parent recipe';
+    case 'sibling':
+      return 'Sibling variation';
+    case 'child':
+      return 'Child variation';
+  }
+  final parentId = recipe['parent_recipe_id']?.toString();
+  final relativeParentId = related['parent_recipe_id']?.toString();
+  if (parentId != null && related['id']?.toString() == parentId) {
+    return 'Parent recipe';
+  }
+  if (parentId != null && relativeParentId == parentId) {
+    return 'Sibling variation';
+  }
+  if (relativeParentId != null &&
+      relativeParentId == recipe['id']?.toString()) {
+    return 'Child variation';
+  }
+  return 'Related variation';
+}
 
 String recipeSummary(Map<String, dynamic> recipe) {
   final parts = <String>[];
@@ -488,9 +522,21 @@ class _RecipeBrowserState extends State<RecipeBrowser>
                           ),
                           const SizedBox(width: 16),
                           Expanded(
-                            child: Text(
-                              recipe['title'] as String,
-                              style: Theme.of(context).textTheme.titleMedium,
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  recipe['title'] as String,
+                                  style: Theme.of(context)
+                                      .textTheme
+                                      .titleMedium,
+                                ),
+                                if (isRecipeVariation(recipe))
+                                  const Padding(
+                                    padding: EdgeInsets.only(top: 6),
+                                    child: Text('Variation'),
+                                  ),
+                              ],
                             ),
                           ),
                         ],
@@ -563,6 +609,8 @@ class RecipeDetail extends StatefulWidget {
 class _RecipeDetailState extends State<RecipeDetail> {
   bool _sharing = false;
   bool _deleting = false;
+  bool _variationOpen = false;
+  bool _openingRelated = false;
 
   Future<void> _delete() async {
     if (offlineStatus.value) {
@@ -786,18 +834,61 @@ class _RecipeDetailState extends State<RecipeDetail> {
     }
   }
 
-  void _openRelated(Map<String, dynamic> row) => Navigator.of(context).push(
-    MaterialPageRoute<void>(
-      builder: (_) => RecipeDetail(
-        householdId: widget.householdId,
-        recipeId: row['id'] as String,
-        title: row['title'] as String,
-        request: widget.request,
-        save: widget.save,
-        onChanged: widget.onChanged,
-      ),
-    ),
-  );
+  Future<void> _requestVariation() async {
+    if (_variationOpen || _deleting || widget.save == null) return;
+    if (offlineStatus.value) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Connect to the internet to request a variation.'),
+        ),
+      );
+      return;
+    }
+    setState(() => _variationOpen = true);
+    try {
+      final saved = await Navigator.of(context).push<Map<String, dynamic>>(
+        MaterialPageRoute(
+          builder: (_) => RecipeVariation(
+            householdId: widget.householdId,
+            parentRecipeId: widget.recipeId,
+            parentTitle: _recipe!['title'] as String,
+            request: widget.save!,
+          ),
+        ),
+      );
+      if (saved == null || !mounted) return;
+      widget.onChanged?.call();
+      await _load();
+      if (!mounted) return;
+      ScaffoldMessenger.of(context)
+          .showSnackBar(const SnackBar(content: Text('Variation saved')));
+      await _openRelated(saved);
+    } finally {
+      if (mounted) setState(() => _variationOpen = false);
+    }
+  }
+
+  Future<void> _openRelated(Map<String, dynamic> row) async {
+    if (_openingRelated) return;
+    setState(() => _openingRelated = true);
+    try {
+      await Navigator.of(context).push(
+        MaterialPageRoute<void>(
+          builder: (_) => RecipeDetail(
+            householdId: widget.householdId,
+            recipeId: row['id'] as String,
+            title: row['title'] as String,
+            request: widget.request,
+            save: widget.save,
+            onChanged: widget.onChanged,
+          ),
+        ),
+      );
+      if (mounted) await _load();
+    } finally {
+      if (mounted) setState(() => _openingRelated = false);
+    }
+  }
 
   @override
   Widget build(BuildContext context) => Scaffold(
@@ -875,6 +966,17 @@ class _RecipeDetailState extends State<RecipeDetail> {
               icon: const Icon(Icons.soup_kitchen_outlined),
               label: const Text('Start cooking'),
             ),
+            if (widget.save != null)
+              Padding(
+                padding: const EdgeInsets.only(top: 12),
+                child: OutlinedButton.icon(
+                  onPressed: _deleting || _variationOpen
+                      ? null
+                      : _requestVariation,
+                  icon: const Icon(Icons.auto_awesome),
+                  label: const Text('Request variation'),
+                ),
+              ),
             if (summary.isNotEmpty)
               Padding(
                 padding: const EdgeInsets.only(top: 12),
@@ -898,8 +1000,12 @@ class _RecipeDetailState extends State<RecipeDetail> {
             Wrap(
               spacing: 8,
               children: [
+                if (isRecipeVariation(recipe))
+                  const Chip(label: Text('Variation')),
                 for (final tag in recipeRows(recipe['tags']))
-                  Chip(label: Text('${tag['label']}')),
+                  if (!isRecipeVariation(recipe) ||
+                      '${tag['label']}'.trim().toLowerCase() != 'variation')
+                    Chip(label: Text('${tag['label']}')),
               ],
             ),
             _heading('Ingredients'),
@@ -1018,11 +1124,7 @@ class _RecipeDetailState extends State<RecipeDetail> {
                 ListTile(
                   contentPadding: EdgeInsets.zero,
                   title: Text(row['title'] as String),
-                  subtitle: Text(
-                    row['id'] == recipe['parent_recipe_id']
-                        ? 'Parent recipe'
-                        : 'Variation',
-                  ),
+                  subtitle: Text(recipeRelationshipLabel(recipe, row)),
                   trailing: const Icon(Icons.chevron_right),
                   onTap: () => _openRelated(row),
                 ),

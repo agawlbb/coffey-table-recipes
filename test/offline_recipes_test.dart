@@ -127,6 +127,59 @@ void main() {
     c.close();
   });
 
+  test('variation preview cannot replace the cached original or add an unsaved draft', () async {
+    final c = cache();
+    addTearDown(c.close);
+    await c.sync(['1']);
+    for (final id in [null, '1']) {
+      await c.rememberSavedRecipe('$root/1/variation', {
+        'questions': [],
+        'recipe': {
+          'id': id,
+          'title': 'Unsaved variation',
+          'parent_recipe_id': '1',
+        },
+      });
+    }
+    connected = false;
+    offlineStatus.value = true;
+    expect((await c.request('$root/1'))['recipe']['title'], 'Recipe 1');
+    final firstPage = (await c.request('$root?offset=0'))['recipes'] as List;
+    expect(
+      firstPage.any((row) => row['title'] == 'Unsaved variation'),
+      isFalse,
+    );
+    expect(firstPage.every((row) => row['id'] != null), isTrue);
+  });
+
+  test(
+    'approved variation is immediately available offline under its own id',
+    () async {
+      final c = cache();
+      addTearDown(c.close);
+      await c.sync(['1']);
+      await c.rememberSavedRecipe(root, {
+        'recipe': {
+          'id': '32',
+          'title': 'Approved variation',
+          'parent_recipe_id': '1',
+          'is_variation': true,
+        },
+      });
+      connected = false;
+      offlineStatus.value = true;
+      expect(
+        (await c.request('$root/32'))['recipe']['title'],
+        'Approved variation',
+      );
+      expect((await c.request('$root/1'))['recipe']['title'], 'Recipe 1');
+      final results = (await c.request('$root?q=Approved'))['recipes'] as List;
+      expect(results.single['id'], '32');
+      expect(results.single['parent_recipe_id'], '1');
+      expect(results.single['is_variation'], isTrue);
+    },
+  );
+
   test('Recently Deleted never falls back to offline cached data', () async {
     final c = cache(
       fetch: (path) async {

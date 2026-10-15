@@ -219,12 +219,24 @@ class OfflineRecipes with WidgetsBindingObserver {
     String path,
     Map<String, dynamic> data,
   ) async {
+    final segments = Uri.parse(path).pathSegments;
+    if (segments.length < 3 ||
+        segments[0] != 'households' ||
+        segments[2] != 'recipes' ||
+        segments.length > 5)
+      return;
+    // Preview/generation endpoints must never enter the saved recipe cache.
+    if (segments.length == 5 &&
+        segments[4] != 'delete' &&
+        segments[4] != 'restore')
+      return;
+    final savedId =
+        data['deleted_recipe_id'] ?? (data['recipe'] as Map?)?['id'];
+    if (savedId == null || savedId.toString().isEmpty) return;
     await _load();
     if (_closed) return;
-    final segments = Uri.parse(path).pathSegments;
-    if (segments.length < 4 || segments[2] != 'recipes') return;
     final root = '/households/${segments[1]}/recipes';
-    path = '$root/${segments[3]}';
+    path = '$root/$savedId';
     if (data['deleted_recipe_id'] != null) {
       _accessVersion++;
       final id = '${data['deleted_recipe_id']}';
@@ -276,6 +288,7 @@ class OfflineRecipes with WidgetsBindingObserver {
             'cook_minutes',
             'total_minutes',
             'parent_recipe_id',
+            'is_variation',
           ]) {
             row[field] = recipe[field];
           }

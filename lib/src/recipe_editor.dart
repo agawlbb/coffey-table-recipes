@@ -24,10 +24,12 @@ class RecipeEditor extends StatefulWidget {
     required this.householdId,
     required this.save,
     this.pickImage,
+    this.variationParentTitle,
   });
   final Map<String, dynamic> recipe;
   final String householdId;
   final RecipeSave save;
+  final String? variationParentTitle;
   final Future<XFile?> Function(ImageSource source)? pickImage;
   @override
   State<RecipeEditor> createState() => _RecipeEditorState();
@@ -37,6 +39,7 @@ class _RecipeEditorState extends State<RecipeEditor> {
   final _form = GlobalKey<FormState>();
   late final Map<String, dynamic> _draft;
   bool _dirty = false, _saving = false, _picking = false, _leaving = false;
+  bool _closing = false;
   final List<Map<String, dynamic>> _sourcePhotos = [];
   bool _loadingSourcePhotos = false;
   String? _error;
@@ -112,7 +115,8 @@ class _RecipeEditorState extends State<RecipeEditor> {
         row['_parent_category'] = selected['parent_label'] ?? selected['label'];
       }
     }
-    if (_draft['source_type'] != null) {
+    if (_draft['source_type'] != null &&
+        _draft['source_type'] != 'ai_variation') {
       _draft['source_type'] = recipeSourceLabel(_draft['source_type']);
     }
     _draft.remove('photo_suggestions');
@@ -280,8 +284,9 @@ class _RecipeEditorState extends State<RecipeEditor> {
     _error = null;
   });
   Future<void> _close() async {
-    if (_saving || _picking) return;
+    if (_saving || _picking || _closing || _leaving) return;
     if (_dirty) {
+      _closing = true;
       final discard = await showDialog<bool>(
         context: context,
         builder: (context) => AlertDialog(
@@ -299,6 +304,7 @@ class _RecipeEditorState extends State<RecipeEditor> {
           ],
         ),
       );
+      _closing = false;
       if (discard != true) return;
     }
     if (!mounted) return;
@@ -309,6 +315,7 @@ class _RecipeEditorState extends State<RecipeEditor> {
   }
 
   Future<void> _save() async {
+    if (_saving || _picking || offlineStatus.value) return;
     FocusScope.of(context).unfocus();
     if (!_form.currentState!.validate()) {
       final field = _fields.values
@@ -1344,6 +1351,9 @@ class _RecipeEditorState extends State<RecipeEditor> {
                           ? 'Saving your recipe…'
                           : _dirty
                           ? 'Unsaved changes · Save when you’re ready'
+                          : widget.variationParentTitle != null &&
+                                _draft['id'] == null
+                          ? 'Variation not saved · Review, then Save'
                           : 'No unsaved changes'),
                   style: Theme.of(context).textTheme.bodySmall?.copyWith(
                     color: _error == null
@@ -1375,6 +1385,15 @@ class _RecipeEditorState extends State<RecipeEditor> {
                     ),
                     const SizedBox(height: 8),
                     _help('Review your recipe, then save.'),
+                    if (widget.variationParentTitle != null) ...[
+                      const Align(
+                        alignment: Alignment.centerLeft,
+                        child: Chip(label: Text('Variation')),
+                      ),
+                      _help(
+                        'Variation of ${widget.variationParentTitle}. Save creates a new recipe; the original stays unchanged.',
+                      ),
+                    ],
                     SingleChildScrollView(
                       scrollDirection: Axis.horizontal,
                       child: Row(
@@ -1731,12 +1750,17 @@ class _RecipeEditorState extends State<RecipeEditor> {
                     ),
                     _section('Notes & source', Icons.notes_outlined, [
                       _field(_draft, 'notes', 'Recipe notes', lines: 3),
-                      _field(
-                        _draft,
-                        'source_type',
-                        'Recipe source',
-                        maxLength: 40,
-                      ),
+                      if (_draft['source_type'] == 'ai_variation')
+                        _help(
+                          'Recipe source: ${recipeSourceLabel(_draft['source_type'])}',
+                        )
+                      else
+                        _field(
+                          _draft,
+                          'source_type',
+                          'Recipe source',
+                          maxLength: 40,
+                        ),
                       _field(
                         _draft,
                         'source_title',
@@ -1763,13 +1787,16 @@ class _RecipeEditorState extends State<RecipeEditor> {
                       ),
                     ]),
                     _section('Related recipes', Icons.link, [
-                      _choice(
-                        _draft,
-                        'parent_recipe_id',
-                        'Original recipe (for a variation)',
-                        _recipeChoices,
-                        nullable: true,
-                      ),
+                      if (widget.variationParentTitle != null)
+                        _help('Parent recipe: ${widget.variationParentTitle}')
+                      else
+                        _choice(
+                          _draft,
+                          'parent_recipe_id',
+                          'Original recipe (for a variation)',
+                          _recipeChoices,
+                          nullable: true,
+                        ),
                       ..._rows('pairings').map(
                         (r) => _item(
                           r['title']?.toString() ?? 'Pairing',
