@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import 'api.dart';
+import 'app_version_label.dart';
 import 'administration.dart';
 import 'administration_window.dart';
 import 'auth.dart';
@@ -924,94 +925,105 @@ class _HouseholdPanelState extends State<HouseholdPanel> {
       drawer: Drawer(
         child: SafeArea(
           child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              const ListTile(
-                leading: Icon(Icons.local_dining_outlined),
-                title: Text('Coffey Table'),
-              ),
-              const Divider(),
-              ListTile(
-                leading: const Icon(Icons.menu_book_outlined),
-                title: const Text('Recipes'),
-                selected: !_settings,
-                onTap: () {
-                  Navigator.pop(context);
-                  setState(() => _settings = false);
-                },
-              ),
-              ListTile(
-                leading: const Icon(Icons.add_circle_outline),
-                title: const Text('Add recipe'),
-                enabled: selected != null && !offlineStatus.value,
-                onTap: selected == null
-                    ? null
-                    : () async {
+              Expanded(
+                child: ListView(
+                  padding: EdgeInsets.zero,
+                  children: [
+                    const ListTile(
+                      leading: Icon(Icons.local_dining_outlined),
+                      title: Text('Coffey Table'),
+                    ),
+                    const Divider(),
+                    ListTile(
+                      leading: const Icon(Icons.menu_book_outlined),
+                      title: const Text('Recipes'),
+                      selected: !_settings,
+                      onTap: () {
                         Navigator.pop(context);
-                        final householdId = _selected!;
-                        final saved =
-                            await Navigator.push<Map<String, dynamic>>(
-                              context,
-                              MaterialPageRoute(
-                                builder: (_) => RecipeImport(
-                                  householdId: householdId,
-                                  request: (path, body) async {
-                                    final data = await _request(
-                                      path,
-                                      body: body,
-                                    );
-                                    if (data['recipe'] is Map &&
-                                        (data['recipe'] as Map)['id'] != null) {
-                                      final id = (data['recipe'] as Map)['id'];
-                                      await _offline?.rememberSavedRecipe(
-                                        '/households/$householdId/recipes/$id',
-                                        data,
-                                      );
-                                    }
-                                    return data;
-                                  },
+                        setState(() => _settings = false);
+                      },
+                    ),
+                    ListTile(
+                      leading: const Icon(Icons.add_circle_outline),
+                      title: const Text('Add recipe'),
+                      enabled: selected != null && !offlineStatus.value,
+                      onTap: selected == null
+                          ? null
+                          : () async {
+                              Navigator.pop(context);
+                              final householdId = _selected!;
+                              final saved =
+                                  await Navigator.push<Map<String, dynamic>>(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (_) => RecipeImport(
+                                        householdId: householdId,
+                                        request: (path, body) async {
+                                          final data = await _request(
+                                            path,
+                                            body: body,
+                                          );
+                                          if (data['recipe'] is Map &&
+                                              (data['recipe'] as Map)['id'] !=
+                                                  null) {
+                                            final id =
+                                                (data['recipe'] as Map)['id'];
+                                            await _offline?.rememberSavedRecipe(
+                                              '/households/$householdId/recipes/$id',
+                                              data,
+                                            );
+                                          }
+                                          return data;
+                                        },
+                                      ),
+                                    ),
+                                  );
+                              if (saved != null && mounted) {
+                                setState(() {
+                                  _settings = false;
+                                  _recipeRefresh++;
+                                });
+                              }
+                            },
+                    ),
+                    ListTile(
+                      leading: const Icon(Icons.delete_outline),
+                      title: const Text('Recently Deleted'),
+                      enabled: selected != null,
+                      onTap: selected == null
+                          ? null
+                          : () async {
+                              final householdId = _selected!;
+                              Navigator.pop(context);
+                              await Navigator.push<void>(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (_) => RecipeTrash(
+                                    householdId: householdId,
+                                    request: (path) => _request(path),
+                                    save: _saveRecipe,
+                                  ),
                                 ),
-                              ),
-                            );
-                        if (saved != null && mounted) {
-                          setState(() {
-                            _settings = false;
-                            _recipeRefresh++;
-                          });
-                        }
-                      },
-              ),
-              ListTile(
-                leading: const Icon(Icons.delete_outline),
-                title: const Text('Recently Deleted'),
-                enabled: selected != null,
-                onTap: selected == null
-                    ? null
-                    : () async {
-                        final householdId = _selected!;
+                              );
+                              if (mounted) setState(() => _recipeRefresh++);
+                            },
+                    ),
+                    ListTile(
+                      leading: const Icon(Icons.settings_outlined),
+                      title: const Text('Household & people'),
+                      selected: _settings,
+                      onTap: () {
                         Navigator.pop(context);
-                        await Navigator.push<void>(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) => RecipeTrash(
-                              householdId: householdId,
-                              request: (path) => _request(path),
-                              save: _saveRecipe,
-                            ),
-                          ),
-                        );
-                        if (mounted) setState(() => _recipeRefresh++);
+                        setState(() => _settings = true);
+                        _perform(_loadPeople);
                       },
+                    ),
+                  ],
+                ),
               ),
-              ListTile(
-                leading: const Icon(Icons.settings_outlined),
-                title: const Text('Household & people'),
-                selected: _settings,
-                onTap: () {
-                  Navigator.pop(context);
-                  setState(() => _settings = true);
-                  _perform(_loadPeople);
-                },
-              ),
+              const AppVersionLabel(),
             ],
           ),
         ),

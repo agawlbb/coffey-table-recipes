@@ -25,7 +25,7 @@ During development, web builds use a custom bootstrap without an offline service
 
 Recipe details use the standard top-left app-bar back button. Category/search back navigation sits at the start of the breadcrumb row above the results. Email sign-in groups username and password autofill hints and asks the platform to save credentials only after successful authentication; password-manager behavior still depends on the browser and extension.
 
-The signed-in home displays recipes from the hosted API, with search, category browsing, and cooking mode. Account and household management are available through the app bar and navigation menu. No simulated sign-in or development authorization bypass is provided.
+The signed-in home displays recipes from the hosted API, with search, category browsing, and cooking mode. Account and household management are available through the app bar and navigation menu. A small version/build label at the bottom of the navigation menu identifies the running app from its package metadata. No simulated sign-in or development authorization bypass is provided.
 
 Each browsing scope shows sage-green category cards followed by a horizontal divider and cream-colored recipe cards. The recipe list includes recipes in descendant categories; use Load more recipes to continue through the scope. Search stays within the selected scope.
 
