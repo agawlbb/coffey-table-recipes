@@ -362,10 +362,16 @@ void main() {
     await tester.tap(find.byKey(const ValueKey('recipe-breadcrumb-2')));
     await tester.pumpAndSettle();
     expect(Uri.parse(paths.last).queryParameters['scope'], '8');
-    expect(Uri.parse(paths.last).queryParameters['q'], '');
+    expect(
+      tester.widget<TextField>(find.byType(TextField)).controller!.text,
+      '',
+    );
     await tester.tap(find.byKey(const ValueKey('recipe-breadcrumb-1')));
     await tester.pumpAndSettle();
-    expect(Uri.parse(paths.last).queryParameters['scope'], '5');
+    expect(
+      tester.widget<TextField>(find.byType(TextField)).decoration!.labelText,
+      'Search breakfast',
+    );
     await tester.tap(find.text('Muffins'));
     await tester.pumpAndSettle();
     expect(
@@ -374,12 +380,23 @@ void main() {
     );
     await tester.tap(find.byTooltip('Back one level'));
     await tester.pumpAndSettle();
-    expect(Uri.parse(paths.last).queryParameters['scope'], '5');
-    expect(Uri.parse(paths.last).queryParameters['q'], '');
+    expect(
+      tester.widget<TextField>(find.byType(TextField)).controller!.text,
+      '',
+    );
+    expect(
+      tester.widget<TextField>(find.byType(TextField)).decoration!.labelText,
+      'Search breakfast',
+    );
     expect(find.text('Muffins'), findsOneWidget);
+    final requestsBeforeRoot = paths.length;
     await tester.tap(find.byKey(const ValueKey('recipe-breadcrumb-0')));
     await tester.pumpAndSettle();
-    expect(Uri.parse(paths.last).queryParameters.containsKey('scope'), isFalse);
+    expect(paths.length, requestsBeforeRoot);
+    expect(
+      tester.widget<TextField>(find.byType(TextField)).decoration!.labelText,
+      'Search all recipes',
+    );
     expect(find.text('Breakfast'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
@@ -443,7 +460,7 @@ void main() {
     await tester.pumpAndSettle();
     expect(
       paths.last,
-      '/households/2/recipes?q=farine&offset=0&tree=1&families=1',
+      '/households/2/recipes?q=farine&offset=0&tree=0&families=1',
     );
     await tester.tap(find.text('Crêpes'));
     await tester.pumpAndSettle();

@@ -168,13 +168,19 @@ class _RecipeBrowserState extends State<RecipeBrowser>
   }
 
   Future<Map<String, dynamic>> _browse(String path, bool useCached) async {
+    final generation = _generation;
     if (useCached) {
       final cached =
           _browseCache[path] ?? await widget.cachedRequest?.call(path);
       if (cached != null) return cached;
     }
+    // Saved-text searches return above immediately. Only debounce network misses.
+    if (useCached && (Uri.parse(path).queryParameters['q'] ?? '').isNotEmpty) {
+      await Future<void>.delayed(const Duration(milliseconds: 250));
+      if (!mounted || generation != _generation) return {};
+    }
     final data = await widget.request(path);
-    _browseCache[path] = data;
+    if (mounted && generation == _generation) _browseCache[path] = data;
     return data;
   }
 
@@ -196,7 +202,7 @@ class _RecipeBrowserState extends State<RecipeBrowser>
         queryParameters: {
           'q': _query,
           'offset': '${more ? _next ?? 0 : 0}',
-          'tree': more ? '0' : '1',
+          'tree': more || _query.isNotEmpty ? '0' : '1',
           'families': '1',
           if (_trail.isNotEmpty) 'scope': '${_trail.last['id']}',
         },
@@ -206,11 +212,13 @@ class _RecipeBrowserState extends State<RecipeBrowser>
         useCached || more,
       );
       if (!mounted || generation != _generation) return;
-      final nodes = recipeRows(data['category_nodes']);
+      final nodes = _query.isEmpty
+          ? recipeRows(data['category_nodes'])
+          : <Map<String, dynamic>>[];
       if (_trail.isNotEmpty) {
         nodes.sort((a, b) => _alphabeticalCompare(a, b, 'label'));
       }
-      if (!more && data['view'] == 'categories') {
+      if (!more && _query.isEmpty && data['view'] == 'categories') {
         final recipeQuery = Uri(
           queryParameters: {...Uri.splitQueryString(query), 'tree': '0'},
         ).query;
@@ -350,8 +358,8 @@ class _RecipeBrowserState extends State<RecipeBrowser>
                   ? SystemMouseCursors.basic
                   : SystemMouseCursors.text,
               textInputAction: TextInputAction.search,
-              onSubmitted: (_) => _load(),
-              onChanged: (_) => setState(() {}),
+              onSubmitted: (_) => _load(useCached: true),
+              onChanged: (_) => _load(useCached: true),
               decoration: InputDecoration(
                 labelText: _trail.isEmpty
                     ? 'Search all recipes'
@@ -365,13 +373,13 @@ class _RecipeBrowserState extends State<RecipeBrowser>
                       IconButton(
                         onPressed: () {
                           _search.clear();
-                          _load();
+                          _load(useCached: true);
                         },
                         tooltip: 'Clear search',
                         icon: const Icon(Icons.close),
                       ),
                     IconButton(
-                      onPressed: () => _load(),
+                      onPressed: () => _load(useCached: true),
                       tooltip: 'Search recipes',
                       icon: const Icon(Icons.arrow_forward),
                     ),

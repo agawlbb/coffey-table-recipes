@@ -43,3 +43,5 @@ that contains cornmeal muffins. The three-level navigation test also passes at
 a 320px phone width without layout errors.
 
 2026-10-15: Category navigation reads saved mobile browse text before making a network request, and reuses visited browse responses during the current session on all platforms. Refresh, search, recipe changes and reconnect reload from the server and clear session responses. Missing cached scopes still load normally. Category artwork is fetched after text is displayed and cannot hold navigation open; late image results are ignored after changing scope. Validation: 38 browser/offline cache tests pass, including delayed-network and delayed-artwork regressions.
+
+2026-10-16: Search updates while typing and uses saved recipe text first, including ingredient matches from the mobile synced library. A nonempty query shows recipes only and requests tree=0. Clearing search restores cached categories. Search remains scoped to the selected category. Uncached network searches debounce for 250 ms; stale results cannot replace the latest query. Explicit Refresh continues to fetch current data.

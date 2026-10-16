@@ -102,6 +102,43 @@ void main() {
     offlineStatus.value = false;
   });
 
+  testWidgets(
+    'live ingredient search uses the synced library with no network requests',
+    (tester) async {
+      final c = cache();
+      await c.sync(['1']);
+      fetched.clear();
+      await tester.pumpWidget(
+        MaterialApp(
+          home: RecipeBrowser(
+            householdId: '1',
+            householdName: 'Our table',
+            request: c.request,
+            cachedRequest: c.cachedBrowse,
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('Meals'), findsOneWidget);
+      await tester.enterText(find.byType(TextField), 'carrot');
+      await tester.pumpAndSettle();
+      expect(find.text('Recipe 1'), findsOneWidget);
+      expect(find.text('Recipe 2'), findsNothing);
+      expect(find.text('Meals'), findsNothing);
+      expect(fetched, isEmpty);
+      await tester.enterText(find.byType(TextField), 'no matching ingredient');
+      await tester.pumpAndSettle();
+      expect(find.text('Recipe 1'), findsNothing);
+      expect(
+        find.text('No recipes found in this scope. Try another search.'),
+        findsOneWidget,
+      );
+      expect(fetched, isEmpty);
+      await tester.pumpWidget(const SizedBox());
+      c.close();
+    },
+  );
+
   test(
     'saved browse text is available online without a network fetch',
     () async {
