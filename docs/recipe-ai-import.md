@@ -51,3 +51,5 @@ On October 11, 2026, Flutter analysis passed and all 84 Flutter tests passed.
 Backend validation passed 21 offline AI preprocessing checks, 35 disposable
 recipe edit/create checks (explicitly authorized by the user), and PHP syntax
 checks. No live AI API calls, hosted database changes, or deployment were made.
+
+2026-10-16: Existing category IDs take precedence over AI proposal text in review. Matching known labels resolve to existing choices. Choosing a different parent selects that root and discards the rejected proposal; choosing a child saves its ID. Self-named child proposals resolve to the root. Four category-selection regressions include reviewing an imported proposal and capturing the saved parent/child selection payload.

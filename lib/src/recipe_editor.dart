@@ -9,6 +9,7 @@ import 'recipe_browser.dart';
 import 'source_photo_crop.dart';
 import 'recipe_time.dart';
 import 'recipe_value.dart';
+import 'recipe_category_selection.dart';
 import 'recipe_image_editor.dart';
 import 'offline_recipes.dart';
 
@@ -110,6 +111,7 @@ class _RecipeEditorState extends State<RecipeEditor> {
       }
     }
     for (final row in _rows('category_assignments')) {
+      normalizeRecipeCategory(row, _options('categories'));
       row['_parent_category'] ??= row['parent_label'];
       final selected = _options('categories')
           .where((c) => c['id'].toString() == row['category_id']?.toString())
@@ -164,7 +166,7 @@ class _RecipeEditorState extends State<RecipeEditor> {
     _sourcePhotos.remove(photo);
   });
   Widget _category(Map<String, dynamic> row) {
-    final parent = row['parent_label'] ?? row['_parent_category'];
+    final parent = row['_parent_category'] ?? row['parent_label'];
     final options = _options('categories')
         .where(
           (c) =>
@@ -172,9 +174,9 @@ class _RecipeEditorState extends State<RecipeEditor> {
               (c['parent_label'] == null && c['label'] == parent),
         )
         .toList();
-    final selected = row['label'] != null
-        ? '__new'
-        : row['category_id']?.toString();
+    final selected =
+        row['category_id']?.toString() ??
+        (row['label'] != null ? '__new' : null);
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 12),
       child: Column(
@@ -764,10 +766,7 @@ class _RecipeEditorState extends State<RecipeEditor> {
         onChanged: (value) => _change(() {
           row[key] = value == '' ? null : value;
           if (key == '_parent_category') {
-            row['category_id'] = null;
-            if (row['label'] != null) {
-              row['parent_label'] = row['_parent_category'];
-            }
+            selectRecipeCategoryParent(row, _options('categories'));
           }
           if (key == 'action_type') {
             final timed = ['timer', 'rest'].contains(value);
