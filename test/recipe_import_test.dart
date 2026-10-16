@@ -25,6 +25,44 @@ Map<String, dynamic> draft(List<String> questions) => {
 
 void main() {
   testWidgets(
+    'edit source retains input and can return to review without another AI call',
+    (tester) async {
+      var calls = 0;
+      await tester.pumpWidget(
+        MaterialApp(
+          home: RecipeImport(
+            householdId: '2',
+            request: (_, body) async {
+              calls++;
+              return draft([]);
+            },
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      await tester.enterText(
+        find.byType(TextField).first,
+        'Original soup recipe',
+      );
+      await tester.ensureVisible(find.text('Prepare recipe'));
+      await tester.tap(find.text('Prepare recipe'));
+      await tester.pumpAndSettle();
+      expect(find.text('Draft—not saved yet'), findsOneWidget);
+      await tester.ensureVisible(find.text('Edit source'));
+      await tester.tap(find.text('Edit source'));
+      await tester.pumpAndSettle();
+      expect(find.text('Original soup recipe'), findsOneWidget);
+      expect(calls, 1);
+      await tester.ensureVisible(find.text('Return to review without changes'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Return to review without changes'));
+      await tester.pumpAndSettle();
+      expect(find.text('Review recipe'), findsOneWidget);
+      expect(calls, 1);
+    },
+  );
+
+  testWidgets(
     'website cover survives clarification without resending picture bytes',
     (tester) async {
       const encoded =
@@ -79,7 +117,7 @@ void main() {
         find.textContaining(RegExp(r'^(Prepare|Update) recipe$')),
       );
       await tester.pumpAndSettle();
-      await tester.tap(find.text('Save').first);
+      await tester.tap(find.text('Save recipe').first);
       await tester.pumpAndSettle();
       final photo = (saved!['photos'] as List).single as Map;
       expect(photo['image_base64'], encoded);
@@ -304,7 +342,7 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.text('Review recipe'), findsOneWidget);
       expect(calls.length, 2);
-      await tester.tap(find.text('Save').first);
+      await tester.tap(find.text('Save recipe').first);
       await tester.pumpAndSettle();
       expect(calls.last, '/households/2/recipes');
     },

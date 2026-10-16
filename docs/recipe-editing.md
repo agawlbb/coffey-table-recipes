@@ -1,24 +1,51 @@
 # Recipe editing
 
 On opening import review or editing, Ingredients and Steps & actions show their
-lists, with existing ingredient and step details collapsed. Photos (including
-their previews) and Notes & source are open by default. Categories and tags appear
-at the bottom of Recipe details, with parent/category controls always visible.
-Parent category is followed by a Category dropdown containing child names only
-and Add new category. New-name typing preserves the parent, and the dropdown
-remains available to switch back to an existing category. Tags remain visible here too.
+lists. Ingredient details stay closed until the user taps a row or its pencil;
+a focused editor puts Amount, Unit, Ingredient, Preparation and Group together.
+Done applies those fields together; Cancel discards only that focused edit.
+Natural fractions (including mixed and Unicode fractions) update exact scaling
+quantities and the displayed ingredient line together. Decimal and fractional
+representations are mutually exclusive. Free-form amounts such as “to taste” and
+compound measures remain text without invented scaling quantities.
 
-Import offers visible Text, Website, File and Camera choices. Text can be marked
-as a description of how the user makes a dish. Prepare recipe starts extraction;
-clarification answers use Update recipe, then Review recipe opens the editor.
-Section shortcuts occupy one horizontally scrolling row. Ingredient rows are
-flat and show the ingredient line, quantity and unit when opened, with less-used
-fields under More options. Complete step instructions and timer/temperature
-badges remain visible with editing details collapsed. Photo previews and Edit
-picture stay visible; captions, credits, cover and ordering use More options.
-Numbers omit unnecessary decimal zeros. Recipe times use hours/minutes fields;
-timers add seconds. Minutes/seconds are restricted to 0–59 and timer durations
-must be greater than zero. The saved API units remain minutes and seconds.
+Ingredient groups appear as headings with counts, Rename and Add ingredient
+controls. Ungrouped ingredients are shown separately when groups exist. A row's
+Move to group menu moves it directly, and also offers reorder/remove controls.
+There is one Add group button. Removing a group preserves its ingredients.
+Steps show their full instructions and timer/temperature badges. Tapping a step's
+pencil or badge opens instructions and all of its actions in one focused editor.
+Action fields are visible together, with local reorder/remove controls.
+
+Photos (including previews) and Notes & source are open by default. Categories
+and tags remain at the bottom of Recipe details with parent/category controls
+visible. The Category dropdown shows only child names, alphabetically, and an
+Add new category option; typing or clearing a new name preserves its parent.
+A small cover preview near the recipe name links directly to Photos.
+
+Section shortcuts remain pinned below the app bar while scrolling. Prep, Cook
+and Total show compact durations that open hours/minutes editors; timers also
+have seconds. API storage remains minutes for metadata and seconds for actions.
+New imported recipes show “Draft—not saved yet” and the final action is Save
+recipe. Save validates ingredients, steps and actions even when their detail
+editors have never been opened, then opens the item needing attention.
+
+Import offers a consistent two-by-two grid of Text, Website, File and Camera.
+Text can be marked as a description of how the user makes a dish. The character
+counter appears only near the limit. The flow is source, clarification questions
+only if needed, review, then Save recipe. Edit source returns to the retained
+source input and draft; Return to review makes no additional AI request.
+Preparing again explicitly replaces the current review with the updated source.
+Cancelling review exits to the screen where the import started.
+
+Verified on 2026-10-16: the final 48 editor/import/quantity/variation checks
+passed and Flutter analysis was clean. The broader regression run passed the
+remaining checks; its outdated live-title expectation was corrected and verified
+in the final variation suite. Image/source-photo regression checks also passed.
+Local web and Android debug builds succeeded. On the Pixel 8 emulator, Breakfast
+Ring showed Dough (4) and Sauce (3), pinned navigation, cover preview, and a
+focused ingredient editor with quantity, unit, preparation and group together.
+No hosted recipe data was changed during these UI checks.
 
 Verified on 2026-10-12: all 32 editor/import/image/source-photo tests passed,
 Flutter analysis was clean, and local web and Android debug builds succeeded.
@@ -60,9 +87,9 @@ opens its section and scrolls it into view. Servings/yield and cooking times sha
 rows when space permits; phone layouts stack fields as needed. Language and
 measurement settings are under Language & measurements.
 
-Cooking action durations edit as `m:ss` or `h:mm:ss` (for example `2:30` or
-`1:02:30`). Prep, cook and total times edit as `h:mm`, matching the database's
-whole-minute precision. Durations display in hours, minutes and seconds across
+Cooking action durations use Hours, Minutes and Seconds fields. Prep, cook and
+total times use compact buttons opening Hours and Minutes fields, matching the
+database's whole-minute precision. Durations display in hours, minutes and seconds across
 recipe views, collapsed action previews and cooking mode; running timers switch
 to `h:mm:ss` at one hour. Input validation checks component ranges and positive
 timer durations. Storage remains seconds for actions and minutes for metadata.
@@ -71,10 +98,10 @@ payloads and visible errors, recipe browsing and cooking timer regressions.
 Flutter analysis passes.
 
 Ingredient rows preview their displayed quantities and preparation; step rows
-preview instructions. Open a row using its heading or expand arrow to edit it.
-Reorder and remove controls appear at the bottom of the expanded row. Grouping,
-scaling, and exact ingredient quantities have their own expandable settings.
-The displayed ingredient line is edited independently from search/scaling fields.
+preview instructions. Open a focused editor using the row or pencil. Amount,
+unit, name and preparation are synchronized rather than independently editable
+representations. Reorder/remove controls use row menus or the focused action
+editor; group selection is directly available from each ingredient row.
 
 A persistent footer shows unsaved changes and save errors. Validation opens the
 sections and rows containing the first invalid field, then scrolls to it. All edits
@@ -88,10 +115,9 @@ pairings/notes, and nutrition. Recipe IDs, revision/audit fields, import keys,
 extracted import source text, favorites, and cooking history remain managed by
 their respective systems.
 
-The ingredient line is the text displayed while viewing and cooking. Exact
-decimal/fraction/range quantities are available beneath Exact quantities;
-fractions require both a numerator and positive denominator and cannot be
-combined with a decimal quantity. Removing a group ungroups its ingredients.
+The ingredient line is the text displayed while viewing and cooking. The Amount
+field derives exact decimal/fraction/range quantities; fractions require a
+positive denominator and cannot be combined with a decimal quantity. Removing a group ungroups its ingredients.
 Removing a step removes its actions. Reordering keeps IDs and associations.
 Changing an action type resets values specific to its previous type.
 

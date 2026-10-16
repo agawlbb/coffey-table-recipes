@@ -100,7 +100,7 @@ void main() {
     final editor = tester.widget<RecipeEditor>(find.byType(RecipeEditor));
     expect((editor.recipe['photos'] as List).single['image_base64'], image);
     expect(find.byType(Image), findsWidgets);
-    await tester.tap(find.text('Save'));
+    await tester.tap(find.text('Save recipe'));
     await tester.pumpAndSettle();
     final photo = (saved!['photos'] as List).single as Map;
     expect(photo['id'], startsWith('new-'));
@@ -158,7 +158,7 @@ void main() {
         {'question': 'Which milk alternative?', 'answer': 'Oat milk'},
         {'question': 'Keep the butter?', 'answer': 'Use olive oil'},
       ]);
-      await tester.tap(find.text('Save'));
+      await tester.tap(find.text('Save recipe'));
       await tester.pumpAndSettle();
       expect(calls.last['path'], '/households/2/recipes');
       expect((calls.last['body'] as Map)['parent_recipe_id'], '10');
@@ -257,7 +257,7 @@ void main() {
       });
       await prepare(tester);
       expect((response['recipe'] as Map)['id'], '10');
-      await tester.tap(find.text('Save'));
+      await tester.tap(find.text('Save recipe'));
       await tester.pumpAndSettle();
       expect(saved, isTrue);
     },
@@ -359,7 +359,8 @@ void main() {
     expect(find.text('Discard changes?'), findsOneWidget);
     await tester.tap(find.text('Keep editing'));
     await tester.pumpAndSettle();
-    expect(find.text('Changed variation'), findsOneWidget);
+    expect(find.widgetWithText(TextFormField, 'Recipe name'), findsOneWidget);
+    expect(find.text('Changed variation'), findsNWidgets(2));
     await tester.binding.handlePopRoute();
     await tester.pumpAndSettle();
     await tester.tap(find.text('Discard'));
@@ -421,7 +422,7 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Save'));
+    await tester.tap(find.text('Save recipe'));
     await tester.pumpAndSettle();
     expect(saved?['source_type'], 'ai_variation');
   });
@@ -440,11 +441,11 @@ void main() {
       };
     });
     await prepare(tester);
-    await tester.tap(find.text('Save'));
+    await tester.tap(find.text('Save recipe'));
     await tester.pumpAndSettle();
     expect(find.text('Save needs a retry.'), findsWidgets);
     expect(find.text('Review recipe'), findsOneWidget);
-    await tester.tap(find.text('Save'));
+    await tester.tap(find.text('Save recipe'));
     await tester.pumpAndSettle();
     expect(saves[1]['import_key'], saves[0]['import_key']);
     expect(find.text('Open variation'), findsOneWidget);

@@ -36,6 +36,7 @@ class _RecipeImportState extends State<RecipeImport> {
   XFile? _file;
   bool _busy = false;
   bool _leaving = false;
+  bool _editingSource = false;
   String? _error;
   Map<String, dynamic>? _draft;
   List<String> _questions = [];
@@ -197,11 +198,11 @@ class _RecipeImportState extends State<RecipeImport> {
     });
     try {
       final body = <String, dynamic>{
-        'kind': _draft == null
+        'kind': _draft == null || _editingSource
             ? (_kind == 'description' ? 'text' : _kind)
             : 'answers',
       };
-      if (_draft != null) {
+      if (_draft != null && !_editingSource) {
         if (_answerFields.any((c) => c.text.trim().isEmpty)) {
           throw const FormatException(
             'Answer each question, or enter “unknown”.',
@@ -284,6 +285,7 @@ class _RecipeImportState extends State<RecipeImport> {
       _answerFields.clear();
       setState(() {
         _draft = draft;
+        _editingSource = false;
         _questions = questions;
         _identity ??= draft['import_key'] as String?;
         _answerFields.addAll(questions.map((_) => TextEditingController()));
@@ -312,9 +314,18 @@ class _RecipeImportState extends State<RecipeImport> {
           recipe: _draft!,
           householdId: widget.householdId,
           save: widget.request,
+          allowEditSource: true,
         ),
       ),
     );
+    if (mounted && saved?['_edit_source'] == true) {
+      setState(() {
+        _draft = saved!['draft'] as Map<String, dynamic>;
+        _editingSource = true;
+        _busy = false;
+      });
+      return;
+    }
     if (mounted) {
       setState(() => _leaving = true);
       await WidgetsBinding.instance.endOfFrame;
@@ -383,11 +394,18 @@ class _RecipeImportState extends State<RecipeImport> {
                     'An internet connection is required to import a recipe.',
                   ),
                 ),
-              if (_draft == null) ...[
+              if (_draft == null || _editingSource) ...[
                 const SizedBox(height: 16),
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
+                GridView(
+                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                    crossAxisCount: 2,
+                    mainAxisExtent: 48,
+                    crossAxisSpacing: 8,
+                    mainAxisSpacing: 8,
+                  ),
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+
                   children: [
                     for (final option in const [
                       ('text', 'Text', Icons.notes),
@@ -431,6 +449,15 @@ class _RecipeImportState extends State<RecipeImport> {
                     minLines: 6,
                     maxLines: 14,
                     maxLength: 60000,
+                    buildCounter:
+                        (
+                          _, {
+                          required currentLength,
+                          required isFocused,
+                          maxLength,
+                        }) => currentLength < 54000
+                        ? null
+                        : Text('$currentLength/$maxLength'),
                     decoration: InputDecoration(
                       alignLabelWithHint: true,
                       labelText: _kind == 'description'
@@ -519,10 +546,19 @@ class _RecipeImportState extends State<RecipeImport> {
                   ),
                 ),
               const SizedBox(height: 20),
+              if (_editingSource) ...[
+                const Text(
+                  'Preparing again replaces the current review with the updated source.',
+                ),
+                TextButton(
+                  onPressed: _busy ? null : _review,
+                  child: const Text('Return to review without changes'),
+                ),
+              ],
               FilledButton.icon(
                 onPressed: _busy || offlineStatus.value
                     ? null
-                    : _draft != null && _questions.isEmpty
+                    : _draft != null && !_editingSource && _questions.isEmpty
                     ? _review
                     : _analyze,
                 icon: _busy
@@ -535,9 +571,9 @@ class _RecipeImportState extends State<RecipeImport> {
                 label: Text(
                   _busy
                       ? 'Preparing recipe…'
-                      : _draft != null && _questions.isEmpty
+                      : _draft != null && !_editingSource && _questions.isEmpty
                       ? 'Review recipe'
-                      : _draft != null
+                      : _draft != null && !_editingSource
                       ? 'Update recipe'
                       : 'Prepare recipe',
                 ),

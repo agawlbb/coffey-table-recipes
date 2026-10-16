@@ -72,7 +72,7 @@ void main() {
     expect(submitted, isNull);
     await tester.pumpAndSettle();
     expect(find.text('Generate an image with AI'), findsNothing);
-    await tester.tap(find.text('Save'));
+    await tester.tap(find.text('Save recipe'));
     await tester.pumpAndSettle();
     expect((submitted!['photos'] as List).length, 1);
     expect((submitted!['photos'] as List).first['is_cover'], 1);
@@ -119,7 +119,7 @@ void main() {
     await tester.enterText(name, '');
     expect(find.text('Desserts'), findsOneWidget);
     await tester.enterText(name, 'Tarts');
-    await tester.tap(find.text('Save'));
+    await tester.tap(find.text('Save recipe'));
     await tester.pumpAndSettle();
     final category = (submitted!['category_assignments'] as List).single as Map;
     expect(category['label'], 'Tarts');
@@ -132,7 +132,7 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.text('Cookies').last);
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Save'));
+    await tester.tap(find.text('Save recipe'));
     await tester.pumpAndSettle();
     final existing = (submitted!['category_assignments'] as List).single as Map;
     expect(existing['category_id'], '2');

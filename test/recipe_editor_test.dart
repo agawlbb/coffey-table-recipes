@@ -50,7 +50,24 @@ Map<String, dynamic> recipe() => {
 };
 
 Future<void> section(WidgetTester tester, String label) async {
-  final finder = find.text(label).last;
+  if (label == 'Step 1' || label == 'Step 2') {
+    final edit = find.byTooltip('Edit step').at(label == 'Step 1' ? 0 : 1);
+    await tester.ensureVisible(edit);
+    await tester.tap(edit);
+    await tester.pumpAndSettle();
+    return;
+  }
+  if (label == '1 cup milk') {
+    final edit = find.byTooltip('Edit ingredient').first;
+    await tester.ensureVisible(edit);
+    await tester.tap(edit);
+    await tester.pumpAndSettle();
+    return;
+  }
+  if (label == 'Simmer timer' || label == 'Second timer') return;
+  final finder = find
+      .descendant(of: find.byType(ExpansionTile), matching: find.text(label))
+      .last;
   await tester.ensureVisible(finder);
   final tile = tester.widget<ExpansionTile>(
     find.ancestor(of: finder, matching: find.byType(ExpansionTile)).first,
@@ -60,6 +77,61 @@ Future<void> section(WidgetTester tester, String label) async {
 }
 
 void main() {
+  testWidgets('groups are visible and focused edits cancel atomically', (
+    tester,
+  ) async {
+    Map<String, dynamic>? submitted;
+    final draft = recipe();
+    draft['groups'] = [
+      {'id': 'g1', 'title': 'Dough'},
+      {'id': 'g2', 'title': 'Sauce'},
+    ];
+    (draft['ingredients'] as List).first['group_id'] = 'g1';
+    await tester.pumpWidget(
+      MaterialApp(
+        home: RecipeEditor(
+          recipe: draft,
+          householdId: '2',
+          save: (_, body) async {
+            submitted = body;
+            throw ApiException(500, 'Retained');
+          },
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.byTooltip('Go to ingredients'));
+    await tester.pumpAndSettle();
+    expect(find.text('Dough · 1'), findsOneWidget);
+    expect(find.text('Sauce · 0'), findsOneWidget);
+    await tester.tap(find.byTooltip('Edit ingredient'));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.widgetWithText(TextFormField, 'Amount'), '3/4');
+    await tester.tap(find.text('Cancel').last);
+    await tester.pumpAndSettle();
+    expect(find.text('1 cup milk'), findsOneWidget);
+    await tester.tap(find.byTooltip('Move to group'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Sauce'));
+    await tester.pumpAndSettle();
+    expect(find.text('Dough · 0'), findsOneWidget);
+    expect(find.text('Sauce · 1'), findsOneWidget);
+    await tester.ensureVisible(find.byTooltip('Edit ingredient'));
+    await tester.tap(find.byTooltip('Edit ingredient'));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.widgetWithText(TextFormField, 'Amount'), '3/4');
+    await tester.tap(find.text('Done'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Save recipe'));
+    await tester.pumpAndSettle();
+    final ingredient = (submitted!['ingredients'] as List).single;
+    expect(ingredient['original_text'], '3/4 cup Milk');
+    expect(ingredient['quantity_numerator'], 3);
+    expect(ingredient['quantity_denominator'], 4);
+    expect(ingredient['group_id'], 'g2');
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets(
     'disabled household explains AI access and keeps uploads available',
     (tester) async {
@@ -132,6 +204,9 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
+    await tester.ensureVisible(find.text('Prep: 1 hr 30 min'));
+    await tester.tap(find.text('Prep: 1 hr 30 min'));
+    await tester.pumpAndSettle();
     final prep = find.widgetWithText(TextFormField, 'Prep Hours');
     expect(tester.widget<TextFormField>(prep).initialValue, '1');
     await tester.enterText(prep, '2');
@@ -139,6 +214,8 @@ void main() {
       find.widgetWithText(TextFormField, 'Prep Minutes'),
       '15',
     );
+    await tester.tap(find.text('Done'));
+    await tester.pumpAndSettle();
     await section(tester, 'Steps & actions');
     await section(tester, 'Step 1');
     await section(tester, 'Simmer timer');
@@ -153,13 +230,19 @@ void main() {
       '2',
     );
     await tester.enterText(duration, '3');
-    await tester.tap(find.text('Save'));
+    await tester.tap(find.text('Done'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Save recipe'));
     await tester.pumpAndSettle();
     expect(submitted!['prep_minutes'], 135);
     expect((submitted!['actions'] as List).first['duration_seconds'], 3723);
-    await tester.enterText(duration, '99');
+    await section(tester, 'Step 1');
+    await tester.enterText(
+      find.widgetWithText(TextFormField, 'Seconds').first,
+      '99',
+    );
     submitted = null;
-    await tester.tap(find.text('Save'));
+    await tester.tap(find.text('Done'));
     await tester.pumpAndSettle();
     expect(submitted, isNull);
     expect(find.text('Use 0–59'), findsOneWidget);
@@ -237,7 +320,7 @@ void main() {
       find.widgetWithText(TextFormField, 'AI-generated soup'),
       findsOneWidget,
     );
-    await tester.tap(find.text('Save'));
+    await tester.tap(find.text('Save recipe'));
     await tester.pumpAndSettle();
     expect((submitted!['photos'] as List).length, 1);
     expect((submitted!['photos'] as List).first['is_cover'], 1);
@@ -304,56 +387,24 @@ void main() {
     }
     await tester.tap(find.byTooltip('Go to ingredients'));
     await tester.pumpAndSettle();
-    final tile = tester.widget<ExpansionTile>(
-      find.byWidgetPredicate(
-        (widget) =>
-            widget is ExpansionTile &&
-            widget.title is Text &&
-            (widget.title as Text).data == '1 cup milk',
-      ),
-    );
-    expect(tile.initiallyExpanded, isFalse);
     expect(find.text('1. Milk'), findsNothing);
-    expect(find.text('Milk'), findsNothing);
     expect(find.text('1 cup milk'), findsOneWidget);
+    expect(find.widgetWithText(TextFormField, 'Ingredient'), findsNothing);
     await section(tester, '1 cup milk');
+    expect(find.widgetWithText(TextFormField, 'Amount'), findsOneWidget);
     expect(
-      find.widgetWithText(TextFormField, 'Ingredient line (as displayed)'),
-      findsOneWidget,
+      find.widgetWithText(TextFormField, 'Ingredient group'),
+      findsNothing,
     );
-    await tester.ensureVisible(find.byTooltip('Go to steps & actions'));
+    await tester.tap(find.text('Cancel').last);
+    await tester.pumpAndSettle();
     await tester.tap(find.byTooltip('Go to steps & actions'));
     await tester.pumpAndSettle();
-    expect(
-      tester
-          .widget<ExpansionTile>(
-            find.byWidgetPredicate(
-              (widget) =>
-                  widget is ExpansionTile &&
-                  widget.title is Text &&
-                  (widget.title as Text).data == 'Step 1',
-            ),
-          )
-          .initiallyExpanded,
-      isFalse,
-    );
-    expect(find.text('2 actions'), findsOneWidget);
     expect(find.text('Timer: Simmer timer · 1 min'), findsOneWidget);
     expect(find.text('Rest: Second timer · 2 min'), findsOneWidget);
     await section(tester, 'Step 1');
-    expect(
-      tester
-          .widget<ExpansionTile>(
-            find.byWidgetPredicate(
-              (widget) =>
-                  widget is ExpansionTile &&
-                  widget.title is Text &&
-                  (widget.title as Text).data == 'Simmer timer',
-            ),
-          )
-          .initiallyExpanded,
-      isFalse,
-    );
+    expect(find.widgetWithText(TextFormField, 'Instructions'), findsOneWidget);
+    expect(find.widgetWithText(TextFormField, 'Seconds'), findsNWidgets(2));
   });
 
   testWidgets('section shortcuts preserve edits and show useful row previews', (
@@ -377,13 +428,14 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('1 cup milk'), findsOneWidget);
     await section(tester, '1 cup milk');
-    final line = find.widgetWithText(
-      TextFormField,
-      'Ingredient line (as displayed)',
+    await tester.enterText(find.widgetWithText(TextFormField, 'Amount'), '2');
+    await tester.enterText(find.widgetWithText(TextFormField, 'Unit'), 'cups');
+    await tester.enterText(
+      find.widgetWithText(TextFormField, 'Ingredient'),
+      'milk',
     );
-    await tester.ensureVisible(line);
-    await tester.enterText(line, '2 cups milk');
-    await tester.pump();
+    await tester.tap(find.text('Done'));
+    await tester.pumpAndSettle();
     expect(
       find.text('Unsaved changes · Save when you’re ready'),
       findsOneWidget,
@@ -392,7 +444,7 @@ void main() {
     await tester.tap(find.byTooltip('Go to steps & actions'));
     await tester.pumpAndSettle();
     expect(find.text('Simmer'), findsOneWidget);
-    await tester.tap(find.text('Save'));
+    await tester.tap(find.text('Save recipe'));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 350));
     await tester.pumpAndSettle();
@@ -422,7 +474,7 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Save'));
+    await tester.tap(find.text('Save recipe'));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 350));
     await tester.pumpAndSettle();
@@ -462,23 +514,18 @@ void main() {
         ),
       );
       await tester.pumpAndSettle();
-      await tester.tap(find.text('Save'));
+      await tester.tap(find.text('Save recipe'));
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 350));
       await tester.pumpAndSettle();
       expect(saved, isFalse);
-      final errors = find.text(
-        'Use decimal OR fraction; clear the other quantity fields.',
-      );
-      expect(errors, findsNWidgets(3));
-      final first = tester.getRect(errors.first);
-      expect(first.top, greaterThan(0));
-      expect(
-        first.bottom,
-        lessThan(
-          tester.view.physicalSize.height / tester.view.devicePixelRatio - 40,
-        ),
-      );
+      expect(find.text('Edit ingredient'), findsOneWidget);
+      expect(find.widgetWithText(TextFormField, 'Amount'), findsOneWidget);
+      await tester.tap(find.text('Done'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Save recipe'));
+      await tester.pumpAndSettle();
+      expect(saved, isTrue);
       expect(tester.takeException(), isNull);
     },
   );
@@ -546,7 +593,7 @@ void main() {
     await tester.pumpAndSettle();
     final name = find.widgetWithText(TextFormField, 'Recipe name');
     await tester.enterText(name, 'New soup');
-    await tester.tap(find.text('Save'));
+    await tester.tap(find.text('Save recipe'));
     await tester.pumpAndSettle();
     expect(submitted?['title'], 'New soup');
     expect(original['title'], 'Soup');
@@ -587,7 +634,7 @@ void main() {
     expect(find.text('Discard changes?'), findsOneWidget);
     await tester.tap(find.text('Keep editing'));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Save'));
+    await tester.tap(find.text('Save recipe'));
     await tester.pumpAndSettle();
     expect(find.text('Recipe changed.'), findsOneWidget);
     expect(find.widgetWithText(TextFormField, 'Unsaved'), findsOneWidget);
@@ -615,38 +662,20 @@ void main() {
       );
       await tester.pumpAndSettle();
       await section(tester, 'Steps & actions');
-      await section(tester, 'Step 1');
-      await section(tester, 'Second timer');
-      final action = find
-          .ancestor(
-            of: find.text('Second timer'),
-            matching: find.byType(ExpansionTile),
-          )
-          .first;
-      final up = find.descendant(
-        of: action,
-        matching: find.byTooltip('Move up'),
-      );
-      await tester.ensureVisible(up);
-      await tester.tap(up);
+      await tester.tap(find.byTooltip('Step options').first);
       await tester.pumpAndSettle();
-      await tester.tap(find.text('Save'));
+      await tester.tap(find.text('Move down'));
       await tester.pumpAndSettle();
-      expect((submitted!['actions'] as List).first['id'], '32');
+      await tester.tap(find.text('Save recipe'));
+      await tester.pumpAndSettle();
+      expect((submitted!['steps'] as List).first['id'], '22');
       expect((submitted!['actions'] as List).first['step_id'], '21');
-      final step = find
-          .ancestor(
-            of: find.text('Step 1'),
-            matching: find.byType(ExpansionTile),
-          )
-          .first;
-      final remove = find
-          .descendant(of: step, matching: find.byTooltip('Remove'))
-          .last;
-      await tester.ensureVisible(remove);
-      await tester.tap(remove);
+      await tester.ensureVisible(find.byTooltip('Step options').last);
+      await tester.tap(find.byTooltip('Step options').last);
       await tester.pumpAndSettle();
-      await tester.tap(find.text('Save'));
+      await tester.tap(find.text('Remove step'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Save recipe'));
       await tester.pumpAndSettle();
       expect(submitted!['actions'], isEmpty);
       expect((submitted!['steps'] as List).single['id'], '22');
@@ -688,7 +717,7 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.text('Generate an image with AI'), findsNothing);
     }
-    await tester.tap(find.text('Save'));
+    await tester.tap(find.text('Save recipe'));
     await tester.pumpAndSettle();
     expect(sources, [ImageSource.gallery, ImageSource.camera]);
     final photos = submitted!['photos'] as List;

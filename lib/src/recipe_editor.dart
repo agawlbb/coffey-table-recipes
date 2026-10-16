@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 
 import 'api.dart';
+import 'ingredient_amount.dart';
 import 'recipe_browser.dart';
 import 'source_photo_crop.dart';
 import 'recipe_time.dart';
@@ -25,12 +26,14 @@ class RecipeEditor extends StatefulWidget {
     required this.householdId,
     required this.save,
     this.pickImage,
+    this.allowEditSource = false,
     this.variationParentTitle,
     this.variationChangeDescription,
   });
   final Map<String, dynamic> recipe;
   final String householdId;
   final RecipeSave save;
+  final bool allowEditSource;
   final String? variationParentTitle;
   // Review information only; kept outside the recipe and save payload.
   final String? variationChangeDescription;
@@ -283,11 +286,237 @@ class _RecipeEditorState extends State<RecipeEditor> {
     }
   }
 
-  void _change(void Function() action) => setState(() {
-    action();
-    _dirty = true;
-    _error = null;
-  });
+  StateSetter? _panelRefresh;
+  void _change(void Function() action) {
+    if (_panelRefresh != null) {
+      _panelRefresh!(action);
+      return;
+    }
+    setState(() {
+      action();
+      _dirty = true;
+      _error = null;
+    });
+  }
+
+  Future<bool> _panel(
+    String title,
+    List<Widget> Function() children, {
+    bool showErrors = false,
+  }) async {
+    final form = GlobalKey<FormState>();
+    var active = true;
+    final accepted = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (context, refresh) {
+          if (active) _panelRefresh = refresh;
+          return AlertDialog(
+            title: Text(title),
+            content: SizedBox(
+              width: 560,
+              child: Form(
+                key: form,
+                autovalidateMode: showErrors
+                    ? AutovalidateMode.always
+                    : AutovalidateMode.disabled,
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.only(top: 8, bottom: 4),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: children(),
+                  ),
+                ),
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(dialogContext, false),
+                child: const Text('Cancel'),
+              ),
+              FilledButton(
+                onPressed: () {
+                  if (form.currentState!.validate()) {
+                    Navigator.pop(dialogContext, true);
+                  }
+                },
+                child: const Text('Done'),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+    active = false;
+    _panelRefresh = null;
+    return accepted == true;
+  }
+
+  Future<void> _editIngredient(
+    Map<String, dynamic> row, {
+    bool adding = false,
+    bool showErrors = false,
+  }) async {
+    final copy = Map<String, dynamic>.from(row);
+    final input = ingredientEditingFields(row);
+    final initialInput = Map<String, dynamic>.from(input);
+    // Older recipes sometimes only have the complete displayed line. Preserve it
+    // until the user explicitly edits the amount, rather than guessing its unit.
+    final accepted = await _panel(
+      adding ? 'Add ingredient' : 'Edit ingredient',
+      () => [
+        _columns([
+          _field(
+            input,
+            'amount',
+            'Amount',
+            hint: '1/4, 1 1/2, or to taste',
+            validate: (value) {
+              try {
+                ingredientAmount(value);
+                return null;
+              } on FormatException catch (e) {
+                return e.message;
+              }
+            },
+          ),
+          _field(input, 'unit', 'Unit', maxLength: 80),
+        ], minWidth: 130),
+        _field(input, 'name', 'Ingredient', required: true, maxLength: 300),
+        _field(
+          input,
+          'preparation',
+          'Preparation (e.g. finely chopped)',
+          maxLength: 300,
+        ),
+        _choice(copy, 'group_id', 'Ingredient group', {
+          for (final g in _rows('groups')) '${g['id']}': '${g['title']}',
+        }, nullable: true),
+        _toggle(copy, 'scale_quantity', 'Scale with servings'),
+        _toggle(copy, 'is_optional', 'Optional ingredient'),
+        _toggle(copy, 'is_main_ingredient', 'Main ingredient'),
+        Text(
+          [
+            input['amount'],
+            input['unit'],
+            input['name'],
+          ].where((v) => v != null && '$v'.isNotEmpty).join(' '),
+          style: Theme.of(context).textTheme.titleMedium,
+        ),
+      ],
+      showErrors: showErrors,
+    );
+    if (!accepted || !mounted) return;
+    final fieldsChanged = adding || !mapEquals(input, initialInput);
+    if (fieldsChanged ||
+        (copy['quantity_decimal'] != null &&
+            copy['quantity_numerator'] != null) ||
+        '${copy['original_text'] ?? ''}'.trim().isEmpty) {
+      applyIngredientFields(
+        copy,
+        '${input['amount'] ?? ''}',
+        '${input['unit'] ?? ''}',
+        '${input['name'] ?? ''}',
+        '${input['preparation'] ?? ''}',
+      );
+    } else if ('${input['amount'] ?? ''}'.isNotEmpty) {
+      copy.addAll(ingredientAmount('${input['amount']}'));
+    }
+    _change(() {
+      row
+        ..clear()
+        ..addAll(copy);
+      if (adding) _rows('ingredients').add(row);
+    });
+  }
+
+  Future<void> _editGroup([Map<String, dynamic>? group]) async {
+    final copy = <String, dynamic>{...?group, if (group == null) 'id': _id()};
+    if (await _panel(
+          group == null ? 'Add group' : 'Rename group',
+          () => [
+            _field(copy, 'title', 'Group name', required: true, maxLength: 200),
+          ],
+        ) &&
+        mounted) {
+      _change(() {
+        if (group == null) {
+          _rows('groups').add(copy);
+        } else {
+          group.addAll(copy);
+        }
+      });
+    }
+  }
+
+  Future<void> _editStep(
+    Map<String, dynamic> row, {
+    bool adding = false,
+    bool showErrors = false,
+  }) async {
+    final copy = Map<String, dynamic>.from(row);
+    final actions = _rows('actions')
+        .where((a) => a['step_id'] == row['id'])
+        .map((a) => Map<String, dynamic>.from(a))
+        .toList();
+    if (!await _panel(
+          adding ? 'Add step' : 'Edit step',
+          () => [
+            _field(
+              copy,
+              'instruction',
+              'Instructions',
+              required: true,
+              lines: 4,
+            ),
+            _field(
+              copy,
+              'section_title',
+              'Section heading (optional)',
+              maxLength: 200,
+            ),
+            const Text(
+              'Timers & temperatures',
+              style: TextStyle(fontWeight: FontWeight.bold),
+            ),
+            ...actions.map((a) => _action(a, actions)),
+            _add(
+              'Add timer or temperature',
+              () => _change(
+                () => actions.add({
+                  'id': _id(),
+                  'step_id': row['id'],
+                  'action_type': 'timer',
+                  'duration_seconds': 60,
+                }),
+              ),
+            ),
+          ],
+          showErrors: showErrors,
+        ) ||
+        !mounted) {
+      return;
+    }
+    _change(() {
+      row
+        ..clear()
+        ..addAll(copy);
+      if (adding) _rows('steps').add(row);
+      _rows('actions').removeWhere((a) => a['step_id'] == row['id']);
+      _rows('actions').addAll(actions);
+    });
+  }
+
+  Future<void> _editSource() async {
+    setState(() => _leaving = true);
+    await WidgetsBinding.instance.endOfFrame;
+    if (mounted) {
+      Navigator.pop(context, {'_edit_source': true, 'draft': _draft});
+    }
+  }
+
   Future<void> _close() async {
     if (_saving || _picking || _closing || _leaving) return;
     if (_dirty) {
@@ -357,6 +586,50 @@ class _RecipeEditorState extends State<RecipeEditor> {
       }
       if (mounted) setState(() => _revealingErrors = false);
       return;
+    }
+    for (final ingredient in _rows('ingredients')) {
+      final decimal = ingredient['quantity_decimal'],
+          numerator = ingredient['quantity_numerator'],
+          denominator = ingredient['quantity_denominator'];
+      final invalidQuantity =
+          (decimal != null && (numerator != null || denominator != null)) ||
+          ((numerator != null || denominator != null) &&
+              (num.tryParse('$denominator') == null ||
+                  (num.tryParse('$denominator') ?? 0) <= 0 ||
+                  num.tryParse('$numerator') == null));
+      if ('${ingredient['ingredient_name'] ?? ''}'.trim().isEmpty ||
+          '${ingredient['original_text'] ?? ''}'.trim().isEmpty ||
+          invalidQuantity) {
+        setState(
+          () => _error =
+              'Check ingredient: ${ingredient['original_text'] ?? ingredient['ingredient_name'] ?? 'unnamed ingredient'}. Review its amount and name.',
+        );
+        await _jumpTo('Ingredients');
+        await _editIngredient(ingredient, showErrors: true);
+        return;
+      }
+    }
+    for (final step in _rows('steps')) {
+      final actions = _rows('actions').where((a) => a['step_id'] == step['id']);
+      final invalid = actions.any(
+        (a) => ['timer', 'rest'].contains(a['action_type'])
+            ? (recipeSeconds(a['duration_seconds']) ?? 0) <= 0
+            : [
+                    'appliance_temperature',
+                    'internal_temperature',
+                  ].contains(a['action_type']) &&
+                  (num.tryParse('${a['temperature_value']}') == null ||
+                      !['F', 'C'].contains(a['temperature_unit'])),
+      );
+      if ('${step['instruction'] ?? ''}'.trim().isEmpty || invalid) {
+        setState(
+          () => _error =
+              'Check step ${_rows('steps').indexOf(step) + 1}: instructions, timer duration, or temperature need attention.',
+        );
+        await _jumpTo('Steps & actions');
+        await _editStep(step, showErrors: true);
+        return;
+      }
     }
     setState(() {
       _saving = true;
@@ -728,6 +1001,66 @@ class _RecipeEditorState extends State<RecipeEditor> {
     );
   }
 
+  Widget _compactTime(
+    Map<String, dynamic> row,
+    String key,
+    String label, {
+    bool minutesOnly = false,
+  }) => Padding(
+    padding: const EdgeInsets.only(bottom: 14),
+    child: OutlinedButton.icon(
+      icon: const Icon(Icons.schedule, size: 18),
+      label: Text(
+        '$label: ${row[key] == null ? 'Add time' : formatRecipeTime((recipeSeconds(row[key]) ?? 0) * 60)}',
+      ),
+      onPressed: () async {
+        final copy = Map<String, dynamic>.from(row);
+        if (await _panel(
+              '$label time',
+              () => [_timeFields(copy, key, label, minutesOnly: true)],
+            ) &&
+            mounted) {
+          _change(() => row[key] = copy[key]);
+        }
+      },
+    ),
+  );
+
+  Widget _coverPreview() {
+    final photo =
+        _rows('photos').where((p) => _bool(p['is_cover'])).firstOrNull ??
+        _rows('photos').firstOrNull;
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: TextButton.icon(
+        onPressed: () => _jumpTo('Photos'),
+        icon: photo == null
+            ? const Icon(Icons.add_photo_alternate_outlined)
+            : ClipRRect(
+                borderRadius: BorderRadius.circular(8),
+                child: SizedBox(
+                  width: 64,
+                  height: 64,
+                  child: photo['image_base64'] != null
+                      ? Image.memory(
+                          base64Decode('${photo['image_base64']}'),
+                          fit: BoxFit.cover,
+                          errorBuilder: (_, _, _) =>
+                              const Icon(Icons.broken_image_outlined),
+                        )
+                      : RecipePhoto(
+                          url: photo['source_url'] as String?,
+                          fit: BoxFit.cover,
+                        ),
+                ),
+              ),
+        label: Text(
+          photo == null ? 'Add a cover photo' : 'Cover photo · Edit photos',
+        ),
+      ),
+    );
+  }
+
   bool _bool(Object? value) => value == true || value == 1 || value == '1';
   Widget _toggle(Map<String, dynamic> row, String key, String label) =>
       SwitchListTile.adaptive(
@@ -955,222 +1288,292 @@ class _RecipeEditorState extends State<RecipeEditor> {
   Map<String, String> get _recipeChoices => {
     for (final r in _options('recipes')) '${r['id']}': '${r['title']}',
   };
-  Widget _ingredient(Map<String, dynamic> row) => _item(
-    row['original_text']?.toString().trim().isNotEmpty == true
-        ? row['original_text'].toString()
-        : '${row['ingredient_name'] ?? 'New ingredient'}',
-    _rows('ingredients'),
-    row,
-    [
-      _field(
-        row,
-        'original_text',
-        'Ingredient line (as displayed)',
-        required: true,
-        lines: 2,
-        hint: 'e.g. 2 cups milk, warmed',
-      ),
-      _columns([
-        _field(row, 'quantity_text', 'Quantity as written', maxLength: 120),
-        _field(row, 'original_unit', 'Unit', maxLength: 80),
-      ], minWidth: 140),
-      ExpansionTile(
-        maintainState: true,
-        controller: _controller('more-ingredient-${identityHashCode(row)}'),
-        title: const Text('More options'),
-        children: [
-          _field(
-            row,
-            'ingredient_name',
-            'Ingredient',
-            required: true,
-            maxLength: 300,
-          ),
-          _field(
-            row,
-            'preparation',
-            'Preparation (e.g. finely chopped)',
-            maxLength: 300,
-          ),
-          ExpansionTile(
-            maintainState: true,
-            controller: _controller(
-              'ingredient-settings-${identityHashCode(row)}',
+  Widget _ingredient(Map<String, dynamic> row) {
+    final rows = _rows('ingredients'), index = rows.indexOf(row);
+    return Card(
+      key: ValueKey('item-${row['id']}'),
+      elevation: 0,
+      child: ListTile(
+        contentPadding: const EdgeInsets.only(left: 12),
+        title: Text(
+          '${row['original_text'] ?? row['ingredient_name'] ?? 'New ingredient'}',
+        ),
+        onTap: () => _editIngredient(row),
+        trailing: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            IconButton(
+              tooltip: 'Edit ingredient',
+              icon: const Icon(Icons.edit_outlined),
+              onPressed: () => _editIngredient(row),
             ),
-            expansionAnimationStyle: _expansionStyle,
-            title: const Text('Grouping & scaling'),
-            children: [
-              _choice(row, 'group_id', 'Ingredient group', {
+            PopupMenuButton<String>(
+              tooltip: 'Move to group',
+              icon: const Icon(Icons.drive_file_move_outline),
+              onSelected: (value) => _change(() {
+                if (value == 'remove') {
+                  rows.remove(row);
+                } else if (value == 'up' || value == 'down') {
+                  _move(rows, row, index + (value == 'up' ? -1 : 1));
+                } else {
+                  row['group_id'] = value == 'group:'
+                      ? null
+                      : value.substring(6);
+                }
+              }),
+              itemBuilder: (_) => [
+                const PopupMenuItem<String>(
+                  enabled: false,
+                  child: Text('Move to group'),
+                ),
+                const PopupMenuItem(value: 'group:', child: Text('Ungrouped')),
                 for (final g in _rows('groups'))
-                  '${g['id']}': '${g['title'] ?? 'New group'}',
-              }, nullable: true),
-              _toggle(row, 'is_optional', 'Optional ingredient'),
-              _toggle(row, 'is_main_ingredient', 'Main ingredient'),
-              _toggle(
-                row,
-                'scale_quantity',
-                'Adjust quantity when scaling servings',
-              ),
-            ],
-          ),
-          ExpansionTile(
-            maintainState: true,
-            controller: _controller('quantities-${identityHashCode(row)}'),
-            expansionAnimationStyle: _expansionStyle,
-            title: const Text('Exact quantities'),
-            children: [
-              _field(
-                row,
-                'quantity_decimal',
-                'Decimal quantity',
-                numeric: 'nonnegative',
-              ),
-              _field(
-                row,
-                'quantity_numerator',
-                'Fraction numerator',
-                numeric: 'integer',
-              ),
-              _field(
-                row,
-                'quantity_denominator',
-                'Fraction denominator',
-                numeric: 'integer',
-              ),
-              _field(
-                row,
-                'quantity_max_decimal',
-                'Maximum quantity (for ranges)',
-                numeric: 'nonnegative',
-              ),
-              _field(row, 'unit_code', 'Standard unit code', maxLength: 40),
-            ],
-          ),
-        ],
-      ),
-    ],
-    flat: true,
-    initiallyExpanded: (row['original_text']?.toString().trim().isEmpty ?? true)
-        ? null
-        : false,
-  );
-  Widget _action(Map<String, dynamic> row, List<Map<String, dynamic>> rows) =>
-      _item(
-        row['label']?.toString() ?? 'Cooking action',
-        rows,
-        row,
-        [
-          _choice(row, 'action_type', 'Action type', const {
-            'timer': 'Timer',
-            'rest': 'Rest',
-            'appliance_temperature': 'Appliance temperature',
-            'internal_temperature': 'Internal temperature',
-            'reminder': 'Reminder',
-          }),
-          _field(row, 'label', 'Label', maxLength: 300),
-          if (['timer', 'rest'].contains(row['action_type']) ||
-              row['duration_seconds'] != null)
-            _timeFields(
-              row,
-              'duration_seconds',
-              'Duration',
-              required: ['timer', 'rest'].contains(row['action_type']),
+                  PopupMenuItem(
+                    value: 'group:${g['id']}',
+                    child: Text('${g['title']}'),
+                  ),
+                const PopupMenuDivider(),
+                if (index > 0)
+                  const PopupMenuItem(value: 'up', child: Text('Move up')),
+                if (index < rows.length - 1)
+                  const PopupMenuItem(value: 'down', child: Text('Move down')),
+                const PopupMenuItem(
+                  value: 'remove',
+                  child: Text('Remove ingredient'),
+                ),
+              ],
             ),
-          if ([
-                'appliance_temperature',
-                'internal_temperature',
-              ].contains(row['action_type']) ||
-              row['temperature_value'] != null) ...[
-            _field(
-              row,
-              'temperature_value',
-              'Temperature',
-              required: true,
-              numeric: 'number',
-            ),
-            _choice(row, 'temperature_unit', 'Temperature unit', const {
-              'F': 'Fahrenheit (°F)',
-              'C': 'Celsius (°C)',
-            }),
           ],
-          _field(row, 'appliance', 'Appliance', maxLength: 80),
-        ],
-        initiallyExpanded: false,
-        remove: () => _rows('actions').remove(row),
+        ),
+      ),
+    );
+  }
+
+  List<Widget> _ingredientGroups() {
+    final groups = _rows('groups');
+    final result = <Widget>[];
+    for (final group in <Map<String, dynamic>?>[...groups, null]) {
+      final rows = _rows('ingredients')
+          .where(
+            (i) => group == null
+                ? !groups.any((g) => '${g['id']}' == '${i['group_id']}')
+                : '${i['group_id']}' == '${group['id']}',
+          )
+          .toList();
+      if (group == null && rows.isEmpty && groups.isNotEmpty) continue;
+      if (groups.isNotEmpty || group != null) {
+        result.add(
+          Container(
+            margin: const EdgeInsets.only(top: 8),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+            decoration: BoxDecoration(
+              color: Theme.of(context).colorScheme.secondaryContainer,
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    '${group?['title'] ?? 'Ungrouped'} · ${rows.length}',
+                    style: const TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                ),
+                if (group != null)
+                  IconButton(
+                    tooltip: 'Rename group',
+                    icon: const Icon(Icons.edit_outlined),
+                    onPressed: () => _editGroup(group),
+                  ),
+                if (group != null)
+                  PopupMenuButton<String>(
+                    tooltip: 'Group options',
+                    onSelected: (_) => _change(() {
+                      for (final row in rows) {
+                        row['group_id'] = null;
+                      }
+                      groups.remove(group);
+                    }),
+                    itemBuilder: (_) => [
+                      const PopupMenuItem(
+                        value: 'remove',
+                        child: Text('Remove group; keep ingredients'),
+                      ),
+                    ],
+                  ),
+              ],
+            ),
+          ),
+        );
+      }
+      result.addAll(rows.map(_ingredient));
+      result.add(
+        _add(
+          group == null
+              ? 'Add ingredient'
+              : 'Add ingredient to ${group['title']}',
+          () => _editIngredient({
+            'id': _id(),
+            'group_id': group?['id'],
+            'scale_quantity': true,
+          }, adding: true),
+        ),
+      );
+    }
+    result.add(_add('Add group', () => _editGroup()));
+    return result;
+  }
+
+  Widget _action(Map<String, dynamic> row, List<Map<String, dynamic>> rows) =>
+      Card(
+        child: Padding(
+          padding: const EdgeInsets.all(12),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text(row['label']?.toString() ?? 'Cooking action'),
+              _choice(row, 'action_type', 'Action type', {
+                'timer': 'Timer',
+                if (row['action_type'] == 'rest') 'rest': 'Rest',
+                'appliance_temperature': 'Appliance temperature',
+                if (row['action_type'] == 'internal_temperature')
+                  'internal_temperature': 'Internal temperature',
+                if (row['action_type'] == 'reminder') 'reminder': 'Reminder',
+              }),
+              Row(
+                children: [
+                  IconButton(
+                    tooltip: 'Move action up',
+                    onPressed: rows.indexOf(row) == 0
+                        ? null
+                        : () => _change(() {
+                            final index = rows.indexOf(row);
+                            rows.removeAt(index);
+                            rows.insert(index - 1, row);
+                          }),
+                    icon: const Icon(Icons.arrow_upward),
+                  ),
+                  IconButton(
+                    tooltip: 'Move action down',
+                    onPressed: rows.indexOf(row) == rows.length - 1
+                        ? null
+                        : () => _change(() {
+                            final index = rows.indexOf(row);
+                            rows.removeAt(index);
+                            rows.insert(index + 1, row);
+                          }),
+                    icon: const Icon(Icons.arrow_downward),
+                  ),
+                ],
+              ),
+              _field(row, 'label', 'Label', maxLength: 300),
+              if (['timer', 'rest'].contains(row['action_type']) ||
+                  row['duration_seconds'] != null)
+                _timeFields(
+                  row,
+                  'duration_seconds',
+                  'Duration',
+                  required: ['timer', 'rest'].contains(row['action_type']),
+                ),
+              if ([
+                    'appliance_temperature',
+                    'internal_temperature',
+                  ].contains(row['action_type']) ||
+                  row['temperature_value'] != null) ...[
+                _field(
+                  row,
+                  'temperature_value',
+                  'Temperature',
+                  required: true,
+                  numeric: 'number',
+                ),
+                _choice(row, 'temperature_unit', 'Temperature unit', const {
+                  'F': 'Fahrenheit (°F)',
+                  'C': 'Celsius (°C)',
+                }),
+              ],
+              _field(row, 'appliance', 'Appliance', maxLength: 80),
+              TextButton.icon(
+                onPressed: () => _change(() => rows.remove(row)),
+                icon: const Icon(Icons.delete_outline),
+                label: const Text('Remove action'),
+              ),
+            ],
+          ),
+        ),
       );
   Widget _step(Map<String, dynamic> row) {
     final actions = _rows('actions')
         .where((a) => a['step_id'] == row['id'])
         .toList();
-    return _item(
-      'Step ${_rows('steps').indexOf(row) + 1}',
-      _rows('steps'),
-      row,
-      [
-        _field(row, 'instruction', 'Instructions', required: true, lines: 3),
-        _field(
-          row,
-          'section_title',
-          'Section heading (optional)',
-          maxLength: 200,
-        ),
-        ...actions.map((a) => _action(a, actions)),
-        _add(
-          'Add action',
-          () => _change(
-            () => _rows('actions').add({
-              'id': _id(),
-              'step_id': row['id'],
-              'action_type': 'timer',
-              'duration_seconds': 60,
-            }),
-          ),
-        ),
-      ],
-      preview: row['instruction']?.toString(),
-      summary: actions.isEmpty
-          ? null
-          : Padding(
-              padding: const EdgeInsets.only(top: 8),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    '${actions.length} ${actions.length == 1 ? 'action' : 'actions'}',
-                    style: const TextStyle(fontWeight: FontWeight.w600),
+    return Card(
+      key: ValueKey('item-${row['id']}'),
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    'Step ${_rows('steps').indexOf(row) + 1}${row['section_title'] == null ? '' : ' · ${row['section_title']}'}',
+                    style: const TextStyle(fontWeight: FontWeight.bold),
                   ),
-                  for (final action in actions)
-                    Container(
-                      margin: const EdgeInsets.only(top: 4),
-                      padding: const EdgeInsets.all(8),
-                      decoration: BoxDecoration(
-                        color: Theme.of(context).colorScheme.secondaryContainer,
-                        borderRadius: BorderRadius.circular(8),
+                ),
+                IconButton(
+                  tooltip: 'Edit step',
+                  icon: const Icon(Icons.edit_outlined),
+                  onPressed: () => _editStep(row),
+                ),
+                PopupMenuButton<String>(
+                  tooltip: 'Step options',
+                  onSelected: (value) => _change(() {
+                    final rows = _rows('steps'), index = rows.indexOf(row);
+                    if (value == 'remove') {
+                      rows.remove(row);
+                      _rows('actions')
+                          .removeWhere((a) => a['step_id'] == row['id']);
+                    } else {
+                      _move(rows, row, index + (value == 'up' ? -1 : 1));
+                    }
+                  }),
+                  itemBuilder: (_) => [
+                    if (_rows('steps').indexOf(row) > 0)
+                      const PopupMenuItem(value: 'up', child: Text('Move up')),
+                    if (_rows('steps').indexOf(row) < _rows('steps').length - 1)
+                      const PopupMenuItem(
+                        value: 'down',
+                        child: Text('Move down'),
                       ),
-                      child: Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Icon(
-                            ['timer', 'rest'].contains(action['action_type'])
-                                ? Icons.timer_outlined
-                                : action['temperature_value'] != null
-                                ? Icons.thermostat
-                                : Icons.notifications_outlined,
-                            size: 18,
-                          ),
-                          const SizedBox(width: 6),
-                          Expanded(child: Text(_actionSummary(action))),
-                        ],
-                      ),
+                    const PopupMenuItem(
+                      value: 'remove',
+                      child: Text('Remove step'),
                     ),
-                ],
-              ),
+                  ],
+                ),
+              ],
             ),
-      initiallyExpanded: false,
-      remove: () {
-        _rows('actions').removeWhere((a) => a['step_id'] == row['id']);
-        _rows('steps').remove(row);
-      },
+            InkWell(
+              onTap: () => _editStep(row),
+              child: Text('${row['instruction'] ?? ''}'),
+            ),
+            for (final action in actions)
+              Align(
+                alignment: Alignment.centerLeft,
+                child: ActionChip(
+                  avatar: Icon(
+                    action['temperature_value'] == null
+                        ? Icons.timer_outlined
+                        : Icons.thermostat,
+                    size: 18,
+                  ),
+                  label: Text(_actionSummary(action)),
+                  onPressed: () => _editStep(row),
+                ),
+              ),
+          ],
+        ),
+      ),
     );
   }
 
@@ -1326,10 +1729,40 @@ class _RecipeEditorState extends State<RecipeEditor> {
                       child: CircularProgressIndicator(strokeWidth: 2),
                     )
                   : const Icon(Icons.check),
-              label: Text(_saving ? 'Saving…' : 'Save'),
+              label: Text(_saving ? 'Saving…' : 'Save recipe'),
             ),
           ),
         ],
+        bottom: PreferredSize(
+          preferredSize: const Size.fromHeight(54),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+            child: SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: Row(
+                children: [
+                  for (final entry in const {
+                    'Recipe details': 'Details',
+                    'Ingredients': 'Ingredients',
+                    'Steps & actions': 'Method',
+                    'Photos': 'Photos',
+                    'Notes & source': 'Notes',
+                    'Related recipes': 'Related',
+                    'Nutrition': 'Nutrition',
+                  }.entries)
+                    Padding(
+                      padding: const EdgeInsets.only(right: 8),
+                      child: ActionChip(
+                        label: Text(entry.value),
+                        tooltip: 'Go to ${entry.key.toLowerCase()}',
+                        onPressed: () => _jumpTo(entry.key),
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          ),
+        ),
       ),
       bottomNavigationBar: SafeArea(
         child: Padding(
@@ -1356,6 +1789,8 @@ class _RecipeEditorState extends State<RecipeEditor> {
                           : widget.variationParentTitle != null &&
                                 _draft['id'] == null
                           ? 'Variation not saved · Review, then Save'
+                          : _draft['id'] == null
+                          ? 'Draft—not saved yet'
                           : 'No unsaved changes'),
                   style: Theme.of(context).textTheme.bodySmall?.copyWith(
                     color: _error == null
@@ -1381,12 +1816,22 @@ class _RecipeEditorState extends State<RecipeEditor> {
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     Text(
-                      widget.recipe['title']?.toString() ?? 'Your recipe',
+                      _draft['title']?.toString() ?? 'Your recipe',
                       style: Theme.of(context).textTheme.headlineSmall
                           ?.copyWith(fontWeight: FontWeight.w600),
                     ),
                     const SizedBox(height: 8),
                     _help('Review your recipe, then save.'),
+                    if (widget.allowEditSource)
+                      Align(
+                        alignment: Alignment.centerLeft,
+                        child: TextButton.icon(
+                          onPressed: _editSource,
+                          icon: const Icon(Icons.edit_note),
+                          label: const Text('Edit source'),
+                        ),
+                      ),
+                    _coverPreview(),
                     if (widget.variationParentTitle != null) ...[
                       const Align(
                         alignment: Alignment.centerLeft,
@@ -1415,30 +1860,6 @@ class _RecipeEditorState extends State<RecipeEditor> {
                           ),
                         ),
                     ],
-                    SingleChildScrollView(
-                      scrollDirection: Axis.horizontal,
-                      child: Row(
-                        children: [
-                          for (final entry in const {
-                            'Recipe details': 'Details',
-                            'Ingredients': 'Ingredients',
-                            'Steps & actions': 'Method',
-                            'Photos': 'Photos',
-                            'Notes & source': 'Notes',
-                            'Related recipes': 'Related',
-                            'Nutrition': 'Nutrition',
-                          }.entries)
-                            Padding(
-                              padding: const EdgeInsets.only(right: 8),
-                              child: ActionChip(
-                                label: Text(entry.value),
-                                tooltip: 'Go to ${entry.key.toLowerCase()}',
-                                onPressed: () => _jumpTo(entry.key),
-                              ),
-                            ),
-                        ],
-                      ),
-                    ),
                     const SizedBox(height: 20),
                     if (offlineStatus.value)
                       const Padding(
@@ -1472,19 +1893,19 @@ class _RecipeEditorState extends State<RecipeEditor> {
                         ),
                       ]),
                       _columns([
-                        _timeFields(
+                        _compactTime(
                           _draft,
                           'prep_minutes',
                           'Prep',
                           minutesOnly: true,
                         ),
-                        _timeFields(
+                        _compactTime(
                           _draft,
                           'cook_minutes',
                           'Cook',
                           minutesOnly: true,
                         ),
-                        _timeFields(
+                        _compactTime(
                           _draft,
                           'total_minutes',
                           'Total',
@@ -1566,61 +1987,7 @@ class _RecipeEditorState extends State<RecipeEditor> {
                       ),
                     ], open: true),
                     _section('Ingredients', Icons.shopping_basket_outlined, [
-                      _help(
-                        'Open an ingredient to edit its displayed line, quantities or preparation.',
-                      ),
-                      ExpansionTile(
-                        maintainState: true,
-                        controller: _controller('ingredient-groups'),
-                        expansionAnimationStyle: _expansionStyle,
-                        title: const Text('Ingredient groups'),
-                        children: [
-                          ..._rows('groups').map(
-                            (g) => _item(
-                              g['title']?.toString() ?? 'New group',
-                              _rows('groups'),
-                              g,
-                              [
-                                _field(
-                                  g,
-                                  'title',
-                                  'Group name',
-                                  required: true,
-                                  maxLength: 200,
-                                ),
-                              ],
-                              remove: () {
-                                for (final i in _rows('ingredients')) {
-                                  if (i['group_id'] == g['id']) {
-                                    i['group_id'] = null;
-                                  }
-                                }
-                                _rows('groups').remove(g);
-                              },
-                            ),
-                          ),
-                          _add(
-                            'Add group',
-                            () => _change(
-                              () =>
-                                  _rows('groups')
-                                      .add({'id': _id(), 'title': ''}),
-                            ),
-                          ),
-                        ],
-                      ),
-                      ..._rows('ingredients').map(_ingredient),
-                      _add(
-                        'Add ingredient',
-                        () => _change(
-                          () => _rows('ingredients').add({
-                            'id': _id(),
-                            'ingredient_name': '',
-                            'original_text': '',
-                            'scale_quantity': true,
-                          }),
-                        ),
-                      ),
+                      ..._ingredientGroups(),
                     ], subtitle: '${_rows('ingredients').length} ingredients'),
                     _section('Steps & actions', Icons.format_list_numbered, [
                       _help(
@@ -1629,11 +1996,10 @@ class _RecipeEditorState extends State<RecipeEditor> {
                       ..._rows('steps').map(_step),
                       _add(
                         'Add step',
-                        () => _change(
-                          () =>
-                              _rows('steps')
-                                  .add({'id': _id(), 'instruction': ''}),
-                        ),
+                        () => _editStep({
+                          'id': _id(),
+                          'instruction': '',
+                        }, adding: true),
                       ),
                     ], subtitle: '${_rows('steps').length} steps'),
                     _section(

@@ -148,7 +148,7 @@ void main() {
       );
       await tester.pumpAndSettle();
       Future<void> expand(String label) async {
-        final target = find.text(label).last;
+        final target = find.descendant(of:find.byType(ExpansionTile),matching:find.text(label)).last;
         await tester.ensureVisible(target);
         final tile = tester.widget<ExpansionTile>(
           find.ancestor(of: target, matching: find.byType(ExpansionTile)).first,
@@ -177,7 +177,7 @@ void main() {
       await settleImage();
       await tester.tap(find.text('Cancel'));
       await tester.pumpAndSettle();
-      await tester.tap(find.text('Save'));
+      await tester.tap(find.text('Save recipe'));
       await tester.pumpAndSettle();
       expect((submitted!['photos'] as List).first['image_base64'], original);
       await tester.ensureVisible(edit);
@@ -187,7 +187,7 @@ void main() {
       await settleImage();
       await tester.tap(find.text('Apply'));
       await settleImage();
-      await tester.tap(find.text('Save'));
+      await tester.tap(find.text('Save recipe'));
       await tester.pumpAndSettle();
       final photo = (submitted!['photos'] as List).first as Map;
       expect(photo['id'], '1');
