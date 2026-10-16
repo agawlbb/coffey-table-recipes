@@ -2066,9 +2066,6 @@ class _RecipeEditorState extends State<RecipeEditor> {
                             ),
                         ],
 
-                        _help(
-                          'Choose a cover for the recipe, then add captions or photo credits.',
-                        ),
                         ..._rows('photos').map(_photoItem),
                         Wrap(
                           spacing: 12,
