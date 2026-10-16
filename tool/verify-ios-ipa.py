@@ -16,6 +16,7 @@ team = os.environ["IOS_TEAM_ID"]
 build = os.environ["IOS_BUILD_NUMBER"]
 version = re.search(r"^version:\s*([^+\s]+)", Path("pubspec.yaml").read_text(), re.M)[1]
 expected = {
+    "Runner.app/PlugIns/TimerWidget.appex": "com.coffeytable.coffeyTableRecipes.TimerWidget",
     "Runner.app": "com.coffeytable.coffeyTableRecipes",
     "Runner.app/PlugIns/ShareExtension.appex": "com.coffeytable.coffeyTableRecipes.ShareExtension",
 }
@@ -36,6 +37,7 @@ with tempfile.TemporaryDirectory() as directory:
         assert info["CFBundleIdentifier"] == bundle, "Unexpected bundle identifier"
         assert info["CFBundleVersion"] == build, "Unexpected build number"
         assert info["CFBundleShortVersionString"] == version, "Unexpected version"
+        assert info.get("ITSAppUsesNonExemptEncryption") is False, "Missing encryption declaration"
         profile = plistlib.loads(subprocess.check_output([
             "security", "cms", "-D", "-i", str(app / "embedded.mobileprovision")
         ]))
@@ -52,12 +54,13 @@ with tempfile.TemporaryDirectory() as directory:
         assert signed_entitlements["application-identifier"] == team + "." + bundle, "Wrong signed identifier"
         assert signed_entitlements["com.apple.developer.team-identifier"] == team, "Wrong signing team"
         assert not signed_entitlements.get("get-task-allow", False), "Development signing entitlements"
-        assert "group.com.coffeytable.coffeyTableRecipes" in signed_entitlements.get(
-            "com.apple.security.application-groups", []
-        ), "App Group missing from signed entitlements"
-        assert "group.com.coffeytable.coffeyTableRecipes" in entitlements.get(
-            "com.apple.security.application-groups", []
-        ), "App Group missing from profile"
+        if not relative.endswith("TimerWidget.appex"):
+            assert "group.com.coffeytable.coffeyTableRecipes" in signed_entitlements.get(
+                "com.apple.security.application-groups", []
+            ), "App Group missing from signed entitlements"
+            assert "group.com.coffeytable.coffeyTableRecipes" in entitlements.get(
+                "com.apple.security.application-groups", []
+            ), "App Group missing from profile"
         checked.append({"bundle": bundle, "version": version, "build": build,
                         "signature": "verified", "profile": "App Store Connect"})
     report = {"ipa": ipa.name, "sha256": hashlib.sha256(ipa.read_bytes()).hexdigest(),

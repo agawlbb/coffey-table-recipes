@@ -9,6 +9,18 @@ import unittest
 ROOT = Path(__file__).resolve().parents[1]
 
 class IOSShareConfigurationTests(unittest.TestCase):
+    def test_timer_widget_inherits_flutter_version_for_all_build_modes(self):
+        project = (ROOT / 'ios/Runner.xcodeproj/project.pbxproj').read_text()
+        configurations = [line for line in project.splitlines()
+                          if 'isa = XCBuildConfiguration;' in line and 'INFOPLIST_FILE = TimerWidget/Info.plist;' in line]
+        self.assertEqual(len(configurations), 3)
+        for line in configurations:
+            self.assertIn('baseConfigurationReference = ', line)
+            self.assertIn('CURRENT_PROJECT_VERSION = "$(FLUTTER_BUILD_NUMBER)";', line)
+            self.assertIn('MARKETING_VERSION = "$(FLUTTER_BUILD_NAME)";', line)
+        widget = plistlib.loads((ROOT / 'ios/TimerWidget/Info.plist').read_bytes())
+        self.assertFalse(widget['ITSAppUsesNonExemptEncryption'])
+
     def test_file_opening_uses_copy_mode_and_supported_recipe_documents(self):
         runner = plistlib.loads((ROOT / 'ios/Runner/Info.plist').read_bytes())
         self.assertFalse(runner['LSSupportsOpeningDocumentsInPlace'])
