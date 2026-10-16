@@ -53,3 +53,25 @@ recipe edit/create checks (explicitly authorized by the user), and PHP syntax
 checks. No live AI API calls, hosted database changes, or deployment were made.
 
 2026-10-16: Existing category IDs take precedence over AI proposal text in review. Matching known labels resolve to existing choices. Choosing a different parent selects that root and discards the rejected proposal; choosing a child saves its ID. Self-named child proposals resolve to the root. Four category-selection regressions include reviewing an imported proposal and capturing the saved parent/child selection payload.
+
+
+2026-10-16 connection/error handling: import now distinguishes connection failures,
+preparation timeouts and incomplete draft responses while retaining the original
+input for retry. API decoding preserves HTTP status for non-JSON hosting/proxy
+errors, including 401 refresh handling, without exposing HTML or diagnostic
+contents. Import logging records failure type and stack location only, never
+source text or credentials. The actual informal breakfast-ring AI response was
+replayed through the import screen and opened review without saving a recipe.
+47 API/import/variation/replay checks passed; Flutter analysis was clean.
+
+Local DNS resolution for coffeybean.com failed during investigation, even after
+clearing the transient lookup cache. Public DNS and an HTTPS request using the
+public address with normal hostname verification confirmed that the hosted
+endpoint accepted both the exact source and a control request (expected 401
+without authentication, with localhost CORS headers). No DNS-server, VPN,
+certificate, or application endpoint settings were changed.
+
+The conversational backend fix abb83db deployed successfully in Ubuntu Actions
+run 38913942056. Local web rebuilt successfully with connection/timeout messages;
+published main.dart.js matched the build. No hosted Flutter deployment or iOS
+build was triggered.

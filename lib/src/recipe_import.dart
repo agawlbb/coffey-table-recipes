@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:async';
 
 import 'package:file_selector/file_selector.dart';
 import 'package:flutter/foundation.dart';
@@ -264,8 +265,21 @@ class _RecipeImportState extends State<RecipeImport> {
         body,
       );
       if (!mounted) return;
-      final questions = (data['questions'] as List).cast<String>();
-      final draft = data['recipe'] as Map<String, dynamic>;
+      final rawQuestions = data['questions'];
+      final rawDraft = data['recipe'];
+      if (rawQuestions is! List ||
+          rawQuestions.any((value) => value is! String) ||
+          rawDraft is! Map<String, dynamic> ||
+          rawDraft['title'] is! String ||
+          rawDraft['ingredients'] is! List ||
+          rawDraft['steps'] is! List) {
+        throw ApiException(
+          502,
+          'The recipe service returned an incomplete draft. Your input is still here; try again.',
+        );
+      }
+      final questions = rawQuestions.cast<String>();
+      final draft = rawDraft;
       if (draft['photos'] is List && (draft['photos'] as List).isNotEmpty) {
         _importPhotos = List<Map<String, dynamic>>.from(
           draft['photos'] as List,
@@ -291,11 +305,20 @@ class _RecipeImportState extends State<RecipeImport> {
         _answerFields.addAll(questions.map((_) => TextEditingController()));
       });
       if (questions.isEmpty) await _review();
-    } catch (error) {
+    } catch (error, stackTrace) {
+      // Log the failure type and location, never recipe text or credentials.
+      debugPrintStack(
+        label: 'Recipe import failed: ${error.runtimeType}',
+        stackTrace: stackTrace,
+      );
       if (mounted) {
         setState(
           () => _error = error is ApiException
               ? error.message
+              : error is TimeoutException
+              ? 'Recipe preparation timed out. Your input is still here; try again.'
+              : isOfflineFailure(error)
+              ? 'Could not connect to the recipe service. Check your connection, then try again. Your input is still here.'
               : error is FormatException
               ? error.message
               : 'Could not prepare your recipe. Your input is still here; try again.',

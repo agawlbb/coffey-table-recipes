@@ -4,6 +4,65 @@ import 'package:http/testing.dart';
 import 'package:coffey_table_recipes/src/api.dart';
 
 void main() {
+  for (final status in [401, 406, 502, 504]) {
+    test(
+      'HTML failure preserves HTTP $status without leaking the page',
+      () async {
+        final api = RecipeApi(
+          baseUrl: 'https://example.test',
+          client: MockClient(
+            (_) async => http.Response(
+              '<html>private gateway diagnostics</html>',
+              status,
+            ),
+          ),
+        );
+        addTearDown(api.close);
+        await expectLater(
+          api.request('/recipe-import', 'test-token', body: {}),
+          throwsA(
+            isA<ApiException>()
+                .having((e) => e.status, 'status', status)
+                .having(
+                  (e) => e.message,
+                  'safe message',
+                  isNot(contains('private gateway')),
+                ),
+          ),
+        );
+      },
+    );
+  }
+  for (final response in ['[]', 'null', '<html>not JSON</html>']) {
+    test(
+      'invalid success response is a readable service error: $response',
+      () async {
+        final api = RecipeApi(
+          baseUrl: 'https://example.test',
+          client: MockClient((_) async => http.Response(response, 200)),
+        );
+        addTearDown(api.close);
+        await expectLater(
+          api.request('/recipe-import', 'test-token', body: {}),
+          throwsA(isA<ApiException>().having((e) => e.status, 'status', 502)),
+        );
+      },
+    );
+  }
+  test('JSON error with unexpected structure still preserves status', () async {
+    final api = RecipeApi(
+      baseUrl: 'https://example.test',
+      client: MockClient(
+        (_) async => http.Response('{"error":"unstructured"}', 503),
+      ),
+    );
+    addTearDown(api.close);
+    await expectLater(
+      api.request('/recipe-import', 'test-token', body: {}),
+      throwsA(isA<ApiException>().having((e) => e.status, 'status', 503)),
+    );
+  });
+
   test('all platforms default to the hosted HTTPS API', () {
     expect(
       resolveApiBaseUrl(),

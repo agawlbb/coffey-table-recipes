@@ -40,12 +40,32 @@ class RecipeApi {
                 ? _client.get(uri, headers: headers)
                 : _client.post(uri, headers: headers, body: jsonEncode(body)))
             .timeout(timeout);
-    final data = jsonDecode(response.body) as Map<String, dynamic>;
+    Map<String, dynamic>? data;
+    try {
+      final decoded = jsonDecode(utf8.decode(response.bodyBytes));
+      if (decoded is Map<String, dynamic>) data = decoded;
+    } on FormatException {
+      // Proxies and hosting failures can return HTML instead of API JSON.
+      // Preserve the HTTP status, without showing that page or its contents.
+    }
     if (response.statusCode < 200 || response.statusCode >= 300) {
-      final error = data['error'] as Map<String, dynamic>?;
+      final error = data?['error'];
+      final message = error is Map ? error['message'] : null;
       throw ApiException(
         response.statusCode,
-        error?['message'] as String? ?? 'The request failed.',
+        message is String && message.trim().isNotEmpty
+            ? message
+            : response.statusCode == 401
+            ? 'Please sign in again.'
+            : response.statusCode == 408 || response.statusCode == 504
+            ? 'The recipe service took too long to respond. Please try again.'
+            : 'The recipe service could not complete the request (HTTP ${response.statusCode}). Please try again.',
+      );
+    }
+    if (data == null) {
+      throw ApiException(
+        502,
+        'The recipe service returned an unreadable response. Please try again.',
       );
     }
     return data;

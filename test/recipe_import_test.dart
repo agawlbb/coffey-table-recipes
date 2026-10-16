@@ -1,4 +1,7 @@
 import 'dart:convert';
+import 'dart:async';
+
+import 'package:http/http.dart' as http;
 
 import 'package:coffey_table_recipes/src/api.dart';
 import 'package:coffey_table_recipes/src/recipe_import.dart';
@@ -24,6 +27,58 @@ Map<String, dynamic> draft(List<String> questions) => {
 };
 
 void main() {
+  for (final failure in <Object>[
+    TimeoutException('test timeout'),
+    http.ClientException('test DNS failure'),
+    <String, dynamic>{'questions': null, 'recipe': {}},
+  ]) {
+    testWidgets(
+      'import distinguishes ${failure.runtimeType} and retains input',
+      (tester) async {
+        await tester.pumpWidget(
+          MaterialApp(
+            home: RecipeImport(
+              householdId: '2',
+              request: (_, _) async {
+                if (failure is Map<String, dynamic>) return failure;
+                throw failure;
+              },
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+        await tester.enterText(
+          find.byType(TextField).first,
+          'I mix a dough, then make a separate sauce.',
+        );
+        await tester.pumpAndSettle();
+        await tester.ensureVisible(find.text('Prepare recipe'));
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('Prepare recipe'));
+        await tester.pumpAndSettle();
+        expect(
+          find.textContaining(
+            failure is TimeoutException
+                ? 'timed out'
+                : failure is http.ClientException
+                ? 'Could not connect to the recipe service'
+                : 'incomplete draft',
+          ),
+          findsOneWidget,
+        );
+        expect(
+          find.text('I mix a dough, then make a separate sauce.'),
+          findsOneWidget,
+        );
+        expect(
+          find.textContaining('Could not prepare your recipe.'),
+          findsNothing,
+        );
+        expect(tester.takeException(), isNull);
+      },
+    );
+  }
+
   testWidgets(
     'edit source retains input and can return to review without another AI call',
     (tester) async {
