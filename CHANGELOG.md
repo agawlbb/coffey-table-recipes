@@ -2,6 +2,19 @@
 
 Release dates and changes are reconstructed from annotated Git tags, commit history, and project release records. Versions before 1.0 are demonstration releases; 1.0 marks the first usable release. Android retains the existing signing identity; iOS delivery and signing are recorded for each release.
 
+## 1.5.0 — 2026-10-16
+
+Build 16; tag `v1.5.0`.
+
+- Search recipes as you type, using cached recipe and ingredient text first, with category scoping and protection against stale results.
+- Display cached category text immediately and prefetch photos for variation families and linked recipes.
+- Simplify recipe review and editing with grouped ingredients, focused editors, synchronized quantity fields, section shortcuts and clearer save feedback.
+- Preserve imported category selections and improve informal recipe extraction, component membership, fractions and readable cooking instructions.
+- Distinguish import connection failures, timeouts and incomplete responses while retaining input for retry.
+- Add administrator management of shared parent categories with AI covers, previews and missing-cover retries; supporting backend changes were deployed separately.
+- Refine recipe layout with centered titles, descriptions above metadata, actions on the left and Variations on the right.
+- Allow requested iOS builds without a separate approval step; retain accurate export declarations and the France distribution exclusion.
+
 ## 1.4.0 — 2026-10-15
 
 Build 15; tag `v1.4.0`.

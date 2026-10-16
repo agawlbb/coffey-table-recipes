@@ -2,9 +2,15 @@
 
 ## Release command
 
-When the user says "create a release", review progress since the previous release, choose an appropriate version and increment its build number, validate and commit, create and push an immutable annotated tag, rebuild web/Android/signed iOS, explicitly dispatch hosted deployment using the release tag, save the verified Android APK in the accessible "recipe app" folder, and upload signed iOS to TestFlight. Every macOS run requires separate explicit approval. Verify Apple processing and internal distribution, observing the France exclusion policy. Then remove obsolete release packages from their respective destinations, retaining unrelated files and signed packages. A tag by itself does not authorize hosted deployment; the web workflow is manual-only and requires a release tag.
+When the user says "create a release", review progress since the previous release, choose an appropriate version and increment its build number, validate and commit, create and push an immutable annotated tag, rebuild web/Android/signed iOS, explicitly dispatch hosted deployment using the release tag, save the verified Android APK in the accessible "recipe app" folder, and upload signed iOS to TestFlight. Requested iOS runs need no separate approval; other macOS runner builds still require explicit approval. Verify Apple processing and internal distribution, observing the France exclusion policy. Then remove obsolete release packages from their respective destinations, retaining unrelated files and signed packages. A tag by itself does not authorize hosted deployment; the web workflow is manual-only and requires a release tag.
 
 `CHANGELOG.md` covers previous releases using Git history, tags, and the release records below. Every future release must update it with the version, release date, and meaningful changes since the prior release. Commit the changelog before tagging the release. Describe only changes supported by the project history.
+
+## 1.5.0 — faster browsing and focused recipe review
+
+Version `1.5.0+16`, tagged `v1.5.0`, adds cached type-ahead search, immediate cached category text, linked-photo prefetching, focused recipe editing with ingredient groups and quantity handling, imported-category preservation, clearer import failures, shared parent-category administration with AI covers, and recipe layout refinements. Supporting backend import/grouping/category changes are recorded separately. The user requested pushing all local changes and releasing all three platforms. Requested iOS builds no longer need separate approval. Web is explicitly published, Android goes to `G:\My Drive\recipe app`, and signed iOS is uploaded to TestFlight with the existing exempt-encryption declaration and France exclusion policy. Verification results follow as platforms complete.
+
+Local validation on 2026-10-16: Flutter analysis passed, all 228 Flutter tests passed, all five iOS configuration checks passed, and diff whitespace checks passed. App dependencies are unchanged since 1.4.0; the existing exempt-encryption declaration is retained. All pre-release local commits were pushed in both repositories before version tagging.
 
 ## 1.4.0 — reviewed recipe variations
 
