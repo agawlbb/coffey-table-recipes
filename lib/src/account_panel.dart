@@ -1,3 +1,5 @@
+import 'account_menu.dart';
+
 import 'dart:async';
 import 'dart:convert';
 
@@ -883,10 +885,13 @@ class _HouseholdPanelState extends State<HouseholdPanel> {
                 child: Text(name, maxLines: 1, overflow: TextOverflow.ellipsis),
               ),
             ),
-          PopupMenuButton<String>(
-            tooltip: 'User menu',
+          AccountMenu(
+            name: name,
+            email: widget.user.email,
             enabled: !_accountBusy,
-            position: PopupMenuPosition.under,
+            canEditTableName: !_busy && _ownPerson != null,
+            showTimers: NativeTimers.supported,
+            administrator: _administrator,
             onSelected: (value) {
               if (value == 'timers') {
                 Navigator.of(context).push(
@@ -904,73 +909,6 @@ class _HouseholdPanelState extends State<HouseholdPanel> {
                 if (!_busy) _perform(_loadPeople);
               }
             },
-            itemBuilder: (_) => [
-              if (NativeTimers.supported)
-                const PopupMenuItem<String>(
-                  value: 'timers',
-                  child: Text('Timer settings'),
-                ),
-              PopupMenuItem<String>(
-                enabled: false,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(name, style: Theme.of(context).textTheme.titleSmall),
-                    if (widget.user.email != null) Text(widget.user.email!),
-                  ],
-                ),
-              ),
-              const PopupMenuDivider(),
-              PopupMenuItem(
-                value: 'tableName',
-                enabled: !_busy && _ownPerson != null,
-                child: const ListTile(
-                  leading: Icon(Icons.badge_outlined),
-                  title: Text('Change name at the table'),
-                  contentPadding: EdgeInsets.zero,
-                ),
-              ),
-              const PopupMenuItem(
-                value: 'name',
-                child: ListTile(
-                  leading: Icon(Icons.person_outline),
-                  title: Text('Change account display name'),
-                  contentPadding: EdgeInsets.zero,
-                ),
-              ),
-              const PopupMenuItem(
-                value: 'household',
-                child: ListTile(
-                  leading: Icon(Icons.people_outline),
-                  title: Text('Household & people'),
-                  contentPadding: EdgeInsets.zero,
-                ),
-              ),
-              if (_administrator)
-                const PopupMenuItem(
-                  value: 'administration',
-                  child: ListTile(
-                    leading: Icon(Icons.admin_panel_settings_outlined),
-                    title: Text('Administration'),
-                    contentPadding: EdgeInsets.zero,
-                  ),
-                ),
-              const PopupMenuDivider(),
-              const PopupMenuItem(
-                value: 'logout',
-                child: ListTile(
-                  leading: Icon(Icons.logout),
-                  title: Text('Log out'),
-                  contentPadding: EdgeInsets.zero,
-                ),
-              ),
-            ],
-            icon: CircleAvatar(
-              radius: 16,
-              child: Text(
-                name.isEmpty ? '?' : name.substring(0, 1).toUpperCase(),
-              ),
-            ),
           ),
         ],
       ),
