@@ -79,3 +79,25 @@ The repeatable backend test is `tests/mysql_shared_rehearsal.php PORT MARKED_DAT
 Passed: 137 MariaDB 10.4.32 migration/relationship/concurrency assertions, including ten iterations of six independent-process races (revision edits, last removals, restore/attach, cross-household cycle edits, last-delete/attach, expired restore/purge); 97 SQLite relationship checks; 87 mocked variation/provider checks; 30 photo checks; 18 shared-recipe checks; 43 deletion checks; 43 public share checks; 53 source-link checks; six migration-checksum checks; changed PHP lint. The standalone authentication test's configured local DB connection was refused before schema creation, so that complete test is not claimed as passed. Mutation-isolation assertions passed in the disposable rehearsal.
 
 CI was inspected read-only on client commit 7ac23331cd5b1e87660ce42bb2bd8e176bdff05e and backend commit b86de6e177a0e4b2b7eedda226809e615ac1b871: no workflow runs, status contexts, or check runs were reported. Required-status-check settings returned HTTP 403, Resource not accessible by integration; an administrator must inspect those settings. No workflow was dispatched or rerun. Flutter analysis and the complete 237-test suite passed after the canonical-navigation changes. Final branch-head CI checks are recorded in the task handoff.
+
+## Hosted continuation completed — 2026-10-16
+
+The backend feature commit `04fc5aae7935c41087caa62537bf9dd690c2cd67` is now
+live on coffeybean.com. Migrations 011/012, full backup restore proof, data/media
+preservation, runtime package verification, restored original database grants,
+and service resumption passed. The original purge schedule is restored and
+temporary cron jobs are removed. The completion record is in the separate
+backend repository at `docs/SHARED_ROLLOUT_COMPLETE_20261016.md`; this supersedes
+the earlier pending-migration statement above.
+
+The hosted Flutter app was not deployed. A fresh local feature web build against
+the hosted backend loaded the shared recipe 14 link, confirmed successful
+household attachment in the existing signed-in session, and opened its 21-step
+cooking mode with the browser-only timer warning. Existing hosted-app search,
+detail, share-link fallback, and cooking mode also worked. Public read and
+unauthenticated mutation protection checks passed. Bulk external asset rechecks
+were throttled (HTTP 429); server-side unchanged-web verification passed.
+
+The unsigned iOS build remains successful. Physical-device native alarm checks
+and signed widget provisioning/distribution remain outstanding. No TestFlight
+upload, release tag, main merge, or hosted client deployment was performed.
