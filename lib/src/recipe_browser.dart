@@ -302,6 +302,7 @@ class _RecipeBrowserState extends State<RecipeBrowser>
   }
 
   void _returnToLevel(int depth) {
+    FocusScope.of(context).unfocus();
     setState(() {
       _trail.removeRange(depth, _trail.length);
       _search.clear();
@@ -401,7 +402,7 @@ class _RecipeBrowserState extends State<RecipeBrowser>
                 children: [
                   if (_trail.isNotEmpty || _query.isNotEmpty)
                     IconButton(
-                      onPressed: _busy ? null : _back,
+                      onPressed: _back,
                       icon: const Icon(Icons.arrow_back),
                       tooltip: 'Back one level',
                     ),
@@ -409,7 +410,7 @@ class _RecipeBrowserState extends State<RecipeBrowser>
                     if (depth > 0) const Icon(Icons.chevron_right, size: 18),
                     TextButton(
                       key: ValueKey('recipe-breadcrumb-$depth'),
-                      onPressed: _busy ? null : () => _returnToLevel(depth),
+                      onPressed: () => _returnToLevel(depth),
                       child: Text(
                         depth == 0
                             ? 'All Recipes'

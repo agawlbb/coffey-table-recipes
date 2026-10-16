@@ -178,6 +178,37 @@ void main() {
   );
 
   test(
+    'online browsing ignores incomplete saved library without categories',
+    () async {
+      final c = cache();
+      failDetail = true;
+      await c.sync(['1']);
+      offlineStatus.value = false;
+      expect(await c.cachedBrowse('$root?tree=1&families=1'), isNull);
+      expect(await c.cachedBrowse('$root?q=carrot&tree=0'), isNull);
+      offlineStatus.value = true;
+      expect(await c.cachedBrowse('$root?tree=1&families=1'), isNotNull);
+      c.close();
+    },
+  );
+
+  test('online tree requests fetch missing metadata after interrupted category sync', () async {
+    final c = cache(
+      fetch: (path) {
+        if (path.contains('tree=1')) {
+          throw TimeoutException('Category request failed');
+        }
+        return server(path);
+      },
+    );
+    await c.sync(['1']);
+    offlineStatus.value = false;
+    expect(await c.cachedBrowse('$root?tree=1&families=1'), isNull);
+    expect(await c.cachedBrowse('$root?q=carrot&tree=0'), isNotNull);
+    c.close();
+  });
+
+  test(
     'saved browse text is available online without a network fetch',
     () async {
       final c = cache();

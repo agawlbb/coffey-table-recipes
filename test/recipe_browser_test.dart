@@ -6,6 +6,67 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  testWidgets('All Recipes cancels slow category navigation', (tester) async {
+    final pending = Completer<Map<String, dynamic>>();
+    await tester.pumpWidget(
+      MaterialApp(
+        home: RecipeBrowser(
+          householdId: '2',
+          householdName: 'Table',
+          request: (path) async {
+            if (Uri.parse(path).queryParameters.containsKey('scope')) {
+              return pending.future;
+            }
+            return {
+              'category_nodes': [
+                {'id': '5', 'label': 'Breakfast', 'recipe_count': 1},
+              ],
+              'recipes': [
+                {'id': '9', 'title': 'Root recipe'},
+              ],
+            };
+          },
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Breakfast'));
+    await tester.pump();
+    await tester.tap(find.byKey(const ValueKey('recipe-breadcrumb-0')));
+    await tester.pumpAndSettle();
+    expect(find.text('Root recipe'), findsOneWidget);
+    pending.complete({
+      'recipes': [
+        {'id': '10', 'title': 'Late category recipe'},
+      ],
+    });
+    await tester.pumpAndSettle();
+    expect(find.text('Late category recipe'), findsNothing);
+    expect(tester.takeException(), isNull);
+  });
+  testWidgets('phone search keeps layout valid while keyboard is open', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(360, 740);
+    tester.view.devicePixelRatio = 1;
+    tester.view.viewInsets = const FakeViewPadding(bottom: 360);
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    addTearDown(tester.view.resetViewInsets);
+    await tester.pumpWidget(
+      MaterialApp(
+        home: RecipeBrowser(
+          householdId: '2',
+          householdName: 'Table',
+          request: (_) async => {'recipes': <Map<String, dynamic>>[]},
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(TextField), 'chicken');
+    await tester.pumpAndSettle();
+    expect(tester.takeException(), isNull);
+  });
   testWidgets(
     'cached category navigation avoids slow requests and refresh fetches',
     (tester) async {

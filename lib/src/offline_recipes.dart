@@ -359,6 +359,18 @@ class OfflineRecipes with WidgetsBindingObserver {
         parts[2] != 'recipes') {
       return null;
     }
+    if (!offlineStatus.value) {
+      final uri = Uri.parse(path);
+      final library = _libraries[parts[1]] as Map?;
+      // A partially downloaded library has no category tree and may omit
+      // recipes. Use the server online until the requested scope is ready.
+      if (library == null) return null;
+      final scope = uri.queryParameters['scope'] ?? '';
+      if (uri.queryParameters['tree'] == '1' &&
+          (library['scopes'] as Map?)?[scope] == null) {
+        return null;
+      }
+    }
     return _cached(path);
   }
 
