@@ -18,6 +18,10 @@ String resolveApiBaseUrl({String override = ''}) {
   return 'https://coffeybean.com/CoffeyTableRecipes/api/v1';
 }
 
+bool isPublicRecipeRead(String path) =>
+    RegExp(r'^/households/[1-9][0-9]*/recipes(?:/[1-9][0-9]*)?$')
+        .hasMatch(Uri.parse(path).path);
+
 class RecipeApi {
   RecipeApi({required this.baseUrl, http.Client? client})
     : _client = client ?? http.Client();
@@ -32,7 +36,7 @@ class RecipeApi {
   }) async {
     final uri = Uri.parse('$baseUrl$path');
     final headers = {
-      'Authorization': 'Bearer $token',
+      if (token.isNotEmpty) 'Authorization': 'Bearer $token',
       'Content-Type': 'application/json',
     };
     final response =
@@ -60,6 +64,7 @@ class RecipeApi {
             : response.statusCode == 408 || response.statusCode == 504
             ? 'The recipe service took too long to respond. Please try again.'
             : 'The recipe service could not complete the request (HTTP ${response.statusCode}). Please try again.',
+        code: error is Map ? error['code'] as String? : null,
       );
     }
     if (data == null) {
@@ -87,7 +92,8 @@ class RecipeApi {
 }
 
 class ApiException implements Exception {
-  ApiException(this.status, this.message);
+  ApiException(this.status, this.message, {this.code});
+  final String? code;
   final int status;
   final String message;
   @override

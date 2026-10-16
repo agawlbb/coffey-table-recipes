@@ -229,7 +229,8 @@ class OfflineRecipes with WidgetsBindingObserver {
     // Preview/generation endpoints must never enter the saved recipe cache.
     if (segments.length == 5 &&
         segments[4] != 'delete' &&
-        segments[4] != 'restore') {
+        segments[4] != 'restore' &&
+        segments[4] != 'attach') {
       return;
     }
     final savedId =

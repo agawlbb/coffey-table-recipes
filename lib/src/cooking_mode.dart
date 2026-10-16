@@ -4,6 +4,10 @@ import 'package:flutter/material.dart';
 import 'package:wakelock_plus/wakelock_plus.dart';
 
 import 'recipe_time.dart';
+import 'native_timers.dart';
+
+import 'package:flutter/services.dart';
+
 import 'recipe_value.dart';
 
 class CookingMode extends StatefulWidget {
@@ -31,6 +35,7 @@ class _CookingModeState extends State<CookingMode> with WidgetsBindingObserver {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     _syncWake();
+    _restoreTimers();
   }
 
   void _syncWake() {
@@ -57,6 +62,7 @@ class _CookingModeState extends State<CookingMode> with WidgetsBindingObserver {
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     _foreground = state == AppLifecycleState.resumed;
+    if (_foreground) _restoreTimers();
     _syncWake();
   }
 
@@ -76,18 +82,134 @@ class _CookingModeState extends State<CookingMode> with WidgetsBindingObserver {
     return formatRecipeTime(seconds, clock: true);
   }
 
-  void _timer(String id, int seconds) {
-    setState(() {
-      if (_timers.containsKey(id)) {
-        _timers.remove(id);
-      } else {
-        _timers[id] = widget.now().add(Duration(seconds: seconds));
-      }
-    });
+  String _timerKey(String id) => '${widget.recipe['id']}:$id';
+  void _tick() {
     _ticker ??= Timer.periodic(const Duration(seconds: 1), (_) {
       if (mounted && _timers.isNotEmpty) setState(() {});
     });
   }
+
+  Future<void> _restoreTimers() async {
+    if (!NativeTimers.supported) return;
+    try {
+      final rows = await NativeTimers.restore();
+      if (!mounted) return;
+      final prefix = '${widget.recipe['id']}:';
+      setState(() {
+        _timers.clear();
+        for (final row in rows) {
+          final key = row['key'] as String;
+          if (key.startsWith(prefix)) {
+            _timers[key.substring(
+              prefix.length,
+            )] = DateTime.fromMillisecondsSinceEpoch(
+              (row['deadline'] as num).toInt(),
+            );
+          }
+        }
+      });
+      _tick();
+    } catch (_) {
+      /* A platform failure must not erase a displayed timer. */
+    }
+  }
+
+  Future<void> _timer(String id, int seconds) async {
+    if (_timerBusy) return;
+    _timerBusy = true;
+    try {
+      if (_timers.containsKey(id)) {
+        final action = await showDialog<String>(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: const Text('Cooking timer'),
+            content: Text(_remaining(_timers[id]!)),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('Keep timer'),
+              ),
+              TextButton(
+                onPressed: () => Navigator.pop(context, 'cancel'),
+                child: const Text('Cancel timer'),
+              ),
+              FilledButton(
+                onPressed: () => Navigator.pop(context, 'edit'),
+                child: const Text('Change timer'),
+              ),
+            ],
+          ),
+        );
+        if (!mounted || action == null) return;
+        if (action == 'cancel') {
+          await NativeTimers.cancel(_timerKey(id));
+          if (mounted) setState(() => _timers.remove(id));
+          return;
+        }
+        final controller = TextEditingController(
+          text: (seconds / 60).toString(),
+        );
+        final changed = await showDialog<int>(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: const Text('Minutes from now'),
+            content: TextField(
+              controller: controller,
+              keyboardType: const TextInputType.numberWithOptions(
+                decimal: true,
+              ),
+              autofocus: true,
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('Cancel'),
+              ),
+              FilledButton(
+                onPressed: () {
+                  final minutes = double.tryParse(controller.text);
+                  if (minutes != null &&
+                      minutes.isFinite &&
+                      minutes > 0 &&
+                      minutes <= 10080) {
+                    Navigator.pop(context, (minutes * 60).round());
+                  }
+                },
+                child: const Text('Set timer'),
+              ),
+            ],
+          ),
+        );
+        // Route transitions may still use the controller until the next frame.
+        if (!mounted || changed == null) return;
+        seconds = changed;
+      }
+      final deadline = widget.now().add(Duration(seconds: seconds));
+      await NativeTimers.schedule(
+        _timerKey(id),
+        deadline,
+        '${widget.recipe['title'] ?? 'Cooking timer'}',
+      );
+      if (mounted) setState(() => _timers[id] = deadline);
+      _tick();
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              error is PlatformException
+                  ? error.message ?? 'Could not start timer.'
+                  : 'Could not start timer.',
+            ),
+          ),
+        );
+      }
+    } finally {
+      _timerBusy = false;
+    }
+  }
+
+  bool _timerBusy = false;
 
   void _ingredients() => showModalBottomSheet<void>(
     context: context,
@@ -191,8 +313,10 @@ class _CookingModeState extends State<CookingMode> with WidgetsBindingObserver {
                   _syncWake();
                 },
               ),
-              const Text(
-                'Progress is kept for this cooking session. Timers work while this screen is open; they do not send background notifications.',
+              Text(
+                NativeTimers.supported
+                    ? 'Timers use device alarms or notifications and are restored when you return. Check Timer settings for permissions and sound limitations.'
+                    : 'Web timers work only while this page remains active; no background alarm is scheduled.',
               ),
               const SizedBox(height: 16),
               for (final step in steps)

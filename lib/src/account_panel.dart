@@ -1,10 +1,14 @@
 import 'dart:async';
+import 'dart:convert';
+
+import 'offline_store.dart';
 
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import 'api.dart';
+import 'native_timers.dart';
 import 'app_version_label.dart';
 import 'administration.dart';
 import 'administration_window.dart';
@@ -454,6 +458,9 @@ class _HouseholdPanelState extends State<HouseholdPanel> {
     String path, {
     Map<String, dynamic>? body,
   }) async {
+    if (body == null && isPublicRecipeRead(path)) {
+      return _api.request(path, '');
+    }
     final token = await _idToken();
     if (token == null) throw ApiException(401, 'Please sign in again.');
     try {
@@ -532,6 +539,25 @@ class _HouseholdPanelState extends State<HouseholdPanel> {
   }
 
   Future<void> _load({bool reviewInvitations = true}) async {
+    // This cache chooses public browsing only. It never authorizes a mutation,
+    // exposes account data, or substitutes for authenticated /me responses.
+    final browseKey = 'browse-households|$apiBaseUrl|${widget.user.uid}';
+    if (_households.isEmpty && widget.request == null) {
+      try {
+        final cached = await readOfflineStore(browseKey);
+        if (cached != null && mounted) {
+          final households = List<Map<String, dynamic>>.from(
+            jsonDecode(cached) as List,
+          );
+          _households = households;
+          _selected = households.isEmpty
+              ? null
+              : households.first['id'] as String;
+        }
+      } catch (_) {
+        /* A missing or corrupt browsing preference needs no error. */
+      }
+    }
     await _perform(() async {
       if (widget.request == null && !offlineStatus.value) {
         if (_entryReturnedFromVerification) await widget.user.reload();
@@ -552,6 +578,20 @@ class _HouseholdPanelState extends State<HouseholdPanel> {
       );
       if (!mounted) return;
       _households = households;
+      if (widget.request == null) {
+        try {
+          await writeOfflineStore(
+            browseKey,
+            jsonEncode(
+              households
+                  .map((h) => {'id': h['id'], 'name': h['name']})
+                  .toList(),
+            ),
+          );
+        } catch (_) {
+          /* Browsing does not depend on local storage availability. */
+        }
+      }
       _invitations = List<Map<String, dynamic>>.from(
         data['invitations'] as List? ?? [],
       );
@@ -848,6 +888,13 @@ class _HouseholdPanelState extends State<HouseholdPanel> {
             enabled: !_accountBusy,
             position: PopupMenuPosition.under,
             onSelected: (value) {
+              if (value == 'timers') {
+                Navigator.of(context).push(
+                  MaterialPageRoute<void>(
+                    builder: (_) => const TimerSettings(),
+                  ),
+                );
+              }
               if (value == 'name') _changeDisplayName();
               if (value == 'tableName') _changeTableName();
               if (value == 'administration') _openAdministration();
@@ -858,6 +905,11 @@ class _HouseholdPanelState extends State<HouseholdPanel> {
               }
             },
             itemBuilder: (_) => [
+              if (NativeTimers.supported)
+                const PopupMenuItem<String>(
+                  value: 'timers',
+                  child: Text('Timer settings'),
+                ),
               PopupMenuItem<String>(
                 enabled: false,
                 child: Column(

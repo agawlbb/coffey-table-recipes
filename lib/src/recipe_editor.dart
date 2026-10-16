@@ -631,6 +631,32 @@ class _RecipeEditorState extends State<RecipeEditor> {
         return;
       }
     }
+    // The server rejects unconfirmed saves if sharing changes during editing.
+    _draft.remove('confirm_shared_edit');
+    if (_draft['id'] != null &&
+        (int.tryParse('${_draft['household_count']}') ?? 1) > 1) {
+      final confirmed = await showDialog<bool>(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('Save recipe changes?'),
+          content: const Text(
+            'This recipe may be shared across households. Your changes update the same recipe in every household that has added it.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(context, true),
+              child: const Text('Save for all households'),
+            ),
+          ],
+        ),
+      );
+      if (confirmed != true || !mounted) return;
+      _draft['confirm_shared_edit'] = true;
+    }
     setState(() {
       _saving = true;
       _error = null;
@@ -676,6 +702,16 @@ class _RecipeEditorState extends State<RecipeEditor> {
       });
       Navigator.pop(context, data['recipe'] as Map<String, dynamic>);
     } catch (error) {
+      if (mounted &&
+          error is ApiException &&
+          error.code == 'shared_confirmation_required') {
+        setState(() {
+          _saving = false;
+          _draft['household_count'] = 2;
+        });
+        await _save();
+        return;
+      }
       if (mounted) {
         setState(() {
           _saving = false;
@@ -829,6 +865,8 @@ class _RecipeEditorState extends State<RecipeEditor> {
   }) => Padding(
     padding: const EdgeInsets.only(bottom: 14),
     child: TextFormField(
+      onTapOutside: (_) => FocusScope.of(context).unfocus(),
+      scrollPadding: const EdgeInsets.all(80),
       key: _fields.putIfAbsent(
         '${identityHashCode(row)}-$key',
         () => GlobalKey<FormFieldState<String>>(),

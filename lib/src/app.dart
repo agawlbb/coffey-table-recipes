@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import 'account_panel.dart';
+import 'shared_recipe_link.dart';
 import 'administration.dart';
 import 'touch_capability.dart';
 import 'offline_recipes.dart';
@@ -17,6 +18,15 @@ class CoffeyTableApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) => MaterialApp(
     title: 'Coffey Table Recipes',
+    onGenerateRoute: (settings) {
+      final id = recipeIdFromLink(settings.name ?? '');
+      return id == null
+          ? null
+          : MaterialPageRoute<void>(
+              settings: settings,
+              builder: (_) => SharedRecipeLink(recipeId: id),
+            );
+    },
     routes: {
       '/administration': (_) =>
           AuthenticatedAdministration(configured: authConfigured),
@@ -28,6 +38,20 @@ class CoffeyTableApp extends StatelessWidget {
       child: Stack(
         children: [
           child!,
+          if (MediaQuery.viewInsetsOf(context).bottom > 0)
+            Positioned(
+              right: 12,
+              bottom: MediaQuery.viewInsetsOf(context).bottom + 8,
+              child: Material(
+                borderRadius: BorderRadius.circular(24),
+                child: IconButton(
+                  tooltip: 'Dismiss keyboard',
+                  icon: const Icon(Icons.keyboard_hide),
+                  onPressed: () =>
+                      FocusManager.instance.primaryFocus?.unfocus(),
+                ),
+              ),
+            ),
           if (mobileOfflineEnabled)
             Positioned(
               right: 12,

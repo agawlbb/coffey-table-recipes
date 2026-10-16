@@ -8,6 +8,7 @@ import io.flutter.plugin.common.MethodChannel
 class MainActivity : FlutterActivity() {
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
+        RecipeTimers.register(this, MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "coffey_table_recipes/timers"))
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "coffey_table_recipes/share_link")
             .setMethodCallHandler { call, result ->
                 if (call.method != "share") {
