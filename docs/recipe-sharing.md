@@ -25,3 +25,5 @@ Android/iOS launcher-mode mocks, semantics, keyboard use, narrow layouts, source
 variants and shared URL safety fixtures. Focused static analysis passed. No app
 build, release or deployment was performed; native device and built-web smoke
 tests remain checks for the next authorized build.
+
+2026-10-16: Shared rendered-page links include an escaped HTML anchor using the currently loaded recipe title. Android supplies EXTRA_HTML_TEXT alongside a readable title/URL in EXTRA_TEXT; iOS Mail receives an HTML body while other iOS activities receive the title and URL. Receivers decide whether to preserve rich formatting. Other platforms retain native plain-text sharing. Copy HTML link is offered on every platform for pasting the exact named anchor into an HTML editor. Android native compilation and Dart sharing/escaping/clipboard regressions validate the change; iOS runtime verification requires a Mac/device.

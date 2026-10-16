@@ -734,18 +734,41 @@ class _RecipeDetailState extends State<RecipeDetail> {
   }
 
   Future<void> _shareRecipe(BuildContext anchor) async {
-    final choice = await showModalBottomSheet<bool>(
+    final choice = await showModalBottomSheet<String>(
       context: context,
       builder: (context) => SafeArea(
-        child: ListTile(
-          leading: const Icon(Icons.link),
-          title: const Text('Send a link'),
-          subtitle: const Text('Anyone with the link can view this recipe.'),
-          onTap: () => Navigator.pop(context, true),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.link),
+              title: const Text('Send a link'),
+              subtitle: const Text(
+                'Anyone with the link can view this recipe.',
+              ),
+              onTap: () => Navigator.pop(context, 'send'),
+            ),
+            ListTile(
+              leading: const Icon(Icons.code),
+              title: const Text('Copy HTML link'),
+              onTap: () => Navigator.pop(context, 'html'),
+            ),
+          ],
         ),
       ),
     );
-    if (choice != true || !mounted || !anchor.mounted) return;
+    if (choice == null || !mounted || !anchor.mounted) return;
+    final title = '${_recipe?['title'] ?? widget.title}';
+    if (choice == 'html') {
+      await Clipboard.setData(
+        ClipboardData(text: recipeShareHtml(widget.recipeId, title)),
+      );
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(const SnackBar(content: Text('HTML link copied')));
+      }
+      return;
+    }
     final box = anchor.findRenderObject() as RenderBox?;
     final origin = box == null
         ? null
@@ -755,14 +778,19 @@ class _RecipeDetailState extends State<RecipeDetail> {
       final link = recipeShareLink(widget.recipeId);
       var status = ShareResultStatus.unavailable;
       try {
-        final result = await SharePlus.instance.share(
-          ShareParams(
-            text: link,
-            subject: widget.title,
-            sharePositionOrigin: origin,
-          ),
-        );
-        status = result.status;
+        if (await shareRecipeHtml(widget.recipeId, title, origin: origin)) {
+          status = ShareResultStatus.success;
+        } else {
+          final result = await SharePlus.instance.share(
+            ShareParams(
+              text: '$title\n$link',
+              title: title,
+              subject: title,
+              sharePositionOrigin: origin,
+            ),
+          );
+          status = result.status;
+        }
       } catch (_) {
         // Keep the link available to copy if platform sharing is unavailable.
       }

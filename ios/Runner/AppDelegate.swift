@@ -12,6 +12,37 @@ import UIKit
 
   func didInitializeImplicitFlutterEngine(_ engineBridge: FlutterImplicitEngineBridge) {
     GeneratedPluginRegistrant.register(with: engineBridge.pluginRegistry)
+    if let registrar = engineBridge.pluginRegistry.registrar(forPlugin: "RecipeLinkShare") {
+      let channel = FlutterMethodChannel(name: "coffey_table_recipes/share_link", binaryMessenger: registrar.messenger())
+      channel.setMethodCallHandler { call, result in
+        guard call.method == "share" else { result(FlutterMethodNotImplemented); return }
+        guard let args = call.arguments as? [String: Any],
+              let html = args["html"] as? String,
+              let text = args["text"] as? String,
+              let title = args["title"] as? String else {
+          result(FlutterError(code: "invalid_link", message: "Missing recipe link.", details: nil)); return
+        }
+        DispatchQueue.main.async {
+          guard var presenter = UIApplication.shared.connectedScenes
+            .compactMap({ $0 as? UIWindowScene })
+            .flatMap({ $0.windows }).first(where: { $0.isKeyWindow })?.rootViewController else {
+            result(FlutterError(code: "share_unavailable", message: "Could not open sharing.", details: nil)); return
+          }
+          while let presented = presenter.presentedViewController { presenter = presented }
+          let item = RecipeLinkShareItem(html: html, text: text, title: title)
+          let sheet = UIActivityViewController(activityItems: [item], applicationActivities: nil)
+          if let popover = sheet.popoverPresentationController {
+            popover.sourceView = presenter.view
+            if let rect = args["origin"] as? [Double], rect.count == 4 {
+              popover.sourceRect = CGRect(x: rect[0], y: rect[1], width: rect[2], height: rect[3])
+            } else {
+              popover.sourceRect = CGRect(x: presenter.view.bounds.midX, y: presenter.view.bounds.midY, width: 1, height: 1)
+            }
+          }
+          presenter.present(sheet, animated: true) { result(true) }
+        }
+      }
+    }
     if let registrar = engineBridge.pluginRegistry.registrar(forPlugin: "RecipeShareInbox") {
       let channel = FlutterMethodChannel(name: "coffey_table_recipes/share_inbox", binaryMessenger: registrar.messenger())
       channel.setMethodCallHandler { call, result in
@@ -48,6 +79,25 @@ import UIKit
       RecipeDocumentInbox.changed = { channel.invokeMethod("changed", arguments: nil) }
     }
   }
+}
+
+/// Mail accepts an HTML body; other activities retain a readable name and URL.
+final class RecipeLinkShareItem: NSObject, UIActivityItemSource {
+  let html: String
+  let text: String
+  let title: String
+  init(html: String, text: String, title: String) {
+    self.html = html; self.text = text; self.title = title
+    super.init()
+  }
+  func activityViewControllerPlaceholderItem(_ activityViewController: UIActivityViewController) -> Any { text }
+  func activityViewController(_ activityViewController: UIActivityViewController, itemForActivityType activityType: UIActivity.ActivityType?) -> Any? {
+    activityType == .mail ? Data(html.utf8) as Any : text as Any
+  }
+  func activityViewController(_ activityViewController: UIActivityViewController, dataTypeIdentifierForActivityType activityType: UIActivity.ActivityType?) -> String {
+    activityType == .mail ? "public.html" : "public.utf8-plain-text"
+  }
+  func activityViewController(_ activityViewController: UIActivityViewController, subjectForActivityType activityType: UIActivity.ActivityType?) -> String { title }
 }
 
 /// File-opening handoff uses the containing app's own sandbox, without App Groups.
