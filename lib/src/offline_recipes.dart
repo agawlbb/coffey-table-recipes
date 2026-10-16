@@ -258,12 +258,30 @@ class OfflineRecipes with WidgetsBindingObserver {
         (entry) => entry.key.startsWith('$root/'),
       )) {
         final recipe = entry.value['recipe'] as Map?;
+        final detached =
+            data.containsKey('purge_after') && data['purge_after'] == null;
         for (final key in ['related', 'variation_family', 'pairings']) {
-          (recipe?[key] as List?)?.removeWhere((row) => '${row['id']}' == id);
+          final links = recipe?[key] as List?;
+          if (detached) {
+            for (final row in links ?? []) {
+              if ('${row['id']}' == id) row['in_household'] = false;
+            }
+          } else {
+            links?.removeWhere((row) => '${row['id']}' == id);
+          }
         }
         final remainingFamily = recipe?['variation_family'] as List?;
         if (remainingFamily != null && remainingFamily.isNotEmpty) {
-          final representative = remainingFamily.first['id'];
+          final localFamily = remainingFamily
+              .where(
+                (row) => (library?['rows'] as List? ?? []).any(
+                  (local) => local['id'] == row['id'],
+                ),
+              )
+              .toList();
+          final representative = localFamily.isEmpty
+              ? recipe!['id']
+              : localFamily.first['id'];
           recipe!['family_representative_id'] = representative;
           for (final row in library?['rows'] as List? ?? []) {
             if ('${row['id']}' == '${recipe['id']}') {
@@ -293,7 +311,7 @@ class OfflineRecipes with WidgetsBindingObserver {
     }
     final household = segments[1];
     final library = _libraries[household] as Map?;
-    if (library != null) {
+    if (library != null && recipe['in_household'] != false) {
       if (!(library['rows'] as List).any((row) => row['id'] == recipe['id'])) {
         (library['rows'] as List).add({'id': recipe['id']});
         ((library['ids'] as Map)[''] as List).add(recipe['id']);
@@ -490,12 +508,14 @@ class OfflineRecipes with WidgetsBindingObserver {
             return searchable.contains(q);
           }).toList();
           if (uri.queryParameters['families'] == '1') {
-            final representatives = rows
-                .map(
-                  (row) =>
-                      '${row['family_representative_id'] ?? row['parent_recipe_id'] ?? row['id']}',
-                )
+            final localIds = (library['rows'] as List)
+                .map((row) => '${row['id']}')
                 .toSet();
+            final representatives = rows.map((row) {
+              final preferred =
+                  '${row['family_representative_id'] ?? row['parent_recipe_id'] ?? row['id']}';
+              return localIds.contains(preferred) ? preferred : '${row['id']}';
+            }).toSet();
             rows = (library['rows'] as List)
                 .where((row) => representatives.contains('${row['id']}'))
                 .toList();
@@ -558,7 +578,7 @@ class OfflineRecipes with WidgetsBindingObserver {
         final root = '/households/$household/recipes';
         final previous = _libraries[household] as Map?;
         final lastSync = DateTime.tryParse('${previous?['synced_at']}');
-        final fresh =
+        var fresh =
             lastSync != null &&
             DateTime.now().difference(lastSync) < const Duration(hours: 24);
         // Always check the inventory: a recent snapshot may lack newly added recipes.
@@ -574,19 +594,9 @@ class OfflineRecipes with WidgetsBindingObserver {
             (_, ids) =>
                 (ids as List).removeWhere((id) => !inventoryIds.contains(id)),
           );
-          for (final entry in _responses.entries.where(
-            (entry) => entry.key.startsWith('$root/'),
-          )) {
-            final recipe = entry.value['recipe'] as Map?;
-            for (final key in ['related', 'variation_family', 'pairings']) {
-              (recipe?[key] as List?)?.removeWhere(
-                (row) => !inventoryIds.contains(row['id']),
-              );
-            }
-            (recipe?['edit_options']?['recipes'] as List?)?.removeWhere(
-              (row) => !inventoryIds.contains(row['id']),
-            );
-          }
+          // Canonical relatives may be outside the inventory. Refresh details
+          // instead of treating every absent relative as deleted.
+          fresh = false;
         }
         (previous?['rows'] as List?)?.removeWhere(
           (row) => !inventoryIds.contains(row['id']),
@@ -692,7 +702,7 @@ class OfflineRecipes with WidgetsBindingObserver {
           'rows': rows,
           'ids': sameInventory ? previous!['ids'] : {'': currentIds.toList()},
           'scopes': sameInventory ? previous!['scopes'] : <String, dynamic>{},
-          'synced_at': (fresh ? lastSync : DateTime.now())
+          'synced_at': (fresh && lastSync != null ? lastSync : DateTime.now())
               .toUtc()
               .toIso8601String(),
         };

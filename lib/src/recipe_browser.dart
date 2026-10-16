@@ -1094,15 +1094,14 @@ class _RecipeDetailState extends State<RecipeDetail> {
                   style: Theme.of(context).textTheme.headlineLarge,
                 ),
                 const SizedBox(height: 8),
+                if (widget.save != null && _recipe?['in_household'] == false)
+                  TextButton.icon(
+                    onPressed: _attach,
+                    icon: const Icon(Icons.add),
+                    label: const Text('Add to my household'),
+                  ),
                 Row(
                   children: [
-                    if (widget.save != null &&
-                        _recipe?['in_household'] == false)
-                      TextButton.icon(
-                        onPressed: _attach,
-                        icon: const Icon(Icons.add),
-                        label: const Text('Add to my household'),
-                      ),
                     if (widget.save != null &&
                         _recipe?['in_household'] != false)
                       IconButton(

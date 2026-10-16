@@ -525,6 +525,7 @@ void main() {
                   ...recipe,
                   'id': path.split('/').last,
                   'title': 'Opened relative',
+                  'in_household': false,
                   'variation_family': [],
                 },
               };
@@ -581,6 +582,10 @@ void main() {
         await tester.pumpAndSettle();
         expect(paths, contains('/households/2/recipes/${entry.$2}'));
         expect(find.text('Variations'), findsNothing);
+        expect(find.text('Add to my household'), findsOneWidget);
+        expect(find.byTooltip('Edit recipe'), findsNothing);
+        expect(find.byTooltip('Delete recipe'), findsNothing);
+        expect(find.text('Request variation'), findsNothing);
         await tester.tap(find.byType(BackButton).first);
         await tester.pumpAndSettle();
       }
