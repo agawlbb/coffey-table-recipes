@@ -998,6 +998,26 @@ class _RecipeDetailState extends State<RecipeDetail> {
                 const SizedBox(height: 8),
                 Row(
                   children: [
+                    if (widget.save != null)
+                      IconButton(
+                        tooltip: 'Edit recipe',
+                        onPressed: _deleting ? null : _edit,
+                        icon: const Icon(Icons.edit_outlined),
+                      ),
+                    Builder(
+                      builder: (anchor) => IconButton(
+                        tooltip: 'Share recipe',
+                        icon: const Icon(Icons.share),
+                        onPressed: _sharing ? null : () => _shareRecipe(anchor),
+                      ),
+                    ),
+                    if (widget.save != null)
+                      IconButton(
+                        tooltip: 'Delete recipe',
+                        onPressed: _deleting ? null : _delete,
+                        icon: const Icon(Icons.delete_outline),
+                      ),
+                    const Spacer(),
                     if (family.isNotEmpty)
                       Padding(
                         padding: EdgeInsets.zero,
@@ -1046,26 +1066,6 @@ class _RecipeDetailState extends State<RecipeDetail> {
                             ),
                           ),
                         ),
-                      ),
-                    const Spacer(),
-                    if (widget.save != null)
-                      IconButton(
-                        tooltip: 'Edit recipe',
-                        onPressed: _deleting ? null : _edit,
-                        icon: const Icon(Icons.edit_outlined),
-                      ),
-                    Builder(
-                      builder: (anchor) => IconButton(
-                        tooltip: 'Share recipe',
-                        icon: const Icon(Icons.share),
-                        onPressed: _sharing ? null : () => _shareRecipe(anchor),
-                      ),
-                    ),
-                    if (widget.save != null)
-                      IconButton(
-                        tooltip: 'Delete recipe',
-                        onPressed: _deleting ? null : _delete,
-                        icon: const Icon(Icons.delete_outline),
                       ),
                   ],
                 ),

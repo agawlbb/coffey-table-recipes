@@ -543,8 +543,16 @@ void main() {
       ]) {
         expect(find.text('Variations'), findsOneWidget);
         expect(
-          tester.getTopLeft(find.byType(PopupMenuButton<String>)).dx,
-          closeTo(24, 0.1),
+          tester.getTopLeft(find.byTooltip('Edit recipe')).dx,
+          closeTo(28, 0.1),
+        );
+        expect(
+          tester.getTopRight(find.byType(PopupMenuButton<String>)).dx,
+          closeTo(376, 0.1),
+        );
+        expect(
+          tester.getTopRight(find.byTooltip('Delete recipe')).dx,
+          lessThan(tester.getTopLeft(find.byType(PopupMenuButton<String>)).dx),
         );
         final titleFinder = find.descendant(
           of: find.byType(ListView),

@@ -184,3 +184,5 @@ parent titles. Existing saved recipes are not automatically renamed.
 Live verification against backend bcb7800 returned exactly Smoked Jerk Chicken Thighs - boneless thighs for the request uses boneless thighs. The test draft was not saved. Backend validation passed all 599 PHP fixture checks.
 
 Action-row layout: the title uses the full content width. The compact Variations control sits below it on the left, with edit, share and delete on the right. Flutter analysis is clean and all 23 variation/browser tests pass, including title width and action alignment at 400px. The web build was published to localhost, its JavaScript hash matches the build, and the recipe layout was visually verified. The Android debug build was installed and launched on the Pixel 8 API 36 emulator; MainActivity was confirmed in the foreground.
+
+2026-10-16: The recipe action row places edit, share and delete on the left and the Variations dropdown on the right. The centered title continues to use the full content width. The 400px layout regression checks both edges and row alignment.
