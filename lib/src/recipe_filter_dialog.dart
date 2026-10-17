@@ -74,7 +74,6 @@ class _RecipeFilterDialogState extends State<RecipeFilterDialog> {
 
   @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).colorScheme;
     return AlertDialog(
       insetPadding: EdgeInsets.symmetric(
         horizontal: MediaQuery.sizeOf(context).width < 400 ? 16 : 40,
@@ -114,7 +113,6 @@ class _RecipeFilterDialogState extends State<RecipeFilterDialog> {
                   children: [
                     CheckboxListTile(
                       contentPadding: EdgeInsets.zero,
-                      secondary: const Icon(Icons.note_alt_outlined),
                       controlAffinity: ListTileControlAffinity.trailing,
                       title: const Text('Blank recipes only'),
                       value: _blankOnly,
@@ -136,12 +134,6 @@ class _RecipeFilterDialogState extends State<RecipeFilterDialog> {
                         ),
                       ),
                       tilePadding: EdgeInsets.zero,
-                      leading: Icon(
-                        _selected.isEmpty
-                            ? Icons.favorite_border
-                            : Icons.favorite,
-                        color: _selected.isEmpty ? null : colors.primary,
-                      ),
                       title: const Text('Favorite'),
                       subtitle: _summary == null
                           ? null
@@ -152,7 +144,7 @@ class _RecipeFilterDialogState extends State<RecipeFilterDialog> {
                             ),
                       shape: const Border(),
                       collapsedShape: const Border(),
-                      childrenPadding: const EdgeInsets.only(left: 36),
+                      childrenPadding: const EdgeInsets.only(left: 16),
                       children: [
                         if (_loading)
                           const Padding(
