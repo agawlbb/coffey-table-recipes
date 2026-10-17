@@ -1421,6 +1421,12 @@ class _RecipeDetailState extends State<RecipeDetail> {
                 icon: const Icon(Icons.download_outlined),
                 label: const Text('Import recipe'),
               ),
+            if (blank && widget.save != null && recipe['in_household'] != false)
+              OutlinedButton.icon(
+                onPressed: _deleting ? null : _edit,
+                icon: const Icon(Icons.add_photo_alternate_outlined),
+                label: Text(photos.isEmpty ? 'Add picture' : 'Edit picture'),
+              ),
             if (!blank)
               FilledButton.icon(
                 onPressed: steps.isEmpty

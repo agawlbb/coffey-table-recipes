@@ -161,6 +161,7 @@ void main() {
       expect(find.byTooltip('Delete recipe'), findsOneWidget);
       expect(find.byTooltip('Favorite (hold for household)'), findsOneWidget);
       expect(find.text('Request variation'), findsNothing);
+      expect(find.text('Add picture'), findsOneWidget);
       await tester.tap(find.text('Import recipe'));
       await tester.pumpAndSettle();
       for (final name in ['Text', 'Website', 'File', 'Camera']) {
