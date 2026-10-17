@@ -32,11 +32,11 @@ operation and can resend the same revision safely.
 ## Configuration before device acceptance
 
 - Firebase Cloud Messaging HTTP v1 was verified enabled on 2026-10-17 for
-  `coffey-table-recipes`. The Apple Firebase registration currently has no APNs
-  development or production key/certificate uploaded.
-- Add an Apple APNs authentication key to Firebase for
-  `com.coffeytable.coffeyTableRecipes`, enable Push Notifications on that App ID,
-  and regenerate provisioning through the established signed release workflow.
+  `coffey-table-recipes`. The Apple Firebase registration has topic-specific APNs
+  development and production authentication keys installed.
+- APNs keys are installed in Firebase for
+  `com.coffeytable.coffeyTableRecipes`, Push Notifications is enabled on that App ID;
+  Regenerate provisioning through the established signed release workflow.
   Runner has the push entitlement, remote-notification background mode and Xcode
   capability. App extensions do not need push capability. Distribution signing
   must use the production APNs entitlement/profile.
@@ -80,3 +80,5 @@ coordinator/settings tests and Flutter analysis passed. Backend validation passe
 all 22 workflow PHP fixture scripts, six migration checksum checks and all 99
 Python deployment/migration fixture tests. Native compilation/device acceptance
 remains pending an explicitly authorized build.
+
+Hosted setup verified on 2026-10-17: the dedicated sender has only cloudmessaging.messages.create. Its credential is protected with mode 0600 and public HTTP access returns 403. Hosted OAuth and FCM validate-only authorization passed without sending a notification. The uploaded Google key expires 2027-10-17 and must be rotated before then. Both unused download keys were deleted after verification. Native compilation and physical-device delivery remain unverified.
