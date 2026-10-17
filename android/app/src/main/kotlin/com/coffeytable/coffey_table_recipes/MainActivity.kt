@@ -6,6 +6,10 @@ import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
 
 class MainActivity : FlutterActivity() {
+    override fun onPause() {
+        RecipeTimers.stopPreview()
+        super.onPause()
+    }
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
         RecipeTimers.register(this, MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "coffey_table_recipes/timers"))

@@ -34,6 +34,9 @@ class _CookingModeState extends State<CookingMode> with WidgetsBindingObserver {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    if (NativeTimers.supported) {
+      NativeTimers.active.addListener(_nativeTimersChanged);
+    }
     _syncWake();
     _restoreTimers();
   }
@@ -69,6 +72,7 @@ class _CookingModeState extends State<CookingMode> with WidgetsBindingObserver {
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    NativeTimers.active.removeListener(_nativeTimersChanged);
     _ticker?.cancel();
     // Queue release after any in-flight enable request.
     _wakeQueue.then((_) => WakelockPlus.disable()).catchError((Object _) {});
@@ -87,6 +91,25 @@ class _CookingModeState extends State<CookingMode> with WidgetsBindingObserver {
     _ticker ??= Timer.periodic(const Duration(seconds: 1), (_) {
       if (mounted && _timers.isNotEmpty) setState(() {});
     });
+  }
+
+  void _nativeTimersChanged() {
+    if (!mounted) return;
+    final prefix = '${widget.recipe['id']}:';
+    setState(() {
+      _timers.clear();
+      for (final row in NativeTimers.active.value) {
+        final key = row['key'] as String;
+        if (key.startsWith(prefix)) {
+          _timers[key.substring(
+            prefix.length,
+          )] = DateTime.fromMillisecondsSinceEpoch(
+            (row['deadline'] as num).toInt(),
+          );
+        }
+      }
+    });
+    _tick();
   }
 
   Future<void> _restoreTimers() async {
@@ -185,10 +208,13 @@ class _CookingModeState extends State<CookingMode> with WidgetsBindingObserver {
         seconds = changed;
       }
       final deadline = widget.now().add(Duration(seconds: seconds));
+      final actionLabel = _rows('actions')
+          .where((action) => '${action['id']}' == id)
+          .firstOrNull?['label'];
       await NativeTimers.schedule(
         _timerKey(id),
         deadline,
-        '${widget.recipe['title'] ?? 'Cooking timer'}',
+        '${widget.recipe['title'] ?? 'Cooking timer'}${actionLabel == null ? '' : ' · $actionLabel'}',
       );
       if (mounted) setState(() => _timers[id] = deadline);
       _tick();

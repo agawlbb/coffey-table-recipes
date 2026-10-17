@@ -1,17 +1,27 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 class NativeTimers {
   static const channel = MethodChannel('coffey_table_recipes/timers');
+  static final active = ValueNotifier<List<Map<String, dynamic>>>([]);
+  static int _revision = 0;
   static bool get supported =>
       !kIsWeb &&
       (defaultTargetPlatform == TargetPlatform.android ||
           defaultTargetPlatform == TargetPlatform.iOS);
   static Future<List<Map<String, dynamic>>> restore() async {
     if (!supported) return [];
+    final revision = _revision;
     final rows = await channel.invokeListMethod<dynamic>('list') ?? [];
-    return rows.map((row) => Map<String, dynamic>.from(row as Map)).toList();
+    if (revision != _revision) return active.value;
+    final timers = rows
+        .map((row) => Map<String, dynamic>.from(row as Map))
+        .toList();
+    active.value = timers;
+    return timers;
   }
 
   static Future<void> schedule(
@@ -25,11 +35,24 @@ class NativeTimers {
         'deadline': deadline.millisecondsSinceEpoch,
         'title': title,
       });
+      _revision++;
+      active.value = [
+        ...active.value.where((row) => row['key'] != key),
+        {
+          'key': key,
+          'deadline': deadline.millisecondsSinceEpoch,
+          'title': title,
+        },
+      ];
     }
   }
 
   static Future<void> cancel(String key) async {
-    if (supported) await channel.invokeMethod<void>('cancel', {'key': key});
+    if (supported) {
+      await channel.invokeMethod<void>('cancel', {'key': key});
+      _revision++;
+      active.value = active.value.where((row) => row['key'] != key).toList();
+    }
   }
 }
 
@@ -232,9 +255,75 @@ class AlarmTonePicker extends StatefulWidget {
   State<AlarmTonePicker> createState() => _AlarmTonePickerState();
 }
 
-class _AlarmTonePickerState extends State<AlarmTonePicker> {
+class _AlarmTonePickerState extends State<AlarmTonePicker>
+    with WidgetsBindingObserver {
   late String _selected = widget.selected;
   String _query = '';
+  String? _preview;
+  String? _previewError;
+  int _previewGeneration = 0;
+  Timer? _previewTimer;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  void _stopPreview() {
+    _previewGeneration++;
+    _previewTimer?.cancel();
+    unawaited(
+      NativeTimers.channel
+          .invokeMethod<void>('stopPreview')
+          .catchError((Object _) {}),
+    );
+    if (mounted) setState(() => _preview = null);
+  }
+
+  Future<void> _play(String tone) async {
+    final stop = _preview == tone;
+    _stopPreview();
+    if (stop) return;
+    final generation = _previewGeneration;
+    setState(() {
+      _preview = tone;
+      _previewError = null;
+    });
+    try {
+      await NativeTimers.channel.invokeMethod<void>('previewTone', {
+        'tone': tone,
+      });
+      if (!mounted || generation != _previewGeneration) return;
+      _previewTimer = Timer(const Duration(seconds: 5), _stopPreview);
+    } catch (_) {
+      if (mounted && generation == _previewGeneration) {
+        setState(() {
+          _preview = null;
+          _previewError =
+              'Could not play this sound. Check your volume and try again.';
+        });
+      }
+    }
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state != AppLifecycleState.resumed) _stopPreview();
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _previewTimer?.cancel();
+    _previewGeneration++;
+    unawaited(
+      NativeTimers.channel
+          .invokeMethod<void>('stopPreview')
+          .catchError((Object _) {}),
+    );
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -270,6 +359,20 @@ class _AlarmTonePickerState extends State<AlarmTonePicker> {
                 ),
               ),
             const Divider(height: 1),
+            if (_previewError != null)
+              Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 24,
+                  vertical: 8,
+                ),
+                child: Semantics(
+                  liveRegion: true,
+                  child: Text(
+                    _previewError!,
+                    style: TextStyle(color: theme.colorScheme.error),
+                  ),
+                ),
+              ),
             Expanded(
               child: tones.isEmpty
                   ? const Center(child: Text('No sounds found'))
@@ -285,6 +388,18 @@ class _AlarmTonePickerState extends State<AlarmTonePicker> {
                           value: tones[index]['value'] as String,
                           title: Text(tones[index]['label'] as String),
                           selected: tones[index]['value'] == _selected,
+                          secondary: IconButton(
+                            tooltip: _preview == tones[index]['value']
+                                ? 'Stop preview'
+                                : 'Preview ${tones[index]['label']}',
+                            icon: Icon(
+                              _preview == tones[index]['value']
+                                  ? Icons.stop_circle_outlined
+                                  : Icons.play_circle_outline,
+                            ),
+                            onPressed: () =>
+                                _play(tones[index]['value'] as String),
+                          ),
                           contentPadding: const EdgeInsets.symmetric(
                             horizontal: 16,
                           ),

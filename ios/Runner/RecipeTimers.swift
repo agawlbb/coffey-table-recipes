@@ -4,18 +4,48 @@ import UserNotifications
 import ActivityKit
 import AlarmKit
 import SwiftUI
+import AVFoundation
 
 @available(iOS 26.0, *)
 struct RecipeAlarmMetadata: AlarmMetadata {}
 
 @MainActor
 enum RecipeTimers {
+    static var previewPlayer: AVAudioPlayer?
+    static var previewStop: DispatchWorkItem?
+    static var previewObserver: NSObjectProtocol?
+    static func stopPreview() {
+        previewStop?.cancel(); previewStop = nil
+        guard previewPlayer != nil else { return }
+        previewPlayer?.stop(); previewPlayer = nil
+        try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
+    }
+    static func previewTone(_ tone: String) throws {
+        stopPreview()
+        guard ["", "gentle.wav", "bright.wav"].contains(tone),
+              let url = Bundle.main.url(forResource: tone.isEmpty ? "default" : String(tone.dropLast(4)), withExtension: "wav") else { throw failure("This sound is unavailable.") }
+        let session = AVAudioSession.sharedInstance()
+        try session.setCategory(.playback, mode: .default, options: .mixWithOthers)
+        try session.setActive(true)
+        do {
+            let player = try AVAudioPlayer(contentsOf: url)
+            previewPlayer = player
+            guard player.play() else { throw failure("Could not play this sound.") }
+            let stop = DispatchWorkItem { Task { @MainActor in stopPreview() } }
+            previewStop = stop
+            DispatchQueue.main.asyncAfter(deadline: .now() + 5, execute: stop)
+        } catch { stopPreview(); try? session.setActive(false); throw error }
+    }
     static let defaults = UserDefaults.standard
     static var rows: [String: [String: Any]] {
         get { defaults.dictionary(forKey: "recipeTimers") as? [String: [String: Any]] ?? [:] }
         set { defaults.set(newValue, forKey: "recipeTimers") }
     }
     static func register(_ messenger: FlutterBinaryMessenger) {
+        if let observer = previewObserver { NotificationCenter.default.removeObserver(observer) }
+        previewObserver = NotificationCenter.default.addObserver(forName: UIApplication.willResignActiveNotification, object: nil, queue: .main) { _ in
+            Task { @MainActor in stopPreview() }
+        }
         let channel = FlutterMethodChannel(name: "coffey_table_recipes/timers", binaryMessenger: messenger)
         channel.setMethodCallHandler { call, result in
             Task { @MainActor in
@@ -30,6 +60,10 @@ enum RecipeTimers {
                     case "setTone":
                         guard let tone = args["tone"] as? String, ["", "gentle.wav", "bright.wav"].contains(tone) else { throw failure("Choose a timer tone.") }
                         defaults.set(tone, forKey: "recipeTimerTone"); result(nil)
+                    case "previewTone":
+                        try previewTone(args["tone"] as? String ?? ""); result(nil)
+                    case "stopPreview":
+                        stopPreview(); result(nil)
                     case "list":
                         var saved = rows
                         if #available(iOS 26.0, *) {
@@ -39,7 +73,7 @@ enum RecipeTimers {
                             }
                             rows = saved
                         }
-                        result(saved.map { ["key": $0.key, "deadline": $0.value["deadline"] ?? 0] })
+                        result(saved.map { ["key": $0.key, "deadline": $0.value["deadline"] ?? 0, "title": $0.value["title"] ?? "Cooking timer"] })
                     case "cancel":
                         guard let key = args["key"] as? String else { throw failure("Missing timer.") }
                         try await cancel(key); result(nil)
@@ -66,7 +100,7 @@ enum RecipeTimers {
             let stop = AlarmButton(text: "Stop", textColor: .white, systemImageName: "stop.circle")
             let presentation = AlarmPresentation(alert: .init(title: LocalizedStringResource(stringLiteral: title), stopButton: stop))
             let attributes = AlarmAttributes(presentation: presentation, metadata: RecipeAlarmMetadata(), tintColor: Color.green)
-            let configuration = AlarmManager.AlarmConfiguration.alarm(schedule: .fixed(date), attributes: attributes, sound: tone.isEmpty ? .default : .named(tone))
+            let configuration = AlarmManager.AlarmConfiguration.alarm(schedule: .fixed(date), attributes: attributes, sound: .named(tone.isEmpty ? "default.wav" : tone))
             _ = try await AlarmManager.shared.schedule(id: id, configuration: configuration)
             mode = "alarmkit"
         } else {
@@ -76,7 +110,7 @@ enum RecipeTimers {
             guard pending.count < 60 else { throw failure("Too many pending timers. Cancel a timer first.") }
             let content = UNMutableNotificationContent()
             content.title = title; content.body = "Time is up"; content.userInfo = ["recipeTimer": true]
-            content.sound = tone.isEmpty ? .default : UNNotificationSound(named: UNNotificationSoundName(rawValue: tone))
+            content.sound = UNNotificationSound(named: UNNotificationSoundName(rawValue: tone.isEmpty ? "default.wav" : tone))
             let request = UNNotificationRequest(identifier: id.uuidString, content: content, trigger: UNTimeIntervalNotificationTrigger(timeInterval: max(1, date.timeIntervalSinceNow), repeats: false))
             try await center.add(request)
         }

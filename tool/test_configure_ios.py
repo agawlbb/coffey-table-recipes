@@ -5,10 +5,21 @@ import subprocess
 import sys
 import tempfile
 import unittest
+import wave
 
 ROOT = Path(__file__).resolve().parents[1]
 
 class IOSShareConfigurationTests(unittest.TestCase):
+    def test_timer_sounds_are_valid_bundled_notification_audio(self):
+        project = (ROOT / 'ios/Runner.xcodeproj/project.pbxproj').read_text()
+        for name in ['default', 'gentle', 'bright']:
+            self.assertIn(f'path = Runner/{name}.wav;', project)
+            with wave.open(str(ROOT / f'ios/Runner/{name}.wav')) as sound:
+                self.assertEqual(sound.getcomptype(), 'NONE')
+                self.assertEqual(sound.getsampwidth(), 2)
+                self.assertGreater(sound.getnframes(), 0)
+                self.assertLess(sound.getnframes() / sound.getframerate(), 30)
+
     def test_timer_widget_inherits_flutter_version_for_all_build_modes(self):
         project = (ROOT / 'ios/Runner.xcodeproj/project.pbxproj').read_text()
         configurations = [line for line in project.splitlines()

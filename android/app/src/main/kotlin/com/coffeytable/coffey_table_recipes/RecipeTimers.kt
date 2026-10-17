@@ -12,6 +12,24 @@ import io.flutter.plugin.common.MethodChannel
 import org.json.JSONObject
 
 object RecipeTimers {
+    private var preview: Ringtone? = null
+    private val previewHandler = Handler(Looper.getMainLooper())
+    private val previewStop = Runnable { stopPreview() }
+    fun stopPreview() {
+        previewHandler.removeCallbacks(previewStop)
+        preview?.stop()
+        preview = null
+    }
+    fun previewTone(c: Context, value: String) {
+        stopPreview()
+        val uri = if (value.isEmpty()) RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM) else Uri.parse(value)
+        val sound = RingtoneManager.getRingtone(c, uri) ?: error("This sound is unavailable")
+        sound.audioAttributes = AudioAttributes.Builder().setUsage(AudioAttributes.USAGE_ALARM).setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION).build()
+        if (Build.VERSION.SDK_INT >= 28) sound.isLooping = false
+        preview = sound
+        sound.play()
+        previewHandler.postDelayed(previewStop, 5000)
+    }
     private fun prefs(c: Context) = c.getSharedPreferences("recipe_timers", Context.MODE_PRIVATE)
     fun rows(c: Context): JSONObject = JSONObject(prefs(c).getString("timers", "{}")!!)
     fun save(c: Context, rows: JSONObject) { check(prefs(c).edit().putString("timers", rows.toString()).commit()) }
@@ -45,7 +63,7 @@ object RecipeTimers {
                 when (call.method) {
                     "list" -> {
                         val all = rows(activity)
-                        result.success(all.keys().asSequence().map { key -> mapOf("key" to key, "deadline" to all.getJSONObject(key).getLong("deadline")) }.toList())
+                        result.success(all.keys().asSequence().map { key -> mapOf("key" to key, "deadline" to all.getJSONObject(key).getLong("deadline"), "title" to all.getJSONObject(key).optString("title", "Cooking timer")) }.toList())
                     }
                     "schedule" -> {
                         val manager = activity.getSystemService(AlarmManager::class.java)
@@ -74,6 +92,8 @@ object RecipeTimers {
                     "cancel" -> { cancel(activity, call.argument<String>("key")!!); result.success(null) }
                     "settings" -> result.success(mapOf("tone" to tone(activity), "tones" to tones(activity), "mode" to "Android system alarm. Exact-alarm and notification permissions are required. Alarm volume, Do Not Disturb, force-stop and device restrictions can prevent sound."))
                     "setTone" -> { setTone(activity, call.argument<String>("tone")!!); result.success(null) }
+                    "previewTone" -> { previewTone(activity, call.argument<String>("tone")!!); result.success(null) }
+                    "stopPreview" -> { stopPreview(); result.success(null) }
                     else -> result.notImplemented()
                 }
             } catch (e: Exception) { result.error("timer", e.message ?: "Could not schedule timer", null) }

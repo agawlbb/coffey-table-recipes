@@ -5,6 +5,8 @@
 	};
 	objectVersion = 54;
 	objects = {
+		F019E7A11012202600000001 = { isa = PBXFileReference; lastKnownFileType = audio.wav; path = Runner/default.wav; sourceTree = SOURCE_ROOT; };
+		F019E7A11012202600000002 = { isa = PBXBuildFile; fileRef = F019E7A11012202600000001; };
 		9C678DD6208AB6EF0C35A27A = { isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Runner/RecipeTimers.swift; sourceTree = SOURCE_ROOT; };
 		DFE7118E8FB2913D16894E72 = { isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Runner/TimerActivityAttributes.swift; sourceTree = SOURCE_ROOT; };
 		00913963F56B5C15D364A981 = { isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimerWidget/RecipeTimerWidget.swift; sourceTree = SOURCE_ROOT; };
@@ -143,6 +145,7 @@
 				DFE7118E8FB2913D16894E72,
 				00913963F56B5C15D364A981,
 				ACF5081F6FF4FA29367D933E,
+				F019E7A11012202600000001,
 				A21121DC8BCE515BE6C68D00,
 				9740EEB11CF90186004384FC /* Flutter */,
 				4ACC9988CBBD219107C7F75A,
@@ -291,6 +294,7 @@
 				3B3967161E833CAA004F5970 /* AppFrameworkInfo.plist in Resources */,
 				97C146FE1CF9000F007C117D /* Assets.xcassets in Resources */,
 				C4758C98AB42C25B4E7BD341,
+				F019E7A11012202600000002,
 				174BB54A0995511FCB843AF5,
 				97C146FC1CF9000F007C117D /* Main.storyboard in Resources */,
 			);

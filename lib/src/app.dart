@@ -6,6 +6,9 @@ import 'shared_recipe_link.dart';
 import 'administration.dart';
 import 'touch_capability.dart';
 import 'offline_recipes.dart';
+import 'active_timers.dart';
+
+final _appNavigatorKey = GlobalKey<NavigatorState>();
 
 class CoffeyTableApp extends StatelessWidget {
   const CoffeyTableApp({
@@ -18,6 +21,7 @@ class CoffeyTableApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) => MaterialApp(
     title: 'Coffey Table Recipes',
+    navigatorKey: _appNavigatorKey,
     onGenerateRoute: (settings) {
       final id = recipeIdFromLink(settings.name ?? '');
       return id == null
@@ -40,7 +44,7 @@ class CoffeyTableApp extends StatelessWidget {
       child: Overlay.wrap(
         child: Stack(
           children: [
-            child!,
+            ActiveTimerHost(navigatorKey: _appNavigatorKey, child: child!),
             if (MediaQuery.viewInsetsOf(context).bottom > 0)
               Positioned(
                 right: 12,

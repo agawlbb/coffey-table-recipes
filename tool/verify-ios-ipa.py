@@ -32,6 +32,9 @@ with tempfile.TemporaryDirectory() as directory:
     checked = []
     for relative, bundle in expected.items():
         app = root / "Payload" / relative
+        if relative == "Runner.app":
+            for sound in ("default.wav", "gentle.wav", "bright.wav"):
+                assert (app / sound).is_file(), "Timer sound missing from exported app"
         subprocess.run(["codesign", "--verify", "--strict", str(app)], check=True)
         info = plistlib.loads((app / "Info.plist").read_bytes())
         assert info["CFBundleIdentifier"] == bundle, "Unexpected bundle identifier"
