@@ -107,7 +107,7 @@ class _ActiveTimerHostState extends State<ActiveTimerHost>
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
               ),
-              subtitle: Text('${timerCountdown(timers.first, DateTime.now())}'),
+              subtitle: Text(timerCountdown(timers.first, DateTime.now())),
               trailing: const Icon(Icons.expand_more),
               onTap: () => showModalBottomSheet<void>(
                 context: widget.navigatorKey.currentState!.overlay!.context,
