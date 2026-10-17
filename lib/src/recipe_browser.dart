@@ -1370,52 +1370,59 @@ class _RecipeDetailState extends State<RecipeDetail> {
                               : Icons.favorite_border,
                         ),
                       ),
-                    const Spacer(),
                     if (family.isNotEmpty)
-                      Padding(
-                        padding: EdgeInsets.zero,
-                        child: PopupMenuButton<String>(
-                          tooltip: 'Choose a recipe variation',
-                          enabled: !_openingRelated && !_deleting,
-                          onSelected: (id) {
-                            if (id == recipe['id'].toString()) return;
-                            _openRelated(
-                              family.firstWhere(
-                                (row) => row['id'].toString() == id,
-                              ),
-                            );
-                          },
-                          itemBuilder: (_) => [
-                            CheckedPopupMenuItem(
-                              value: recipe['id'].toString(),
-                              checked: true,
-                              child: Text(recipe['title'] as String),
-                            ),
-                            for (final row in family)
-                              PopupMenuItem(
-                                value: row['id'].toString(),
-                                child: Text(row['title'] as String),
-                              ),
-                          ],
-                          child: Padding(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 4,
-                              vertical: 8,
-                            ),
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Text(
-                                  'Variations',
-                                  style: Theme.of(context).textTheme.labelLarge
-                                      ?.copyWith(
-                                        color: Theme.of(context)
-                                            .colorScheme
-                                            .primary,
-                                      ),
+                      Expanded(
+                        child: Align(
+                          alignment: Alignment.centerRight,
+                          child: PopupMenuButton<String>(
+                            tooltip: 'Choose a recipe variation',
+                            enabled: !_openingRelated && !_deleting,
+                            onSelected: (id) {
+                              if (id == recipe['id'].toString()) return;
+                              _openRelated(
+                                family.firstWhere(
+                                  (row) => row['id'].toString() == id,
                                 ),
-                                const Icon(Icons.arrow_drop_down, size: 18),
-                              ],
+                              );
+                            },
+                            itemBuilder: (_) => [
+                              CheckedPopupMenuItem(
+                                value: recipe['id'].toString(),
+                                checked: true,
+                                child: Text(recipe['title'] as String),
+                              ),
+                              for (final row in family)
+                                PopupMenuItem(
+                                  value: row['id'].toString(),
+                                  child: Text(row['title'] as String),
+                                ),
+                            ],
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 4,
+                                vertical: 8,
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Flexible(
+                                    child: Text(
+                                      'Variations',
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: Theme.of(context)
+                                          .textTheme
+                                          .labelLarge
+                                          ?.copyWith(
+                                            color: Theme.of(context)
+                                                .colorScheme
+                                                .primary,
+                                          ),
+                                    ),
+                                  ),
+                                  const Icon(Icons.arrow_drop_down, size: 18),
+                                ],
+                              ),
                             ),
                           ),
                         ),

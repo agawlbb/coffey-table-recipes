@@ -2,6 +2,19 @@
 
 Release dates and changes are reconstructed from annotated Git tags, commit history, and project release records. Versions before 1.0 are demonstration releases; 1.0 marks the first usable release. Android retains the existing signing identity; iOS delivery and signing are recorded for each release.
 
+## 1.7.0 — 2026-10-17
+
+Build 22; tag `v1.7.0`.
+
+- Added private household favorites, including long-press selection of household members and combined favorite filters.
+- Added blank recipes with name, categories, photos and favorites; import text, websites, files or camera captures into the same saved recipe while retaining its identity.
+- Added blank-only browsing and a unified filter panel with independent removable filters, retry behavior and clearer responsive layouts.
+- Added review of alternative website cooking methods, with a choice of one method or separately reviewed linked recipe variations.
+- Added long-press ingredient reordering, direct ingredient deletion and stronger ingredient-group and description presentation.
+- Refined blank-recipe details, picture editing, favorite placement and cooking-timer presentation.
+- Fixed narrow-screen overflow in the recipe variation menu after adding favorite controls.
+- Included verified Android and iOS domain-root associations for shared recipe links and documented release verification.
+
 ## 1.6.1 — 2026-10-16
 
 Build 21; tag `v1.6.1`. Completes the three-platform shared-recipes/native-timers release.

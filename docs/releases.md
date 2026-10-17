@@ -47,6 +47,12 @@ When the user says "create a release", review progress since the previous releas
 
 `CHANGELOG.md` covers previous releases using Git history, tags, and the release records below. Every future release must update it with the version, release date, and meaningful changes since the prior release. Commit the changelog before tagging the release. Describe only changes supported by the project history.
 
+## 1.7.0 — household favorites, blank recipes and import methods
+
+Version `1.7.0+22`, tagged `v1.7.0`, releases main only; the user explicitly requested leaving other branches intact. Both repositories' local branches and tags were pushed before release preparation. This release adds household favorites and combined filters, blank recipes and import into placeholders, alternative-method review and linked variations, ingredient reordering/deletion and presentation refinements. No encryption dependencies or entitlements changed from 1.6.1; the exempt-encryption declaration and France exclusion policy are retained. Android is delivered to `G:\My Drive\recipe app`, web is explicitly published from the tag, and signed iOS is uploaded to TestFlight. Platform and validation results are recorded below as verified.
+
+Local release checks on 2026-10-17: analysis passed, all 290 Flutter tests passed, seven iOS configuration checks passed, three Android association regression checks passed and both Apple JWT/status tests passed. The first full run exposed a seven-pixel variation-menu overflow after adding favorite controls. Constraining the menu to the remaining action-row width fixed it; the existing navigation/layout regression and complete suite then passed. Backend deployment `39061791888` succeeded from main commit `037b053d8ccd26729c81f8c51fb9cba991467328`, including PHP/Python checks. No one-time migration was rerun.
+
 ## 1.6.1 — timer widget App Store metadata correction
 
 Version `1.6.1+21`, tagged `v1.6.1`, completes all three platforms after the initial 1.6.0 iOS upload was rejected for missing `CFBundleDisplayName` in TimerWidget. The widget now declares its display name; source configuration checks cover all three bundles, and archive/export tooling checks actual bundle metadata before upload. The signed IPA verifier checks it too. No Dart application behavior changed from 1.6.0. Web and Android are rebuilt at 1.6.1/build 21 for alignment. The immutable 1.6.0 tag remains unchanged. Native compilation, signing and provisioning of all three targets succeeded in the earlier run; only Apple's upload metadata validation rejected it.
