@@ -2,7 +2,7 @@
 
 Tap the heart beside edit/share/delete to toggle your own favorite. Hold the heart to select household people, including members without accounts, then save. A Favorite of line appears after steps and before notes when anyone has favorited the recipe.
 
-Use Filters beside search and expand Favorite in the same panel to select household members. Selected names appear under Favorite, and existing selections reopen expanded. Every checked person must favorite the recipe for it to appear. Apply refreshes the current search/category; Clear and Apply remove the restriction. Matching variations are listed individually. Favorites remain private to the selected household.
+Use Filters beside search to select Blank recipes only or expand Favorite in the same panel to select household members. Selected names appear under Favorite, and existing selections reopen expanded. Every checked person must favorite the recipe for it to appear. Apply refreshes the current search/category; Clear and Apply remove the restriction. Matching variations are listed individually. Favorites remain private to the selected household.
 
 Favorites changes and filtered browsing require a connection. Offline browsing never substitutes unfiltered results for an active favorite filter.
 

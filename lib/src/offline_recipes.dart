@@ -495,7 +495,9 @@ class OfflineRecipes with WidgetsBindingObserver {
         final q = (uri.queryParameters['q'] ?? '').toLowerCase();
         final scopes = library['scopes'] as Map;
         final tree = scopes[scope] as Map?;
-        if (q.isEmpty &&
+        final blankOnly = uri.queryParameters['blank'] == '1';
+        if (!blankOnly &&
+            q.isEmpty &&
             uri.queryParameters['tree'] == '1' &&
             tree?['view'] == 'categories') {
           return Map<String, dynamic>.from(tree!);
@@ -507,6 +509,7 @@ class OfflineRecipes with WidgetsBindingObserver {
             final detail =
                 _responses['/households/${segments[1]}/recipes/${row['id']}'];
             final recipe = detail?['recipe'] as Map?;
+            if (blankOnly && recipe?['source_type'] != 'blank') return false;
             final searchable = [
               row['title'],
               row['description'],
@@ -521,7 +524,7 @@ class OfflineRecipes with WidgetsBindingObserver {
             ].join(' ').toLowerCase();
             return searchable.contains(q);
           }).toList();
-          if (uri.queryParameters['families'] == '1') {
+          if (!blankOnly && uri.queryParameters['families'] == '1') {
             final localIds = (library['rows'] as List)
                 .map((row) => '${row['id']}')
                 .toSet();

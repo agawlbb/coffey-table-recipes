@@ -131,6 +131,8 @@ class _RecipeBrowserState extends State<RecipeBrowser>
   final Map<String, Map<String, dynamic>> _browseCache = {};
   String _query = '';
   Set<String> _favoritePeople = {};
+  bool _blankOnly = false;
+  int get _filterCount => _favoritePeople.length + (_blankOnly ? 1 : 0);
   final List<Map<String, dynamic>> _trail = [];
   List<Map<String, dynamic>> _nodes = [];
   String get _scopeLabel =>
@@ -206,8 +208,9 @@ class _RecipeBrowserState extends State<RecipeBrowser>
         queryParameters: {
           'q': _query,
           'offset': '${more ? _next ?? 0 : 0}',
-          'tree': more || _query.isNotEmpty ? '0' : '1',
-          'families': _favoritePeople.isEmpty ? '1' : '0',
+          'tree': more || _query.isNotEmpty || _blankOnly ? '0' : '1',
+          'families': _favoritePeople.isEmpty && !_blankOnly ? '1' : '0',
+          if (_blankOnly) 'blank': '1',
           if (_favoritePeople.isNotEmpty)
             'favorite_people': _favoritePeople.join(','),
           if (_trail.isNotEmpty) 'scope': '${_trail.last['id']}',
@@ -325,6 +328,7 @@ class _RecipeBrowserState extends State<RecipeBrowser>
       if (!mounted) return;
       final people = recipeRows(data['people']);
       final selected = Set<String>.from(_favoritePeople);
+      var blankOnly = _blankOnly;
       final apply = await showDialog<bool>(
         context: context,
         builder: (context) => StatefulBuilder(
@@ -338,39 +342,55 @@ class _RecipeBrowserState extends State<RecipeBrowser>
                   maxHeight: MediaQuery.sizeOf(context).height * 0.5,
                 ),
                 child: SingleChildScrollView(
-                  child: ExpansionTile(
-                    initiallyExpanded: selected.isNotEmpty,
-                    leading: Icon(
-                      selected.isEmpty ? Icons.favorite_border : Icons.favorite,
-                      color: selected.isEmpty
-                          ? null
-                          : Theme.of(context).colorScheme.primary,
-                    ),
-                    title: const Text('Favorite'),
-                    subtitle: selected.isEmpty
-                        ? null
-                        : Text(
-                            people
-                                .where((p) => selected.contains('${p['id']}'))
-                                .map((p) => p['display_name'])
-                                .join(', '),
-                          ),
-                    shape: const Border(),
-                    collapsedShape: const Border(),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
                     children: [
-                      for (final person in people)
-                        CheckboxListTile(
-                          controlAffinity: ListTileControlAffinity.leading,
-                          title: Text('${person['display_name']}'),
-                          value: selected.contains('${person['id']}'),
-                          onChanged: (value) => update(() {
-                            if (value == true) {
-                              selected.add('${person['id']}');
-                            } else {
-                              selected.remove('${person['id']}');
-                            }
-                          }),
+                      CheckboxListTile(
+                        controlAffinity: ListTileControlAffinity.leading,
+                        title: const Text('Blank recipes only'),
+                        value: blankOnly,
+                        onChanged: (value) =>
+                            update(() => blankOnly = value == true),
+                      ),
+                      ExpansionTile(
+                        initiallyExpanded: selected.isNotEmpty,
+                        leading: Icon(
+                          selected.isEmpty
+                              ? Icons.favorite_border
+                              : Icons.favorite,
+                          color: selected.isEmpty
+                              ? null
+                              : Theme.of(context).colorScheme.primary,
                         ),
+                        title: const Text('Favorite'),
+                        subtitle: selected.isEmpty
+                            ? null
+                            : Text(
+                                people
+                                    .where(
+                                      (p) => selected.contains('${p['id']}'),
+                                    )
+                                    .map((p) => p['display_name'])
+                                    .join(', '),
+                              ),
+                        shape: const Border(),
+                        collapsedShape: const Border(),
+                        children: [
+                          for (final person in people)
+                            CheckboxListTile(
+                              controlAffinity: ListTileControlAffinity.leading,
+                              title: Text('${person['display_name']}'),
+                              value: selected.contains('${person['id']}'),
+                              onChanged: (value) => update(() {
+                                if (value == true) {
+                                  selected.add('${person['id']}');
+                                } else {
+                                  selected.remove('${person['id']}');
+                                }
+                              }),
+                            ),
+                        ],
+                      ),
                     ],
                   ),
                 ),
@@ -378,9 +398,12 @@ class _RecipeBrowserState extends State<RecipeBrowser>
             ),
             actions: [
               TextButton(
-                onPressed: selected.isEmpty
+                onPressed: selected.isEmpty && !blankOnly
                     ? null
-                    : () => update(selected.clear),
+                    : () => update(() {
+                        selected.clear();
+                        blankOnly = false;
+                      }),
                 child: const Text('Clear'),
               ),
               TextButton(
@@ -396,7 +419,10 @@ class _RecipeBrowserState extends State<RecipeBrowser>
         ),
       );
       if (apply == true && mounted) {
-        setState(() => _favoritePeople = selected);
+        setState(() {
+          _favoritePeople = selected;
+          _blankOnly = blankOnly;
+        });
         _load();
       }
     } catch (error) {
@@ -472,15 +498,15 @@ class _RecipeBrowserState extends State<RecipeBrowser>
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     IconButton(
-                      tooltip: _favoritePeople.isEmpty
+                      tooltip: _filterCount == 0
                           ? 'Filters'
-                          : 'Filters (${_favoritePeople.length} selected)',
+                          : 'Filters ($_filterCount selected)',
                       onPressed: _filters,
                       icon: Icon(
-                        _favoritePeople.isEmpty
+                        _filterCount == 0
                             ? Icons.filter_list
                             : Icons.filter_list_alt,
-                        color: _favoritePeople.isEmpty
+                        color: _filterCount == 0
                             ? null
                             : Theme.of(context).colorScheme.primary,
                       ),
@@ -1174,7 +1200,7 @@ class _RecipeDetailState extends State<RecipeDetail> {
     }
   }
 
-  Future<void> _importBlank() async {
+  Future<void> _importBlank(String kind) async {
     final saved = await Navigator.push<Map<String, dynamic>>(
       context,
       MaterialPageRoute(
@@ -1182,6 +1208,7 @@ class _RecipeDetailState extends State<RecipeDetail> {
           householdId: widget.householdId,
           request: widget.save!,
           blankRecipe: _recipe,
+          initialKind: kind,
         ),
       ),
     );
@@ -1401,12 +1428,20 @@ class _RecipeDetailState extends State<RecipeDetail> {
               ],
             ),
             const SizedBox(height: 16),
-            if (blank && widget.save != null && recipe['in_household'] != false)
-              FilledButton.icon(
-                onPressed: _deleting ? null : _importBlank,
-                icon: const Icon(Icons.download_outlined),
-                label: const Text('Import recipe'),
+            if (blank)
+              const Align(
+                alignment: Alignment.centerLeft,
+                child: Chip(label: Text('Blank recipe')),
               ),
+            if (blank &&
+                widget.save != null &&
+                recipe['in_household'] != false) ...[
+              _heading('Import recipe'),
+              RecipeImportChoices(
+                enabled: !_deleting && !offlineStatus.value,
+                onSelected: _importBlank,
+              ),
+            ],
             if (blank && widget.save != null && recipe['in_household'] != false)
               OutlinedButton.icon(
                 onPressed: _deleting ? null : _edit,
@@ -1438,7 +1473,7 @@ class _RecipeDetailState extends State<RecipeDetail> {
                   label: const Text('Request variation'),
                 ),
               ),
-            if (recipe['description'] != null)
+            if (!blank && recipe['description'] != null)
               Padding(
                 padding: const EdgeInsets.only(top: 16),
                 child: Text(
@@ -1446,7 +1481,7 @@ class _RecipeDetailState extends State<RecipeDetail> {
                   style: Theme.of(context).textTheme.bodyLarge,
                 ),
               ),
-            if (summary.isNotEmpty)
+            if (!blank && summary.isNotEmpty)
               Padding(
                 padding: const EdgeInsets.only(top: 12),
                 child: Text(summary),
@@ -1466,80 +1501,83 @@ class _RecipeDetailState extends State<RecipeDetail> {
                     Chip(label: Text('${tag['label']}')),
               ],
             ),
-            _heading('Ingredients'),
-            if (ingredients.isEmpty) const Text('No ingredients recorded.'),
-            for (final groupId in <String?>[
-              null,
-              ...groups.map((g) => g['id'] as String),
-            ]) ...[
-              if (groupId != null)
-                Padding(
-                  padding: const EdgeInsets.only(top: 12, bottom: 8),
-                  child: Text(
-                    groups.firstWhere((g) => g['id'] == groupId)['title']
-                        as String,
-                    style: Theme.of(context).textTheme.titleMedium,
+            if (!blank) ...[
+              _heading('Ingredients'),
+              if (ingredients.isEmpty) const Text('No ingredients recorded.'),
+              for (final groupId in <String?>[
+                null,
+                ...groups.map((g) => g['id'] as String),
+              ]) ...[
+                if (groupId != null)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 12, bottom: 8),
+                    child: Text(
+                      groups.firstWhere((g) => g['id'] == groupId)['title']
+                          as String,
+                      style: Theme.of(context).textTheme.titleMedium,
+                    ),
                   ),
-                ),
-              for (final ingredient in ingredients.where(
-                (i) => i['group_id'] == groupId,
-              ))
+                for (final ingredient in ingredients.where(
+                  (i) => i['group_id'] == groupId,
+                ))
+                  Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 6),
+                    child: Text(
+                      '• ${ingredient['original_text']}',
+                      style: Theme.of(context).textTheme.bodyLarge,
+                    ),
+                  ),
+              ],
+              _heading('Method'),
+              if (steps.isEmpty) const Text('No cooking steps recorded.'),
+              for (final step in steps)
                 Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 6),
-                  child: Text(
-                    '• ${ingredient['original_text']}',
-                    style: Theme.of(context).textTheme.bodyLarge,
+                  padding: const EdgeInsets.only(bottom: 20),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      if (step['section_title']?.toString().trim().isNotEmpty ==
+                          true)
+                        Text(
+                          '${step['position']}. ${step['section_title']}',
+                          style: Theme.of(context).textTheme.titleMedium,
+                        ),
+                      Text(
+                        '${step['section_title']?.toString().trim().isNotEmpty == true ? '' : '${step['position']}. '}${step['instruction']}',
+                        style: Theme.of(context).textTheme.bodyLarge
+                            ?.copyWith(height: 1.6),
+                      ),
+                      for (final action in actions.where(
+                        (a) => a['step_id'] == step['id'],
+                      ))
+                        Padding(
+                          padding: const EdgeInsets.only(top: 8),
+                          child: Chip(
+                            avatar: Icon(
+                              action['temperature_value'] != null
+                                  ? Icons.thermostat
+                                  : Icons.timer_outlined,
+                            ),
+                            label: Text(
+                              [
+                                if (action['label'] != null)
+                                  '${action['label']}',
+                                if (action['duration_seconds'] != null)
+                                  formatRecipeTime(action['duration_seconds']),
+                                if (action['temperature_value'] != null)
+                                  '${recipeValue(action['temperature_value'])}°${action['temperature_unit']}',
+                                if (action['label'] == null &&
+                                    action['duration_seconds'] == null &&
+                                    action['temperature_value'] == null)
+                                  '${action['action_type']}',
+                              ].join(' · '),
+                            ),
+                          ),
+                        ),
+                    ],
                   ),
                 ),
             ],
-            _heading('Method'),
-            if (steps.isEmpty) const Text('No cooking steps recorded.'),
-            for (final step in steps)
-              Padding(
-                padding: const EdgeInsets.only(bottom: 20),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    if (step['section_title']?.toString().trim().isNotEmpty ==
-                        true)
-                      Text(
-                        '${step['position']}. ${step['section_title']}',
-                        style: Theme.of(context).textTheme.titleMedium,
-                      ),
-                    Text(
-                      '${step['section_title']?.toString().trim().isNotEmpty == true ? '' : '${step['position']}. '}${step['instruction']}',
-                      style: Theme.of(context).textTheme.bodyLarge
-                          ?.copyWith(height: 1.6),
-                    ),
-                    for (final action in actions.where(
-                      (a) => a['step_id'] == step['id'],
-                    ))
-                      Padding(
-                        padding: const EdgeInsets.only(top: 8),
-                        child: Chip(
-                          avatar: Icon(
-                            action['temperature_value'] != null
-                                ? Icons.thermostat
-                                : Icons.timer_outlined,
-                          ),
-                          label: Text(
-                            [
-                              if (action['label'] != null) '${action['label']}',
-                              if (action['duration_seconds'] != null)
-                                formatRecipeTime(action['duration_seconds']),
-                              if (action['temperature_value'] != null)
-                                '${recipeValue(action['temperature_value'])}°${action['temperature_unit']}',
-                              if (action['label'] == null &&
-                                  action['duration_seconds'] == null &&
-                                  action['temperature_value'] == null)
-                                '${action['action_type']}',
-                            ].join(' · '),
-                          ),
-                        ),
-                      ),
-                  ],
-                ),
-              ),
             if (_favoriteMembers.any(_isFavorite))
               Padding(
                 padding: const EdgeInsets.symmetric(vertical: 12),
@@ -1547,11 +1585,11 @@ class _RecipeDetailState extends State<RecipeDetail> {
                   'Favorite of ${_favoriteMembers.where(_isFavorite).map((p) => p['display_name']).join(' and ')}',
                 ),
               ),
-            if (recipe['notes'] != null) ...[
+            if (!blank && recipe['notes'] != null) ...[
               _heading('Notes'),
               Text(recipe['notes'] as String),
             ],
-            if (nutrition != null) ...[
+            if (!blank && nutrition != null) ...[
               _heading('Nutrition'),
               Text(
                 '${nutrition['is_estimate'] == 1 ? 'Estimated' : 'Reported'} · ${nutrition['basis'] == 'per_serving' ? 'Per serving' : 'Whole recipe'}',
@@ -1583,7 +1621,7 @@ class _RecipeDetailState extends State<RecipeDetail> {
               ),
               Text('Method: ${nutrition['method']}'),
             ],
-            if (recipeRows(recipe['pairings']).isNotEmpty) ...[
+            if (!blank && recipeRows(recipe['pairings']).isNotEmpty) ...[
               _heading('Serve alongside'),
               for (final row in recipeRows(recipe['pairings']))
                 ListTile(
@@ -1593,13 +1631,14 @@ class _RecipeDetailState extends State<RecipeDetail> {
                   onTap: () => _openRelated(row),
                 ),
             ],
-            if ([
-              'source_type',
-              'source_title',
-              'source_author',
-              'source_url',
-              'source_reference',
-            ].any((key) => recipe[key] != null)) ...[
+            if (!blank &&
+                [
+                  'source_type',
+                  'source_title',
+                  'source_author',
+                  'source_url',
+                  'source_reference',
+                ].any((key) => recipe[key] != null)) ...[
               _heading('Source'),
               for (final key in [
                 'source_type',

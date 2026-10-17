@@ -12,6 +12,49 @@ import 'recipe_editor.dart';
 import 'recipe_image_editor.dart';
 import 'shared_recipe_import.dart';
 
+/// Shared source choices for Add Recipe and an existing blank recipe.
+class RecipeImportChoices extends StatelessWidget {
+  const RecipeImportChoices({
+    super.key,
+    required this.onSelected,
+    this.selectedKind,
+    this.includeBlank = false,
+    this.enabled = true,
+  });
+  final ValueChanged<String> onSelected;
+  final String? selectedKind;
+  final bool includeBlank;
+  final bool enabled;
+  @override
+  Widget build(BuildContext context) => GridView(
+    gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+      crossAxisCount: 2,
+      mainAxisExtent: 48,
+      crossAxisSpacing: 8,
+      mainAxisSpacing: 8,
+    ),
+    shrinkWrap: true,
+    physics: const NeverScrollableScrollPhysics(),
+    children: [
+      for (final option in [
+        ('text', 'Text', Icons.notes),
+        ('website', 'Website', Icons.link),
+        ('file', 'File', Icons.upload_file),
+        ('camera', 'Camera', Icons.camera_alt_outlined),
+        if (includeBlank) ('blank', 'Blank recipe', Icons.note_add_outlined),
+      ])
+        ChoiceChip(
+          avatar: Icon(option.$3, size: 18),
+          label: Text(option.$2),
+          selected: option.$1 == selectedKind,
+          onSelected: !enabled || (option.$1 == 'blank' && offlineStatus.value)
+              ? null
+              : (_) => onSelected(option.$1),
+        ),
+    ],
+  );
+}
+
 class RecipeImport extends StatefulWidget {
   const RecipeImport({
     super.key,
@@ -21,7 +64,9 @@ class RecipeImport extends StatefulWidget {
     this.takePhoto,
     this.sharedInput,
     this.blankRecipe,
+    this.initialKind = 'text',
   });
+  final String initialKind;
   final String householdId;
   final Map<String, dynamic>? blankRecipe;
   final SharedRecipeInput? sharedInput;
@@ -49,6 +94,7 @@ class _RecipeImportState extends State<RecipeImport> {
   @override
   void initState() {
     super.initState();
+    _kind = widget.initialKind;
     offlineStatus.addListener(_connectionChanged);
     final shared = widget.sharedInput;
     if (shared != null) {
@@ -479,49 +525,21 @@ class _RecipeImportState extends State<RecipeImport> {
                   ),
                 if (_draft == null || _editingSource) ...[
                   const SizedBox(height: 16),
-                  GridView(
-                    gridDelegate:
-                        const SliverGridDelegateWithFixedCrossAxisCount(
-                          crossAxisCount: 2,
-                          mainAxisExtent: 48,
-                          crossAxisSpacing: 8,
-                          mainAxisSpacing: 8,
-                        ),
-                    shrinkWrap: true,
-                    physics: const NeverScrollableScrollPhysics(),
-
-                    children: [
-                      for (final option in [
-                        if (widget.blankRecipe == null)
-                          ('blank', 'Blank recipe', Icons.note_add_outlined),
-                        ('text', 'Text', Icons.notes),
-                        ('website', 'Website', Icons.link),
-                        ('file', 'File', Icons.upload_file),
-                        ('camera', 'Camera', Icons.camera_alt_outlined),
-                      ])
-                        ChoiceChip(
-                          avatar: Icon(option.$3, size: 18),
-                          label: Text(option.$2),
-                          selected:
-                              option.$1 ==
-                              (_kind == 'description' ? 'text' : _kind),
-                          onSelected:
-                              _busy ||
-                                  (option.$1 == 'blank' && offlineStatus.value)
-                              ? null
-                              : (_) {
-                                  if (option.$1 == 'blank') {
-                                    _createBlank();
-                                    return;
-                                  }
-                                  setState(() {
-                                    _kind = option.$1;
-                                    _file = null;
-                                    _error = null;
-                                  });
-                                },
-                        ),
-                    ],
+                  RecipeImportChoices(
+                    includeBlank: widget.blankRecipe == null,
+                    enabled: !_busy,
+                    selectedKind: _kind == 'description' ? 'text' : _kind,
+                    onSelected: (kind) {
+                      if (kind == 'blank') {
+                        _createBlank();
+                        return;
+                      }
+                      setState(() {
+                        _kind = kind;
+                        _file = null;
+                        _error = null;
+                      });
+                    },
                   ),
                   if (_kind == 'text' || _kind == 'description')
                     CheckboxListTile(

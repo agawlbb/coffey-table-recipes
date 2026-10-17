@@ -102,6 +102,48 @@ void main() {
     offlineStatus.value = false;
   });
 
+  test(
+    'saved blank filter returns only blanks before pagination and grouping',
+    () async {
+      final c = cache();
+      await c.sync(['1']);
+      await c.rememberSavedRecipe('$root/2', {
+        'recipe': {
+          'id': '2',
+          'title': 'Blank pie',
+          'source_type': 'blank',
+          'parent_recipe_id': '1',
+          'family_representative_id': '1',
+          'ingredients': [],
+          'steps': [],
+          'in_household': true,
+        },
+      });
+      connected = false;
+      offlineStatus.value = true;
+      final filtered = await c.cachedBrowse('$root?blank=1&tree=1&families=1');
+      expect(filtered?['view'], 'recipes');
+      expect((filtered?['recipes'] as List).map((r) => r['id']), ['2']);
+      expect(
+        (await c.cachedBrowse('$root?blank=1&q=pie'))?['recipes'],
+        hasLength(1),
+      );
+      expect(
+        (await c.cachedBrowse('$root?blank=1&q=potato'))?['recipes'],
+        isEmpty,
+      );
+      expect(
+        (await c.cachedBrowse('$root?blank=1&offset=1'))?['recipes'],
+        isEmpty,
+      );
+      expect(
+        (await c.cachedBrowse('$root?blank=1&scope=20'))?['recipes'],
+        isEmpty,
+      );
+      c.close();
+    },
+  );
+
   test('detaching retains public family links without returning detached browse rows', () async {
     final c = cache();
     await c.sync(['1']);

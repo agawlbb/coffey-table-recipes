@@ -11,6 +11,65 @@ void main() {
     );
     expect(isPublicRecipeRead('/households/1/recipes'), isTrue);
   });
+  testWidgets(
+    'blank filter intersects favorites and search, cancels and clears',
+    (tester) async {
+      final paths = <String>[];
+      await tester.pumpWidget(
+        MaterialApp(
+          home: RecipeBrowser(
+            householdId: '1',
+            householdName: 'Table',
+            request: (path) async {
+              paths.add(path);
+              return path.endsWith('/people')
+                  ? {
+                      'people': [
+                        {'id': '10', 'display_name': 'Joe'},
+                      ],
+                    }
+                  : {'recipes': []};
+            },
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.byTooltip('Filters'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Blank recipes only'));
+      await tester.tap(find.text('Cancel'));
+      await tester.pumpAndSettle();
+      expect(find.byTooltip('Filters'), findsOneWidget);
+      await tester.tap(find.byTooltip('Filters'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Blank recipes only'));
+      await tester.tap(find.text('Favorite'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Joe'));
+      await tester.tap(find.text('Apply'));
+      await tester.pumpAndSettle();
+      var query = Uri.parse(paths.last).queryParameters;
+      expect(query['blank'], '1');
+      expect(query['favorite_people'], '10');
+      expect(query['tree'], '0');
+      expect(query['families'], '0');
+      await tester.enterText(find.byType(TextField), 'cake');
+      await tester.pumpAndSettle();
+      query = Uri.parse(paths.last).queryParameters;
+      expect(query['blank'], '1');
+      expect(query['q'], 'cake');
+      await tester.tap(find.byTooltip('Filters (2 selected)'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Clear'));
+      await tester.tap(find.text('Apply'));
+      await tester.pumpAndSettle();
+      query = Uri.parse(paths.last).queryParameters;
+      expect(query.containsKey('blank'), isFalse);
+      expect(query.containsKey('favorite_people'), isFalse);
+      expect(query['q'], 'cake');
+      expect(find.byTooltip('Filters'), findsOneWidget);
+    },
+  );
   testWidgets('heart toggles self and hold edits another household person', (
     tester,
   ) async {
@@ -110,7 +169,7 @@ void main() {
     await tester.tap(find.byTooltip('Filters (2 selected)'));
     await tester.pumpAndSettle();
     expect(find.text('Joe, Brooklyn'), findsOneWidget);
-    expect(find.byType(CheckboxListTile), findsNWidgets(2));
+    expect(find.byType(CheckboxListTile), findsNWidgets(3));
     await tester.tap(find.text('Clear'));
     await tester.tap(find.text('Apply'));
     await tester.pumpAndSettle();

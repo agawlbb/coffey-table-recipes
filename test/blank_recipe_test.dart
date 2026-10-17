@@ -37,6 +37,63 @@ Map<String, dynamic> blank() => {
 };
 
 void main() {
+  testWidgets('add recipe places blank last after all import choices', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: RecipeImport(householdId: '2', request: (_, body) async => {}),
+      ),
+    );
+    await tester.pumpAndSettle();
+    final choices = tester.widgetList<ChoiceChip>(find.byType(ChoiceChip));
+    expect(choices.map((chip) => (chip.label as Text).data).toList(), [
+      'Text',
+      'Website',
+      'File',
+      'Camera',
+      'Blank recipe',
+    ]);
+  });
+
+  for (final kind in ['text', 'website', 'file', 'camera']) {
+    testWidgets('blank detail opens selected $kind import directly', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: RecipeDetail(
+            householdId: '2',
+            recipeId: '9',
+            title: 'Cake',
+            request: (path) async => path.endsWith('/favorites')
+                ? {'people': []}
+                : {'recipe': blank()},
+            save: (_, body) async => {},
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      final labels = {
+        'text': 'Text',
+        'website': 'Website',
+        'file': 'File',
+        'camera': 'Camera',
+      };
+      await tester.tap(find.text(labels[kind]!));
+      await tester.pumpAndSettle();
+      final importer = tester.widget<RecipeImport>(find.byType(RecipeImport));
+      expect(importer.initialKind, kind);
+      expect(importer.blankRecipe?['id'], '9');
+      expect(
+        tester
+            .widget<ChoiceChip>(find.widgetWithText(ChoiceChip, labels[kind]!))
+            .selected,
+        isTrue,
+      );
+    });
+  }
+
   testWidgets('blank creation saves an omitted category without confirmation', (
     tester,
   ) async {
@@ -290,11 +347,30 @@ void main() {
       expect(find.byTooltip('Favorite (hold for household)'), findsOneWidget);
       expect(find.text('Request variation'), findsNothing);
       expect(find.text('Add picture'), findsOneWidget);
-      await tester.tap(find.text('Import recipe'));
-      await tester.pumpAndSettle();
+      expect(find.text('Blank recipe'), findsOneWidget);
+      for (final label in [
+        'Ingredients',
+        'Method',
+        'Source',
+        'No ingredients recorded.',
+        'No cooking steps recorded.',
+        'Start cooking',
+      ]) {
+        expect(find.text(label), findsNothing);
+      }
       for (final name in ['Text', 'Website', 'File', 'Camera']) {
         expect(find.text(name), findsOneWidget);
       }
+      await tester.tap(find.text('Website'));
+      await tester.pumpAndSettle();
+      expect(
+        tester.widget<RecipeImport>(find.byType(RecipeImport)).initialKind,
+        'website',
+      );
+      expect(
+        find.widgetWithText(TextField, 'Recipe website link'),
+        findsOneWidget,
+      );
       expect(find.text('Blank recipe'), findsNothing);
     },
   );
