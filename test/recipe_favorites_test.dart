@@ -69,6 +69,10 @@ void main() {
   testWidgets('favorite filter sends everyone selected and clears', (
     tester,
   ) async {
+    tester.view.physicalSize = const Size(360, 740);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
     final paths = <String>[];
     await tester.pumpWidget(
       MaterialApp(
@@ -93,9 +97,11 @@ void main() {
     await tester.tap(find.byTooltip('Filters'));
     await tester.pumpAndSettle();
     expect(find.text('Joe'), findsNothing);
-    expect(paths.where((path) => path.endsWith('/people')), isEmpty);
+    expect(find.byType(AlertDialog), findsOneWidget);
+    final panel = tester.element(find.byType(AlertDialog));
     await tester.tap(find.text('Favorite'));
     await tester.pumpAndSettle();
+    expect(tester.element(find.byType(AlertDialog)), same(panel));
     await tester.tap(find.text('Joe'));
     await tester.tap(find.text('Brooklyn'));
     await tester.tap(find.text('Apply'));
@@ -103,8 +109,8 @@ void main() {
     expect(Uri.parse(paths.last).queryParameters['favorite_people'], '10,11');
     await tester.tap(find.byTooltip('Filters (2 selected)'));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Favorite'));
-    await tester.pumpAndSettle();
+    expect(find.text('Joe, Brooklyn'), findsOneWidget);
+    expect(find.byType(CheckboxListTile), findsNWidgets(2));
     await tester.tap(find.text('Clear'));
     await tester.tap(find.text('Apply'));
     await tester.pumpAndSettle();
@@ -112,5 +118,6 @@ void main() {
       Uri.parse(paths.last).queryParameters.containsKey('favorite_people'),
       isFalse,
     );
+    expect(tester.takeException(), isNull);
   });
 }

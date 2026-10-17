@@ -317,62 +317,69 @@ class _RecipeBrowserState extends State<RecipeBrowser>
   }
 
   Future<void> _filters() async {
-    final favorite = await showDialog<bool>(
-      context: context,
-      builder: (context) => SimpleDialog(
-        title: const Text('Filters'),
-        children: [
-          SimpleDialogOption(
-            onPressed: () => Navigator.pop(context, true),
-            child: const ListTile(
-              leading: Icon(Icons.favorite),
-              title: Text('Favorite'),
-              trailing: Icon(Icons.chevron_right),
-            ),
-          ),
-        ],
-      ),
-    );
-    if (favorite == true && mounted) await _favoriteFilter();
-  }
-
-  Future<void> _favoriteFilter() async {
     try {
       final data = await widget.request(
         '/households/${widget.householdId}/people',
       );
       if (!mounted) return;
+      final people = recipeRows(data['people']);
       final selected = Set<String>.from(_favoritePeople);
       final apply = await showDialog<bool>(
         context: context,
         builder: (context) => StatefulBuilder(
           builder: (context, update) => AlertDialog(
-            title: const Text('Favorite'),
+            title: const Text('Filters'),
+            contentPadding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
             content: SizedBox(
               width: 360,
-              child: SingleChildScrollView(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    for (final person in recipeRows(data['people']))
-                      CheckboxListTile(
-                        title: Text('${person['display_name']}'),
-                        value: selected.contains('${person['id']}'),
-                        onChanged: (value) => update(() {
-                          if (value == true) {
-                            selected.add('${person['id']}');
-                          } else {
-                            selected.remove('${person['id']}');
-                          }
-                        }),
-                      ),
-                  ],
+              child: ConstrainedBox(
+                constraints: BoxConstraints(
+                  maxHeight: MediaQuery.sizeOf(context).height * 0.5,
+                ),
+                child: SingleChildScrollView(
+                  child: ExpansionTile(
+                    initiallyExpanded: selected.isNotEmpty,
+                    leading: Icon(
+                      selected.isEmpty ? Icons.favorite_border : Icons.favorite,
+                      color: selected.isEmpty
+                          ? null
+                          : Theme.of(context).colorScheme.primary,
+                    ),
+                    title: const Text('Favorite'),
+                    subtitle: selected.isEmpty
+                        ? null
+                        : Text(
+                            people
+                                .where((p) => selected.contains('${p['id']}'))
+                                .map((p) => p['display_name'])
+                                .join(', '),
+                          ),
+                    shape: const Border(),
+                    collapsedShape: const Border(),
+                    children: [
+                      for (final person in people)
+                        CheckboxListTile(
+                          controlAffinity: ListTileControlAffinity.leading,
+                          title: Text('${person['display_name']}'),
+                          value: selected.contains('${person['id']}'),
+                          onChanged: (value) => update(() {
+                            if (value == true) {
+                              selected.add('${person['id']}');
+                            } else {
+                              selected.remove('${person['id']}');
+                            }
+                          }),
+                        ),
+                    ],
+                  ),
                 ),
               ),
             ),
             actions: [
               TextButton(
-                onPressed: () => update(selected.clear),
+                onPressed: selected.isEmpty
+                    ? null
+                    : () => update(selected.clear),
                 child: const Text('Clear'),
               ),
               TextButton(
