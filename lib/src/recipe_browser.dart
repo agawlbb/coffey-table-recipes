@@ -914,6 +914,30 @@ class _RecipeDetailState extends State<RecipeDetail> {
     }
   }
 
+  Future<void> _explainTimer(Map<String, dynamic> recipe) async {
+    final open = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Use timers in cooking mode'),
+        content: const Text('Open in cooking mode to use timers.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Open cooking mode'),
+          ),
+        ],
+      ),
+    );
+    if (open != true || !mounted) return;
+    await Navigator.of(context).push<void>(
+      MaterialPageRoute(builder: (_) => CookingMode(recipe: recipe)),
+    );
+  }
+
   Future<void> _shareRecipe(BuildContext anchor) async {
     final choice = await showModalBottomSheet<String>(
       context: context,
@@ -1557,7 +1581,13 @@ class _RecipeDetailState extends State<RecipeDetail> {
                     ))
                       Padding(
                         padding: const EdgeInsets.only(top: 8),
-                        child: Chip(
+                        child: InputChip(
+                          onPressed:
+                              (num.tryParse('${action['duration_seconds']}') ??
+                                      0) >
+                                  0
+                              ? () => _explainTimer(recipe)
+                              : null,
                           avatar: Icon(
                             action['temperature_value'] != null
                                 ? Icons.thermostat
