@@ -70,6 +70,66 @@ void main() {
       expect(find.byTooltip('Filters'), findsOneWidget);
     },
   );
+  testWidgets(
+    'unchanged Apply avoids a browse reload and chips remove filters independently',
+    (tester) async {
+      final paths = <String>[];
+      await tester.pumpWidget(
+        MaterialApp(
+          home: RecipeBrowser(
+            householdId: '1',
+            householdName: 'Table',
+            request: (path) async {
+              paths.add(path);
+              return path.endsWith('/people')
+                  ? {
+                      'people': [
+                        {'id': '10', 'display_name': 'Joe'},
+                      ],
+                    }
+                  : {'recipes': []};
+            },
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      int reads() => paths
+          .where((path) => Uri.parse(path).path.endsWith('/recipes'))
+          .length;
+      final before = reads();
+      await tester.tap(find.byTooltip('Filters'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Apply'));
+      await tester.pumpAndSettle();
+      expect(reads(), before);
+      await tester.tap(find.byTooltip('Filters'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Blank recipes only'));
+      await tester.tap(find.text('Favorite'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Joe'));
+      await tester.tap(find.text('Apply'));
+      await tester.pumpAndSettle();
+      await tester.enterText(find.byType(TextField), 'cake');
+      await tester.pumpAndSettle();
+      for (final chip in tester.widgetList<InputChip>(find.byType(InputChip))) {
+        expect(chip.onPressed, isNotNull);
+        expect(chip.onDeleted, isNotNull);
+      }
+      await tester.tap(find.byTooltip('Remove blank recipe filter'));
+      await tester.pumpAndSettle();
+      var query = Uri.parse(paths.last).queryParameters;
+      expect(query.containsKey('blank'), isFalse);
+      expect(query['favorite_people'], '10');
+      expect(query['q'], 'cake');
+      await tester.tap(find.byTooltip('Remove favorite filters'));
+      await tester.pumpAndSettle();
+      query = Uri.parse(paths.last).queryParameters;
+      expect(query.containsKey('favorite_people'), isFalse);
+      expect(query['q'], 'cake');
+    },
+  );
+
   testWidgets('heart toggles self and hold edits another household person', (
     tester,
   ) async {

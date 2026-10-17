@@ -19,6 +19,7 @@ import 'recipe_variation.dart';
 import 'recipe_import.dart';
 import 'blank_recipe_detail.dart';
 import 'recipe_favorites.dart';
+import 'recipe_filter_dialog.dart';
 import 'recipe_image_prefetch.dart';
 
 final recipePhotoCache = CacheManager(
@@ -133,6 +134,7 @@ class _RecipeBrowserState extends State<RecipeBrowser>
   String _query = '';
   Set<String> _favoritePeople = {};
   bool _blankOnly = false;
+  bool _filterOpen = false;
   int get _filterCount => _favoritePeople.length + (_blankOnly ? 1 : 0);
   final List<Map<String, dynamic>> _trail = [];
   List<Map<String, dynamic>> _nodes = [];
@@ -322,116 +324,35 @@ class _RecipeBrowserState extends State<RecipeBrowser>
   }
 
   Future<void> _filters() async {
+    if (_filterOpen) return;
+    _filterOpen = true;
+    FocusScope.of(context).unfocus();
     try {
-      final data = await widget.request(
-        '/households/${widget.householdId}/people',
-      );
-      if (!mounted) return;
-      final people = recipeRows(data['people']);
-      final selected = Set<String>.from(_favoritePeople);
-      var blankOnly = _blankOnly;
-      final apply = await showDialog<bool>(
+      final selected = await showDialog<RecipeFilterSelection>(
         context: context,
-        builder: (context) => StatefulBuilder(
-          builder: (context, update) => AlertDialog(
-            title: const Text('Filters'),
-            contentPadding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
-            content: SizedBox(
-              width: 360,
-              child: ConstrainedBox(
-                constraints: BoxConstraints(
-                  maxHeight: MediaQuery.sizeOf(context).height * 0.5,
-                ),
-                child: SingleChildScrollView(
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      CheckboxListTile(
-                        controlAffinity: ListTileControlAffinity.leading,
-                        title: const Text('Blank recipes only'),
-                        value: blankOnly,
-                        onChanged: (value) =>
-                            update(() => blankOnly = value == true),
-                      ),
-                      ExpansionTile(
-                        initiallyExpanded: selected.isNotEmpty,
-                        leading: Icon(
-                          selected.isEmpty
-                              ? Icons.favorite_border
-                              : Icons.favorite,
-                          color: selected.isEmpty
-                              ? null
-                              : Theme.of(context).colorScheme.primary,
-                        ),
-                        title: const Text('Favorite'),
-                        subtitle: selected.isEmpty
-                            ? null
-                            : Text(
-                                people
-                                    .where(
-                                      (p) => selected.contains('${p['id']}'),
-                                    )
-                                    .map((p) => p['display_name'])
-                                    .join(', '),
-                              ),
-                        shape: const Border(),
-                        collapsedShape: const Border(),
-                        children: [
-                          for (final person in people)
-                            CheckboxListTile(
-                              controlAffinity: ListTileControlAffinity.leading,
-                              title: Text('${person['display_name']}'),
-                              value: selected.contains('${person['id']}'),
-                              onChanged: (value) => update(() {
-                                if (value == true) {
-                                  selected.add('${person['id']}');
-                                } else {
-                                  selected.remove('${person['id']}');
-                                }
-                              }),
-                            ),
-                        ],
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-            actions: [
-              TextButton(
-                onPressed: selected.isEmpty && !blankOnly
-                    ? null
-                    : () => update(() {
-                        selected.clear();
-                        blankOnly = false;
-                      }),
-                child: const Text('Clear'),
-              ),
-              TextButton(
-                onPressed: () => Navigator.pop(context, false),
-                child: const Text('Cancel'),
-              ),
-              FilledButton(
-                onPressed: () => Navigator.pop(context, true),
-                child: const Text('Apply'),
-              ),
-            ],
+        builder: (_) => RecipeFilterDialog(
+          blankOnly: _blankOnly,
+          favoritePeople: _favoritePeople,
+          loadPeople: () async => recipeRows(
+            (await widget.request(
+              '/households/${widget.householdId}/people',
+            ))['people'],
           ),
         ),
       );
-      if (apply == true && mounted) {
-        setState(() {
-          _favoritePeople = selected;
-          _blankOnly = blankOnly;
-        });
-        _load();
+      if (!mounted ||
+          selected == null ||
+          (selected.blankOnly == _blankOnly &&
+              setEquals(selected.favoritePeople, _favoritePeople))) {
+        return;
       }
-    } catch (error) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Could not load household filters: $error')),
-        );
-      }
+      setState(() {
+        _blankOnly = selected.blankOnly;
+        _favoritePeople = Set.from(selected.favoritePeople);
+      });
+      _load();
+    } finally {
+      _filterOpen = false;
     }
   }
 
@@ -531,6 +452,41 @@ class _RecipeBrowserState extends State<RecipeBrowser>
               ),
             ),
           ),
+          if (_filterCount > 0)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 0, 20, 8),
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    if (_blankOnly)
+                      InputChip(
+                        label: const Text('Blank recipes only'),
+                        onPressed: _filters,
+                        deleteButtonTooltipMessage:
+                            'Remove blank recipe filter',
+                        onDeleted: () {
+                          setState(() => _blankOnly = false);
+                          _load();
+                        },
+                      ),
+                    if (_favoritePeople.isNotEmpty)
+                      InputChip(
+                        avatar: const Icon(Icons.favorite, size: 18),
+                        label: Text('Favorites (${_favoritePeople.length})'),
+                        onPressed: _filters,
+                        deleteButtonTooltipMessage: 'Remove favorite filters',
+                        onDeleted: () {
+                          setState(_favoritePeople.clear);
+                          _load();
+                        },
+                      ),
+                  ],
+                ),
+              ),
+            ),
           Padding(
             padding: const EdgeInsets.fromLTRB(20, 0, 20, 16),
             child: Align(
