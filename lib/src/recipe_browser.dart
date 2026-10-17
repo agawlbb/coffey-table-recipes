@@ -1452,7 +1452,15 @@ class _RecipeDetailState extends State<RecipeDetail> {
                 padding: const EdgeInsets.only(top: 16),
                 child: Text(
                   recipe['description'] as String,
-                  style: Theme.of(context).textTheme.bodyLarge,
+                  style: Theme.of(context).textTheme.bodyLarge
+                      ?.copyWith(fontWeight: FontWeight.bold),
+                ),
+              ),
+            if (_favoriteMembers.any(_isFavorite))
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                child: Text(
+                  'Favorite of ${_favoriteMembers.where(_isFavorite).map((p) => p['display_name']).join(' and ')}',
                 ),
               ),
             if (summary.isNotEmpty)
@@ -1552,13 +1560,6 @@ class _RecipeDetailState extends State<RecipeDetail> {
                         ),
                       ),
                   ],
-                ),
-              ),
-            if (_favoriteMembers.any(_isFavorite))
-              Padding(
-                padding: const EdgeInsets.symmetric(vertical: 12),
-                child: Text(
-                  'Favorite of ${_favoriteMembers.where(_isFavorite).map((p) => p['display_name']).join(' and ')}',
                 ),
               ),
             if (recipe['notes'] != null) ...[
