@@ -38,6 +38,7 @@ with tempfile.TemporaryDirectory() as directory:
         subprocess.run(["codesign", "--verify", "--strict", str(app)], check=True)
         info = plistlib.loads((app / "Info.plist").read_bytes())
         assert info["CFBundleIdentifier"] == bundle, "Unexpected bundle identifier"
+        assert info.get("CFBundleDisplayName", "").strip(), "Missing App Store display name"
         assert info["CFBundleVersion"] == build, "Unexpected build number"
         assert info["CFBundleShortVersionString"] == version, "Unexpected version"
         assert info.get("ITSAppUsesNonExemptEncryption") is False, "Missing encryption declaration"

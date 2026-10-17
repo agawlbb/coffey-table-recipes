@@ -79,6 +79,16 @@ codesign --verify --strict "$app/PlugIns/ShareExtension.appex"
 codesign --verify --strict "$app/PlugIns/TimerWidget.appex"
 codesign --verify --strict "$app"
 echo '::notice::Stage: Apple export and optional TestFlight upload'
+python3 - <<'PY'
+import plistlib
+from pathlib import Path
+app = Path('build/ios/archive/Runner.xcarchive/Products/Applications/Runner.app')
+for bundle in [app, *sorted((app / 'PlugIns').glob('*.appex'))]:
+    info = plistlib.loads((bundle / 'Info.plist').read_bytes())
+    if not info.get('CFBundleDisplayName', '').strip():
+        raise SystemExit(f'Missing App Store display name: {bundle.name}')
+print('App Store display names verified for app and extensions.')
+PY
 xcodebuild -exportArchive -archivePath build/ios/archive/Runner.xcarchive \
   -exportPath build/ios/signed -exportOptionsPlist build/ios/signing/ExportOptions.plist \
   -allowProvisioningUpdates "${auth[@]}"

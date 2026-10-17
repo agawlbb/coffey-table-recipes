@@ -31,6 +31,10 @@ class IOSShareConfigurationTests(unittest.TestCase):
             self.assertIn('MARKETING_VERSION = "$(FLUTTER_BUILD_NAME)";', line)
         widget = plistlib.loads((ROOT / 'ios/TimerWidget/Info.plist').read_bytes())
         self.assertFalse(widget['ITSAppUsesNonExemptEncryption'])
+        for target in ['Runner', 'ShareExtension', 'TimerWidget']:
+            info = plistlib.loads((ROOT / f'ios/{target}/Info.plist').read_bytes())
+            self.assertTrue(info.get('CFBundleDisplayName', '').strip(),
+                            f'{target} must declare its App Store display name')
 
     def test_file_opening_uses_copy_mode_and_supported_recipe_documents(self):
         runner = plistlib.loads((ROOT / 'ios/Runner/Info.plist').read_bytes())

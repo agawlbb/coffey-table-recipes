@@ -2,9 +2,19 @@
 
 Release dates and changes are reconstructed from annotated Git tags, commit history, and project release records. Versions before 1.0 are demonstration releases; 1.0 marks the first usable release. Android retains the existing signing identity; iOS delivery and signing are recorded for each release.
 
+## 1.6.1 — 2026-10-16
+
+Build 21; tag `v1.6.1`. Completes the three-platform shared-recipes/native-timers release.
+
+- Added the timer widget's required App Store display name after Apple rejected the 1.6.0 iOS upload.
+- Validate display names for the app and both extensions before upload and during signed-package verification.
+- Rebuilt web and Android with the corrected version/build to keep all three platforms aligned; retains all 1.6.0 features.
+
 ## 1.6.0 — 2026-10-16
 
 Build 20; tag `v1.6.0`. This follows development packages through build 19.
+
+Web and Android were delivered; iOS compiled and signed but Apple rejected upload for a missing timer-widget display name. Superseded by 1.6.1.
 
 - Added public shared-recipe browsing and authenticated attachment of a canonical recipe to another household, with confirmation before shared edits.
 - Preserved canonical variation-family navigation across household lists and added native HTTPS recipe-link routing with web fallback.
