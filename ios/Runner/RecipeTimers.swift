@@ -31,9 +31,11 @@ enum RecipeTimers {
             let player = try AVAudioPlayer(contentsOf: url)
             previewPlayer = player
             guard player.play() else { throw failure("Could not play this sound.") }
-            let stop = DispatchWorkItem { Task { @MainActor in stopPreview() } }
+            let stop = DispatchWorkItem { Task { @MainActor in
+                if previewPlayer === player { stopPreview() }
+            } }
             previewStop = stop
-            DispatchQueue.main.asyncAfter(deadline: .now() + 5, execute: stop)
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1, execute: stop)
         } catch { stopPreview(); try? session.setActive(false); throw error }
     }
     static let defaults = UserDefaults.standard

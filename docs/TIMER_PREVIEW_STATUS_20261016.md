@@ -1,7 +1,8 @@
 # Timer sound previews and app-wide status — 2026-10-16
 
-Each alarm tone now has a Play/Stop preview control. Previews are independent
-of the saved choice, last at most five seconds, replace earlier previews,
+Selecting an alarm tone now plays a one-second sample automatically, with no
+separate Play/Stop controls. Previews are independent of the saved choice,
+replace earlier previews,
 and stop when the selector closes or the app leaves the foreground. Android
 uses the actual device alarm sound and alarm-volume audio attributes. iOS uses
 AVAudioPlayer with bundled files. Its default for newly scheduled/edited timers
@@ -37,7 +38,7 @@ compilation and APK signature verification passed. iOS configuration/audio
 packaging tests validate all three bundled PCM sounds. Native iOS compilation
 and emulator observations are recorded separately after completion.
 
-Pixel 8/API 36 emulator: tone selector rendered Play controls; pressing Argon's
+Prior build 19 Pixel 8/API 36 emulator check: the selector rendered Play controls; pressing Argon's
 preview created a started MediaPlayer with USAGE_ALARM and no muted state.
 After the bounded preview, no started player remained. The saved tone remained
 Default alarm. The emulator had notifications denied and no explicit exact-alarm
@@ -56,6 +57,10 @@ that requirement for every app platform and development package.
 Delivered Android package:
 `G:\My Drive\recipe app\CoffeyTableRecipes-1.5.0-build19-test-d67cb07-debug.apk`
 SHA-256: `cd73ad4770cbc4c99e5725859e646c05dd8517a999c1b2e580793f325418c343`.
+That package predates the selection-triggered one-second preview change. The
+latest chooser change is source/test only; no new app build was requested.
+Selection-preview follow-up: analysis clean; all five focused chooser/timer
+tests passed, including playback still running at 999 ms and stopped at 1000 ms.
 
 Platform references:
 https://developer.android.com/reference/android/media/Ringtone

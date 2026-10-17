@@ -99,7 +99,7 @@ void main() {
   }, variant: TargetPlatformVariant.only(TargetPlatform.android));
 
   testWidgets(
-    'preview switches, stops automatically and stops on selector close without saving',
+    'selecting a tone previews for one second and selector close stops without saving',
     (tester) async {
       final calls = <MethodCall>[];
       TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
@@ -131,17 +131,21 @@ void main() {
       );
       await tester.tap(find.text('Choose'));
       await tester.pumpAndSettle();
-      await tester.tap(find.byTooltip('Preview Default alarm'));
+      expect(find.byIcon(Icons.play_circle_outline), findsNothing);
+      expect(find.byIcon(Icons.stop_circle_outlined), findsNothing);
+      await tester.tap(find.text('Bright bell'));
       await tester.pump();
       expect(calls.last.method, 'previewTone');
-      expect(find.byTooltip('Stop preview'), findsOneWidget);
-      await tester.tap(find.byTooltip('Preview Bright bell'));
-      await tester.pump();
       expect(calls.last.arguments, {'tone': 'bright.wav'});
+      await tester.tap(find.text('Default alarm'));
+      await tester.pump();
+      expect(calls.last.arguments, {'tone': ''});
       expect(calls[calls.length - 2].method, 'stopPreview');
-      await tester.pump(const Duration(seconds: 5));
+      await tester.pump(const Duration(milliseconds: 999));
+      expect(calls.last.method, 'previewTone');
+      await tester.pump(const Duration(milliseconds: 1));
       expect(calls.last.method, 'stopPreview');
-      await tester.tap(find.byTooltip('Preview Bright bell'));
+      await tester.tap(find.text('Bright bell'));
       await tester.pump();
       await tester.tap(find.text('Cancel'));
       await tester.pumpAndSettle();

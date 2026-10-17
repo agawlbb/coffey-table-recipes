@@ -28,7 +28,7 @@ object RecipeTimers {
         if (Build.VERSION.SDK_INT >= 28) sound.isLooping = false
         preview = sound
         sound.play()
-        previewHandler.postDelayed(previewStop, 5000)
+        previewHandler.postDelayed(previewStop, 1000)
     }
     private fun prefs(c: Context) = c.getSharedPreferences("recipe_timers", Context.MODE_PRIVATE)
     fun rows(c: Context): JSONObject = JSONObject(prefs(c).getString("timers", "{}")!!)

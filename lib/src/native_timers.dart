@@ -259,7 +259,6 @@ class _AlarmTonePickerState extends State<AlarmTonePicker>
     with WidgetsBindingObserver {
   late String _selected = widget.selected;
   String _query = '';
-  String? _preview;
   String? _previewError;
   int _previewGeneration = 0;
   Timer? _previewTimer;
@@ -278,16 +277,12 @@ class _AlarmTonePickerState extends State<AlarmTonePicker>
           .invokeMethod<void>('stopPreview')
           .catchError((Object _) {}),
     );
-    if (mounted) setState(() => _preview = null);
   }
 
   Future<void> _play(String tone) async {
-    final stop = _preview == tone;
     _stopPreview();
-    if (stop) return;
     final generation = _previewGeneration;
     setState(() {
-      _preview = tone;
       _previewError = null;
     });
     try {
@@ -295,11 +290,10 @@ class _AlarmTonePickerState extends State<AlarmTonePicker>
         'tone': tone,
       });
       if (!mounted || generation != _previewGeneration) return;
-      _previewTimer = Timer(const Duration(seconds: 5), _stopPreview);
+      _previewTimer = Timer(const Duration(seconds: 1), _stopPreview);
     } catch (_) {
       if (mounted && generation == _previewGeneration) {
         setState(() {
-          _preview = null;
           _previewError =
               'Could not play this sound. Check your volume and try again.';
         });
@@ -379,7 +373,10 @@ class _AlarmTonePickerState extends State<AlarmTonePicker>
                   : RadioGroup<String>(
                       groupValue: _selected,
                       onChanged: (value) {
-                        if (value != null) setState(() => _selected = value);
+                        if (value != null) {
+                          setState(() => _selected = value);
+                          unawaited(_play(value));
+                        }
                       },
                       child: ListView.builder(
                         padding: const EdgeInsets.symmetric(vertical: 8),
@@ -388,18 +385,6 @@ class _AlarmTonePickerState extends State<AlarmTonePicker>
                           value: tones[index]['value'] as String,
                           title: Text(tones[index]['label'] as String),
                           selected: tones[index]['value'] == _selected,
-                          secondary: IconButton(
-                            tooltip: _preview == tones[index]['value']
-                                ? 'Stop preview'
-                                : 'Preview ${tones[index]['label']}',
-                            icon: Icon(
-                              _preview == tones[index]['value']
-                                  ? Icons.stop_circle_outlined
-                                  : Icons.play_circle_outline,
-                            ),
-                            onPressed: () =>
-                                _play(tones[index]['value'] as String),
-                          ),
                           contentPadding: const EdgeInsets.symmetric(
                             horizontal: 16,
                           ),
