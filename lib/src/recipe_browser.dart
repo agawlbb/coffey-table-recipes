@@ -16,6 +16,7 @@ import 'recipe_time.dart';
 import 'recipe_value.dart';
 import 'recipe_source_links.dart';
 import 'recipe_variation.dart';
+import 'recipe_import.dart';
 import 'recipe_image_prefetch.dart';
 
 final recipePhotoCache = CacheManager(
@@ -32,6 +33,7 @@ List<Map<String, dynamic>> recipeRows(Object? value) =>
     List<Map<String, dynamic>>.from(value as List? ?? []);
 
 String recipeSourceLabel(Object? source) => switch (source) {
+  'blank' => 'Blank recipe',
   'ai_text' => 'Pasted text',
   'ai_website' => 'Website link',
   'ai_file' => 'Uploaded file',
@@ -1186,6 +1188,23 @@ class _RecipeDetailState extends State<RecipeDetail> {
     }
   }
 
+  Future<void> _importBlank() async {
+    final saved = await Navigator.push<Map<String, dynamic>>(
+      context,
+      MaterialPageRoute(
+        builder: (_) => RecipeImport(
+          householdId: widget.householdId,
+          request: widget.save!,
+          blankRecipe: _recipe,
+        ),
+      ),
+    );
+    if (saved != null && mounted) {
+      widget.onChanged?.call();
+      await _load();
+    }
+  }
+
   Future<void> _requestVariation() async {
     if (_variationOpen || _deleting || widget.save == null) return;
     if (offlineStatus.value) {
@@ -1264,6 +1283,7 @@ class _RecipeDetailState extends State<RecipeDetail> {
   );
 
   Widget _content(Map<String, dynamic> recipe) {
+    final blank = recipe['source_type'] == 'blank';
     final ingredients = recipeRows(recipe['ingredients']);
     final groups = recipeRows(recipe['groups']);
     final steps = recipeRows(recipe['steps']);
@@ -1300,17 +1320,22 @@ class _RecipeDetailState extends State<RecipeDetail> {
                     if (widget.save != null &&
                         _recipe?['in_household'] != false)
                       IconButton(
-                        tooltip: 'Edit recipe',
+                        tooltip: blank
+                            ? 'Edit name, category or picture'
+                            : 'Edit recipe',
                         onPressed: _deleting ? null : _edit,
                         icon: const Icon(Icons.edit_outlined),
                       ),
-                    Builder(
-                      builder: (anchor) => IconButton(
-                        tooltip: 'Share recipe',
-                        icon: const Icon(Icons.share),
-                        onPressed: _sharing ? null : () => _shareRecipe(anchor),
+                    if (!blank)
+                      Builder(
+                        builder: (anchor) => IconButton(
+                          tooltip: 'Share recipe',
+                          icon: const Icon(Icons.share),
+                          onPressed: _sharing
+                              ? null
+                              : () => _shareRecipe(anchor),
+                        ),
                       ),
-                    ),
                     if (widget.save != null &&
                         _recipe?['in_household'] != false)
                       IconButton(
@@ -1390,18 +1415,27 @@ class _RecipeDetailState extends State<RecipeDetail> {
               ],
             ),
             const SizedBox(height: 16),
-            FilledButton.icon(
-              onPressed: steps.isEmpty
-                  ? null
-                  : () => Navigator.of(context).push(
-                      MaterialPageRoute<void>(
-                        builder: (_) => CookingMode(recipe: recipe),
+            if (blank && widget.save != null && recipe['in_household'] != false)
+              FilledButton.icon(
+                onPressed: _deleting ? null : _importBlank,
+                icon: const Icon(Icons.download_outlined),
+                label: const Text('Import recipe'),
+              ),
+            if (!blank)
+              FilledButton.icon(
+                onPressed: steps.isEmpty
+                    ? null
+                    : () => Navigator.of(context).push(
+                        MaterialPageRoute<void>(
+                          builder: (_) => CookingMode(recipe: recipe),
+                        ),
                       ),
-                    ),
-              icon: const Icon(Icons.soup_kitchen_outlined),
-              label: const Text('Start cooking'),
-            ),
-            if (widget.save != null && _recipe?['in_household'] != false)
+                icon: const Icon(Icons.soup_kitchen_outlined),
+                label: const Text('Start cooking'),
+              ),
+            if (!blank &&
+                widget.save != null &&
+                _recipe?['in_household'] != false)
               Padding(
                 padding: const EdgeInsets.only(top: 12),
                 child: OutlinedButton.icon(

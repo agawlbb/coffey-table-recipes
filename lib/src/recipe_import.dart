@@ -20,8 +20,10 @@ class RecipeImport extends StatefulWidget {
     this.pickFile,
     this.takePhoto,
     this.sharedInput,
+    this.blankRecipe,
   });
   final String householdId;
+  final Map<String, dynamic>? blankRecipe;
   final SharedRecipeInput? sharedInput;
   final RecipeSave request;
   final Future<XFile?> Function()? pickFile;
@@ -329,12 +331,64 @@ class _RecipeImportState extends State<RecipeImport> {
     }
   }
 
+  Future<void> _createBlank() async {
+    setState(() {
+      _busy = true;
+      _error = null;
+    });
+    try {
+      final data = await widget.request(
+        '/households/${widget.householdId}/recipe-blank',
+        {},
+      );
+      if (!mounted) return;
+      final saved = await Navigator.push<Map<String, dynamic>>(
+        context,
+        MaterialPageRoute(
+          builder: (_) => RecipeEditor(
+            recipe: Map<String, dynamic>.from(data['recipe'] as Map),
+            householdId: widget.householdId,
+            save: widget.request,
+          ),
+        ),
+      );
+      if (saved != null && mounted) {
+        setState(() => _leaving = true);
+        await WidgetsBinding.instance.endOfFrame;
+        if (mounted) Navigator.pop(context, saved);
+      }
+    } catch (error) {
+      if (mounted) {
+        setState(
+          () => _error = error is ApiException
+              ? error.message
+              : 'Could not open blank recipe. Please retry.',
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
   Future<void> _review() async {
     final saved = await Navigator.push<Map<String, dynamic>>(
       context,
       MaterialPageRoute(
         builder: (_) => RecipeEditor(
-          recipe: _draft!,
+          recipe: widget.blankRecipe == null
+              ? _draft!
+              : {
+                  ..._draft!,
+                  'id': widget.blankRecipe!['id'],
+                  'revision': widget.blankRecipe!['revision'],
+                  'household_count': widget.blankRecipe!['household_count'],
+                  'photos': [
+                    ...(widget.blankRecipe!['photos'] as List? ?? []),
+                    ...(_draft!['photos'] as List? ?? []),
+                  ],
+                  'category_assignments':
+                      widget.blankRecipe!['category_assignments'],
+                },
           householdId: widget.householdId,
           save: widget.request,
           allowEditSource: true,
@@ -409,212 +463,229 @@ class _RecipeImportState extends State<RecipeImport> {
       body: Center(
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 720),
-          child: ListView(
+          child: SingleChildScrollView(
             keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
             padding: const EdgeInsets.all(20),
-            children: [
-              const Text('Choose a source. Review your recipe before saving.'),
-              const SizedBox(height: 12),
-              const Text(
-                'AI organizes your input and may ask about missing details.',
-              ),
-              if (offlineStatus.value)
-                const Padding(
-                  padding: EdgeInsets.symmetric(vertical: 12),
-                  child: Text(
-                    'An internet connection is required to import a recipe.',
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                if (widget.blankRecipe == null)
+                  OutlinedButton.icon(
+                    onPressed: _busy || offlineStatus.value
+                        ? null
+                        : _createBlank,
+                    icon: const Icon(Icons.note_add_outlined),
+                    label: const Text('Blank recipe'),
                   ),
+                const Text(
+                  'Choose a source. Review your recipe before saving.',
                 ),
-              if (_draft == null || _editingSource) ...[
-                const SizedBox(height: 16),
-                GridView(
-                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                    crossAxisCount: 2,
-                    mainAxisExtent: 48,
-                    crossAxisSpacing: 8,
-                    mainAxisSpacing: 8,
+                const SizedBox(height: 12),
+                const Text(
+                  'AI organizes your input and may ask about missing details.',
+                ),
+                if (offlineStatus.value)
+                  const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 12),
+                    child: Text(
+                      'An internet connection is required to import a recipe.',
+                    ),
                   ),
-                  shrinkWrap: true,
-                  physics: const NeverScrollableScrollPhysics(),
+                if (_draft == null || _editingSource) ...[
+                  const SizedBox(height: 16),
+                  GridView(
+                    gridDelegate:
+                        const SliverGridDelegateWithFixedCrossAxisCount(
+                          crossAxisCount: 2,
+                          mainAxisExtent: 48,
+                          crossAxisSpacing: 8,
+                          mainAxisSpacing: 8,
+                        ),
+                    shrinkWrap: true,
+                    physics: const NeverScrollableScrollPhysics(),
 
-                  children: [
-                    for (final option in const [
-                      ('text', 'Text', Icons.notes),
-                      ('website', 'Website', Icons.link),
-                      ('file', 'File', Icons.upload_file),
-                      ('camera', 'Camera', Icons.camera_alt_outlined),
-                    ])
-                      ChoiceChip(
-                        avatar: Icon(option.$3, size: 18),
-                        label: Text(option.$2),
-                        selected:
-                            option.$1 ==
-                            (_kind == 'description' ? 'text' : _kind),
-                        onSelected: _busy
-                            ? null
-                            : (_) => setState(() {
-                                _kind = option.$1;
-                                _file = null;
-                                _error = null;
-                              }),
+                    children: [
+                      for (final option in const [
+                        ('text', 'Text', Icons.notes),
+                        ('website', 'Website', Icons.link),
+                        ('file', 'File', Icons.upload_file),
+                        ('camera', 'Camera', Icons.camera_alt_outlined),
+                      ])
+                        ChoiceChip(
+                          avatar: Icon(option.$3, size: 18),
+                          label: Text(option.$2),
+                          selected:
+                              option.$1 ==
+                              (_kind == 'description' ? 'text' : _kind),
+                          onSelected: _busy
+                              ? null
+                              : (_) => setState(() {
+                                  _kind = option.$1;
+                                  _file = null;
+                                  _error = null;
+                                }),
+                        ),
+                    ],
+                  ),
+                  if (_kind == 'text' || _kind == 'description')
+                    CheckboxListTile(
+                      contentPadding: EdgeInsets.zero,
+                      title: const Text('Describe how I make a dish'),
+                      value: _kind == 'description',
+                      onChanged: _busy
+                          ? null
+                          : (value) => setState(
+                              () => _kind = value == true
+                                  ? 'description'
+                                  : 'text',
+                            ),
+                    ),
+                  const SizedBox(height: 16),
+                  if (_kind == 'text' || _kind == 'description')
+                    TextField(
+                      controller: _text,
+                      onTapOutside: (_) => FocusScope.of(context).unfocus(),
+                      scrollPadding: const EdgeInsets.all(32),
+                      enabled: !_busy,
+                      minLines: 6,
+                      maxLines: 14,
+                      maxLength: 60000,
+                      buildCounter:
+                          (
+                            _, {
+                            required currentLength,
+                            required isFocused,
+                            maxLength,
+                          }) => currentLength < 54000
+                          ? null
+                          : Text('$currentLength/$maxLength'),
+                      decoration: InputDecoration(
+                        alignLabelWithHint: true,
+                        labelText: _kind == 'description'
+                            ? 'How do you make it?'
+                            : 'Paste your recipe',
+                        hintText: 'For example: I sauté onions in butter, add rice and broth, then simmer…',
+                        border: OutlineInputBorder(),
+                      ),
+                    ),
+                  if (_kind == 'website')
+                    TextField(
+                      controller: _url,
+                      onTapOutside: (_) => FocusScope.of(context).unfocus(),
+                      textInputAction: TextInputAction.done,
+                      onSubmitted: (_) => FocusScope.of(context).unfocus(),
+                      enabled: !_busy,
+                      keyboardType: TextInputType.url,
+                      decoration: const InputDecoration(
+                        labelText: 'Recipe website link',
+                        hintText: 'https://…',
+                      ),
+                    ),
+                  if (_kind == 'file' || _kind == 'camera') ...[
+                    OutlinedButton.icon(
+                      onPressed: _busy ? null : () => _pick(_kind == 'camera'),
+                      icon: Icon(
+                        _kind == 'camera'
+                            ? Icons.camera_alt_outlined
+                            : Icons.upload_file,
+                      ),
+                      label: Text(
+                        _kind == 'camera'
+                            ? 'Take a picture'
+                            : 'Choose PDF, image, or text file',
+                      ),
+                    ),
+                    Text(_file?.name ?? 'No file selected (maximum 5 MB).'),
+                    if (_file != null &&
+                        (_kind == 'camera' ||
+                            _file!.mimeType?.startsWith('image/') == true ||
+                            RegExp(
+                              r'\.(png|jpe?g|webp|heic|heif)$',
+                              caseSensitive: false,
+                            ).hasMatch(_file!.name)))
+                      OutlinedButton.icon(
+                        onPressed: _busy ? null : _editInputPicture,
+                        icon: const Icon(Icons.crop_rotate),
+                        label: const Text('Edit picture'),
                       ),
                   ],
-                ),
-                if (_kind == 'text' || _kind == 'description')
-                  CheckboxListTile(
-                    contentPadding: EdgeInsets.zero,
-                    title: const Text('Describe how I make a dish'),
-                    value: _kind == 'description',
-                    onChanged: _busy
-                        ? null
-                        : (value) => setState(
-                            () =>
-                                _kind = value == true ? 'description' : 'text',
-                          ),
+                ] else ...[
+                  const SizedBox(height: 20),
+                  Text(
+                    _questions.isEmpty
+                        ? 'Draft ready to review'
+                        : 'A few details about your recipe',
+                    style: Theme.of(context).textTheme.titleLarge,
                   ),
-                const SizedBox(height: 16),
-                if (_kind == 'text' || _kind == 'description')
-                  TextField(
-                    controller: _text,
-                    onTapOutside: (_) => FocusScope.of(context).unfocus(),
-                    scrollPadding: const EdgeInsets.all(32),
-                    enabled: !_busy,
-                    minLines: 6,
-                    maxLines: 14,
-                    maxLength: 60000,
-                    buildCounter:
-                        (
-                          _, {
-                          required currentLength,
-                          required isFocused,
-                          maxLength,
-                        }) => currentLength < 54000
-                        ? null
-                        : Text('$currentLength/$maxLength'),
-                    decoration: InputDecoration(
-                      alignLabelWithHint: true,
-                      labelText: _kind == 'description'
-                          ? 'How do you make it?'
-                          : 'Paste your recipe',
-                      hintText: 'For example: I sauté onions in butter, add rice and broth, then simmer…',
-                      border: OutlineInputBorder(),
+                  for (var i = 0; i < _questions.length; i++)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 16),
+                      child: TextField(
+                        controller: _answerFields[i],
+                        enabled: !_busy,
+                        minLines: 1,
+                        maxLines: 4,
+                        maxLength: 4000,
+                        decoration: InputDecoration(
+                          labelText: _questions[i],
+                          helperText: 'Enter “unknown” if you are unsure.',
+                          border: const OutlineInputBorder(),
+                        ),
+                      ),
                     ),
-                  ),
-                if (_kind == 'website')
-                  TextField(
-                    controller: _url,
-                    onTapOutside: (_) => FocusScope.of(context).unfocus(),
-                    textInputAction: TextInputAction.done,
-                    onSubmitted: (_) => FocusScope.of(context).unfocus(),
-                    enabled: !_busy,
-                    keyboardType: TextInputType.url,
-                    decoration: const InputDecoration(
-                      labelText: 'Recipe website link',
-                      hintText: 'https://…',
-                    ),
-                  ),
-                if (_kind == 'file' || _kind == 'camera') ...[
-                  OutlinedButton.icon(
-                    onPressed: _busy ? null : () => _pick(_kind == 'camera'),
-                    icon: Icon(
-                      _kind == 'camera'
-                          ? Icons.camera_alt_outlined
-                          : Icons.upload_file,
-                    ),
-                    label: Text(
-                      _kind == 'camera'
-                          ? 'Take a picture'
-                          : 'Choose PDF, image, or text file',
-                    ),
-                  ),
-                  Text(_file?.name ?? 'No file selected (maximum 5 MB).'),
-                  if (_file != null &&
-                      (_kind == 'camera' ||
-                          _file!.mimeType?.startsWith('image/') == true ||
-                          RegExp(
-                            r'\.(png|jpe?g|webp|heic|heif)$',
-                            caseSensitive: false,
-                          ).hasMatch(_file!.name)))
-                    OutlinedButton.icon(
-                      onPressed: _busy ? null : _editInputPicture,
-                      icon: const Icon(Icons.crop_rotate),
-                      label: const Text('Edit picture'),
+                  if (_questions.isNotEmpty)
+                    TextButton(
+                      onPressed: _busy ? null : _review,
+                      child: const Text('Review with missing details'),
                     ),
                 ],
-              ] else ...[
-                const SizedBox(height: 20),
-                Text(
-                  _questions.isEmpty
-                      ? 'Draft ready to review'
-                      : 'A few details about your recipe',
-                  style: Theme.of(context).textTheme.titleLarge,
-                ),
-                for (var i = 0; i < _questions.length; i++)
+                if (_error != null)
                   Padding(
-                    padding: const EdgeInsets.only(top: 16),
-                    child: TextField(
-                      controller: _answerFields[i],
-                      enabled: !_busy,
-                      minLines: 1,
-                      maxLines: 4,
-                      maxLength: 4000,
-                      decoration: InputDecoration(
-                        labelText: _questions[i],
-                        helperText: 'Enter “unknown” if you are unsure.',
-                        border: const OutlineInputBorder(),
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    child: Text(
+                      _error!,
+                      style: TextStyle(
+                        color: Theme.of(context).colorScheme.error,
                       ),
                     ),
                   ),
-                if (_questions.isNotEmpty)
+                const SizedBox(height: 20),
+                if (_editingSource) ...[
+                  const Text(
+                    'Preparing again replaces the current review with the updated source.',
+                  ),
                   TextButton(
                     onPressed: _busy ? null : _review,
-                    child: const Text('Review with missing details'),
+                    child: const Text('Return to review without changes'),
                   ),
-              ],
-              if (_error != null)
-                Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 12),
-                  child: Text(
-                    _error!,
-                    style: TextStyle(
-                      color: Theme.of(context).colorScheme.error,
-                    ),
-                  ),
-                ),
-              const SizedBox(height: 20),
-              if (_editingSource) ...[
-                const Text(
-                  'Preparing again replaces the current review with the updated source.',
-                ),
-                TextButton(
-                  onPressed: _busy ? null : _review,
-                  child: const Text('Return to review without changes'),
-                ),
-              ],
-              FilledButton.icon(
-                onPressed: _busy || offlineStatus.value
-                    ? null
-                    : _draft != null && !_editingSource && _questions.isEmpty
-                    ? _review
-                    : _analyze,
-                icon: _busy
-                    ? const SizedBox(
-                        width: 18,
-                        height: 18,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                    : const Icon(Icons.auto_awesome),
-                label: Text(
-                  _busy
-                      ? 'Preparing recipe…'
+                ],
+                FilledButton.icon(
+                  onPressed: _busy || offlineStatus.value
+                      ? null
                       : _draft != null && !_editingSource && _questions.isEmpty
-                      ? 'Review recipe'
-                      : _draft != null && !_editingSource
-                      ? 'Update recipe'
-                      : 'Prepare recipe',
+                      ? _review
+                      : _analyze,
+                  icon: _busy
+                      ? const SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.auto_awesome),
+                  label: Text(
+                    _busy
+                        ? 'Preparing recipe…'
+                        : _draft != null &&
+                              !_editingSource &&
+                              _questions.isEmpty
+                        ? 'Review recipe'
+                        : _draft != null && !_editingSource
+                        ? 'Update recipe'
+                        : 'Prepare recipe',
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ),

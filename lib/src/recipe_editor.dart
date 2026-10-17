@@ -45,6 +45,7 @@ class RecipeEditor extends StatefulWidget {
 class _RecipeEditorState extends State<RecipeEditor> {
   final _form = GlobalKey<FormState>();
   late final Map<String, dynamic> _draft;
+  bool get _blank => _draft['source_type'] == 'blank';
   bool _dirty = false, _saving = false, _picking = false, _leaving = false;
   bool _closing = false;
   final List<Map<String, dynamic>> _sourcePhotos = [];
@@ -124,6 +125,7 @@ class _RecipeEditorState extends State<RecipeEditor> {
       }
     }
     if (_draft['source_type'] != null &&
+        !_blank &&
         _draft['source_type'] != 'ai_variation') {
       _draft['source_type'] = recipeSourceLabel(_draft['source_type']);
     }
@@ -587,6 +589,11 @@ class _RecipeEditorState extends State<RecipeEditor> {
       if (mounted) setState(() => _revealingErrors = false);
       return;
     }
+    if (_blank && _rows('category_assignments').isEmpty) {
+      setState(() => _error = 'Choose at least one category.');
+      await _jumpTo('Recipe details');
+      return;
+    }
     for (final ingredient in _rows('ingredients')) {
       final decimal = ingredient['quantity_decimal'],
           numerator = ingredient['quantity_numerator'],
@@ -667,7 +674,10 @@ class _RecipeEditorState extends State<RecipeEditor> {
         _draft,
       );
       final savedRecipe = data['recipe'] as Map<String, dynamic>;
-      for (final category in recipeRows(savedRecipe['category_assignments'])) {
+      for (final category
+          in _blank
+              ? <Map<String, dynamic>>[]
+              : recipeRows(savedRecipe['category_assignments'])) {
         try {
           await widget.save(
             '/households/${widget.householdId}/category-image',
@@ -1744,7 +1754,7 @@ class _RecipeEditorState extends State<RecipeEditor> {
         leading: BackButton(onPressed: _close),
         title: Text(
           _draft['id'] == null
-              ? 'Review recipe'
+              ? (_blank ? 'Blank recipe' : 'Review recipe')
               : MediaQuery.sizeOf(context).width < 480
               ? 'Edit'
               : 'Edit recipe',
@@ -1779,15 +1789,20 @@ class _RecipeEditorState extends State<RecipeEditor> {
               scrollDirection: Axis.horizontal,
               child: Row(
                 children: [
-                  for (final entry in const {
-                    'Recipe details': 'Details',
-                    'Ingredients': 'Ingredients',
-                    'Steps & actions': 'Method',
-                    'Photos': 'Photos',
-                    'Notes & source': 'Notes',
-                    'Related recipes': 'Related',
-                    'Nutrition': 'Nutrition',
-                  }.entries)
+                  for (final entry
+                      in const {
+                        'Recipe details': 'Details',
+                        'Ingredients': 'Ingredients',
+                        'Steps & actions': 'Method',
+                        'Photos': 'Photos',
+                        'Notes & source': 'Notes',
+                        'Related recipes': 'Related',
+                        'Nutrition': 'Nutrition',
+                      }.entries.where(
+                        (e) =>
+                            !_blank ||
+                            ['Recipe details', 'Photos'].contains(e.key),
+                      ))
                     Padding(
                       padding: const EdgeInsets.only(right: 8),
                       child: ActionChip(
@@ -1915,68 +1930,76 @@ class _RecipeEditorState extends State<RecipeEditor> {
                         required: true,
                         maxLength: 300,
                       ),
-                      _field(_draft, 'description', 'Description', lines: 3),
-                      _columns([
-                        _field(
+                      if (_blank && _draft['id'] == null)
+                        _toggle(
                           _draft,
-                          'servings',
-                          'Servings',
-                          numeric: 'positive',
+                          'favorite_on_create',
+                          'Favorite this recipe',
                         ),
-                        _field(
-                          _draft,
-                          'yield_text',
-                          'Yield (e.g. 12 muffins)',
-                          maxLength: 200,
-                        ),
-                      ]),
-                      _columns([
-                        _compactTime(
-                          _draft,
-                          'prep_minutes',
-                          'Prep',
-                          minutesOnly: true,
-                        ),
-                        _compactTime(
-                          _draft,
-                          'cook_minutes',
-                          'Cook',
-                          minutesOnly: true,
-                        ),
-                        _compactTime(
-                          _draft,
-                          'total_minutes',
-                          'Total',
-                          minutesOnly: true,
-                        ),
-                      ], minWidth: 150),
-                      ExpansionTile(
-                        maintainState: true,
-                        controller: _controller('recipe-settings'),
-                        expansionAnimationStyle: _expansionStyle,
-                        tilePadding: EdgeInsets.zero,
-                        title: const Text('Language & measurements'),
-                        children: [
-                          _choice(
+                      if (!_blank) ...[
+                        _field(_draft, 'description', 'Description', lines: 3),
+                        _columns([
+                          _field(
                             _draft,
-                            'measurement_system',
-                            'Measurement system',
-                            const {
-                              'us': 'US customary',
-                              'metric': 'Metric',
-                              'mixed': 'Mixed',
-                              'unspecified': 'Unspecified',
-                            },
+                            'servings',
+                            'Servings',
+                            numeric: 'positive',
                           ),
                           _field(
                             _draft,
-                            'original_language',
-                            'Original language (e.g. en)',
-                            required: true,
-                            maxLength: 35,
+                            'yield_text',
+                            'Yield (e.g. 12 muffins)',
+                            maxLength: 200,
                           ),
-                        ],
-                      ),
+                        ]),
+                        _columns([
+                          _compactTime(
+                            _draft,
+                            'prep_minutes',
+                            'Prep',
+                            minutesOnly: true,
+                          ),
+                          _compactTime(
+                            _draft,
+                            'cook_minutes',
+                            'Cook',
+                            minutesOnly: true,
+                          ),
+                          _compactTime(
+                            _draft,
+                            'total_minutes',
+                            'Total',
+                            minutesOnly: true,
+                          ),
+                        ], minWidth: 150),
+                        ExpansionTile(
+                          maintainState: true,
+                          controller: _controller('recipe-settings'),
+                          expansionAnimationStyle: _expansionStyle,
+                          tilePadding: EdgeInsets.zero,
+                          title: const Text('Language & measurements'),
+                          children: [
+                            _choice(
+                              _draft,
+                              'measurement_system',
+                              'Measurement system',
+                              const {
+                                'us': 'US customary',
+                                'metric': 'Metric',
+                                'mixed': 'Mixed',
+                                'unspecified': 'Unspecified',
+                              },
+                            ),
+                            _field(
+                              _draft,
+                              'original_language',
+                              'Original language (e.g. en)',
+                              required: true,
+                              maxLength: 35,
+                            ),
+                          ],
+                        ),
+                      ],
                       const Divider(),
                       const Text(
                         'Categories & tags',
@@ -1991,55 +2014,62 @@ class _RecipeEditorState extends State<RecipeEditor> {
                                   .add({'_key': _id()}),
                         ),
                       ),
-                      ..._rows('tags').map(
-                        (r) => _item(
-                          r['label']?.toString() ?? 'New tag',
-                          _rows('tags'),
-                          r,
-                          [
-                            _choice(r, 'kind', 'Tag type', const {
-                              'cuisine': 'Cuisine',
-                              'category': 'Category tag',
-                              'technique': 'Technique',
-                              'equipment': 'Equipment',
+                      if (!_blank) ...[
+                        ..._rows('tags').map(
+                          (r) => _item(
+                            r['label']?.toString() ?? 'New tag',
+                            _rows('tags'),
+                            r,
+                            [
+                              _choice(r, 'kind', 'Tag type', const {
+                                'cuisine': 'Cuisine',
+                                'category': 'Category tag',
+                                'technique': 'Technique',
+                                'equipment': 'Equipment',
+                              }),
+                              _field(
+                                r,
+                                'label',
+                                'Tag',
+                                required: true,
+                                maxLength: 120,
+                              ),
+                            ],
+                          ),
+                        ),
+                        _add(
+                          'Add tag',
+                          () => _change(
+                            () => _rows('tags').add({
+                              '_key': _id(),
+                              'kind': 'cuisine',
+                              'label': '',
                             }),
-                            _field(
-                              r,
-                              'label',
-                              'Tag',
-                              required: true,
-                              maxLength: 120,
-                            ),
-                          ],
+                          ),
                         ),
-                      ),
-                      _add(
-                        'Add tag',
-                        () => _change(
-                          () => _rows('tags').add({
-                            '_key': _id(),
-                            'kind': 'cuisine',
-                            'label': '',
-                          }),
-                        ),
-                      ),
+                      ],
                     ], open: true),
-                    _section('Ingredients', Icons.shopping_basket_outlined, [
-                      ..._ingredientGroups(),
-                    ], subtitle: '${_rows('ingredients').length} ingredients'),
-                    _section('Steps & actions', Icons.format_list_numbered, [
-                      _help(
-                        'Open a step to edit it or add a timer or appliance temperature.',
+                    if (!_blank) ...[
+                      _section(
+                        'Ingredients',
+                        Icons.shopping_basket_outlined,
+                        [..._ingredientGroups()],
+                        subtitle: '${_rows('ingredients').length} ingredients',
                       ),
-                      ..._rows('steps').map(_step),
-                      _add(
-                        'Add step',
-                        () => _editStep({
-                          'id': _id(),
-                          'instruction': '',
-                        }, adding: true),
-                      ),
-                    ], subtitle: '${_rows('steps').length} steps'),
+                      _section('Steps & actions', Icons.format_list_numbered, [
+                        _help(
+                          'Open a step to edit it or add a timer or appliance temperature.',
+                        ),
+                        ..._rows('steps').map(_step),
+                        _add(
+                          'Add step',
+                          () => _editStep({
+                            'id': _id(),
+                            'instruction': '',
+                          }, adding: true),
+                        ),
+                      ], subtitle: '${_rows('steps').length} steps'),
+                    ],
                     _section(
                       'Photos',
                       Icons.photo_library_outlined,
@@ -2122,7 +2152,8 @@ class _RecipeEditorState extends State<RecipeEditor> {
                               icon: const Icon(Icons.camera_alt_outlined),
                               label: const Text('Use camera'),
                             ),
-                            if (_rows('photos').isEmpty &&
+                            if (!_blank &&
+                                _rows('photos').isEmpty &&
                                 _sourcePhotos.isEmpty &&
                                 !_loadingSourcePhotos &&
                                 recipeRows(widget.recipe['photos']).isEmpty)
@@ -2140,9 +2171,10 @@ class _RecipeEditorState extends State<RecipeEditor> {
                               ),
                           ],
                         ),
-                        if ((_draft['edit_options']
-                                as Map?)?['ai_images_enabled'] ==
-                            false)
+                        if (!_blank &&
+                            (_draft['edit_options']
+                                    as Map?)?['ai_images_enabled'] ==
+                                false)
                           _help(
                             'AI image generation is disabled for this household. Ask the application administrator to enable it.',
                           ),
@@ -2157,7 +2189,8 @@ class _RecipeEditorState extends State<RecipeEditor> {
                               ),
                             ),
                           ),
-                        if (_rows('photos').isEmpty &&
+                        if (!_blank &&
+                            _rows('photos').isEmpty &&
                             _sourcePhotos.isEmpty &&
                             !_loadingSourcePhotos &&
                             recipeRows(widget.recipe['photos']).isEmpty)
@@ -2170,131 +2203,133 @@ class _RecipeEditorState extends State<RecipeEditor> {
                       subtitle:
                           '${_rows('photos').length} ${_rows('photos').length == 1 ? 'photo' : 'photos'}${_sourcePhotos.isEmpty ? '' : ' · ${_sourcePhotos.length} suggested from import'}',
                     ),
-                    _section('Notes & source', Icons.notes_outlined, [
-                      _field(_draft, 'notes', 'Recipe notes', lines: 3),
-                      if (_draft['source_type'] == 'ai_variation')
-                        _help(
-                          'Recipe source: ${recipeSourceLabel(_draft['source_type'])}',
-                        )
-                      else
-                        _field(
-                          _draft,
-                          'source_type',
-                          'Recipe source',
-                          maxLength: 40,
-                        ),
-                      _field(
-                        _draft,
-                        'source_title',
-                        'Source title',
-                        maxLength: 500,
-                      ),
-                      _field(
-                        _draft,
-                        'source_author',
-                        'Source author',
-                        maxLength: 300,
-                      ),
-                      _field(
-                        _draft,
-                        'source_url',
-                        'Source URL',
-                        maxLength: 4000,
-                      ),
-                      _field(
-                        _draft,
-                        'source_reference',
-                        'Source reference',
-                        lines: 2,
-                      ),
-                    ]),
-                    _section('Related recipes', Icons.link, [
-                      if (widget.variationParentTitle != null)
-                        _help('Parent recipe: ${widget.variationParentTitle}')
-                      else
-                        _choice(
-                          _draft,
-                          'parent_recipe_id',
-                          'Original recipe (for a variation)',
-                          _recipeChoices,
-                          nullable: true,
-                        ),
-                      ..._rows('pairings').map(
-                        (r) => _item(
-                          r['title']?.toString() ?? 'Pairing',
-                          _rows('pairings'),
-                          r,
-                          [
-                            _choice(r, 'id', 'Pairs with', _recipeChoices),
-                            _field(r, 'notes', 'Pairing notes', lines: 2),
-                          ],
-                        ),
-                      ),
-                      _add(
-                        'Add pairing',
-                        () => _change(
-                          () => _rows('pairings').add({'_key': _id()}),
-                        ),
-                      ),
-                    ]),
-                    _section('Nutrition', Icons.monitor_heart_outlined, [
-                      SwitchListTile.adaptive(
-                        contentPadding: EdgeInsets.zero,
-                        title: const Text('Include nutrition information'),
-                        value: _draft['nutrition'] != null,
-                        onChanged: (value) => _change(
-                          () => _draft['nutrition'] = value
-                              ? {
-                                  'basis': 'per_serving',
-                                  'method': 'manual',
-                                  'is_estimate': true,
-                                }
-                              : null,
-                        ),
-                      ),
-                      if (_draft['nutrition']
-                          case final Map<String, dynamic> n) ...[
-                        _choice(n, 'basis', 'Nutrition basis', const {
-                          'per_serving': 'Per serving',
-                          'whole_recipe': 'Whole recipe',
-                        }),
-                        for (final entry in const {
-                          'calories_kcal': 'Calories (kcal)',
-                          'protein_g': 'Protein (g)',
-                          'carbohydrate_g': 'Carbohydrates (g)',
-                          'fat_g': 'Fat (g)',
-                          'saturated_fat_g': 'Saturated fat (g)',
-                          'fiber_g': 'Fiber (g)',
-                          'sugar_g': 'Sugar (g)',
-                          'sodium_mg': 'Sodium (mg)',
-                        }.entries)
+                    if (!_blank) ...[
+                      _section('Notes & source', Icons.notes_outlined, [
+                        _field(_draft, 'notes', 'Recipe notes', lines: 3),
+                        if (_draft['source_type'] == 'ai_variation')
+                          _help(
+                            'Recipe source: ${recipeSourceLabel(_draft['source_type'])}',
+                          )
+                        else
                           _field(
-                            n,
-                            entry.key,
-                            entry.value,
-                            numeric: 'nonnegative',
+                            _draft,
+                            'source_type',
+                            'Recipe source',
+                            maxLength: 40,
                           ),
                         _field(
-                          n,
-                          'method',
-                          'Calculation method',
-                          required: true,
-                          maxLength: 100,
+                          _draft,
+                          'source_title',
+                          'Source title',
+                          maxLength: 500,
                         ),
                         _field(
-                          n,
+                          _draft,
+                          'source_author',
+                          'Source author',
+                          maxLength: 300,
+                        ),
+                        _field(
+                          _draft,
+                          'source_url',
+                          'Source URL',
+                          maxLength: 4000,
+                        ),
+                        _field(
+                          _draft,
                           'source_reference',
-                          'Nutrition source',
+                          'Source reference',
                           lines: 2,
                         ),
-                        _toggle(n, 'is_estimate', 'Estimated values'),
-                        _toggle(
-                          _draft,
-                          'nutrition_confirmed',
-                          'These values apply to the edited recipe',
+                      ]),
+                      _section('Related recipes', Icons.link, [
+                        if (widget.variationParentTitle != null)
+                          _help('Parent recipe: ${widget.variationParentTitle}')
+                        else
+                          _choice(
+                            _draft,
+                            'parent_recipe_id',
+                            'Original recipe (for a variation)',
+                            _recipeChoices,
+                            nullable: true,
+                          ),
+                        ..._rows('pairings').map(
+                          (r) => _item(
+                            r['title']?.toString() ?? 'Pairing',
+                            _rows('pairings'),
+                            r,
+                            [
+                              _choice(r, 'id', 'Pairs with', _recipeChoices),
+                              _field(r, 'notes', 'Pairing notes', lines: 2),
+                            ],
+                          ),
                         ),
-                      ],
-                    ]),
+                        _add(
+                          'Add pairing',
+                          () => _change(
+                            () => _rows('pairings').add({'_key': _id()}),
+                          ),
+                        ),
+                      ]),
+                      _section('Nutrition', Icons.monitor_heart_outlined, [
+                        SwitchListTile.adaptive(
+                          contentPadding: EdgeInsets.zero,
+                          title: const Text('Include nutrition information'),
+                          value: _draft['nutrition'] != null,
+                          onChanged: (value) => _change(
+                            () => _draft['nutrition'] = value
+                                ? {
+                                    'basis': 'per_serving',
+                                    'method': 'manual',
+                                    'is_estimate': true,
+                                  }
+                                : null,
+                          ),
+                        ),
+                        if (_draft['nutrition']
+                            case final Map<String, dynamic> n) ...[
+                          _choice(n, 'basis', 'Nutrition basis', const {
+                            'per_serving': 'Per serving',
+                            'whole_recipe': 'Whole recipe',
+                          }),
+                          for (final entry in const {
+                            'calories_kcal': 'Calories (kcal)',
+                            'protein_g': 'Protein (g)',
+                            'carbohydrate_g': 'Carbohydrates (g)',
+                            'fat_g': 'Fat (g)',
+                            'saturated_fat_g': 'Saturated fat (g)',
+                            'fiber_g': 'Fiber (g)',
+                            'sugar_g': 'Sugar (g)',
+                            'sodium_mg': 'Sodium (mg)',
+                          }.entries)
+                            _field(
+                              n,
+                              entry.key,
+                              entry.value,
+                              numeric: 'nonnegative',
+                            ),
+                          _field(
+                            n,
+                            'method',
+                            'Calculation method',
+                            required: true,
+                            maxLength: 100,
+                          ),
+                          _field(
+                            n,
+                            'source_reference',
+                            'Nutrition source',
+                            lines: 2,
+                          ),
+                          _toggle(n, 'is_estimate', 'Estimated values'),
+                          _toggle(
+                            _draft,
+                            'nutrition_confirmed',
+                            'These values apply to the edited recipe',
+                          ),
+                        ],
+                      ]),
+                    ],
                   ],
                 ),
               ),
