@@ -20,18 +20,25 @@ class RecipeImportChoices extends StatelessWidget {
     this.selectedKind,
     this.includeBlank = false,
     this.enabled = true,
+    this.actionButtons = false,
   });
   final ValueChanged<String> onSelected;
   final String? selectedKind;
   final bool includeBlank;
   final bool enabled;
+  final bool actionButtons;
   @override
   Widget build(BuildContext context) => GridView(
-    gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-      crossAxisCount: 2,
-      mainAxisExtent: 48,
-      crossAxisSpacing: 8,
-      mainAxisSpacing: 8,
+    gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+      crossAxisCount:
+          actionButtons &&
+              MediaQuery.textScalerOf(context).scale(14) > 18 &&
+              MediaQuery.sizeOf(context).width < 600
+          ? 1
+          : 2,
+      mainAxisExtent: actionButtons ? 54 : 48,
+      crossAxisSpacing: actionButtons ? 12 : 8,
+      mainAxisSpacing: actionButtons ? 12 : 8,
     ),
     shrinkWrap: true,
     physics: const NeverScrollableScrollPhysics(),
@@ -43,14 +50,33 @@ class RecipeImportChoices extends StatelessWidget {
         ('camera', 'Camera', Icons.camera_alt_outlined),
         if (includeBlank) ('blank', 'Blank recipe', Icons.note_add_outlined),
       ])
-        ChoiceChip(
-          avatar: Icon(option.$3, size: 18),
-          label: Text(option.$2),
-          selected: option.$1 == selectedKind,
-          onSelected: !enabled || (option.$1 == 'blank' && offlineStatus.value)
-              ? null
-              : (_) => onSelected(option.$1),
-        ),
+        if (actionButtons)
+          OutlinedButton.icon(
+            onPressed: enabled ? () => onSelected(option.$1) : null,
+            style: OutlinedButton.styleFrom(
+              alignment: Alignment.centerLeft,
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+              backgroundColor: Theme.of(context).colorScheme.surface,
+              side: BorderSide(
+                color: Theme.of(context).colorScheme.outlineVariant,
+              ),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+            ),
+            icon: Icon(option.$3, size: 20),
+            label: Text(option.$2, maxLines: 1, softWrap: false),
+          )
+        else
+          ChoiceChip(
+            avatar: Icon(option.$3, size: 18),
+            label: Text(option.$2),
+            selected: option.$1 == selectedKind,
+            onSelected:
+                !enabled || (option.$1 == 'blank' && offlineStatus.value)
+                ? null
+                : (_) => onSelected(option.$1),
+          ),
     ],
   );
 }

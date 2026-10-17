@@ -17,6 +17,7 @@ import 'recipe_value.dart';
 import 'recipe_source_links.dart';
 import 'recipe_variation.dart';
 import 'recipe_import.dart';
+import 'blank_recipe_detail.dart';
 import 'recipe_favorites.dart';
 import 'recipe_image_prefetch.dart';
 
@@ -1278,7 +1279,27 @@ class _RecipeDetailState extends State<RecipeDetail> {
   Widget build(BuildContext context) => Scaffold(
     appBar: AppBar(
       leading: BackButton(onPressed: () => Navigator.of(context).pop()),
-      title: Text(_recipe?['title'] as String? ?? widget.title),
+      title: Text(
+        _recipe?['source_type'] == 'blank'
+            ? 'Blank recipe'
+            : _recipe?['title'] as String? ?? widget.title,
+      ),
+      actions: [
+        if (_recipe?['source_type'] == 'blank' &&
+            widget.save != null &&
+            _recipe?['in_household'] != false) ...[
+          IconButton(
+            tooltip: 'Edit name, category or picture',
+            onPressed: _deleting ? null : _edit,
+            icon: const Icon(Icons.edit_outlined),
+          ),
+          IconButton(
+            tooltip: 'Delete recipe',
+            onPressed: _deleting ? null : _delete,
+            icon: const Icon(Icons.delete_outline),
+          ),
+        ],
+      ],
     ),
     body: _error != null
         ? Center(
@@ -1296,7 +1317,32 @@ class _RecipeDetailState extends State<RecipeDetail> {
   );
 
   Widget _content(Map<String, dynamic> recipe) {
-    final blank = recipe['source_type'] == 'blank';
+    if (recipe['source_type'] == 'blank') {
+      final editable =
+          widget.save != null && recipe['in_household'] != false && !_deleting;
+      return BlankRecipeDetail(
+        title: recipe['title'] as String,
+        photos: distinctRecipePhotos(recipeRows(recipe['photos'])),
+        favorite: _favoriteMembers.any(
+          (p) => '${p['id']}' == _currentPerson && _isFavorite(p),
+        ),
+        favoriteNames: _favoriteMembers
+            .where(_isFavorite)
+            .map((p) => p['display_name'])
+            .join(' and '),
+        showFavorite: widget.save != null && recipe['in_household'] != false,
+        onFavorite: editable && !_favoriteBusy ? () => _favorite() : null,
+        onHouseholdFavorites: editable && !_favoriteBusy
+            ? () => _favorite(household: true)
+            : null,
+        onPicture: editable ? _edit : null,
+        onImport: editable ? _importBlank : null,
+        onAttach: widget.save != null && recipe['in_household'] == false
+            ? _attach
+            : null,
+        offline: offlineStatus.value,
+      );
+    }
     final ingredients = recipeRows(recipe['ingredients']);
     final groups = recipeRows(recipe['groups']);
     final steps = recipeRows(recipe['steps']);
@@ -1333,22 +1379,17 @@ class _RecipeDetailState extends State<RecipeDetail> {
                     if (widget.save != null &&
                         _recipe?['in_household'] != false)
                       IconButton(
-                        tooltip: blank
-                            ? 'Edit name, category or picture'
-                            : 'Edit recipe',
+                        tooltip: 'Edit recipe',
                         onPressed: _deleting ? null : _edit,
                         icon: const Icon(Icons.edit_outlined),
                       ),
-                    if (!blank)
-                      Builder(
-                        builder: (anchor) => IconButton(
-                          tooltip: 'Share recipe',
-                          icon: const Icon(Icons.share),
-                          onPressed: _sharing
-                              ? null
-                              : () => _shareRecipe(anchor),
-                        ),
+                    Builder(
+                      builder: (anchor) => IconButton(
+                        tooltip: 'Share recipe',
+                        icon: const Icon(Icons.share),
+                        onPressed: _sharing ? null : () => _shareRecipe(anchor),
                       ),
+                    ),
                     if (widget.save != null &&
                         _recipe?['in_household'] != false)
                       IconButton(
@@ -1428,41 +1469,18 @@ class _RecipeDetailState extends State<RecipeDetail> {
               ],
             ),
             const SizedBox(height: 16),
-            if (blank)
-              const Align(
-                alignment: Alignment.centerLeft,
-                child: Chip(label: Text('Blank recipe')),
-              ),
-            if (blank &&
-                widget.save != null &&
-                recipe['in_household'] != false) ...[
-              _heading('Import recipe'),
-              RecipeImportChoices(
-                enabled: !_deleting && !offlineStatus.value,
-                onSelected: _importBlank,
-              ),
-            ],
-            if (blank && widget.save != null && recipe['in_household'] != false)
-              OutlinedButton.icon(
-                onPressed: _deleting ? null : _edit,
-                icon: const Icon(Icons.add_photo_alternate_outlined),
-                label: Text(photos.isEmpty ? 'Add picture' : 'Edit picture'),
-              ),
-            if (!blank)
-              FilledButton.icon(
-                onPressed: steps.isEmpty
-                    ? null
-                    : () => Navigator.of(context).push(
-                        MaterialPageRoute<void>(
-                          builder: (_) => CookingMode(recipe: recipe),
-                        ),
+            FilledButton.icon(
+              onPressed: steps.isEmpty
+                  ? null
+                  : () => Navigator.of(context).push(
+                      MaterialPageRoute<void>(
+                        builder: (_) => CookingMode(recipe: recipe),
                       ),
-                icon: const Icon(Icons.soup_kitchen_outlined),
-                label: const Text('Start cooking'),
-              ),
-            if (!blank &&
-                widget.save != null &&
-                _recipe?['in_household'] != false)
+                    ),
+              icon: const Icon(Icons.soup_kitchen_outlined),
+              label: const Text('Start cooking'),
+            ),
+            if (widget.save != null && _recipe?['in_household'] != false)
               Padding(
                 padding: const EdgeInsets.only(top: 12),
                 child: OutlinedButton.icon(
@@ -1473,7 +1491,7 @@ class _RecipeDetailState extends State<RecipeDetail> {
                   label: const Text('Request variation'),
                 ),
               ),
-            if (!blank && recipe['description'] != null)
+            if (recipe['description'] != null)
               Padding(
                 padding: const EdgeInsets.only(top: 16),
                 child: Text(
@@ -1481,7 +1499,7 @@ class _RecipeDetailState extends State<RecipeDetail> {
                   style: Theme.of(context).textTheme.bodyLarge,
                 ),
               ),
-            if (!blank && summary.isNotEmpty)
+            if (summary.isNotEmpty)
               Padding(
                 padding: const EdgeInsets.only(top: 12),
                 child: Text(summary),
@@ -1501,83 +1519,80 @@ class _RecipeDetailState extends State<RecipeDetail> {
                     Chip(label: Text('${tag['label']}')),
               ],
             ),
-            if (!blank) ...[
-              _heading('Ingredients'),
-              if (ingredients.isEmpty) const Text('No ingredients recorded.'),
-              for (final groupId in <String?>[
-                null,
-                ...groups.map((g) => g['id'] as String),
-              ]) ...[
-                if (groupId != null)
-                  Padding(
-                    padding: const EdgeInsets.only(top: 12, bottom: 8),
-                    child: Text(
-                      groups.firstWhere((g) => g['id'] == groupId)['title']
-                          as String,
-                      style: Theme.of(context).textTheme.titleMedium,
-                    ),
-                  ),
-                for (final ingredient in ingredients.where(
-                  (i) => i['group_id'] == groupId,
-                ))
-                  Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 6),
-                    child: Text(
-                      '• ${ingredient['original_text']}',
-                      style: Theme.of(context).textTheme.bodyLarge,
-                    ),
-                  ),
-              ],
-              _heading('Method'),
-              if (steps.isEmpty) const Text('No cooking steps recorded.'),
-              for (final step in steps)
+            _heading('Ingredients'),
+            if (ingredients.isEmpty) const Text('No ingredients recorded.'),
+            for (final groupId in <String?>[
+              null,
+              ...groups.map((g) => g['id'] as String),
+            ]) ...[
+              if (groupId != null)
                 Padding(
-                  padding: const EdgeInsets.only(bottom: 20),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      if (step['section_title']?.toString().trim().isNotEmpty ==
-                          true)
-                        Text(
-                          '${step['position']}. ${step['section_title']}',
-                          style: Theme.of(context).textTheme.titleMedium,
-                        ),
-                      Text(
-                        '${step['section_title']?.toString().trim().isNotEmpty == true ? '' : '${step['position']}. '}${step['instruction']}',
-                        style: Theme.of(context).textTheme.bodyLarge
-                            ?.copyWith(height: 1.6),
-                      ),
-                      for (final action in actions.where(
-                        (a) => a['step_id'] == step['id'],
-                      ))
-                        Padding(
-                          padding: const EdgeInsets.only(top: 8),
-                          child: Chip(
-                            avatar: Icon(
-                              action['temperature_value'] != null
-                                  ? Icons.thermostat
-                                  : Icons.timer_outlined,
-                            ),
-                            label: Text(
-                              [
-                                if (action['label'] != null)
-                                  '${action['label']}',
-                                if (action['duration_seconds'] != null)
-                                  formatRecipeTime(action['duration_seconds']),
-                                if (action['temperature_value'] != null)
-                                  '${recipeValue(action['temperature_value'])}°${action['temperature_unit']}',
-                                if (action['label'] == null &&
-                                    action['duration_seconds'] == null &&
-                                    action['temperature_value'] == null)
-                                  '${action['action_type']}',
-                              ].join(' · '),
-                            ),
-                          ),
-                        ),
-                    ],
+                  padding: const EdgeInsets.only(top: 12, bottom: 8),
+                  child: Text(
+                    groups.firstWhere((g) => g['id'] == groupId)['title']
+                        as String,
+                    style: Theme.of(context).textTheme.titleMedium,
+                  ),
+                ),
+              for (final ingredient in ingredients.where(
+                (i) => i['group_id'] == groupId,
+              ))
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 6),
+                  child: Text(
+                    '• ${ingredient['original_text']}',
+                    style: Theme.of(context).textTheme.bodyLarge,
                   ),
                 ),
             ],
+            _heading('Method'),
+            if (steps.isEmpty) const Text('No cooking steps recorded.'),
+            for (final step in steps)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 20),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    if (step['section_title']?.toString().trim().isNotEmpty ==
+                        true)
+                      Text(
+                        '${step['position']}. ${step['section_title']}',
+                        style: Theme.of(context).textTheme.titleMedium,
+                      ),
+                    Text(
+                      '${step['section_title']?.toString().trim().isNotEmpty == true ? '' : '${step['position']}. '}${step['instruction']}',
+                      style: Theme.of(context).textTheme.bodyLarge
+                          ?.copyWith(height: 1.6),
+                    ),
+                    for (final action in actions.where(
+                      (a) => a['step_id'] == step['id'],
+                    ))
+                      Padding(
+                        padding: const EdgeInsets.only(top: 8),
+                        child: Chip(
+                          avatar: Icon(
+                            action['temperature_value'] != null
+                                ? Icons.thermostat
+                                : Icons.timer_outlined,
+                          ),
+                          label: Text(
+                            [
+                              if (action['label'] != null) '${action['label']}',
+                              if (action['duration_seconds'] != null)
+                                formatRecipeTime(action['duration_seconds']),
+                              if (action['temperature_value'] != null)
+                                '${recipeValue(action['temperature_value'])}°${action['temperature_unit']}',
+                              if (action['label'] == null &&
+                                  action['duration_seconds'] == null &&
+                                  action['temperature_value'] == null)
+                                '${action['action_type']}',
+                            ].join(' · '),
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
             if (_favoriteMembers.any(_isFavorite))
               Padding(
                 padding: const EdgeInsets.symmetric(vertical: 12),
@@ -1585,11 +1600,11 @@ class _RecipeDetailState extends State<RecipeDetail> {
                   'Favorite of ${_favoriteMembers.where(_isFavorite).map((p) => p['display_name']).join(' and ')}',
                 ),
               ),
-            if (!blank && recipe['notes'] != null) ...[
+            if (recipe['notes'] != null) ...[
               _heading('Notes'),
               Text(recipe['notes'] as String),
             ],
-            if (!blank && nutrition != null) ...[
+            if (nutrition != null) ...[
               _heading('Nutrition'),
               Text(
                 '${nutrition['is_estimate'] == 1 ? 'Estimated' : 'Reported'} · ${nutrition['basis'] == 'per_serving' ? 'Per serving' : 'Whole recipe'}',
@@ -1621,7 +1636,7 @@ class _RecipeDetailState extends State<RecipeDetail> {
               ),
               Text('Method: ${nutrition['method']}'),
             ],
-            if (!blank && recipeRows(recipe['pairings']).isNotEmpty) ...[
+            if (recipeRows(recipe['pairings']).isNotEmpty) ...[
               _heading('Serve alongside'),
               for (final row in recipeRows(recipe['pairings']))
                 ListTile(
@@ -1631,14 +1646,13 @@ class _RecipeDetailState extends State<RecipeDetail> {
                   onTap: () => _openRelated(row),
                 ),
             ],
-            if (!blank &&
-                [
-                  'source_type',
-                  'source_title',
-                  'source_author',
-                  'source_url',
-                  'source_reference',
-                ].any((key) => recipe[key] != null)) ...[
+            if ([
+              'source_type',
+              'source_title',
+              'source_author',
+              'source_url',
+              'source_reference',
+            ].any((key) => recipe[key] != null)) ...[
               _heading('Source'),
               for (final key in [
                 'source_type',
