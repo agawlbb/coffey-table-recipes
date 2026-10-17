@@ -1,5 +1,11 @@
 # Signed iOS builds and TestFlight
 
+## Read-only delivery verification
+
+`testflight-status.yml` runs on Ubuntu and creates no app package. Dispatch with the exact marketing version and build number after upload. It uses the existing App Store Connect secrets only to sign a short-lived API token and sends GET requests to Apple's fixed API origin without redirects. It requires matching version/build, VALID processing, an unexpired build, the exempt-encryption declaration, an internal-ready build state and an existing internal group. Status output excludes tokens, keys and tester contact details. It never changes compliance, groups, testers or distribution. Two local Node tests verify the JWT signature and reject wrong-version, processing, expired, missing-compliance and missing-internal-group cases. This tooling was added during 1.6.0 delivery because no built-in browser was available; it does not alter the immutable app release tag.
+
+Apple references: [List builds](https://developer.apple.com/documentation/appstoreconnectapi/get-v1-builds) and [build beta details](https://developer.apple.com/documentation/appstoreconnectapi/get-v1-buildbetadetails).
+
 Current status (2026-10-13): Apple app/extension/App Group registration is complete.
 The current team API key was verified as Admin and its private PEM downloaded and
 verified through Chrome. After owner GitHub account verification, the current key

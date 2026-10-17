@@ -1,0 +1,29 @@
+name: Verify TestFlight delivery
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Marketing version to verify
+        required: true
+        type: string
+      build_number:
+        description: Uploaded build number to verify
+        required: true
+        type: string
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 18
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - run: node --test tool/test_check_testflight.mjs
+      - name: Read Apple processing, compliance and existing internal access
+        env:
+          APP_VERSION: ${{ inputs.version }}
+          BUILD_NUMBER: ${{ inputs.build_number }}
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+          ASC_PRIVATE_KEY: ${{ secrets.ASC_PRIVATE_KEY }}
+        run: node tool/check-testflight.mjs
