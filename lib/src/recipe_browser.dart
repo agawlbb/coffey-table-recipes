@@ -1397,9 +1397,17 @@ class _RecipeDetailState extends State<RecipeDetail> {
                                   child: Text(row['title'] as String),
                                 ),
                             ],
-                            child: Padding(
+                            child: Container(
+                              constraints: const BoxConstraints(minHeight: 44),
+                              decoration: BoxDecoration(
+                                border: Border.all(
+                                  color: const Color(0xffa12c21)
+                                      .withValues(alpha: .35),
+                                ),
+                                borderRadius: BorderRadius.circular(10),
+                              ),
                               padding: const EdgeInsets.symmetric(
-                                horizontal: 4,
+                                horizontal: 8,
                                 vertical: 8,
                               ),
                               child: Row(
@@ -1412,15 +1420,19 @@ class _RecipeDetailState extends State<RecipeDetail> {
                                       overflow: TextOverflow.ellipsis,
                                       style: Theme.of(context)
                                           .textTheme
-                                          .labelLarge
+                                          .titleMedium
                                           ?.copyWith(
-                                            color: Theme.of(context)
-                                                .colorScheme
-                                                .primary,
+                                            fontSize: 18,
+                                            fontWeight: FontWeight.w600,
+                                            color: const Color(0xffa12c21),
                                           ),
                                     ),
                                   ),
-                                  const Icon(Icons.arrow_drop_down, size: 18),
+                                  const Icon(
+                                    Icons.arrow_drop_down,
+                                    size: 24,
+                                    color: Color(0xffa12c21),
+                                  ),
                                 ],
                               ),
                             ),
