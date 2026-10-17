@@ -205,21 +205,12 @@ class _TimerSettingsState extends State<TimerSettings> {
                           title: const Text(
                             'Receive timers from other devices',
                           ),
-                          subtitle: Text(
-                            signedIn
-                                ? 'Mirror timers started on other devices signed in to your account. Applies to this device only. Opening the app may be needed to finish syncing.'
-                                : 'Sign in to receive timers from your other devices.',
-                          ),
                           value: enabled,
                           onChanged: signedIn && !_syncSaving ? _receive : null,
                         ),
                       ),
                 ),
                 if (_syncSaving) const LinearProgressIndicator(),
-                const SizedBox(height: 8),
-                const Text(
-                  'Turning this off stops received timers on this device. Timers you start here can still be shared to your other enabled devices.',
-                ),
                 ValueListenableBuilder<String?>(
                   valueListenable: timerSync.status,
                   builder: (context, message, _) => message == null
