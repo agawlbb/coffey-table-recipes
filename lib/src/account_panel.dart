@@ -1,10 +1,16 @@
+import 'account_menu.dart';
+
 import 'dart:async';
+import 'dart:convert';
+
+import 'offline_store.dart';
 
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import 'api.dart';
+import 'native_timers.dart';
 import 'app_version_label.dart';
 import 'administration.dart';
 import 'administration_window.dart';
@@ -454,6 +460,9 @@ class _HouseholdPanelState extends State<HouseholdPanel> {
     String path, {
     Map<String, dynamic>? body,
   }) async {
+    if (body == null && isPublicRecipeRead(path)) {
+      return _api.request(path, '');
+    }
     final token = await _idToken();
     if (token == null) throw ApiException(401, 'Please sign in again.');
     try {
@@ -532,6 +541,25 @@ class _HouseholdPanelState extends State<HouseholdPanel> {
   }
 
   Future<void> _load({bool reviewInvitations = true}) async {
+    // This cache chooses public browsing only. It never authorizes a mutation,
+    // exposes account data, or substitutes for authenticated /me responses.
+    final browseKey = 'browse-households|$apiBaseUrl|${widget.user.uid}';
+    if (_households.isEmpty && widget.request == null) {
+      try {
+        final cached = await readOfflineStore(browseKey);
+        if (cached != null && mounted) {
+          final households = List<Map<String, dynamic>>.from(
+            jsonDecode(cached) as List,
+          );
+          _households = households;
+          _selected = households.isEmpty
+              ? null
+              : households.first['id'] as String;
+        }
+      } catch (_) {
+        /* A missing or corrupt browsing preference needs no error. */
+      }
+    }
     await _perform(() async {
       if (widget.request == null && !offlineStatus.value) {
         if (_entryReturnedFromVerification) await widget.user.reload();
@@ -552,6 +580,20 @@ class _HouseholdPanelState extends State<HouseholdPanel> {
       );
       if (!mounted) return;
       _households = households;
+      if (widget.request == null) {
+        try {
+          await writeOfflineStore(
+            browseKey,
+            jsonEncode(
+              households
+                  .map((h) => {'id': h['id'], 'name': h['name']})
+                  .toList(),
+            ),
+          );
+        } catch (_) {
+          /* Browsing does not depend on local storage availability. */
+        }
+      }
       _invitations = List<Map<String, dynamic>>.from(
         data['invitations'] as List? ?? [],
       );
@@ -843,11 +885,21 @@ class _HouseholdPanelState extends State<HouseholdPanel> {
                 child: Text(name, maxLines: 1, overflow: TextOverflow.ellipsis),
               ),
             ),
-          PopupMenuButton<String>(
-            tooltip: 'User menu',
+          AccountMenu(
+            name: name,
+            email: widget.user.email,
             enabled: !_accountBusy,
-            position: PopupMenuPosition.under,
+            canEditTableName: !_busy && _ownPerson != null,
+            showTimers: NativeTimers.supported,
+            administrator: _administrator,
             onSelected: (value) {
+              if (value == 'timers') {
+                Navigator.of(context).push(
+                  MaterialPageRoute<void>(
+                    builder: (_) => const TimerSettings(),
+                  ),
+                );
+              }
               if (value == 'name') _changeDisplayName();
               if (value == 'tableName') _changeTableName();
               if (value == 'administration') _openAdministration();
@@ -857,68 +909,6 @@ class _HouseholdPanelState extends State<HouseholdPanel> {
                 if (!_busy) _perform(_loadPeople);
               }
             },
-            itemBuilder: (_) => [
-              PopupMenuItem<String>(
-                enabled: false,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(name, style: Theme.of(context).textTheme.titleSmall),
-                    if (widget.user.email != null) Text(widget.user.email!),
-                  ],
-                ),
-              ),
-              const PopupMenuDivider(),
-              PopupMenuItem(
-                value: 'tableName',
-                enabled: !_busy && _ownPerson != null,
-                child: const ListTile(
-                  leading: Icon(Icons.badge_outlined),
-                  title: Text('Change name at the table'),
-                  contentPadding: EdgeInsets.zero,
-                ),
-              ),
-              const PopupMenuItem(
-                value: 'name',
-                child: ListTile(
-                  leading: Icon(Icons.person_outline),
-                  title: Text('Change account display name'),
-                  contentPadding: EdgeInsets.zero,
-                ),
-              ),
-              const PopupMenuItem(
-                value: 'household',
-                child: ListTile(
-                  leading: Icon(Icons.people_outline),
-                  title: Text('Household & people'),
-                  contentPadding: EdgeInsets.zero,
-                ),
-              ),
-              if (_administrator)
-                const PopupMenuItem(
-                  value: 'administration',
-                  child: ListTile(
-                    leading: Icon(Icons.admin_panel_settings_outlined),
-                    title: Text('Administration'),
-                    contentPadding: EdgeInsets.zero,
-                  ),
-                ),
-              const PopupMenuDivider(),
-              const PopupMenuItem(
-                value: 'logout',
-                child: ListTile(
-                  leading: Icon(Icons.logout),
-                  title: Text('Log out'),
-                  contentPadding: EdgeInsets.zero,
-                ),
-              ),
-            ],
-            icon: CircleAvatar(
-              radius: 16,
-              child: Text(
-                name.isEmpty ? '?' : name.substring(0, 1).toUpperCase(),
-              ),
-            ),
           ),
         ],
       ),

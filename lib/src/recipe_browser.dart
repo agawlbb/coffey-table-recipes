@@ -302,6 +302,7 @@ class _RecipeBrowserState extends State<RecipeBrowser>
   }
 
   void _returnToLevel(int depth) {
+    FocusScope.of(context).unfocus();
     setState(() {
       _trail.removeRange(depth, _trail.length);
       _search.clear();
@@ -354,11 +355,15 @@ class _RecipeBrowserState extends State<RecipeBrowser>
             padding: const EdgeInsets.all(20),
             child: TextField(
               controller: _search,
+              onTapOutside: (_) => FocusScope.of(context).unfocus(),
               mouseCursor: kIsWeb
                   ? SystemMouseCursors.basic
                   : SystemMouseCursors.text,
               textInputAction: TextInputAction.search,
-              onSubmitted: (_) => _load(useCached: true),
+              onSubmitted: (_) {
+                FocusScope.of(context).unfocus();
+                _load(useCached: true);
+              },
               onChanged: (_) => _load(useCached: true),
               decoration: InputDecoration(
                 labelText: _trail.isEmpty
@@ -397,7 +402,7 @@ class _RecipeBrowserState extends State<RecipeBrowser>
                 children: [
                   if (_trail.isNotEmpty || _query.isNotEmpty)
                     IconButton(
-                      onPressed: _busy ? null : _back,
+                      onPressed: _back,
                       icon: const Icon(Icons.arrow_back),
                       tooltip: 'Back one level',
                     ),
@@ -405,7 +410,7 @@ class _RecipeBrowserState extends State<RecipeBrowser>
                     if (depth > 0) const Icon(Icons.chevron_right, size: 18),
                     TextButton(
                       key: ValueKey('recipe-breadcrumb-$depth'),
-                      onPressed: _busy ? null : () => _returnToLevel(depth),
+                      onPressed: () => _returnToLevel(depth),
                       child: Text(
                         depth == 0
                             ? 'All Recipes'
@@ -663,7 +668,7 @@ class _RecipeDetailState extends State<RecipeDetail> {
       builder: (context) => AlertDialog(
         title: const Text('Delete recipe?'),
         content: const Text(
-          'Move this recipe to Recently Deleted? You can restore it for 30 days. It will then be permanently removed.',
+          'Remove this recipe from this household? Other households keep it. If this is the last household, it moves to Recently Deleted for 30 days before permanent removal.',
         ),
         actions: [
           TextButton(
@@ -683,17 +688,29 @@ class _RecipeDetailState extends State<RecipeDetail> {
     final save = widget.save!;
     final onChanged = widget.onChanged;
     try {
-      await save('$path/delete', {'revision': _recipe!['revision']});
+      final removal = await save('$path/delete', {
+        'revision': _recipe!['revision'],
+      });
       if (!mounted) return;
       final messenger = ScaffoldMessenger.of(context);
       messenger.showSnackBar(
         SnackBar(
-          content: const Text('Recipe moved to Recently Deleted'),
+          content: Text(
+            removal.containsKey('purge_after') && removal['purge_after'] == null
+                ? 'Recipe removed from this household'
+                : 'Recipe moved to Recently Deleted',
+          ),
           action: SnackBarAction(
             label: 'Undo',
             onPressed: () async {
               try {
-                await save('$path/restore', {});
+                await save(
+                  removal.containsKey('purge_after') &&
+                          removal['purge_after'] == null
+                      ? '$path/attach'
+                      : '$path/restore',
+                  {},
+                );
                 onChanged?.call();
                 if (messenger.mounted) {
                   messenger.showSnackBar(
@@ -911,7 +928,53 @@ class _RecipeDetailState extends State<RecipeDetail> {
     padding: const EdgeInsets.only(top: 28, bottom: 12),
     child: Text(text, style: Theme.of(context).textTheme.headlineSmall),
   );
+  Future<void> _attach() async {
+    try {
+      final data = await widget.save!(
+        '/households/${widget.householdId}/recipes/${widget.recipeId}/attach',
+        {},
+      );
+      if (!mounted) return;
+      setState(() => _recipe = data['recipe'] as Map<String, dynamic>);
+      widget.onChanged?.call();
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              error is ApiException
+                  ? error.message
+                  : 'Could not add recipe. Try again.',
+            ),
+          ),
+        );
+      }
+    }
+  }
+
   Future<void> _edit() async {
+    try {
+      final metadata = await widget.request(
+        '/households/${widget.householdId}/recipes/${widget.recipeId}/edit-options',
+      );
+      if (!mounted) return;
+      if (metadata['edit_options'] != null) {
+        _recipe!['edit_options'] = metadata['edit_options'];
+      }
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              error is ApiException
+                  ? error.message
+                  : 'Sign in again to edit this recipe.',
+            ),
+          ),
+        );
+      }
+      return;
+    }
     final updated = await Navigator.of(context).push<Map<String, dynamic>>(
       MaterialPageRoute(
         builder: (_) => RecipeEditor(
@@ -1032,9 +1095,16 @@ class _RecipeDetailState extends State<RecipeDetail> {
                   style: Theme.of(context).textTheme.headlineLarge,
                 ),
                 const SizedBox(height: 8),
+                if (widget.save != null && _recipe?['in_household'] == false)
+                  TextButton.icon(
+                    onPressed: _attach,
+                    icon: const Icon(Icons.add),
+                    label: const Text('Add to my household'),
+                  ),
                 Row(
                   children: [
-                    if (widget.save != null)
+                    if (widget.save != null &&
+                        _recipe?['in_household'] != false)
                       IconButton(
                         tooltip: 'Edit recipe',
                         onPressed: _deleting ? null : _edit,
@@ -1047,7 +1117,8 @@ class _RecipeDetailState extends State<RecipeDetail> {
                         onPressed: _sharing ? null : () => _shareRecipe(anchor),
                       ),
                     ),
-                    if (widget.save != null)
+                    if (widget.save != null &&
+                        _recipe?['in_household'] != false)
                       IconButton(
                         tooltip: 'Delete recipe',
                         onPressed: _deleting ? null : _delete,
@@ -1119,7 +1190,7 @@ class _RecipeDetailState extends State<RecipeDetail> {
               icon: const Icon(Icons.soup_kitchen_outlined),
               label: const Text('Start cooking'),
             ),
-            if (widget.save != null)
+            if (widget.save != null && _recipe?['in_household'] != false)
               Padding(
                 padding: const EdgeInsets.only(top: 12),
                 child: OutlinedButton.icon(

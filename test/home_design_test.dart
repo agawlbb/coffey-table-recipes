@@ -107,7 +107,7 @@ void main() {
       await tester.pumpAndSettle();
       await tester.tap(find.byTooltip('User menu'));
       await tester.pumpAndSettle();
-      await tester.tap(find.text('Change name at the table'));
+      await tester.tap(find.text('Name at the table'));
       await tester.pumpAndSettle();
       expect(find.text('Alex at dinner'), findsOneWidget);
       await tester.enterText(find.byType(TextFormField), '');
@@ -162,7 +162,7 @@ void main() {
     await tester.tap(find.byTooltip('User menu'));
     await tester.pumpAndSettle();
     expect(find.text('alex@example.test'), findsOneWidget);
-    await tester.tap(find.text('Change account display name'));
+    await tester.tap(find.text('Account display name'));
     await tester.pumpAndSettle();
     await tester.enterText(find.byType(TextFormField), '  Jamie  ');
     await tester.tap(find.text('Save'));

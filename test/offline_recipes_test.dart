@@ -102,6 +102,44 @@ void main() {
     offlineStatus.value = false;
   });
 
+  test('detaching retains public family links without returning detached browse rows', () async {
+    final c = cache();
+    await c.sync(['1']);
+    await c.rememberSavedRecipe('$root/2', {
+      'recipe': {
+        'id': '2',
+        'title': 'Local variation',
+        'parent_recipe_id': '1',
+        'family_representative_id': '1',
+        'in_household': true,
+        'variation_family': [
+          {'id': '1', 'title': 'Original', 'in_household': true},
+          {'id': '2', 'title': 'Local variation', 'in_household': true},
+          {'id': '99', 'title': 'Outside sibling', 'in_household': false},
+        ],
+        'related': [
+          {'id': '1', 'relationship': 'parent'},
+        ],
+      },
+    });
+    await c.rememberSavedRecipe('$root/1/delete', {
+      'deleted_recipe_id': '1',
+      'purge_after': null,
+    });
+    connected = false;
+    offlineStatus.value = true;
+    final detail = (await c.request('$root/2'))['recipe'];
+    expect(
+      (detail['variation_family'] as List).map((r) => r['id']),
+      containsAll(['1', '99']),
+    );
+    expect((detail['variation_family'] as List).first['in_household'], false);
+    final grouped = (await c.request('$root?families=1'))['recipes'] as List;
+    expect(grouped.any((r) => r['id'] == '2'), true);
+    expect(grouped.any((r) => r['id'] == '1' || r['id'] == '99'), false);
+    c.close();
+  });
+
   testWidgets(
     'live ingredient search uses the synced library with no network requests',
     (tester) async {
@@ -138,6 +176,37 @@ void main() {
       c.close();
     },
   );
+
+  test(
+    'online browsing ignores incomplete saved library without categories',
+    () async {
+      final c = cache();
+      failDetail = true;
+      await c.sync(['1']);
+      offlineStatus.value = false;
+      expect(await c.cachedBrowse('$root?tree=1&families=1'), isNull);
+      expect(await c.cachedBrowse('$root?q=carrot&tree=0'), isNull);
+      offlineStatus.value = true;
+      expect(await c.cachedBrowse('$root?tree=1&families=1'), isNotNull);
+      c.close();
+    },
+  );
+
+  test('online tree requests fetch missing metadata after interrupted category sync', () async {
+    final c = cache(
+      fetch: (path) {
+        if (path.contains('tree=1')) {
+          throw TimeoutException('Category request failed');
+        }
+        return server(path);
+      },
+    );
+    await c.sync(['1']);
+    offlineStatus.value = false;
+    expect(await c.cachedBrowse('$root?tree=1&families=1'), isNull);
+    expect(await c.cachedBrowse('$root?q=carrot&tree=0'), isNotNull);
+    c.close();
+  });
 
   test(
     'saved browse text is available online without a network fetch',

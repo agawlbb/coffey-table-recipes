@@ -76,6 +76,7 @@ xcodebuild -workspace ios/Runner.xcworkspace -scheme Runner -configuration Relea
   -allowProvisioningUpdates "${auth[@]}"
 app=build/ios/archive/Runner.xcarchive/Products/Applications/Runner.app
 codesign --verify --strict "$app/PlugIns/ShareExtension.appex"
+codesign --verify --strict "$app/PlugIns/TimerWidget.appex"
 codesign --verify --strict "$app"
 echo '::notice::Stage: Apple export and optional TestFlight upload'
 xcodebuild -exportArchive -archivePath build/ios/archive/Runner.xcarchive \

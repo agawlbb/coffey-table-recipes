@@ -1,8 +1,24 @@
 import 'package:coffey_table_recipes/src/cooking_mode.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
+  setUp(() {
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(
+          const MethodChannel('coffey_table_recipes/timers'),
+          (call) async => call.method == 'list' ? [] : null,
+        );
+  });
+  tearDown(() {
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(
+          const MethodChannel('coffey_table_recipes/timers'),
+          null,
+        );
+  });
   for (final (description, value, unit, expected)
       in <(String, Object, String, String)>[
         ('padded integer', '350.0000', 'F', '350'),
@@ -98,7 +114,9 @@ void main() {
     await tester.pump(const Duration(seconds: 1));
     expect(find.textContaining('Time is up'), findsOneWidget);
     await tester.tap(find.textContaining('Cancel'));
-    await tester.pump();
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Cancel timer'));
+    await tester.pumpAndSettle();
     expect(find.text('Rest · 0 min 2 sec'), findsOneWidget);
     await tester.pumpWidget(const SizedBox());
     await tester.pump();

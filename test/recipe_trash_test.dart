@@ -161,7 +161,7 @@ void main() {
       await tester.tap(find.byTooltip('Delete recipe'));
       await tester.pumpAndSettle();
       expect(paths, isEmpty);
-      expect(find.textContaining('restore it for 30 days'), findsOneWidget);
+      expect(find.textContaining('last household'), findsOneWidget);
       await tester.tap(find.text('Delete recipe'));
       await tester.pumpAndSettle();
       expect(paths, ['/households/1/recipes/7/delete']);

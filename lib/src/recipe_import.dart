@@ -397,12 +397,20 @@ class _RecipeImportState extends State<RecipeImport> {
     child: Scaffold(
       appBar: AppBar(
         title: const Text('Add recipe'),
+        actions: [
+          IconButton(
+            tooltip: 'Dismiss keyboard',
+            icon: const Icon(Icons.keyboard_hide),
+            onPressed: () => FocusScope.of(context).unfocus(),
+          ),
+        ],
         leading: BackButton(onPressed: _busy ? null : _close),
       ),
       body: Center(
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 720),
           child: ListView(
+            keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
             padding: const EdgeInsets.all(20),
             children: [
               const Text('Choose a source. Review your recipe before saving.'),
@@ -468,6 +476,8 @@ class _RecipeImportState extends State<RecipeImport> {
                 if (_kind == 'text' || _kind == 'description')
                   TextField(
                     controller: _text,
+                    onTapOutside: (_) => FocusScope.of(context).unfocus(),
+                    scrollPadding: const EdgeInsets.all(32),
                     enabled: !_busy,
                     minLines: 6,
                     maxLines: 14,
@@ -493,6 +503,9 @@ class _RecipeImportState extends State<RecipeImport> {
                 if (_kind == 'website')
                   TextField(
                     controller: _url,
+                    onTapOutside: (_) => FocusScope.of(context).unfocus(),
+                    textInputAction: TextInputAction.done,
+                    onSubmitted: (_) => FocusScope.of(context).unfocus(),
                     enabled: !_busy,
                     keyboardType: TextInputType.url,
                     decoration: const InputDecoration(
