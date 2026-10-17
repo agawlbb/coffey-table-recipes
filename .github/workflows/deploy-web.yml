@@ -15,6 +15,8 @@ jobs:
         run: |
           [[ "$GITHUB_REF" =~ ^refs/tags/v[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo 'Select a versioned release tag for deployment'; exit 1; }
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - name: Require verified Android domain association
+        run: python3 tool/verify-app-links.py
       - name: Install pinned Flutter
         run: |
           git clone --depth 1 --branch 3.47.7 https://github.com/flutter/flutter.git "$RUNNER_TEMP/flutter"

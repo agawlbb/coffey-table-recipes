@@ -2,6 +2,41 @@
 
 ## Release command
 
+### Required native link verification
+
+Native shared-link routing is not complete until the domain-root association
+files are published and verified. The Flutter web deploy does not publish these
+files. Before marking a release complete, inspect the delivered APK certificate
+with `apksigner verify --print-certs`, then run
+`python tool/verify-app-links.py --fingerprint ACTUAL_CERTIFICATE_SHA256`.
+The default fingerprint belongs to the APK delivered for 1.6.0; Play App Signing
+may require a different certificate from the upload key. The web deployment
+workflow now fails before building if the configured Android association is
+missing or mismatched. Update the checker when signing changes.
+
+For iOS, separately verify the signed app's Associated Domains entitlement,
+provisioning, and matching Apple application identifier in the domain-root AASA
+file. Do not treat the Android check as iOS verification. Test both cold/warm
+shared-link opening on installed devices; report unperformed device checks.
+
+The source for the domain-root Android file lives in the backend repository at
+`hosting/assetlinks.json`. Deploy it to `coffeybean.com/.well-known/assetlinks.json`,
+preserving any entries for other apps. This can be repaired independently of an
+app build. Android may retain failed verification until it retries; check Open
+by default / Open supported links on an already installed phone if necessary.
+
+### Release execution
+
+Android link repair after 1.6.0/1.6.1 on 2026-10-16: the domain-root
+`assetlinks.json` was still 404 because only web assets had been deployed.
+Published the association for the verified APK certificate. The public checker
+and its three regression tests passed; Android re-verification reported the
+domain verified with this app as owner. A normal, unforced link intent opened
+recipe 14 directly in the installed emulator app and displayed its public
+recipe screen. This was a warm-start check, not physical-phone/cold-start
+acceptance. No new app build or reinstall was needed. iOS association remains
+a separate outstanding verification step.
+
 When the user says "create a release", review progress since the previous release, choose an appropriate version and increment its build number, validate and commit, create and push an immutable annotated tag, rebuild web/Android/signed iOS, explicitly dispatch hosted deployment using the release tag, save the verified Android APK in the accessible "recipe app" folder, and upload signed iOS to TestFlight. Requested iOS runs need no separate approval; other macOS runner builds still require explicit approval. Verify Apple processing and internal distribution, observing the France exclusion policy. Then remove obsolete release packages from their respective destinations, retaining unrelated files and signed packages. A tag by itself does not authorize hosted deployment; the web workflow is manual-only and requires a release tag.
 
 `CHANGELOG.md` covers previous releases using Git history, tags, and the release records below. Every future release must update it with the version, release date, and meaningful changes since the prior release. Commit the changelog before tagging the release. Describe only changes supported by the project history.
