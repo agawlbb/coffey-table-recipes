@@ -19,6 +19,12 @@ provisioning, and matching Apple application identifier in the domain-root AASA
 file. Do not treat the Android check as iOS verification. Test both cold/warm
 shared-link opening on installed devices; report unperformed device checks.
 
+If iOS AASA is missing or needs repair, the manual Ubuntu-only `ios-association.yml`
+workflow uses the existing deployment token and signing team to publish only the
+app's association. It verifies the domain document root, preserves existing JSON
+entries and MIME rules, and requires a public HTTPS 200 JSON response without
+redirects. It does not build an app or change Apple distribution settings.
+
 The source for the domain-root Android file lives in the backend repository at
 `hosting/assetlinks.json`. Deploy it to `coffeybean.com/.well-known/assetlinks.json`,
 preserving any entries for other apps. This can be repaired independently of an
@@ -34,8 +40,8 @@ and its three regression tests passed; Android re-verification reported the
 domain verified with this app as owner. A normal, unforced link intent opened
 recipe 14 directly in the installed emulator app and displayed its public
 recipe screen. This was a warm-start check, not physical-phone/cold-start
-acceptance. No new app build or reinstall was needed. iOS association remains
-a separate outstanding verification step.
+acceptance. No new app build or reinstall was needed. The separate iOS
+association repair and release validation are recorded under 1.6.1 below.
 
 When the user says "create a release", review progress since the previous release, choose an appropriate version and increment its build number, validate and commit, create and push an immutable annotated tag, rebuild web/Android/signed iOS, explicitly dispatch hosted deployment using the release tag, save the verified Android APK in the accessible "recipe app" folder, and upload signed iOS to TestFlight. Requested iOS runs need no separate approval; other macOS runner builds still require explicit approval. Verify Apple processing and internal distribution, observing the France exclusion policy. Then remove obsolete release packages from their respective destinations, retaining unrelated files and signed packages. A tag by itself does not authorize hosted deployment; the web workflow is manual-only and requires a release tag.
 
@@ -44,6 +50,14 @@ When the user says "create a release", review progress since the previous releas
 ## 1.6.1 — timer widget App Store metadata correction
 
 Version `1.6.1+21`, tagged `v1.6.1`, completes all three platforms after the initial 1.6.0 iOS upload was rejected for missing `CFBundleDisplayName` in TimerWidget. The widget now declares its display name; source configuration checks cover all three bundles, and archive/export tooling checks actual bundle metadata before upload. The signed IPA verifier checks it too. No Dart application behavior changed from 1.6.0. Web and Android are rebuilt at 1.6.1/build 21 for alignment. The immutable 1.6.0 tag remains unchanged. Native compilation, signing and provisioning of all three targets succeeded in the earlier run; only Apple's upload metadata validation rejected it.
+
+Web deployment [38995426326](https://github.com/agawlbb/coffey-table-recipes/actions/runs/38995426326) succeeded. Public metadata confirms version 1.6.1/build 21 and immutable release commit `16fe8e9e72a570fb1815bb77b1914d5e2209775b`. Android release compilation succeeded; package metadata confirms 1.6.1/build 21. The delivered `G:\My Drive\recipe app\CoffeyTableRecipes-1.6.1-build21.apk` matches source SHA-256 `6f60a581b35ba9eef2bb51ad6a5b66fa163dd0a459edf38aa3e4f4272d7e315b`. The obsolete numbered build 20 package was removed only after verification, retaining unrelated packages.
+
+The actual APK certificate matches the hosted Android association (`F8:DE:93:3F:14:B9:BB:4B:31:91:A9:4A:ED:C8:63:79:72:C5:AB:22:45:65:F6:AB:D7:80:8F:80:38:D1:20:97`). iOS association deployment [38995992032](https://github.com/agawlbb/coffey-table-recipes/actions/runs/38995992032) published the previously missing domain-root AASA, preserving other entries and verifying the configured signing-team/bundle identifier, HTTPS 200, application/json and no redirect. The association covers `/CoffeyTableRecipes/share.php`. Tooling was committed after tagging without changing the immutable release source. Physical iPhone cold/warm link checks were not performed; browser rendering was unavailable in this session.
+
+Signed iOS run [38995428244](https://github.com/agawlbb/coffey-table-recipes/actions/runs/38995428244) succeeded in 15m50s, including analysis, all 248 Flutter tests, seven configuration checks, native compilation, automatic provisioning, archive and strict signatures for Runner, ShareExtension and TimerWidget. The archive's signing entitlements show `com.coffeytable.coffeyTableRecipes` under the same configured signing team as AASA, with `applinks:coffeybean.com`. Xcode reported `ARCHIVE SUCCEEDED` at 02:45:20 UTC on October 17 (October 16 locally), verified display names in all bundles, then `Upload succeeded` and `EXPORT SUCCEEDED` at 02:49:53 UTC. No additional unsigned IPA was delivered.
+
+Apple API verification [38996172143](https://github.com/agawlbb/coffey-table-recipes/actions/runs/38996172143) succeeded: version 1.6.1/build 21, Apple build ID `6e5490ec-708d-4f03-8e3e-e782f6dd6eb9`, processing `VALID`, `usesNonExemptEncryption=false`, internal state `IN_BETA_TESTING`, and existing `Family testers` group attached. No testers or distribution territories were added; the France exclusion policy is retained. Both merged feature branches were verified absent locally and on GitHub. Release validation is complete apart from the explicitly unperformed physical-iPhone link acceptance checks.
 
 ## 1.6.0 — shared recipes and native cooking timers
 
