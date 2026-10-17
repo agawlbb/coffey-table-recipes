@@ -461,6 +461,8 @@ class OfflineRecipes with WidgetsBindingObserver {
 
   Map<String, dynamic>? _cached(String path) {
     final uri = Uri.parse(path);
+    // Favorite membership is server-owned; never synthesize unfiltered results.
+    if (uri.queryParameters.containsKey('favorite_people')) return null;
     final segments = uri.pathSegments;
     if (segments.length == 3 && segments[2] == 'recipes') {
       final pending = _pending[segments[1]] as Map?;

@@ -127,6 +127,7 @@ class _RecipeBrowserState extends State<RecipeBrowser>
   int _generation = 0;
   final Map<String, Map<String, dynamic>> _browseCache = {};
   String _query = '';
+  Set<String> _favoritePeople = {};
   final List<Map<String, dynamic>> _trail = [];
   List<Map<String, dynamic>> _nodes = [];
   String get _scopeLabel =>
@@ -203,7 +204,9 @@ class _RecipeBrowserState extends State<RecipeBrowser>
           'q': _query,
           'offset': '${more ? _next ?? 0 : 0}',
           'tree': more || _query.isNotEmpty ? '0' : '1',
-          'families': '1',
+          'families': _favoritePeople.isEmpty ? '1' : '0',
+          if (_favoritePeople.isNotEmpty)
+            'favorite_people': _favoritePeople.join(','),
           if (_trail.isNotEmpty) 'scope': '${_trail.last['id']}',
         },
       ).query;
@@ -311,6 +314,77 @@ class _RecipeBrowserState extends State<RecipeBrowser>
     _load(useCached: true);
   }
 
+  Future<void> _filters() async {
+    try {
+      final data = await widget.request(
+        '/households/${widget.householdId}/people',
+      );
+      if (!mounted) return;
+      final selected = Set<String>.from(_favoritePeople);
+      final apply = await showDialog<bool>(
+        context: context,
+        builder: (context) => StatefulBuilder(
+          builder: (context, update) => AlertDialog(
+            title: const Text('Filters'),
+            content: SizedBox(
+              width: 360,
+              child: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const ListTile(
+                      leading: Icon(Icons.favorite),
+                      title: Text('Favorite of'),
+                      subtitle: Text(
+                        'Recipes must be favorites of everyone checked.',
+                      ),
+                    ),
+                    for (final person in recipeRows(data['people']))
+                      CheckboxListTile(
+                        title: Text('${person['display_name']}'),
+                        value: selected.contains('${person['id']}'),
+                        onChanged: (value) => update(() {
+                          if (value == true) {
+                            selected.add('${person['id']}');
+                          } else {
+                            selected.remove('${person['id']}');
+                          }
+                        }),
+                      ),
+                  ],
+                ),
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => update(selected.clear),
+                child: const Text('Clear'),
+              ),
+              TextButton(
+                onPressed: () => Navigator.pop(context, false),
+                child: const Text('Cancel'),
+              ),
+              FilledButton(
+                onPressed: () => Navigator.pop(context, true),
+                child: const Text('Apply'),
+              ),
+            ],
+          ),
+        ),
+      );
+      if (apply == true && mounted) {
+        setState(() => _favoritePeople = selected);
+        _load();
+      }
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Could not load household filters: $error')),
+        );
+      }
+    }
+  }
+
   Future<void> _open(Map<String, dynamic> recipe) async {
     await Navigator.of(context).push(
       MaterialPageRoute<void>(
@@ -374,6 +448,20 @@ class _RecipeBrowserState extends State<RecipeBrowser>
                 suffixIcon: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
+                    IconButton(
+                      tooltip: _favoritePeople.isEmpty
+                          ? 'Filters'
+                          : 'Filters (${_favoritePeople.length} selected)',
+                      onPressed: _filters,
+                      icon: Icon(
+                        _favoritePeople.isEmpty
+                            ? Icons.filter_list
+                            : Icons.filter_list_alt,
+                        color: _favoritePeople.isEmpty
+                            ? null
+                            : Theme.of(context).colorScheme.primary,
+                      ),
+                    ),
                     if (_search.text.isNotEmpty || _query.isNotEmpty)
                       IconButton(
                         onPressed: () {
@@ -649,6 +737,111 @@ class RecipeDetail extends StatefulWidget {
 }
 
 class _RecipeDetailState extends State<RecipeDetail> {
+  List<Map<String, dynamic>> _favoriteMembers = [];
+  String? _currentPerson;
+  bool _favoriteBusy = false;
+  String get _favoritesPath =>
+      '/households/${widget.householdId}/recipes/${widget.recipeId}/favorites';
+  bool _isFavorite(Map<String, dynamic> p) =>
+      p['favorite'] == true || p['favorite'] == 1 || p['favorite'] == '1';
+  void _acceptFavorites(Map<String, dynamic> data) {
+    _favoriteMembers = recipeRows(data['people']);
+    _currentPerson = data['current_person_id']?.toString();
+  }
+
+  Future<void> _loadFavorites() async {
+    if (widget.save == null) return;
+    try {
+      final data = await widget.request(_favoritesPath);
+      if (mounted) setState(() => _acceptFavorites(data));
+    } catch (_) {
+      /* Recipe content stays available offline. Writes retry the read. */
+    }
+  }
+
+  Future<void> _favorite({bool household = false}) async {
+    setState(() => _favoriteBusy = true);
+    try {
+      final data = await widget.request(_favoritesPath);
+      if (!mounted) return;
+      setState(() => _acceptFavorites(data));
+      if (household) {
+        data['people'] = _favoriteMembers
+            .map((p) => Map<String, dynamic>.from(p))
+            .toList();
+        final people = await showDialog<List<Map<String, dynamic>>>(
+          context: context,
+          builder: (context) => StatefulBuilder(
+            builder: (context, update) => AlertDialog(
+              title: const Text('Household favorites'),
+              content: SizedBox(
+                width: 360,
+                child: SingleChildScrollView(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      for (final p in recipeRows(data['people']))
+                        CheckboxListTile(
+                          title: Text('${p['display_name']}'),
+                          value: _isFavorite(p),
+                          onChanged: (value) =>
+                              update(() => p['favorite'] = value == true),
+                        ),
+                    ],
+                  ),
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text('Cancel'),
+                ),
+                FilledButton(
+                  onPressed: () =>
+                      Navigator.pop(context, recipeRows(data['people'])),
+                  child: const Text('Save'),
+                ),
+              ],
+            ),
+          ),
+        );
+        if (people == null) return;
+        for (final p in people) {
+          final original = _favoriteMembers.firstWhere(
+            (m) => m['id'] == p['id'],
+          );
+          if (_isFavorite(original) == _isFavorite(p)) continue;
+          final result = await widget.save!(_favoritesPath, {
+            'person_id': p['id'],
+            'favorite': _isFavorite(p),
+          });
+          if (mounted) setState(() => _acceptFavorites(result));
+        }
+      } else {
+        final own = _favoriteMembers
+            .where((p) => '${p['id']}' == _currentPerson)
+            .firstOrNull;
+        if (own == null) {
+          throw StateError('Your household person was not found.');
+        }
+        final result = await widget.save!(_favoritesPath, {
+          'person_id': _currentPerson,
+          'favorite': !_isFavorite(own),
+        });
+        if (mounted) setState(() => _acceptFavorites(result));
+      }
+      widget.onChanged?.call();
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Could not update favorites: $error')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _favoriteBusy = false);
+    }
+  }
+
   bool _sharing = false;
   bool _deleting = false;
   bool _variationOpen = false;
@@ -885,6 +1078,7 @@ class _RecipeDetailState extends State<RecipeDetail> {
           _recipe = data['recipe'] as Map<String, dynamic>;
         });
         _prefetchImages(_recipe!);
+        _loadFavorites();
       }
     } catch (error) {
       if (mounted) {
@@ -1124,6 +1318,23 @@ class _RecipeDetailState extends State<RecipeDetail> {
                         onPressed: _deleting ? null : _delete,
                         icon: const Icon(Icons.delete_outline),
                       ),
+                    if (widget.save != null && recipe['in_household'] != false)
+                      IconButton(
+                        tooltip: 'Favorite (hold for household)',
+                        onPressed: _favoriteBusy ? null : () => _favorite(),
+                        onLongPress: _favoriteBusy
+                            ? null
+                            : () => _favorite(household: true),
+                        icon: Icon(
+                          _favoriteMembers.any(
+                                (p) =>
+                                    '${p['id']}' == _currentPerson &&
+                                    _isFavorite(p),
+                              )
+                              ? Icons.favorite
+                              : Icons.favorite_border,
+                        ),
+                      ),
                     const Spacer(),
                     if (family.isNotEmpty)
                       Padding(
@@ -1301,6 +1512,13 @@ class _RecipeDetailState extends State<RecipeDetail> {
                         ),
                       ),
                   ],
+                ),
+              ),
+            if (_favoriteMembers.any(_isFavorite))
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                child: Text(
+                  'Favorite of ${_favoriteMembers.where(_isFavorite).map((p) => p['display_name']).join(' and ')}',
                 ),
               ),
             if (recipe['notes'] != null) ...[

@@ -19,6 +19,7 @@ String resolveApiBaseUrl({String override = ''}) {
 }
 
 bool isPublicRecipeRead(String path) =>
+    !Uri.parse(path).queryParameters.containsKey('favorite_people') &&
     RegExp(r'^/households/[1-9][0-9]*/recipes(?:/[1-9][0-9]*)?$')
         .hasMatch(Uri.parse(path).path);
 
