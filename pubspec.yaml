@@ -49,6 +49,8 @@ dependencies:
   image_picker: ^1.2.4
   file_selector: ^1.1.0
   better_share_handler: 1.1.0
+  firebase_messaging: ^16.7.0
+  shared_preferences: ^2.5.6
 
 dev_dependencies:
   url_launcher_platform_interface: ^2.3.2
@@ -63,6 +65,7 @@ dev_dependencies:
   # package. See that file for information about deactivating specific lint
   # rules and activating additional ones.
   flutter_lints: ^6.0.0
+  shared_preferences_platform_interface: ^2.4.2
 
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec

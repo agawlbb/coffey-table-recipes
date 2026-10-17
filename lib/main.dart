@@ -4,6 +4,7 @@ import 'package:firebase_core/firebase_core.dart';
 import 'src/app.dart';
 import 'src/shared_recipe_import.dart';
 import 'src/firebase_config.dart';
+import 'src/timer_sync.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -16,6 +17,15 @@ Future<void> main() async {
     } catch (_) {
       initializationError =
           'Google sign-in could not start. Please reopen the app.';
+    }
+  }
+  if (options != null && initializationError == null) {
+    // Sharing failures must never prevent the app or local timers from starting.
+    try {
+      await timerSync.start();
+    } catch (_) {
+      timerSync.status.value =
+          'Timer sharing could not start. Reopen the app to try again.';
     }
   }
   runApp(

@@ -80,6 +80,10 @@ void main() {
       );
       await tester.pumpWidget(const MaterialApp(home: TimerSettings()));
       await tester.pumpAndSettle();
+      expect(find.text('Receive timers from other devices'), findsOneWidget);
+      final receive = tester.widget<SwitchListTile>(find.byType(SwitchListTile));
+      expect(receive.value, false);
+      expect(receive.onChanged, isNull);
       await tester.tap(find.text('Alarm tone'));
       await tester.pumpAndSettle();
       await tester.enterText(find.byType(TextField), 'Sound 19');

@@ -38,6 +38,17 @@ enum RecipeTimers {
             DispatchQueue.main.asyncAfter(deadline: .now() + 1, execute: stop)
         } catch { stopPreview(); try? session.setActive(false); throw error }
     }
+    static var syncChannel: FlutterMethodChannel?
+    static var syncTail: Task<Void, Never>?
+    static func serializedSync(_ action: @escaping @MainActor () async throws -> Void) async throws {
+        let previous = syncTail
+        let operation = Task { @MainActor in
+            await previous?.value
+            try await action()
+        }
+        syncTail = Task { _ = try? await operation.value }
+        try await operation.value
+    }
     static let defaults = UserDefaults.standard
     static var rows: [String: [String: Any]] {
         get { defaults.dictionary(forKey: "recipeTimers") as? [String: [String: Any]] ?? [:] }
@@ -49,11 +60,35 @@ enum RecipeTimers {
             Task { @MainActor in stopPreview() }
         }
         let channel = FlutterMethodChannel(name: "coffey_table_recipes/timers", binaryMessenger: messenger)
+        syncChannel = channel
         channel.setMethodCallHandler { call, result in
             Task { @MainActor in
                 do {
                     let args = call.arguments as? [String: Any] ?? [:]
                     switch call.method {
+                    case "configureSync":
+                        try await serializedSync { try await configureSync(args) }; result(nil)
+                    case "syncRevision":
+                        result((defaults.dictionary(forKey: "timerSyncRevisions")?[args["timer_id"] as? String ?? ""] as? NSNumber)?.int64Value ?? 0)
+                    case "recordSyncRevision", "forgetSyncRevision":
+                        try await serializedSync {
+                            if let id = args["timer_id"] as? String {
+                                var versions = defaults.dictionary(forKey: "timerSyncRevisions") ?? [:]
+                                if call.method == "forgetSyncRevision" { versions.removeValue(forKey: id) }
+                                else if let version = args["revision"] as? NSNumber, version.int64Value > ((versions[id] as? NSNumber)?.int64Value ?? 0) { versions[id] = version }
+                                defaults.set(versions, forKey: "timerSyncRevisions")
+                            }
+                        }
+                        result(nil)
+                    case "applyRemote":
+                        try await serializedSync { try await applyRemote(args) }; result(nil)
+                    case "requestTimerPermissions":
+                        let allowed = try await UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound, .badge])
+                        guard allowed else { throw failure("Allow notifications in Settings, then try again.") }
+                        if #available(iOS 26.0, *) {
+                            guard try await AlarmManager.shared.requestAuthorization() == .authorized else { throw failure("Allow alarms in Settings, then try again.") }
+                        }
+                        result(nil)
                     case "settings":
                         let mode: String
                         if #available(iOS 26.0, *) { mode = "AlarmKit alarms require permission. Live Activities are optional and can be disabled by the system. Device shutdown and force-stop behavior are not guaranteed." }
@@ -78,10 +113,10 @@ enum RecipeTimers {
                         result(saved.map { ["key": $0.key, "deadline": $0.value["deadline"] ?? 0, "title": $0.value["title"] ?? "Cooking timer"] })
                     case "cancel":
                         guard let key = args["key"] as? String else { throw failure("Missing timer.") }
-                        try await cancel(key); result(nil)
+                        try await serializedSync { try await cancel(key) }; result(nil)
                     case "schedule":
                         guard let key = args["key"] as? String, let deadline = args["deadline"] as? NSNumber, let title = args["title"] as? String else { throw failure("Missing timer details.") }
-                        try await schedule(key, deadline.doubleValue, title); result(nil)
+                        try await serializedSync { try await schedule(key, deadline.doubleValue, title) }; result(nil)
                     default: result(FlutterMethodNotImplemented)
                     }
                 } catch { result(FlutterError(code: "timer", message: error.localizedDescription, details: nil)) }
@@ -150,6 +185,76 @@ enum RecipeTimers {
             for activity in Activity<TimerActivityAttributes>.activities where activity.attributes.key == key {
                 await activity.end(nil, dismissalPolicy: .immediate)
             }
+        }
+    }
+}
+
+
+@MainActor
+extension RecipeTimers {
+    static func configureSync(_ args: [String: Any]) async throws {
+        let uid = args["account_uid"] as? String ?? ""
+        let enabled = args["receive_timers"] as? Bool ?? false
+        let previous = defaults.string(forKey: "timerSyncUid") ?? ""
+        if args["guard_only"] as? Bool == true && previous == uid { return }
+        var versions = defaults.dictionary(forKey: "timerSyncRevisions") ?? [:]
+        // Reject pushes immediately; cancellation can then safely await AlarmKit.
+        defaults.set(false, forKey: "timerSyncReceive")
+        defaults.set(uid, forKey: "timerSyncUid")
+        if previous != uid || !enabled {
+            for key in rows.keys {
+                if key.hasPrefix("remote:") || (previous != uid && !previous.isEmpty) {
+                    try await cancel(key)
+                    if key.hasPrefix("remote:") { versions.removeValue(forKey: String(key.dropFirst(7))) }
+                }
+            }
+        }
+        defaults.set(previous != uid ? [:] : versions, forKey: "timerSyncRevisions")
+        defaults.set(args["installation_id"] as? String ?? "", forKey: "timerSyncInstallation")
+        defaults.set(enabled, forKey: "timerSyncReceive")
+    }
+
+    static func applyRemote(_ data: [String: Any]) async throws {
+        let uid = defaults.string(forKey: "timerSyncUid") ?? ""
+        let installation = defaults.string(forKey: "timerSyncInstallation") ?? ""
+        guard !uid.isEmpty, data["account_uid"] as? String == uid,
+              data["target_device"] as? String == installation else { return }
+        let own = data["source_device"] as? String == installation
+        guard own || defaults.bool(forKey: "timerSyncReceive") else { return }
+        guard let id = data["timer_id"] as? String,
+              id.range(of: "^[A-Za-z0-9:_-]{1,160}$", options: .regularExpression) != nil,
+              let version = Int64(String(describing: data["revision"] ?? "")),
+              let deadline = Double(String(describing: data["deadline_ms"] ?? "")) else { throw failure("Invalid shared timer.") }
+        var versions = defaults.dictionary(forKey: "timerSyncRevisions") ?? [:]
+        let current = (versions[id] as? NSNumber)?.int64Value ?? 0
+        guard version > current else { return }
+        let key = own ? String(id.dropFirst(installation.count + 1)) : "remote:" + id
+        let cancelled = ["1", "true"].contains(String(describing: data["cancelled"] ?? ""))
+        if cancelled || deadline <= Date().timeIntervalSince1970 * 1000 {
+            try await cancel(key)
+        } else {
+            let settings = await UNUserNotificationCenter.current().notificationSettings()
+            guard settings.authorizationStatus == .authorized || settings.authorizationStatus == .provisional else { throw failure("Allow notifications to receive this timer.") }
+            if #available(iOS 26.0, *) {
+                guard AlarmManager.shared.authorizationState == .authorized else { throw failure("Allow alarms to receive this timer.") }
+            }
+            let title = data["title"] as? String ?? "Cooking timer"
+            let old = rows[key]
+            if (old?["deadline"] as? NSNumber)?.doubleValue != deadline || old?["title"] as? String != title {
+                try await schedule(key, deadline, title)
+            }
+        }
+        versions[id] = NSNumber(value: version)
+        defaults.set(versions, forKey: "timerSyncRevisions")
+        syncChannel?.invokeMethod("changed", arguments: nil)
+    }
+
+    static func receivePush(_ userInfo: [AnyHashable: Any], completion: @escaping (Bool) -> Void) {
+        var data: [String: Any] = [:]
+        for (key, value) in userInfo { if let key = key as? String { data[key] = value } }
+        Task { @MainActor in
+            do { try await serializedSync { try await applyRemote(data) }; completion(true) }
+            catch { completion(false) } // Keep revision unchanged so opening the app retries.
         }
     }
 }

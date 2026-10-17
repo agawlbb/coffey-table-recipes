@@ -104,6 +104,8 @@
 			</array>
 		</dict>
 	</array>
+	<key>UIBackgroundModes</key>
+	<array><string>remote-notification</string></array>
 	<key>AppGroupId</key>
 	<string>group.com.coffeytable.coffeyTableRecipes</string>
 </dict>

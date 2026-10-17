@@ -4,10 +4,14 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import 'timer_sync.dart';
+
 class NativeTimers {
   static const channel = MethodChannel('coffey_table_recipes/timers');
   static final active = ValueNotifier<List<Map<String, dynamic>>>([]);
   static int _revision = 0;
+  static Future<void> Function(String key, DateTime? deadline, String? title)?
+  onLocalChange;
   static bool get supported =>
       !kIsWeb &&
       (defaultTargetPlatform == TargetPlatform.android ||
@@ -44,6 +48,12 @@ class NativeTimers {
           'title': title,
         },
       ];
+      try {
+        await onLocalChange?.call(key, deadline, title);
+      } catch (_) {
+        timerSync.status.value =
+            'Timer started locally. Sharing could not be queued.';
+      }
     }
   }
 
@@ -52,6 +62,12 @@ class NativeTimers {
       await channel.invokeMethod<void>('cancel', {'key': key});
       _revision++;
       active.value = active.value.where((row) => row['key'] != key).toList();
+      try {
+        await onLocalChange?.call(key, null, null);
+      } catch (_) {
+        timerSync.status.value =
+            'Timer stopped here. Other devices could not be updated.';
+      }
     }
   }
 }
@@ -66,6 +82,29 @@ class _TimerSettingsState extends State<TimerSettings> {
   Map<String, dynamic>? _settings;
   String? _error;
   bool _saving = false;
+  bool _syncSaving = false;
+
+  Future<void> _receive(bool enabled) async {
+    setState(() {
+      _syncSaving = true;
+      _error = null;
+    });
+    try {
+      await timerSync.setReceiving(enabled);
+    } catch (error) {
+      if (mounted) {
+        setState(
+          () => _error = error is PlatformException
+              ? error.message ?? 'Could not enable receiving timers.'
+              : error is StateError
+              ? error.message
+              : 'Could not enable receiving timers. Check your connection and notification settings.',
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _syncSaving = false);
+    }
+  }
 
   List<Map<String, dynamic>> get _tones =>
       (_settings?['tones'] as List? ??
@@ -156,6 +195,41 @@ class _TimerSettingsState extends State<TimerSettings> {
                 Text('Cooking timers', style: theme.textTheme.headlineSmall),
                 const SizedBox(height: 8),
                 const SizedBox(height: 24),
+                ValueListenableBuilder<bool>(
+                  valueListenable: timerSync.signedIn,
+                  builder: (context, signedIn, _) =>
+                      ValueListenableBuilder<bool>(
+                        valueListenable: timerSync.receiving,
+                        builder: (context, enabled, _) => SwitchListTile(
+                          contentPadding: EdgeInsets.zero,
+                          title: const Text(
+                            'Receive timers from other devices',
+                          ),
+                          subtitle: Text(
+                            signedIn
+                                ? 'Mirror timers started on other devices signed in to your account. Applies to this device only. Opening the app may be needed to finish syncing.'
+                                : 'Sign in to receive timers from your other devices.',
+                          ),
+                          value: enabled,
+                          onChanged: signedIn && !_syncSaving ? _receive : null,
+                        ),
+                      ),
+                ),
+                if (_syncSaving) const LinearProgressIndicator(),
+                const SizedBox(height: 8),
+                const Text(
+                  'Turning this off stops received timers on this device. Timers you start here can still be shared to your other enabled devices.',
+                ),
+                ValueListenableBuilder<String?>(
+                  valueListenable: timerSync.status,
+                  builder: (context, message, _) => message == null
+                      ? const SizedBox.shrink()
+                      : Padding(
+                          padding: const EdgeInsets.only(top: 12),
+                          child: Text(message),
+                        ),
+                ),
+
                 if (_error != null) ...[
                   Semantics(
                     liveRegion: true,

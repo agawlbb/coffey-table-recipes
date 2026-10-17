@@ -1,4 +1,4 @@
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android" xmlns:tools="http://schemas.android.com/tools">
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />
     <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
@@ -59,6 +59,12 @@
         <meta-data
             android:name="flutterEmbedding"
             android:value="2" />
+        <!-- Native timer delivery owns FCM reception, including with Flutter stopped. -->
+        <receiver android:name="io.flutter.plugins.firebase.messaging.FlutterFirebaseMessagingReceiver" tools:node="remove" />
+        <service android:name="io.flutter.plugins.firebase.messaging.FlutterFirebaseMessagingService" tools:node="remove" />
+        <service android:name=".TimerSyncReceiver" android:exported="false">
+            <intent-filter android:priority="10"><action android:name="com.google.firebase.MESSAGING_EVENT" /></intent-filter>
+        </service>
         <service android:name=".RecipeTimerService" android:exported="false" android:foregroundServiceType="mediaPlayback" />
         <receiver android:name=".RecipeTimerReceiver" android:exported="false">
             <intent-filter>

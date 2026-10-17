@@ -58,9 +58,23 @@ object RecipeTimers {
         return result
     }
     fun register(activity: Activity, channel: MethodChannel) {
+        TimerSyncNative.register(channel)
         channel.setMethodCallHandler { call, result ->
+            synchronized(TimerSyncNative) {
             try {
                 when (call.method) {
+                    "configureSync" -> { TimerSyncNative.configure(activity, call.arguments as Map<*, *>); result.success(null) }
+                    "syncRevision" -> result.success(TimerSyncNative.revision(activity, call.argument<String>("timer_id")!!))
+                    "recordSyncRevision" -> { TimerSyncNative.recordRevision(activity, call.argument<String>("timer_id")!!, call.argument<Number>("revision")!!.toLong()); result.success(null) }
+                    "forgetSyncRevision" -> { TimerSyncNative.recordRevision(activity, call.argument<String>("timer_id")!!, null); result.success(null) }
+                    "applyRemote" -> { TimerSyncNative.apply(activity, JSONObject(call.arguments as Map<*, *>)); result.success(null) }
+                    "requestTimerPermissions" -> {
+                        val manager = activity.getSystemService(AlarmManager::class.java)
+                        if (Build.VERSION.SDK_INT >= 31 && !manager.canScheduleExactAlarms()) {
+                            activity.startActivity(Intent(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM, Uri.parse("package:" + activity.packageName)))
+                            result.error("permission", "Allow Alarms & reminders, then turn receiving on again.", null)
+                        } else { result.success(null) }
+                    }
                     "list" -> {
                         val all = rows(activity)
                         result.success(all.keys().asSequence().map { key -> mapOf("key" to key, "deadline" to all.getJSONObject(key).getLong("deadline"), "title" to all.getJSONObject(key).optString("title", "Cooking timer")) }.toList())
@@ -97,6 +111,7 @@ object RecipeTimers {
                     else -> result.notImplemented()
                 }
             } catch (e: Exception) { result.error("timer", e.message ?: "Could not schedule timer", null) }
+            }
         }
     }
 }

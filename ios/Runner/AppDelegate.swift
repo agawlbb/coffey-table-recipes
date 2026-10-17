@@ -13,8 +13,27 @@ import UserNotifications
   }
 
   override func userNotificationCenter(_ center: UNUserNotificationCenter, willPresent notification: UNNotification, withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void) {
-    if notification.request.content.userInfo["recipeTimer"] as? Bool == true { completionHandler([.banner, .sound]) }
+    if notification.request.content.userInfo["kind"] as? String == "recipe_timer" {
+      RecipeTimers.receivePush(notification.request.content.userInfo) { _ in completionHandler([.banner]) }
+    }
+    else if notification.request.content.userInfo["recipeTimer"] as? Bool == true { completionHandler([.banner, .sound]) }
     else { super.userNotificationCenter(center, willPresent: notification, withCompletionHandler: completionHandler) }
+  }
+
+  override func application(_ application: UIApplication, didReceiveRemoteNotification userInfo: [AnyHashable: Any], fetchCompletionHandler completionHandler: @escaping (UIBackgroundFetchResult) -> Void) {
+    if userInfo["kind"] as? String == "recipe_timer" {
+      RecipeTimers.receivePush(userInfo) { ok in completionHandler(ok ? .newData : .failed) }
+    } else {
+      super.application(application, didReceiveRemoteNotification: userInfo, fetchCompletionHandler: completionHandler)
+    }
+  }
+
+  override func userNotificationCenter(_ center: UNUserNotificationCenter, didReceive response: UNNotificationResponse, withCompletionHandler completionHandler: @escaping () -> Void) {
+    if response.notification.request.content.userInfo["kind"] as? String == "recipe_timer" {
+      RecipeTimers.receivePush(response.notification.request.content.userInfo) { _ in completionHandler() }
+    } else {
+      super.userNotificationCenter(center, didReceive: response, withCompletionHandler: completionHandler)
+    }
   }
 
   func didInitializeImplicitFlutterEngine(_ engineBridge: FlutterImplicitEngineBridge) {
