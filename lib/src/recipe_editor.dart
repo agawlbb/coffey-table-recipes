@@ -30,12 +30,14 @@ class RecipeEditor extends StatefulWidget {
     this.allowEditSource = false,
     this.variationParentTitle,
     this.variationChangeDescription,
+    this.reviewNotice,
   });
   final Map<String, dynamic> recipe;
   final String householdId;
   final RecipeSave save;
   final bool allowEditSource;
   final String? variationParentTitle;
+  final String? reviewNotice;
   // Review information only; kept outside the recipe and save payload.
   final String? variationChangeDescription;
   final Future<XFile?> Function(ImageSource source)? pickImage;
@@ -2007,6 +2009,8 @@ class _RecipeEditorState extends State<RecipeEditor> {
                           ?.copyWith(fontWeight: FontWeight.w600),
                     ),
                     const SizedBox(height: 8),
+                    if (widget.reviewNotice != null)
+                      _help(widget.reviewNotice!),
                     if (widget.allowEditSource)
                       Align(
                         alignment: Alignment.centerLeft,

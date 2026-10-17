@@ -475,7 +475,7 @@ class _HouseholdPanelState extends State<HouseholdPanel> {
                       body?['action'] == 'add'))
               ? 180
               : (path.endsWith('/recipe-import') || path.endsWith('/variation'))
-              ? 110
+              ? (body?['method_selection'] == 'both' ? 190 : 110)
               : path.startsWith('/admin/')
               ? 60
               : _offline != null && body == null
@@ -499,7 +499,7 @@ class _HouseholdPanelState extends State<HouseholdPanel> {
                       body?['action'] == 'add'))
               ? 180
               : (path.endsWith('/recipe-import') || path.endsWith('/variation'))
-              ? 110
+              ? (body?['method_selection'] == 'both' ? 190 : 110)
               : path.startsWith('/admin/')
               ? 60
               : 20,

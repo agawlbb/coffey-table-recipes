@@ -115,6 +115,13 @@ class _RecipeImportState extends State<RecipeImport> {
   Map<String, dynamic>? _draft;
   List<String> _questions = [];
   String? _identity;
+  List<Map<String, dynamic>> _methodChoices = [];
+  bool _requiresMethodChoice = false;
+  String? _methodSelection;
+  final List<Map<String, dynamic>> _pendingImports = [];
+  Map<String, dynamic>? _savedMain;
+  int _importTotal = 1;
+  int _importPosition = 1;
   List<Map<String, dynamic>> _photoSuggestions = [];
   List<Map<String, dynamic>> _importPhotos = [];
   @override
@@ -273,6 +280,9 @@ class _RecipeImportState extends State<RecipeImport> {
     });
     try {
       final body = <String, dynamic>{
+        'supports_related_imports': true,
+        if (_requiresMethodChoice && _methodSelection != null)
+          'method_selection': _methodSelection,
         'kind': _draft == null || _editingSource
             ? (_kind == 'description' ? 'text' : _kind)
             : 'answers',
@@ -352,8 +362,47 @@ class _RecipeImportState extends State<RecipeImport> {
           'The recipe service returned an incomplete draft. Your input is still here; try again.',
         );
       }
+      final related = <Map<String, dynamic>>[];
+      if (data['related_imports'] != null) {
+        if (data['related_imports'] is! List) {
+          throw ApiException(
+            502,
+            'The recipe service returned unreadable variations. Your input is still here.',
+          );
+        }
+        for (final value in data['related_imports'] as List) {
+          if (value is! Map<String, dynamic> ||
+              value['recipe'] is! Map<String, dynamic> ||
+              value['questions'] is! List ||
+              (value['questions'] as List).any((q) => q is! String)) {
+            throw ApiException(
+              502,
+              'The recipe service returned an incomplete variation. Your input is still here.',
+            );
+          }
+          related.add(value);
+        }
+      }
+      if (data['requires_method_choice'] == true &&
+          (rawQuestions.isEmpty ||
+              data['method_choices'] is! List ||
+              (data['method_choices'] as List).length < 2 ||
+              (data['method_choices'] as List).any(
+                (m) => m is! Map || m['id'] is! String || m['label'] is! String,
+              ))) {
+        throw ApiException(
+          502,
+          'The recipe service returned incomplete method choices. Your input is still here.',
+        );
+      }
       final questions = rawQuestions.cast<String>();
-      final draft = rawDraft;
+      final draft = Map<String, dynamic>.from(rawDraft);
+      if (body['kind'] == 'answers' && _draft != null) {
+        draft['_import_method_label'] ??= _draft!['_import_method_label'];
+      }
+      if (_savedMain != null) {
+        draft['parent_recipe_id'] = _savedMain!['id'].toString();
+      }
       if (draft['photos'] is List && (draft['photos'] as List).isNotEmpty) {
         _importPhotos = List<Map<String, dynamic>>.from(
           draft['photos'] as List,
@@ -372,10 +421,34 @@ class _RecipeImportState extends State<RecipeImport> {
       }
       _answerFields.clear();
       setState(() {
+        if (body['kind'] != 'answers') {
+          _pendingImports.clear();
+          _importTotal = 1;
+          _importPosition = 1;
+        }
+        if (related.isNotEmpty) {
+          _pendingImports
+            ..clear()
+            ..addAll(related);
+          for (final reply in _pendingImports) {
+            final child = reply['recipe'] as Map<String, dynamic>;
+            if ((child['photos'] as List? ?? []).isEmpty &&
+                _importPhotos.isNotEmpty) {
+              child['photos'] = jsonDecode(jsonEncode(_importPhotos));
+            }
+          }
+          _importTotal = related.length + 1;
+          _importPosition = 1;
+        }
+        _methodChoices = (data['method_choices'] as List? ?? [])
+            .whereType<Map<String, dynamic>>()
+            .toList();
+        _requiresMethodChoice = data['requires_method_choice'] == true;
+        _methodSelection = null;
         _draft = draft;
         _editingSource = false;
         _questions = questions;
-        _identity ??= draft['import_key'] as String?;
+        _identity = draft['import_key'] as String? ?? _identity;
         _answerFields.addAll(questions.map((_) => TextEditingController()));
       });
       if (questions.isEmpty) await _review();
@@ -447,7 +520,7 @@ class _RecipeImportState extends State<RecipeImport> {
       context,
       MaterialPageRoute(
         builder: (_) => RecipeEditor(
-          recipe: widget.blankRecipe == null
+          recipe: widget.blankRecipe == null || _savedMain != null
               ? _draft!
               : {
                   ..._draft!,
@@ -463,7 +536,11 @@ class _RecipeImportState extends State<RecipeImport> {
                 },
           householdId: widget.householdId,
           save: widget.request,
-          allowEditSource: true,
+          allowEditSource: _savedMain == null,
+          variationParentTitle: _savedMain?['title'] as String?,
+          reviewNotice: _importTotal > 1
+              ? 'Recipe $_importPosition of $_importTotal · ${_draft!['_import_method_label'] ?? ''}${_pendingImports.isNotEmpty ? '. Save this recipe to review the next method.' : ''}'
+              : null,
         ),
       ),
     );
@@ -475,10 +552,46 @@ class _RecipeImportState extends State<RecipeImport> {
       });
       return;
     }
+    if (saved != null && _pendingImports.isNotEmpty && mounted) {
+      final main = _savedMain ?? saved;
+      final next = _pendingImports.removeAt(0);
+      final nextDraft = Map<String, dynamic>.from(next['recipe'] as Map);
+      nextDraft['parent_recipe_id'] = main['id'].toString();
+      for (final field in _answerFields) {
+        field.dispose();
+      }
+      _answerFields.clear();
+      setState(() {
+        _savedMain = main;
+        _draft = nextDraft;
+        _questions = (next['questions'] as List).cast<String>();
+        _answerFields.addAll(_questions.map((_) => TextEditingController()));
+        _identity = nextDraft['import_key'] as String?;
+        _importPhotos = (nextDraft['photos'] as List? ?? [])
+            .cast<Map<String, dynamic>>();
+        _photoSuggestions = (nextDraft['photo_suggestions'] as List? ?? [])
+            .cast<Map<String, dynamic>>();
+        _requiresMethodChoice = false;
+        _methodChoices = [];
+        _importPosition++;
+        _busy = false;
+      });
+      if (_questions.isEmpty) await _review();
+      return;
+    }
+    if (saved == null && _savedMain != null && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'The main recipe is saved. The remaining variation was not saved.',
+          ),
+        ),
+      );
+    }
     if (mounted) {
       setState(() => _leaving = true);
       await WidgetsBinding.instance.endOfFrame;
-      if (mounted) Navigator.pop(context, saved);
+      if (mounted) Navigator.pop(context, _savedMain ?? saved);
     }
   }
 
@@ -492,7 +605,11 @@ class _RecipeImportState extends State<RecipeImport> {
         context: context,
         builder: (c) => AlertDialog(
           title: const Text('Discard recipe import?'),
-          content: const Text('Your recipe has not been saved.'),
+          content: Text(
+            _savedMain == null
+                ? 'Your recipe has not been saved.'
+                : 'The main recipe is saved. Discard the remaining variation?',
+          ),
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(c, false),
@@ -510,7 +627,7 @@ class _RecipeImportState extends State<RecipeImport> {
     if (mounted) {
       setState(() => _leaving = true);
       await WidgetsBinding.instance.endOfFrame;
-      if (mounted) Navigator.pop(context);
+      if (mounted) Navigator.pop(context, _savedMain);
     }
   }
 
@@ -651,13 +768,59 @@ class _RecipeImportState extends State<RecipeImport> {
                   ],
                 ] else ...[
                   const SizedBox(height: 20),
+                  if (_importTotal > 1)
+                    Text(
+                      'Recipe $_importPosition of $_importTotal · ${_draft!['_import_method_label'] ?? ''}',
+                    ),
                   Text(
                     _questions.isEmpty
                         ? 'Draft ready to review'
                         : 'A few details about your recipe',
                     style: Theme.of(context).textTheme.titleLarge,
                   ),
-                  for (var i = 0; i < _questions.length; i++)
+                  if (_requiresMethodChoice) ...[
+                    Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                      child: Text(_questions.first),
+                    ),
+                    RadioGroup<String>(
+                      groupValue: _methodSelection,
+                      onChanged: (value) {
+                        if (value == null) return;
+                        setState(() {
+                          _methodSelection = value;
+                          _answerFields.first.text = value == 'both'
+                              ? 'Both'
+                              : _methodChoices
+                                    .firstWhere(
+                                      (m) => m['id'] == value,
+                                    )['label']
+                                    .toString();
+                        });
+                      },
+                      child: Column(
+                        children: [
+                          for (final method in _methodChoices)
+                            RadioListTile<String>(
+                              value: method['id'].toString(),
+                              title: Text(method['label'].toString()),
+                            ),
+                          RadioListTile<String>(
+                            value: 'both',
+                            title: const Text('Both, as linked variations'),
+                            subtitle: Text(
+                              '${_methodChoices.first['label']} will be the main recipe.',
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                  for (
+                    var i = _requiresMethodChoice ? 1 : 0;
+                    i < _questions.length;
+                    i++
+                  )
                     Padding(
                       padding: const EdgeInsets.only(top: 16),
                       child: TextField(
@@ -672,7 +835,7 @@ class _RecipeImportState extends State<RecipeImport> {
                         ),
                       ),
                     ),
-                  if (_questions.isNotEmpty)
+                  if (_questions.isNotEmpty && !_requiresMethodChoice)
                     TextButton(
                       onPressed: _busy ? null : _review,
                       child: const Text('Review with missing details'),
