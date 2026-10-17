@@ -153,3 +153,5 @@ Integrated-browser visual checks passed at 360 and 1280 pixels wide using the
 hosted backend. This publication updates the local app only.
 
 2026-10-17: Ingredient rows now expose a Delete ingredient icon beside Edit; deletion changes the draft and takes effect when Save recipe succeeds. Group headings remain bold and grouped rows are slightly indented. Recipe details and the cooking-mode ingredient sheet use bold headings and a 16px member indent; ungrouped ingredients retain their alignment. Regression coverage verifies the saved deletion payload at 360px and heading weight/member positions in both display contexts. No app builds were created for this change.
+
+2026-10-17: Touch and hold an ingredient row, then drag it to reorder within its group (or within the ungrouped list). The existing Move to group menu changes group membership. Dragging updates the draft list order, which is persisted on Save recipe; ingredient identities and group assignments are retained. A touch-gesture regression moves the first ingredient to the end and checks the save payload and unaffected ungrouped ingredient. No app build was created.

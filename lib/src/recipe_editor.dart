@@ -1540,14 +1540,41 @@ class _RecipeEditorState extends State<RecipeEditor> {
           ),
         );
       }
-      result.addAll(
-        rows.map(
-          (row) => Padding(
-            padding: EdgeInsets.only(left: group == null ? 0 : 12),
-            child: _ingredient(row),
+      if (rows.isNotEmpty) {
+        result.add(
+          ReorderableListView(
+            shrinkWrap: true,
+            primary: false,
+            physics: const NeverScrollableScrollPhysics(),
+            buildDefaultDragHandles: false,
+            onReorderItem: (oldIndex, newIndex) => _change(() {
+              final ordered = [...rows];
+              ordered.insert(newIndex, ordered.removeAt(oldIndex));
+              final ingredients = _rows('ingredients');
+              final positions = [
+                for (var i = 0; i < ingredients.length; i++)
+                  if (rows.contains(ingredients[i])) i,
+              ];
+              for (var i = 0; i < positions.length; i++) {
+                ingredients[positions[i]] = ordered[i];
+              }
+            }),
+            children: [
+              for (var index = 0; index < rows.length; index++)
+                Padding(
+                  key: ValueKey(
+                    'ingredient-order-${identityHashCode(rows[index])}',
+                  ),
+                  padding: EdgeInsets.only(left: group == null ? 0 : 12),
+                  child: ReorderableDelayedDragStartListener(
+                    index: index,
+                    child: _ingredient(rows[index]),
+                  ),
+                ),
+            ],
           ),
-        ),
-      );
+        );
+      }
       result.add(
         _add(
           group == null
