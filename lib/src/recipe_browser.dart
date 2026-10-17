@@ -317,6 +317,26 @@ class _RecipeBrowserState extends State<RecipeBrowser>
   }
 
   Future<void> _filters() async {
+    final favorite = await showDialog<bool>(
+      context: context,
+      builder: (context) => SimpleDialog(
+        title: const Text('Filters'),
+        children: [
+          SimpleDialogOption(
+            onPressed: () => Navigator.pop(context, true),
+            child: const ListTile(
+              leading: Icon(Icons.favorite),
+              title: Text('Favorite'),
+              trailing: Icon(Icons.chevron_right),
+            ),
+          ),
+        ],
+      ),
+    );
+    if (favorite == true && mounted) await _favoriteFilter();
+  }
+
+  Future<void> _favoriteFilter() async {
     try {
       final data = await widget.request(
         '/households/${widget.householdId}/people',
@@ -327,20 +347,13 @@ class _RecipeBrowserState extends State<RecipeBrowser>
         context: context,
         builder: (context) => StatefulBuilder(
           builder: (context, update) => AlertDialog(
-            title: const Text('Filters'),
+            title: const Text('Favorite'),
             content: SizedBox(
               width: 360,
               child: SingleChildScrollView(
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    const ListTile(
-                      leading: Icon(Icons.favorite),
-                      title: Text('Favorite of'),
-                      subtitle: Text(
-                        'Recipes must be favorites of everyone checked.',
-                      ),
-                    ),
                     for (final person in recipeRows(data['people']))
                       CheckboxListTile(
                         title: Text('${person['display_name']}'),

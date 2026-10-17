@@ -92,12 +92,18 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.byTooltip('Filters'));
     await tester.pumpAndSettle();
+    expect(find.text('Joe'), findsNothing);
+    expect(paths.where((path) => path.endsWith('/people')), isEmpty);
+    await tester.tap(find.text('Favorite'));
+    await tester.pumpAndSettle();
     await tester.tap(find.text('Joe'));
     await tester.tap(find.text('Brooklyn'));
     await tester.tap(find.text('Apply'));
     await tester.pumpAndSettle();
     expect(Uri.parse(paths.last).queryParameters['favorite_people'], '10,11');
     await tester.tap(find.byTooltip('Filters (2 selected)'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Favorite'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Clear'));
     await tester.tap(find.text('Apply'));
