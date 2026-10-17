@@ -23,6 +23,13 @@ Map<String, dynamic> blank() => {
     {'category_id': '1'},
   ],
   'edit_options': {
+    'favorites': {
+      'current_person_id': '10',
+      'people': [
+        {'id': '10', 'display_name': 'Alice', 'favorite': false},
+        {'id': '11', 'display_name': 'Bob', 'favorite': false},
+      ],
+    },
     'categories': [
       {'id': '1', 'label': 'Desserts'},
     ],
@@ -30,7 +37,7 @@ Map<String, dynamic> blank() => {
 };
 
 void main() {
-  testWidgets('blank creation bypasses AI and requires category', (
+  testWidgets('blank creation saves an omitted category without confirmation', (
     tester,
   ) async {
     final paths = <String>[];
@@ -51,13 +58,13 @@ void main() {
     await tester.tap(find.text('Blank recipe'));
     await tester.pumpAndSettle();
     expect(paths, ['/households/2/recipe-blank']);
-    expect(find.text('Favorite this recipe'), findsOneWidget);
+    expect(find.byTooltip('Favorite (hold for household)'), findsOneWidget);
+    expect(find.byType(SwitchListTile), findsNothing);
     expect(find.text('Ingredients'), findsNothing);
     expect(find.text('Generate an image with AI'), findsNothing);
     await tester.tap(find.text('Save recipe'));
     await tester.pumpAndSettle();
-    expect(find.text('Choose at least one category.'), findsOneWidget);
-    expect(paths.length, 1);
+    expect(paths, ['/households/2/recipe-blank', '/households/2/recipes']);
   });
 
   testWidgets('saving blank preserves marker and skips category AI', (
@@ -84,6 +91,127 @@ void main() {
     expect(submitted?['source_type'], 'blank');
     expect(paths, ['/households/2/recipes/9']);
   });
+
+  testWidgets('blank heart toggles own favorite and edits household choices', (
+    tester,
+  ) async {
+    Map<String, dynamic>? submitted;
+    final draft = blank()..remove('id');
+    await tester.pumpWidget(
+      MaterialApp(
+        home: RecipeEditor(
+          recipe: draft,
+          householdId: '2',
+          save: (_, body) async {
+            submitted = Map.from(body);
+            throw ApiException(500, 'Keep draft');
+          },
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    final heart = find.byTooltip('Favorite (hold for household)');
+    await tester.ensureVisible(heart);
+    await tester.tap(heart);
+    await tester.pumpAndSettle();
+    expect(find.text('Favorite of Alice'), findsOneWidget);
+    await tester.longPress(heart);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Bob'));
+    await tester.tap(find.text('Cancel'));
+    await tester.pumpAndSettle();
+    expect(find.text('Favorite of Alice'), findsOneWidget);
+    await tester.longPress(heart);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Bob'));
+    await tester.tap(find.text('Save'));
+    await tester.pumpAndSettle();
+    expect(find.text('Favorite of Alice and Bob'), findsOneWidget);
+    await tester.tap(find.text('Save recipe'));
+    await tester.pumpAndSettle();
+    expect(submitted?['favorite_people'], [
+      {'person_id': '10', 'favorite': true},
+      {'person_id': '11', 'favorite': true},
+    ]);
+  });
+
+  testWidgets('blank dropdowns sort parents and categories alphabetically', (
+    tester,
+  ) async {
+    final draft = blank();
+    (draft['edit_options'] as Map)['categories'] = [
+      {'id': '5', 'label': 'Snacks'},
+      {'id': '4', 'label': 'Zucchini cakes', 'parent_label': 'Desserts'},
+      {'id': '1', 'label': 'Desserts'},
+      {'id': '3', 'label': 'brownies', 'parent_label': 'Desserts'},
+      {'id': '2', 'label': 'Apple pies', 'parent_label': 'Desserts'},
+    ];
+    await tester.pumpWidget(
+      MaterialApp(
+        home: RecipeEditor(
+          recipe: draft,
+          householdId: '2',
+          save: (_, body) async => {'recipe': body},
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    final dropdowns = tester
+        .widgetList<DropdownButton<String>>(find.byType(DropdownButton<String>))
+        .toList();
+    expect(dropdowns[0].items!.map((item) => item.value).toList(), [
+      '',
+      'Desserts',
+      'Snacks',
+    ]);
+    expect(dropdowns[1].items!.map((item) => item.value).toList(), [
+      '2',
+      '3',
+      '1',
+      '4',
+      '__new',
+    ]);
+  });
+
+  testWidgets(
+    'blank entry fits a narrow phone and retains input after save failure',
+    (tester) async {
+      tester.view.physicalSize = const Size(320, 700);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      final draft = blank()..remove('id');
+      draft['title'] = '';
+      draft['category_assignments'] = [];
+      Map<String, dynamic>? submitted;
+      await tester.pumpWidget(
+        MaterialApp(
+          home: RecipeEditor(
+            recipe: draft,
+            householdId: '2',
+            save: (_, body) async {
+              submitted = Map.from(body);
+              throw ApiException(502, 'Choose a category yourself or retry.');
+            },
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Save recipe'));
+      await tester.pumpAndSettle();
+      expect(submitted, isNull);
+      await tester.enterText(
+        find.widgetWithText(TextFormField, 'Recipe name'),
+        'Birthday cake',
+      );
+      await tester.tap(find.text('Save recipe'));
+      await tester.pumpAndSettle();
+      expect(submitted?['category_assignments'], isEmpty);
+      expect(find.text('Choose a category yourself or retry.'), findsOneWidget);
+      expect(find.text('Birthday cake'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    },
+  );
 
   testWidgets('import review updates blank ID and revision', (tester) async {
     Map<String, dynamic>? submitted;

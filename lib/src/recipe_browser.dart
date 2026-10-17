@@ -17,6 +17,7 @@ import 'recipe_value.dart';
 import 'recipe_source_links.dart';
 import 'recipe_variation.dart';
 import 'recipe_import.dart';
+import 'recipe_favorites.dart';
 import 'recipe_image_prefetch.dart';
 
 final recipePhotoCache = CacheManager(
@@ -788,44 +789,9 @@ class _RecipeDetailState extends State<RecipeDetail> {
       if (!mounted) return;
       setState(() => _acceptFavorites(data));
       if (household) {
-        data['people'] = _favoriteMembers
-            .map((p) => Map<String, dynamic>.from(p))
-            .toList();
-        final people = await showDialog<List<Map<String, dynamic>>>(
-          context: context,
-          builder: (context) => StatefulBuilder(
-            builder: (context, update) => AlertDialog(
-              title: const Text('Household favorites'),
-              content: SizedBox(
-                width: 360,
-                child: SingleChildScrollView(
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      for (final p in recipeRows(data['people']))
-                        CheckboxListTile(
-                          title: Text('${p['display_name']}'),
-                          value: _isFavorite(p),
-                          onChanged: (value) =>
-                              update(() => p['favorite'] = value == true),
-                        ),
-                    ],
-                  ),
-                ),
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.pop(context),
-                  child: const Text('Cancel'),
-                ),
-                FilledButton(
-                  onPressed: () =>
-                      Navigator.pop(context, recipeRows(data['people'])),
-                  child: const Text('Save'),
-                ),
-              ],
-            ),
-          ),
+        final people = await chooseHouseholdFavorites(
+          context,
+          _favoriteMembers,
         );
         if (people == null) return;
         for (final p in people) {

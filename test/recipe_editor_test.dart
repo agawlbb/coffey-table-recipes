@@ -437,7 +437,7 @@ void main() {
     await tester.tap(find.text('Done'));
     await tester.pumpAndSettle();
     expect(
-      find.text('Unsaved changes · Save when you’re ready'),
+      find.text('Unsaved changes'),
       findsOneWidget,
     );
     await tester.ensureVisible(find.byTooltip('Go to steps & actions'));

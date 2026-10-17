@@ -11,6 +11,7 @@ import 'source_photo_crop.dart';
 import 'recipe_time.dart';
 import 'recipe_value.dart';
 import 'recipe_category_selection.dart';
+import 'recipe_favorites.dart';
 import 'recipe_image_editor.dart';
 import 'offline_recipes.dart';
 
@@ -46,6 +47,13 @@ class _RecipeEditorState extends State<RecipeEditor> {
   final _form = GlobalKey<FormState>();
   late final Map<String, dynamic> _draft;
   bool get _blank => _draft['source_type'] == 'blank';
+  List<Map<String, dynamic>> _favoritePeople = [];
+  String? _currentPerson;
+  List<Map<String, dynamic>> get _selectedCategories =>
+      _rows('category_assignments')
+          .where((row) => row['category_id'] != null || row['label'] != null)
+          .toList();
+  bool get _automaticCategory => _blank && _selectedCategories.isEmpty;
   bool _dirty = false, _saving = false, _picking = false, _leaving = false;
   bool _closing = false;
   final List<Map<String, dynamic>> _sourcePhotos = [];
@@ -85,8 +93,8 @@ class _RecipeEditorState extends State<RecipeEditor> {
     final options = recipeRows((_draft['edit_options'] as Map?)?[key]);
     if (key == 'categories') {
       options.sort(
-        (a, b) => '${a['label'] ?? ''}'.toLowerCase().compareTo(
-          '${b['label'] ?? ''}'.toLowerCase(),
+        (a, b) => '${a['label'] ?? ''}'.trim().toLowerCase().compareTo(
+          '${b['label'] ?? ''}'.trim().toLowerCase(),
         ),
       );
     }
@@ -108,6 +116,14 @@ class _RecipeEditorState extends State<RecipeEditor> {
       'category_assignments',
     ]) {
       _draft[key] ??= <Map<String, dynamic>>[];
+    }
+    if (_blank) {
+      final favorites = (_draft['edit_options'] as Map?)?['favorites'] as Map?;
+      _favoritePeople = recipeRows(favorites?['people']);
+      _currentPerson = favorites?['current_person_id']?.toString();
+      if (_rows('category_assignments').isEmpty) {
+        _rows('category_assignments').add(<String, dynamic>{});
+      }
     }
     for (final key in ['tags', 'category_assignments']) {
       for (final row in _rows(key)) {
@@ -187,12 +203,19 @@ class _RecipeEditorState extends State<RecipeEditor> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          _choice(row, '_parent_category', 'Parent category', {
-            for (final c in _options(
-              'categories',
-            ).where((c) => c['parent_label'] == null))
-              '${c['label']}': '${c['label']}',
-          }, nullable: true),
+          _choice(
+            row,
+            '_parent_category',
+            'Parent category',
+            {
+              for (final c in _options(
+                'categories',
+              ).where((c) => c['parent_label'] == null))
+                '${c['label']}': '${c['label']}',
+            },
+            nullable: true,
+            nullableLabel: _blank ? 'Choose automatically' : 'None',
+          ),
           DropdownButtonFormField<String>(
             key: ValueKey('${identityHashCode(row)}-$parent-$selected'),
             initialValue:
@@ -201,7 +224,12 @@ class _RecipeEditorState extends State<RecipeEditor> {
                 ? selected
                 : null,
             isExpanded: true,
-            decoration: const InputDecoration(labelText: 'Category'),
+            decoration: InputDecoration(
+              labelText: 'Category',
+              hintText: _blank && parent == null
+                  ? 'Choose a parent first'
+                  : null,
+            ),
             items: [
               for (final c in options)
                 DropdownMenuItem(
@@ -214,21 +242,23 @@ class _RecipeEditorState extends State<RecipeEditor> {
               ),
             ],
             validator: (_) => row['category_id'] == null && row['label'] == null
-                ? 'Choose a category'
+                ? (_blank ? null : 'Choose a category')
                 : null,
-            onChanged: (value) => _change(() {
-              if (value == '__new') {
-                row.remove('category_id');
-                row['label'] = '';
-                row['parent_label'] = row['_parent_category'];
-                row['_new_category'] = true;
-              } else {
-                row['category_id'] = value;
-                row.remove('label');
-                row.remove('parent_label');
-                row.remove('_new_category');
-              }
-            }),
+            onChanged: _blank && parent == null
+                ? null
+                : (value) => _change(() {
+                    if (value == '__new') {
+                      row.remove('category_id');
+                      row['label'] = '';
+                      row['parent_label'] = row['_parent_category'];
+                      row['_new_category'] = true;
+                    } else {
+                      row['category_id'] = value;
+                      row.remove('label');
+                      row.remove('parent_label');
+                      row.remove('_new_category');
+                    }
+                  }),
           ),
           if (row['label'] != null) ...[
             const SizedBox(height: 12),
@@ -254,6 +284,51 @@ class _RecipeEditorState extends State<RecipeEditor> {
       ),
     );
   }
+
+  Future<void> _favorite({bool household = false}) async {
+    if (_saving || _picking) return;
+    if (household) {
+      final people = await chooseHouseholdFavorites(context, _favoritePeople);
+      if (people != null && mounted) _change(() => _favoritePeople = people);
+    } else {
+      final own = _favoritePeople
+          .where((p) => '${p['id']}' == _currentPerson)
+          .firstOrNull;
+      if (own != null) {
+        _change(() => own['favorite'] = !recipePersonFavorite(own));
+      }
+    }
+  }
+
+  Widget _blankFavorites() => Row(
+    children: [
+      IconButton(
+        tooltip: 'Favorite (hold for household)',
+        onPressed: _favoritePeople.isEmpty || _saving || _picking
+            ? null
+            : () => _favorite(),
+        onLongPress: _favoritePeople.isEmpty || _saving || _picking
+            ? null
+            : () => _favorite(household: true),
+        icon: Icon(
+          _favoritePeople.any(
+                (p) =>
+                    '${p['id']}' == _currentPerson && recipePersonFavorite(p),
+              )
+              ? Icons.favorite
+              : Icons.favorite_border,
+        ),
+      ),
+      Expanded(
+        child: Text(
+          _favoritePeople.any(recipePersonFavorite)
+              ? 'Favorite of ${_favoritePeople.where(recipePersonFavorite).map((p) => p['display_name']).join(' and ')}'
+              : 'Favorite',
+          style: Theme.of(context).textTheme.bodyMedium,
+        ),
+      ),
+    ],
+  );
 
   void _connectionChanged() {
     if (mounted) setState(() {});
@@ -589,11 +664,6 @@ class _RecipeEditorState extends State<RecipeEditor> {
       if (mounted) setState(() => _revealingErrors = false);
       return;
     }
-    if (_blank && _rows('category_assignments').isEmpty) {
-      setState(() => _error = 'Choose at least one category.');
-      await _jumpTo('Recipe details');
-      return;
-    }
     for (final ingredient in _rows('ingredients')) {
       final decimal = ingredient['quantity_decimal'],
           numerator = ingredient['quantity_numerator'],
@@ -671,7 +741,18 @@ class _RecipeEditorState extends State<RecipeEditor> {
     try {
       final data = await widget.save(
         '/households/${widget.householdId}/recipes${_draft['id'] == null ? '' : '/${_draft['id']}'}',
-        _draft,
+        {
+          ..._draft,
+          if (_blank) 'category_assignments': _selectedCategories,
+          if (_blank && _favoritePeople.isNotEmpty)
+            'favorite_people': [
+              for (final person in _favoritePeople)
+                {
+                  'person_id': person['id'],
+                  'favorite': recipePersonFavorite(person),
+                },
+            ],
+        },
       );
       final savedRecipe = data['recipe'] as Map<String, dynamic>;
       for (final category
@@ -1123,6 +1204,7 @@ class _RecipeEditorState extends State<RecipeEditor> {
     String label,
     Map<String, String> options, {
     bool nullable = false,
+    String nullableLabel = 'None',
   }) {
     final value = row[key]?.toString();
     return Padding(
@@ -1136,7 +1218,7 @@ class _RecipeEditorState extends State<RecipeEditor> {
         isExpanded: true,
         decoration: InputDecoration(labelText: label),
         items: [
-          if (nullable) const DropdownMenuItem(value: '', child: Text('None')),
+          if (nullable) DropdownMenuItem(value: '', child: Text(nullableLabel)),
           ...options.entries.map(
             (e) => DropdownMenuItem(
               value: e.key,
@@ -1760,10 +1842,11 @@ class _RecipeEditorState extends State<RecipeEditor> {
               : 'Edit recipe',
         ),
         actions: [
-          TextButton(
-            onPressed: _saving || _picking ? null : _close,
-            child: const Text('Cancel'),
-          ),
+          if (!_blank)
+            TextButton(
+              onPressed: _saving || _picking ? null : _close,
+              child: const Text('Cancel'),
+            ),
           Padding(
             padding: const EdgeInsets.only(right: 12),
             child: FilledButton.icon(
@@ -1781,41 +1864,46 @@ class _RecipeEditorState extends State<RecipeEditor> {
             ),
           ),
         ],
-        bottom: PreferredSize(
-          preferredSize: const Size.fromHeight(54),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-            child: SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              child: Row(
-                children: [
-                  for (final entry
-                      in const {
-                        'Recipe details': 'Details',
-                        'Ingredients': 'Ingredients',
-                        'Steps & actions': 'Method',
-                        'Photos': 'Photos',
-                        'Notes & source': 'Notes',
-                        'Related recipes': 'Related',
-                        'Nutrition': 'Nutrition',
-                      }.entries.where(
-                        (e) =>
-                            !_blank ||
-                            ['Recipe details', 'Photos'].contains(e.key),
-                      ))
-                    Padding(
-                      padding: const EdgeInsets.only(right: 8),
-                      child: ActionChip(
-                        label: Text(entry.value),
-                        tooltip: 'Go to ${entry.key.toLowerCase()}',
-                        onPressed: () => _jumpTo(entry.key),
-                      ),
+        bottom: _blank
+            ? null
+            : PreferredSize(
+                preferredSize: const Size.fromHeight(54),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 4,
+                  ),
+                  child: SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    child: Row(
+                      children: [
+                        for (final entry
+                            in const {
+                              'Recipe details': 'Details',
+                              'Ingredients': 'Ingredients',
+                              'Steps & actions': 'Method',
+                              'Photos': 'Photos',
+                              'Notes & source': 'Notes',
+                              'Related recipes': 'Related',
+                              'Nutrition': 'Nutrition',
+                            }.entries.where(
+                              (e) =>
+                                  !_blank ||
+                                  ['Recipe details', 'Photos'].contains(e.key),
+                            ))
+                          Padding(
+                            padding: const EdgeInsets.only(right: 8),
+                            child: ActionChip(
+                              label: Text(entry.value),
+                              tooltip: 'Go to ${entry.key.toLowerCase()}',
+                              onPressed: () => _jumpTo(entry.key),
+                            ),
+                          ),
+                      ],
                     ),
-                ],
+                  ),
+                ),
               ),
-            ),
-          ),
-        ),
       ),
       bottomNavigationBar: SafeArea(
         child: Padding(
@@ -1836,7 +1924,9 @@ class _RecipeEditorState extends State<RecipeEditor> {
                 child: Text(
                   _error ??
                       (_saving
-                          ? 'Saving your recipe…'
+                          ? (_automaticCategory
+                                ? 'Choosing a category and saving…'
+                                : 'Saving your recipe…')
                           : _dirty
                           ? 'Unsaved changes'
                           : widget.variationParentTitle != null &&
@@ -1860,7 +1950,7 @@ class _RecipeEditorState extends State<RecipeEditor> {
         absorbing: _saving,
         child: Center(
           child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 900),
+            constraints: BoxConstraints(maxWidth: _blank ? 640 : 900),
             child: Form(
               key: _form,
               child: SingleChildScrollView(
@@ -1869,7 +1959,11 @@ class _RecipeEditorState extends State<RecipeEditor> {
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     Text(
-                      _draft['title']?.toString() ?? 'Your recipe',
+                      _blank
+                          ? (_draft['id'] == null
+                                ? 'Create a blank recipe'
+                                : 'Edit blank recipe')
+                          : _draft['title']?.toString() ?? 'Your recipe',
                       style: Theme.of(context).textTheme.headlineSmall
                           ?.copyWith(fontWeight: FontWeight.w600),
                     ),
@@ -1927,12 +2021,7 @@ class _RecipeEditorState extends State<RecipeEditor> {
                         required: true,
                         maxLength: 300,
                       ),
-                      if (_blank && _draft['id'] == null)
-                        _toggle(
-                          _draft,
-                          'favorite_on_create',
-                          'Favorite this recipe',
-                        ),
+                      if (_blank) _blankFavorites(),
                       if (!_blank) ...[
                         _field(_draft, 'description', 'Description', lines: 3),
                         _columns([
@@ -1998,10 +2087,12 @@ class _RecipeEditorState extends State<RecipeEditor> {
                         ),
                       ],
                       const Divider(),
-                      const Text(
-                        'Categories & tags',
-                        style: TextStyle(fontWeight: FontWeight.w600),
+                      Text(
+                        _blank ? 'Category (optional)' : 'Categories & tags',
+                        style: const TextStyle(fontWeight: FontWeight.w600),
                       ),
+                      if (_blank)
+                        _help('Leave blank for AI to choose on save.'),
                       ..._rows('category_assignments').map(_category),
                       _add(
                         'Add category',
