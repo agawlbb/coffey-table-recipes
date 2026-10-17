@@ -6,7 +6,14 @@
 
 Apple references: [List builds](https://developer.apple.com/documentation/appstoreconnectapi/get-v1-builds) and [build beta details](https://developer.apple.com/documentation/appstoreconnectapi/get-v1-buildbetadetails).
 
-Current status (2026-10-13): Apple app/extension/App Group registration is complete.
+## Historical setup and first uploads
+
+The entries below record setup on 2026-10-13, including approvals required at
+that time. See `releases.md` for current delivered versions and `AGENTS.md` for
+current build authorization. A requested release authorizes its signed iOS build
+and upload without a separate approval question.
+
+Setup status (2026-10-13): Apple app/extension/App Group registration is complete.
 The current team API key was verified as Admin and its private PEM downloaded and
 verified through Chrome. After owner GitHub account verification, the current key
 ID update succeeded and `ASC_PRIVATE_KEY` was saved. All five required secret
