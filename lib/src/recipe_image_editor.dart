@@ -292,10 +292,6 @@ class _RecipeImageEditorState extends State<RecipeImageEditor> {
               ),
             ),
           ),
-          const Padding(
-            padding: EdgeInsets.symmetric(horizontal: 16),
-            child: Text('Drag the corners to crop.'),
-          ),
           Wrap(
             alignment: WrapAlignment.center,
             spacing: 8,

@@ -1838,10 +1838,10 @@ class _RecipeEditorState extends State<RecipeEditor> {
                       (_saving
                           ? 'Saving your recipe…'
                           : _dirty
-                          ? 'Unsaved changes · Save when you’re ready'
+                          ? 'Unsaved changes'
                           : widget.variationParentTitle != null &&
                                 _draft['id'] == null
-                          ? 'Variation not saved · Review, then Save'
+                          ? 'Variation not saved'
                           : _draft['id'] == null
                           ? 'Draft—not saved yet'
                           : 'No unsaved changes'),
@@ -1874,7 +1874,6 @@ class _RecipeEditorState extends State<RecipeEditor> {
                           ?.copyWith(fontWeight: FontWeight.w600),
                     ),
                     const SizedBox(height: 8),
-                    _help('Review your recipe, then save.'),
                     if (widget.allowEditSource)
                       Align(
                         alignment: Alignment.centerLeft,
@@ -1890,9 +1889,7 @@ class _RecipeEditorState extends State<RecipeEditor> {
                         alignment: Alignment.centerLeft,
                         child: Chip(label: Text('Variation')),
                       ),
-                      _help(
-                        'Variation of ${widget.variationParentTitle}. Save creates a new recipe; the original stays unchanged.',
-                      ),
+                      _help('Variation of ${widget.variationParentTitle}'),
                       if (widget.variationChangeDescription?.isNotEmpty == true)
                         Card(
                           child: Padding(
@@ -2057,9 +2054,6 @@ class _RecipeEditorState extends State<RecipeEditor> {
                         subtitle: '${_rows('ingredients').length} ingredients',
                       ),
                       _section('Steps & actions', Icons.format_list_numbered, [
-                        _help(
-                          'Open a step to edit it or add a timer or appliance temperature.',
-                        ),
                         ..._rows('steps').map(_step),
                         _add(
                           'Add step',
@@ -2081,7 +2075,6 @@ class _RecipeEditorState extends State<RecipeEditor> {
                             'Pictures found in your import',
                             style: TextStyle(fontWeight: FontWeight.bold),
                           ),
-                          _help('Choose a picture to use for this recipe.'),
                           for (final photo in List<Map<String, dynamic>>.from(
                             _sourcePhotos,
                           ))

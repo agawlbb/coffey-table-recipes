@@ -167,18 +167,6 @@ class _ParentCategoriesState extends State<ParentCategories> {
         child: Column(
           children: [
             if (_busy) const LinearProgressIndicator(),
-            const Padding(
-              padding: EdgeInsets.all(16),
-              child: Text(
-                'This catalog is shared across all households. Only parents with no subcategories or recipe assignments (including Recently Deleted) can be deleted.',
-              ),
-            ),
-            const Padding(
-              padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              child: Text(
-                'New parent categories get an AI-generated cover. This can take a couple of minutes.',
-              ),
-            ),
             FilledButton.icon(
               onPressed: _busy ? null : () => _edit(),
               icon: const Icon(Icons.add),

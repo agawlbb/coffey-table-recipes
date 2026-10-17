@@ -128,9 +128,6 @@ class _AccountPanelState extends State<AccountPanel> {
                   style: Theme.of(context).textTheme.titleLarge,
                 ),
                 const SizedBox(height: 8),
-                const Text(
-                  'Sign in to bring your household’s recipes and dinner plans together.',
-                ),
                 const SizedBox(height: 20),
                 EmailAccess(
                   initialEmail: _entry.email,
@@ -775,9 +772,6 @@ class _HouseholdPanelState extends State<HouseholdPanel> {
             ],
             if (!_busy && _households.isEmpty && _error == null) ...[
               const SizedBox(height: 12),
-              const Text(
-                'Give your household a name. You can add people who do not have login accounts.',
-              ),
               const SizedBox(height: 16),
               TextField(
                 controller: _householdName,

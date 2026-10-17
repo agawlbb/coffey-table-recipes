@@ -155,12 +155,6 @@ class _TimerSettingsState extends State<TimerSettings> {
               children: [
                 Text('Cooking timers', style: theme.textTheme.headlineSmall),
                 const SizedBox(height: 8),
-                Text(
-                  'Choose the sound for your cooking reminders.',
-                  style: theme.textTheme.bodyMedium?.copyWith(
-                    color: theme.colorScheme.onSurfaceVariant,
-                  ),
-                ),
                 const SizedBox(height: 24),
                 if (_error != null) ...[
                   Semantics(
@@ -206,27 +200,6 @@ class _TimerSettingsState extends State<TimerSettings> {
                           : const Icon(Icons.chevron_right),
                       onTap: _saving ? null : _choose,
                     ),
-                  ),
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
-                    child: Text(
-                      'Applies to new or edited timers. Running timers keep their current sound.',
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        color: theme.colorScheme.onSurfaceVariant,
-                      ),
-                    ),
-                  ),
-                  ExpansionTile(
-                    tilePadding: const EdgeInsets.symmetric(horizontal: 16),
-                    leading: const Icon(Icons.info_outline),
-                    title: const Text('How timers work'),
-                    childrenPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-                    children: [
-                      Text(
-                        _settings!['mode'] as String? ?? '',
-                        style: theme.textTheme.bodyMedium,
-                      ),
-                    ],
                   ),
                 ] else if (_error == null)
                   const Padding(

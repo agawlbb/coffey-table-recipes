@@ -223,9 +223,6 @@ class _RecipeVariationState extends State<RecipeVariation> {
                 style: Theme.of(context).textTheme.titleLarge,
               ),
               const SizedBox(height: 12),
-              const Text(
-                'Describe the changes you want. AI may ask follow-up questions, then you can review and approve a new recipe. The original stays unchanged.',
-              ),
               const SizedBox(height: 20),
               if (_submittedChanges == null)
                 TextField(
@@ -261,7 +258,6 @@ class _RecipeVariationState extends State<RecipeVariation> {
                       maxLength: 2000,
                       decoration: InputDecoration(
                         labelText: _questions[i],
-                        helperText: 'Enter “unknown” if you are unsure.',
                         border: const OutlineInputBorder(),
                       ),
                     ),

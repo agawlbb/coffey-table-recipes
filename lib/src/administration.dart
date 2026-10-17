@@ -225,12 +225,6 @@ class _AdministrationPageState extends State<AdministrationPage> {
                         style: TextStyle(fontSize: 24),
                       ),
                     ),
-                    const Padding(
-                      padding: EdgeInsets.symmetric(horizontal: 16),
-                      child: Text(
-                        'AI images start disabled. Enabling a household allows all its members to generate recipe and category images.',
-                      ),
-                    ),
                     if (_households.isEmpty && !_busy && _error == null)
                       const ListTile(title: Text('No registered households.')),
                     for (final household in _households)

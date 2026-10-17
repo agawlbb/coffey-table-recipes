@@ -469,21 +469,7 @@ class _RecipeImportState extends State<RecipeImport> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                if (widget.blankRecipe == null)
-                  OutlinedButton.icon(
-                    onPressed: _busy || offlineStatus.value
-                        ? null
-                        : _createBlank,
-                    icon: const Icon(Icons.note_add_outlined),
-                    label: const Text('Blank recipe'),
-                  ),
-                const Text(
-                  'Choose a source. Review your recipe before saving.',
-                ),
                 const SizedBox(height: 12),
-                const Text(
-                  'AI organizes your input and may ask about missing details.',
-                ),
                 if (offlineStatus.value)
                   const Padding(
                     padding: EdgeInsets.symmetric(vertical: 12),
@@ -505,7 +491,9 @@ class _RecipeImportState extends State<RecipeImport> {
                     physics: const NeverScrollableScrollPhysics(),
 
                     children: [
-                      for (final option in const [
+                      for (final option in [
+                        if (widget.blankRecipe == null)
+                          ('blank', 'Blank recipe', Icons.note_add_outlined),
                         ('text', 'Text', Icons.notes),
                         ('website', 'Website', Icons.link),
                         ('file', 'File', Icons.upload_file),
@@ -517,13 +505,21 @@ class _RecipeImportState extends State<RecipeImport> {
                           selected:
                               option.$1 ==
                               (_kind == 'description' ? 'text' : _kind),
-                          onSelected: _busy
+                          onSelected:
+                              _busy ||
+                                  (option.$1 == 'blank' && offlineStatus.value)
                               ? null
-                              : (_) => setState(() {
-                                  _kind = option.$1;
-                                  _file = null;
-                                  _error = null;
-                                }),
+                              : (_) {
+                                  if (option.$1 == 'blank') {
+                                    _createBlank();
+                                    return;
+                                  }
+                                  setState(() {
+                                    _kind = option.$1;
+                                    _file = null;
+                                    _error = null;
+                                  });
+                                },
                         ),
                     ],
                   ),
@@ -628,7 +624,6 @@ class _RecipeImportState extends State<RecipeImport> {
                         maxLength: 4000,
                         decoration: InputDecoration(
                           labelText: _questions[i],
-                          helperText: 'Enter “unknown” if you are unsure.',
                           border: const OutlineInputBorder(),
                         ),
                       ),

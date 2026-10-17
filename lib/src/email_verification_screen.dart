@@ -170,9 +170,6 @@ class _EmailVerificationScreenState extends State<EmailVerificationScreen>
                     'Open the verification email sent to ${widget.user.email ?? 'your email address'} and click its link to complete verification.',
                   ),
                   const SizedBox(height: 12),
-                  const Text(
-                    'Return here after verifying. This screen will continue automatically once your email is verified.',
-                  ),
                   if (_registrationError != null) ...[
                     const SizedBox(height: 16),
                     Text(_registrationError!),

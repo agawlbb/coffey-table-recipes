@@ -146,7 +146,6 @@ class _InvitationResponseDialogState extends State<InvitationResponseDialog> {
             '${widget.invitation['inviter_name'] ?? 'A household administrator'} has invited you to join ${widget.invitation['household_name']}.',
           ),
           const SizedBox(height: 12),
-          const Text('Accept to share this household’s recipes.'),
           if (_error != null) ...[
             const SizedBox(height: 12),
             Text(
