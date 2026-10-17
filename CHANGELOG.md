@@ -2,6 +2,17 @@
 
 Release dates and changes are reconstructed from annotated Git tags, commit history, and project release records. Versions before 1.0 are demonstration releases; 1.0 marks the first usable release. Android retains the existing signing identity; iOS delivery and signing are recorded for each release.
 
+## 1.6.0 — 2026-10-16
+
+Build 20; tag `v1.6.0`. This follows development packages through build 19.
+
+- Added public shared-recipe browsing and authenticated attachment of a canonical recipe to another household, with confirmation before shared edits.
+- Preserved canonical variation-family navigation across household lists and added native HTTPS recipe-link routing with web fallback.
+- Added persistent native cooking timers, app-wide running-timer controls, cancellation and recovery, Android alarm-tone selection and one-second previews.
+- Added iOS AlarmKit scheduling on supported systems, notification fallback, bundled tones and a Live Activity timer widget.
+- Refined the account menu, recipe-title layout, responsive browsing and keyboard-overlay handling.
+- Included the running app version in the menu and recipe-name HTML links when sharing.
+
 ## 1.5.0 — 2026-10-16
 
 Build 16; tag `v1.5.0`.
