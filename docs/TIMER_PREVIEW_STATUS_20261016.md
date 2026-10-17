@@ -37,6 +37,26 @@ compilation and APK signature verification passed. iOS configuration/audio
 packaging tests validate all three bundled PCM sounds. Native iOS compilation
 and emulator observations are recorded separately after completion.
 
+Pixel 8/API 36 emulator: tone selector rendered Play controls; pressing Argon's
+preview created a started MediaPlayer with USAGE_ALARM and no muted state.
+After the bounded preview, no started player remained. The saved tone remained
+Default alarm. The emulator had notifications denied and no explicit exact-alarm
+grant, so real scheduling/ringing was not claimed; global countdown/navigation
+and Stop behavior were verified through widget tests with a mocked native
+store. Physical-device audibility, alarm permissions and lifecycle behavior
+remain release-validation work.
+
+Unsigned iOS compilation was dispatched from feature commit `d67cb07`:
+https://github.com/agawlbb/coffey-table-recipes/actions/runs/38992979709
+The user subsequently instructed that app builds require an explicit build or
+release request. Cancellation was requested for this run; no successful iOS
+compilation or distribution is claimed. The project instructions now record
+that requirement for every app platform and development package.
+
+Delivered Android package:
+`G:\My Drive\recipe app\CoffeyTableRecipes-1.5.0-build19-test-d67cb07-debug.apk`
+SHA-256: `cd73ad4770cbc4c99e5725859e646c05dd8517a999c1b2e580793f325418c343`.
+
 Platform references:
 https://developer.android.com/reference/android/media/Ringtone
 https://developer.apple.com/library/archive/documentation/AudioVideo/Conceptual/MultimediaPG/UsingAudio/UsingAudio.html
