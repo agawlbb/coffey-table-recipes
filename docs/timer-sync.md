@@ -82,3 +82,24 @@ Python deployment/migration fixture tests. Native compilation/device acceptance
 remains pending an explicitly authorized build.
 
 Hosted setup verified on 2026-10-17: the dedicated sender has only cloudmessaging.messages.create. Its credential is protected with mode 0600 and public HTTP access returns 403. Hosted OAuth and FCM validate-only authorization passed without sending a notification. The uploaded Google key expires 2027-10-17 and must be rotated before then. Both unused download keys were deleted after verification. Native compilation and physical-device delivery remain unverified.
+
+## Android test APK — 2026-10-17
+
+At the user's explicit build request, generated Android debug version 1.7.0,
+build 23 from app source ed5b053 plus the Android resource-generation fix.
+The current Android Gradle plugin requires buildFeatures.resValues=true for
+Firebase's cold-start resource values; compilation passed after enabling it.
+Generated Android build reports are ignored.
+
+Verified APK signature matches the existing app certificate
+F8:DE:93:3F:14:B9:BB:4B:31:91:A9:4A:ED:C8:63:79:72:C5:AB:22:45:65:F6:AB:D7:80:8F:80:38:D1:20:97.
+Package metadata confirms com.coffeytable.coffey_table_recipes, version 1.7.0,
+build 23, minimum API 24 and target API 36. The merged manifest contains the
+native TimerSyncReceiver and omits FlutterFirebaseMessagingService.
+Delivered G:\My Drive\recipe app\CoffeyTableRecipes-1.7.0-build23-timer-sync-test.apk;
+source and destination SHA-256 match:
+d36314204e92ad1fcd2294c5a54b2e01a79258536083c2298e46ec79383fad77.
+No release/tag, app push, web deployment or iOS build was performed. Android
+native compilation is now verified; physical-device delivery and audibility
+remain pending installation and an account-scoped test send. iOS compilation
+remains unverified.
