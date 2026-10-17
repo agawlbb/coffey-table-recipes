@@ -151,3 +151,5 @@ reordering/removal, photo drafts, save errors and a 360-pixel phone layout.
 The web build was published to local XAMPP using `tool/publish-local-web.ps1`.
 Integrated-browser visual checks passed at 360 and 1280 pixels wide using the
 hosted backend. This publication updates the local app only.
+
+2026-10-17: Ingredient rows now expose a Delete ingredient icon beside Edit; deletion changes the draft and takes effect when Save recipe succeeds. Group headings remain bold and grouped rows are slightly indented. Recipe details and the cooking-mode ingredient sheet use bold headings and a 16px member indent; ungrouped ingredients retain their alignment. Regression coverage verifies the saved deletion payload at 360px and heading weight/member positions in both display contexts. No app builds were created for this change.

@@ -263,14 +263,19 @@ class _CookingModeState extends State<CookingMode> with WidgetsBindingObserver {
                     _rows('groups')
                             .firstWhere((g) => g['id'] == groupId)['title']
                         as String,
-                    style: Theme.of(context).textTheme.titleLarge,
+                    style: Theme.of(context).textTheme.titleLarge
+                        ?.copyWith(fontWeight: FontWeight.bold),
                   ),
                 ),
               for (final ingredient in _rows(
                 'ingredients',
               ).where((i) => i['group_id'] == groupId))
                 Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 10),
+                  padding: EdgeInsets.only(
+                    top: 10,
+                    bottom: 10,
+                    left: groupId == null ? 0 : 16,
+                  ),
                   child: Text(
                     '• ${ingredient['original_text']}',
                     style: const TextStyle(fontSize: 20, height: 1.5),

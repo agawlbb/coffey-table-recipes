@@ -1487,14 +1487,19 @@ class _RecipeDetailState extends State<RecipeDetail> {
                   child: Text(
                     groups.firstWhere((g) => g['id'] == groupId)['title']
                         as String,
-                    style: Theme.of(context).textTheme.titleMedium,
+                    style: Theme.of(context).textTheme.titleMedium
+                        ?.copyWith(fontWeight: FontWeight.bold),
                   ),
                 ),
               for (final ingredient in ingredients.where(
                 (i) => i['group_id'] == groupId,
               ))
                 Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 6),
+                  padding: EdgeInsets.only(
+                    top: 6,
+                    bottom: 6,
+                    left: groupId == null ? 0 : 16,
+                  ),
                   child: Text(
                     '• ${ingredient['original_text']}',
                     style: Theme.of(context).textTheme.bodyLarge,

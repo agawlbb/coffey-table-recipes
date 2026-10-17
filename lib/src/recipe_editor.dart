@@ -1437,6 +1437,11 @@ class _RecipeEditorState extends State<RecipeEditor> {
               icon: const Icon(Icons.edit_outlined),
               onPressed: () => _editIngredient(row),
             ),
+            IconButton(
+              tooltip: 'Delete ingredient',
+              icon: const Icon(Icons.delete_outline),
+              onPressed: () => _change(() => rows.remove(row)),
+            ),
             PopupMenuButton<String>(
               tooltip: 'Move to group',
               icon: const Icon(Icons.drive_file_move_outline),
@@ -1535,7 +1540,14 @@ class _RecipeEditorState extends State<RecipeEditor> {
           ),
         );
       }
-      result.addAll(rows.map(_ingredient));
+      result.addAll(
+        rows.map(
+          (row) => Padding(
+            padding: EdgeInsets.only(left: group == null ? 0 : 12),
+            child: _ingredient(row),
+          ),
+        ),
+      );
       result.add(
         _add(
           group == null
