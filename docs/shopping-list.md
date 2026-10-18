@@ -5,6 +5,12 @@ All household members share the same list. Items have a name and department;
 tap an item to edit or delete it. Checkboxes apply one strike-through. Hold a
 row and drag to reorder. **Remove checked off** stays at the bottom.
 
+Items appear beneath department headings, with Produce first and Other last.
+Only departments containing items are displayed. Dragging reorders items within
+their department; editing an item's department moves it beneath that heading.
+Headings are separate from draggable rows and identified as accessibility
+headings. Rows omit the redundant department subtitle.
+
 The screen uses the app's existing theme and refreshes while visible and on
 resume. Changes require a connection to coffeybean.com. Concurrent changes are
 protected with server revisions: a stale save reloads the shared list and

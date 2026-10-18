@@ -16,7 +16,12 @@ void main() {
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.resetPhysicalSize);
     addTearDown(tester.view.resetDevicePixelRatio);
-    var items = [item('Apples'), item('Bananas'), item('Carrots')];
+    var items = [
+      {...item('Milk'), 'department': 'Dairy & eggs'},
+      item('Apples'),
+      item('Bananas'),
+      item('Carrots'),
+    ];
     var revision = 1;
     await tester.pumpWidget(
       MaterialApp(
@@ -34,6 +39,20 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
+    expect(find.text('Produce'), findsOneWidget);
+    expect(find.text('Dairy & eggs'), findsOneWidget);
+    expect(
+      tester.getTopLeft(find.text('Produce')).dy,
+      lessThan(tester.getTopLeft(find.text('Apples')).dy),
+    );
+    expect(
+      tester.getTopLeft(find.text('Carrots')).dy,
+      lessThan(tester.getTopLeft(find.text('Dairy & eggs')).dy),
+    );
+    expect(
+      tester.getTopLeft(find.text('Dairy & eggs')).dy,
+      lessThan(tester.getTopLeft(find.text('Milk')).dy),
+    );
     final from = tester.getCenter(find.text('Apples'));
     final to = tester.getCenter(find.text('Carrots'));
     final gesture = await tester.startGesture(from);
@@ -44,7 +63,13 @@ void main() {
     await tester.pump(const Duration(milliseconds: 300));
     await gesture.up();
     await tester.pumpAndSettle();
-    expect(items.map((i) => i['name']), ['Bananas', 'Carrots', 'Apples']);
+    expect(items.map((i) => i['name']), [
+      'Milk',
+      'Bananas',
+      'Carrots',
+      'Apples',
+    ]);
+    expect(items.first['department'], 'Dairy & eggs');
     await tester.pumpWidget(const SizedBox());
   });
 

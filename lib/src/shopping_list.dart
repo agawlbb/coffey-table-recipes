@@ -239,6 +239,91 @@ class _ShoppingListScreenState extends State<ShoppingListScreen>
     super.dispose();
   }
 
+  Widget _departmentSection(String department, bool busy) {
+    final colors = Theme.of(context).colorScheme;
+    final entries = _items
+        .where((item) => item['department'] == department)
+        .toList();
+    return SliverMainAxisGroup(
+      slivers: [
+        SliverPadding(
+          padding: const EdgeInsets.fromLTRB(20, 20, 20, 10),
+          sliver: SliverToBoxAdapter(
+            child: Semantics(
+              header: true,
+              child: Text(
+                department,
+                style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                  color: colors.primary,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+          ),
+        ),
+        SliverPadding(
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          sliver: SliverReorderableList(
+            itemCount: entries.length,
+            onReorderStart: (_) => _dragging = true,
+            onReorderEnd: (_) => _dragging = false,
+            onReorderItem: (oldIndex, newIndex) {
+              if (busy) return;
+              entries.insert(newIndex, entries.removeAt(oldIndex));
+              var index = 0;
+              _save([
+                for (final item in _items)
+                  item['department'] == department ? entries[index++] : item,
+              ]);
+            },
+            itemBuilder: (context, index) {
+              final item = entries[index];
+              final checked = item['checked'] == true;
+              return ReorderableDelayedDragStartListener(
+                key: ValueKey(item['id']),
+                index: index,
+                enabled: !busy,
+                child: Card(
+                  margin: const EdgeInsets.only(bottom: 8),
+                  child: ListTile(
+                    contentPadding: const EdgeInsets.only(left: 4, right: 12),
+                    leading: Checkbox(
+                      value: checked,
+                      onChanged: busy
+                          ? null
+                          : (value) => _save([
+                              for (final i in _items)
+                                i['id'] == item['id']
+                                    ? {...i, 'checked': value}
+                                    : i,
+                            ]),
+                    ),
+                    title: Text(
+                      item['name'] as String,
+                      style: TextStyle(
+                        decoration: checked
+                            ? TextDecoration.lineThrough
+                            : TextDecoration.none,
+                        color: checked
+                            ? colors.onSurfaceVariant
+                            : colors.onSurface,
+                      ),
+                    ),
+                    onTap: busy ? null : () => _edit(item),
+                    trailing: Icon(
+                      Icons.drag_handle,
+                      color: colors.onSurfaceVariant,
+                    ),
+                  ),
+                ),
+              );
+            },
+          ),
+        ),
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
@@ -384,72 +469,18 @@ class _ShoppingListScreenState extends State<ShoppingListScreen>
                           ],
                         ),
                       )
-                    : ReorderableListView.builder(
-                        padding: const EdgeInsets.all(16),
-                        buildDefaultDragHandles: false,
-                        itemCount: _items.length,
-                        onReorderStart: (_) => _dragging = true,
-                        onReorderEnd: (_) => _dragging = false,
-                        onReorderItem: (oldIndex, newIndex) {
-                          if (busy) return;
-                          final items = [..._items];
-                          items.insert(newIndex, items.removeAt(oldIndex));
-                          _save(items);
-                        },
-                        itemBuilder: (context, index) {
-                          final item = _items[index];
-                          final checked = item['checked'] == true;
-                          return ReorderableDelayedDragStartListener(
-                            key: ValueKey(item['id']),
-                            index: index,
-                            enabled: !busy,
-                            child: Card(
-                              margin: const EdgeInsets.only(bottom: 8),
-                              child: ListTile(
-                                contentPadding: const EdgeInsets.only(
-                                  left: 4,
-                                  right: 12,
-                                ),
-                                leading: Checkbox(
-                                  value: checked,
-                                  onChanged: busy
-                                      ? null
-                                      : (value) => _save([
-                                          for (final i in _items)
-                                            i['id'] == item['id']
-                                                ? {...i, 'checked': value}
-                                                : i,
-                                        ]),
-                                ),
-                                title: Text(
-                                  item['name'] as String,
-                                  style: TextStyle(
-                                    decoration: checked
-                                        ? TextDecoration.lineThrough
-                                        : TextDecoration.none,
-                                    color: checked
-                                        ? colors.onSurfaceVariant
-                                        : colors.onSurface,
-                                  ),
-                                ),
-                                subtitle: item['department'] == 'Other'
-                                    ? null
-                                    : Text(
-                                        item['department'] as String,
-                                        style: TextStyle(
-                                          color: colors.primary,
-                                          fontSize: 12,
-                                        ),
-                                      ),
-                                onTap: busy ? null : () => _edit(item),
-                                trailing: Icon(
-                                  Icons.drag_handle,
-                                  color: colors.onSurfaceVariant,
-                                ),
-                              ),
-                            ),
-                          );
-                        },
+                    : CustomScrollView(
+                        slivers: [
+                          for (final department in [
+                            ...shoppingDepartments.where((d) => d != 'Other'),
+                            'Other',
+                          ])
+                            if (_items.any(
+                              (item) => item['department'] == department,
+                            ))
+                              _departmentSection(department, busy),
+                          const SliverToBoxAdapter(child: SizedBox(height: 8)),
+                        ],
                       ),
               ),
               SafeArea(
