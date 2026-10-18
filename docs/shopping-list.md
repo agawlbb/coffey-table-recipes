@@ -44,8 +44,9 @@ Rows omit both the redundant department subtitle and trailing drag/menu icon.
 
 The bottom **Hide empty departments** checkbox hides only named departments
 that have no items. Unassigned items and occupied departments remain visible;
-unchecking it restores all department headings. This is a view setting for the
-open screen and does not change the household list or anyone else's view.
+unchecking it restores all department headings. This view preference is saved on the device for the current account and
+household across reloads; it does not change anyone else's view. Holding an
+item for dragging temporarily reveals all empty departments until release.
 
 The screen uses the app's existing theme. Its last confirmed local snapshot
 appears while the server refresh is pending. It refreshes when opened or
@@ -343,3 +344,21 @@ Shopping list and visually confirmed the inline plus button, larger department
 labels, indented assigned items and absence of item checkboxes. Left the screen
 open in the foreground emulator. No household list data was modified for this
 preview. Generated packages and local Firebase settings remain excluded.
+
+
+Persistent empty-department visibility (2026-10-18): saved the checkbox in a
+separate account/server/household-scoped local preference, independent of list
+snapshots. Both checked and unchecked choices survive reopening/reloading, and
+a late preference read cannot replace a choice made in the current screen.
+Storage failures retain the usable in-memory choice without blocking the list.
+
+While an item is held for dragging, empty department headings temporarily
+appear without changing the checkbox or stored choice. After a drop or cancel,
+visibility returns to the saved filter; a newly occupied target stays visible.
+Stable row identities retain the active drag as new headings appear. Disposal
+clears drag state without scheduling a rebuild from a canceled source.
+
+Validation: 26 focused list/cache/department/drag checks pass, including saved
+true/false choices across fresh screen instances, long-press target reveal,
+cancellation, a drop into a previously empty department and subsequent reload.
+Static analysis is clean. The user requested a local web rebuild only.

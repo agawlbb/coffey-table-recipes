@@ -85,6 +85,85 @@ void main() {
   );
 
   testWidgets(
+    'saved empty-department preference survives reload and reveals targets only while held',
+    (tester) async {
+      tester.view.physicalSize = const Size(800, 1400);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      final disk = <String, String>{};
+      var items = <Map<String, dynamic>>[
+        {'id': 'milk', 'name': 'Milk', 'department': 'Dairy', 'checked': false},
+      ];
+      var revision = 1;
+      Future<Map<String, dynamic>> request(
+        String path, {
+        Map<String, dynamic>? body,
+      }) async {
+        if (body != null) {
+          revision++;
+          items = (body['items'] as List).cast<Map<String, dynamic>>();
+        }
+        return {
+          'revision': revision,
+          'items': items,
+          'departments': ['Produce', 'Dairy', 'Bakery'],
+        };
+      }
+
+      Future<void> reload() async {
+        await tester.pumpWidget(const SizedBox());
+        await tester.pumpWidget(screen(memoryCache(disk), request));
+        await tester.pumpAndSettle();
+      }
+
+      await reload();
+      await tester.tap(find.text('Hide empty departments'));
+      await tester.pumpAndSettle();
+      await reload();
+      expect(tester.widget<Checkbox>(find.byType(Checkbox)).value, true);
+      expect(find.text('Bakery'), findsNothing);
+      expect(find.text('Produce'), findsNothing);
+      final cancelled = await tester.startGesture(
+        tester.getCenter(find.text('Milk')),
+      );
+      await tester.pump(const Duration(milliseconds: 600));
+      expect(find.text('Bakery'), findsOneWidget);
+      expect(find.text('Produce'), findsOneWidget);
+      expect(tester.widget<Checkbox>(find.byType(Checkbox)).value, true);
+      await cancelled.cancel();
+      await tester.pumpAndSettle();
+      expect(find.text('Bakery'), findsNothing);
+      expect(items.single['checked'], false);
+      final drag = await tester.startGesture(
+        tester.getCenter(find.text('Milk')),
+      );
+      await tester.pump(const Duration(milliseconds: 600));
+      await drag.moveTo(
+        tester.getCenter(find.byKey(const ValueKey('department-Bakery'))),
+      );
+      await tester.pump(const Duration(milliseconds: 100));
+      await drag.up();
+      await tester.pumpAndSettle();
+      expect(items.single['department'], 'Bakery');
+      expect(find.text('Dairy'), findsNothing);
+      expect(find.text('Produce'), findsNothing);
+      expect(find.text('Bakery'), findsOneWidget);
+      await reload();
+      expect(tester.widget<Checkbox>(find.byType(Checkbox)).value, true);
+      expect(find.text('Dairy'), findsNothing);
+      await tester.tap(find.text('Hide empty departments'));
+      await tester.pumpAndSettle();
+      await reload();
+      expect(tester.widget<Checkbox>(find.byType(Checkbox)).value, false);
+      expect(find.text('Dairy'), findsOneWidget);
+      expect(find.text('Produce'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+      await tester.pumpWidget(const SizedBox());
+    },
+  );
+
+  testWidgets(
     'cached list appears while opening refresh waits and updated list survives reopening',
     (tester) async {
       final disk = <String, String>{};

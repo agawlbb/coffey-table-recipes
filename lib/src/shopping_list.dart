@@ -57,6 +57,7 @@ class _ShoppingListScreenState extends State<ShoppingListScreen>
   final _writes =
       <({List<Map<String, dynamic>> items, Completer<bool> done})>[];
   bool _hideEmptyDepartments = false;
+  bool _visibilityTouched = false;
   List<String> _departments = [
     ...shoppingDepartments.where((d) => d != 'Other'),
     'Other',
@@ -81,6 +82,7 @@ class _ShoppingListScreenState extends State<ShoppingListScreen>
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     _restoreCache();
+    _restoreVisibility();
     if (widget.active) _load();
     _poll = Timer.periodic(const Duration(seconds: 5), (_) {
       if (widget.active &&
@@ -134,6 +136,19 @@ class _ShoppingListScreenState extends State<ShoppingListScreen>
         .map((item) => Map<String, dynamic>.from(item as Map))
         .toList();
     _confirmedItems = _items;
+  }
+
+  Future<void> _restoreVisibility() async {
+    final value = await widget.cache?.readHideEmpty();
+    if (mounted && value != null && !_visibilityTouched) {
+      setState(() => _hideEmptyDepartments = value);
+    }
+  }
+
+  void _setHideEmpty(bool value) {
+    _visibilityTouched = true;
+    setState(() => _hideEmptyDepartments = value);
+    unawaited(widget.cache?.saveHideEmpty(value));
   }
 
   Future<void> _restoreCache() async {
@@ -345,6 +360,7 @@ class _ShoppingListScreenState extends State<ShoppingListScreen>
 
   @override
   void dispose() {
+    _dragging = false;
     _poll?.cancel();
     _autoScroll?.cancel();
     _listController.dispose();
@@ -361,6 +377,7 @@ class _ShoppingListScreenState extends State<ShoppingListScreen>
     ),
     for (final department in _departments)
       if (!_hideEmptyDepartments ||
+          _dragging ||
           _items.any(
             (item) =>
                 item['department'] == department && item['checked'] != true,
@@ -377,7 +394,11 @@ class _ShoppingListScreenState extends State<ShoppingListScreen>
   ];
 
   void _dragStarted() {
-    _dragging = true;
+    if (_hideEmptyDepartments) {
+      setState(() => _dragging = true);
+    } else {
+      _dragging = true;
+    }
     _dragPosition = null;
     _autoScroll?.cancel();
     _autoScroll = Timer.periodic(const Duration(milliseconds: 30), (_) {
@@ -405,11 +426,13 @@ class _ShoppingListScreenState extends State<ShoppingListScreen>
   }
 
   void _dragFinished() {
+    final wasDragging = _dragging;
     _dragging = false;
     _scrollStep = 0;
     _autoScroll?.cancel();
     _autoScroll = null;
     _dragPosition = null;
+    if (mounted && wasDragging && _hideEmptyDepartments) setState(() {});
   }
 
   void _dropItem(
@@ -755,8 +778,7 @@ class _ShoppingListScreenState extends State<ShoppingListScreen>
                       CheckboxListTile(
                         title: const Text('Hide empty departments'),
                         value: _hideEmptyDepartments,
-                        onChanged: (value) =>
-                            setState(() => _hideEmptyDepartments = value!),
+                        onChanged: (value) => _setHideEmpty(value!),
                         controlAffinity: ListTileControlAffinity.leading,
                         dense: true,
                         contentPadding: EdgeInsets.zero,

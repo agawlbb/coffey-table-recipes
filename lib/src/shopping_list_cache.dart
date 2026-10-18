@@ -66,17 +66,36 @@ class ShoppingListCache {
 
   Future<void> clear() => _write('');
 
-  Future<void> _write(String value) {
-    final task = (_pending[key] ?? Future<void>.value()).then((_) async {
+  Future<bool?> readHideEmpty() async {
+    final preferenceKey = '$key-view';
+    try {
+      await _pending[preferenceKey];
+      final value = await readStore(preferenceKey);
+      return value == '1'
+          ? true
+          : value == '0'
+          ? false
+          : null;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  Future<void> saveHideEmpty(bool value) =>
+      _write(value ? '1' : '0', storageKey: '$key-view');
+
+  Future<void> _write(String value, {String? storageKey}) {
+    final target = storageKey ?? key;
+    final task = (_pending[target] ?? Future<void>.value()).then((_) async {
       try {
-        await writeStore(key, value);
+        await writeStore(target, value);
       } catch (_) {
         /* Keep server access working. */
       }
     });
-    _pending[key] = task;
+    _pending[target] = task;
     return task.whenComplete(() {
-      if (identical(_pending[key], task)) _pending.remove(key);
+      if (identical(_pending[target], task)) _pending.remove(target);
     });
   }
 }
