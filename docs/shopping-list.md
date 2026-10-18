@@ -20,3 +20,9 @@ write recovery that preserves typed input. Source analysis and the existing
 checks passed, as did 107 deployment/migration checks. The backend and migration
 were deployed successfully on 2026-10-18 (run 39129982170), with the published
 receipt, health and unauthenticated-access boundary independently verified.
+
+The add control is a prominent **Add item** button beside the item field on
+wide screens and directly below it on phones. It remains enabled when empty
+and focuses the field when pressed. A phone-keyboard widget check verifies
+that the button remains visible and adds the typed item. The focused shopping
+list suite passes all four checks after this usability refinement.

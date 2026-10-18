@@ -73,7 +73,7 @@ void main() {
     await tester.pumpAndSettle();
     await tester.enterText(find.byType(TextField), 'Milk');
     await tester.pump();
-    await tester.tap(find.widgetWithText(FilledButton, 'Add'));
+    await tester.tap(find.widgetWithText(FilledButton, 'Add item'));
     await tester.pumpAndSettle();
     expect(find.text('Pears'), findsOneWidget);
     expect(find.text('The shopping list changed. Try again.'), findsOneWidget);

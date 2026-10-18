@@ -3,6 +3,45 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:coffey_table_recipes/src/shopping_list.dart';
 
 void main() {
+  testWidgets('Add item stays visible and usable with a phone keyboard', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(390, 844);
+    tester.view.devicePixelRatio = 1;
+    tester.view.viewInsets = const FakeViewPadding(bottom: 300);
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    addTearDown(tester.view.resetViewInsets);
+    var items = <Map<String, dynamic>>[];
+    await tester.pumpWidget(
+      MaterialApp(
+        home: ShoppingListScreen(
+          householdId: '7',
+          householdName: 'Our table',
+          request: (path, {body}) async {
+            if (body != null)
+              items = List<Map<String, dynamic>>.from(body['items'] as List);
+            return {'revision': body == null ? 0 : 1, 'items': items};
+          },
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    final add = find.widgetWithText(FilledButton, 'Add item');
+    expect(tester.widget<FilledButton>(add).onPressed, isNotNull);
+    await tester.tap(add);
+    await tester.pumpAndSettle();
+    expect(items, isEmpty);
+    await tester.enterText(find.byType(TextField), 'Apples');
+    await tester.pump();
+    expect(tester.getRect(add).bottom, lessThan(544));
+    await tester.tap(add);
+    await tester.pumpAndSettle();
+    expect(items.single['name'], 'Apples');
+    expect(tester.takeException(), isNull);
+    await tester.pumpWidget(const SizedBox());
+  });
+
   testWidgets('adds, checks, edits departments, and removes household items', (
     tester,
   ) async {
@@ -29,7 +68,7 @@ void main() {
     expect(find.text('Our table'), findsOneWidget);
     await tester.enterText(find.byType(TextField), 'Milk');
     await tester.pump();
-    await tester.tap(find.widgetWithText(FilledButton, 'Add'));
+    await tester.tap(find.widgetWithText(FilledButton, 'Add item'));
     await tester.pumpAndSettle();
     expect(find.text('Milk'), findsOneWidget);
     await tester.tap(find.byType(Checkbox));
