@@ -13,6 +13,7 @@ import 'recipe_value.dart';
 import 'recipe_category_selection.dart';
 import 'recipe_favorites.dart';
 import 'recipe_image_editor.dart';
+import 'recipe_name_match.dart';
 import 'offline_recipes.dart';
 
 typedef RecipeSave = Future<Map<String, dynamic>> Function(
@@ -58,6 +59,8 @@ class _RecipeEditorState extends State<RecipeEditor> {
   bool get _automaticCategory => _blank && _selectedCategories.isEmpty;
   bool _dirty = false, _saving = false, _picking = false, _leaving = false;
   bool _closing = false;
+  String? _checkedRecipeName;
+  bool _checkingRecipeName = false;
   final List<Map<String, dynamic>> _sourcePhotos = [];
   bool _loadingSourcePhotos = false;
   String? _error;
@@ -153,6 +156,56 @@ class _RecipeEditorState extends State<RecipeEditor> {
     _draft['measurement_system'] ??= 'unspecified';
     offlineStatus.addListener(_connectionChanged);
     _recoverPhoto();
+    if (_draft['id'] == null && !_blank) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _checkRecipeName(saving: false);
+      });
+    }
+  }
+
+  Future<bool> _checkRecipeName({required bool saving}) async {
+    if (_draft['id'] != null) return true;
+    final title = '${_draft['title'] ?? ''}'.trim();
+    if (_checkedRecipeName == title) return true;
+    final matches = _options('recipes')
+        .where(
+          (recipe) => similarRecipeNames(title, '${recipe['title'] ?? ''}'),
+        )
+        .map((recipe) => '${recipe['title']}')
+        .toSet()
+        .toList();
+    if (matches.isEmpty) {
+      _checkedRecipeName = title;
+      return true;
+    }
+    _checkingRecipeName = true;
+    final proceed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Similar recipe already exists'),
+        content: SingleChildScrollView(
+          child: Text(
+            'Your recipes already include a duplicate or very similar name:\n\n'
+            '${matches.join('\n')}\n\n'
+            'You can keep this recipe if it is different, or change its name.',
+          ),
+        ),
+        actions: [
+          if (saving)
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('Keep editing'),
+            ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: Text(saving ? 'Save anyway' : 'Review recipe'),
+          ),
+        ],
+      ),
+    );
+    _checkingRecipeName = false;
+    if (proceed == true) _checkedRecipeName = title;
+    return proceed == true;
   }
 
   Future<void> _prepareSourcePhotos(Object? suggestions) async {
@@ -628,7 +681,9 @@ class _RecipeEditorState extends State<RecipeEditor> {
   }
 
   Future<void> _save() async {
-    if (_saving || _picking || offlineStatus.value) return;
+    if (_saving || _picking || _checkingRecipeName || offlineStatus.value) {
+      return;
+    }
     FocusScope.of(context).unfocus();
     if (!_form.currentState!.validate()) {
       final field = _fields.values
@@ -710,6 +765,7 @@ class _RecipeEditorState extends State<RecipeEditor> {
         return;
       }
     }
+    if (!await _checkRecipeName(saving: true) || !mounted) return;
     // The server rejects unconfirmed saves if sharing changes during editing.
     _draft.remove('confirm_shared_edit');
     if (_draft['id'] != null &&
