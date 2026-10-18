@@ -24,6 +24,7 @@ import 'recipe_filter_dialog.dart';
 import 'recipe_image_prefetch.dart';
 import 'recipe_shopping_selector.dart';
 import 'shopping_item_id.dart';
+import 'shopping_ingredient.dart';
 
 final recipePhotoCache = CacheManager(
   Config(
@@ -757,11 +758,18 @@ class _RecipeDetailState extends State<RecipeDetail> {
     await Navigator.of(context).push<void>(
       MaterialPageRoute(
         builder: (_) => RecipeShoppingSelector(
-          ingredients: [
-            for (final ingredient in ingredients)
-              if ('${ingredient['original_text'] ?? ''}'.trim().isNotEmpty)
-                '${ingredient['original_text']}'.trim(),
-          ],
+          ingredients: ingredients
+              .map(ShoppingIngredient.fromRecipe)
+              .where((ingredient) => ingredient.name.isNotEmpty)
+              .toList(),
+          loadExisting: () async {
+            final data = await widget.request(
+              '/households/${widget.householdId}/shopping-list',
+            );
+            return [
+              for (final item in recipeRows(data['items'])) '${item['name']}',
+            ];
+          },
           onAdd: (names) async {
             final path = '/households/${widget.householdId}/shopping-list';
             final additions = [
