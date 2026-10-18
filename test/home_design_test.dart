@@ -227,7 +227,7 @@ void main() {
         ),
       );
       await tester.pumpAndSettle();
-      await tester.tap(find.byTooltip('Open navigation menu'));
+      await tester.tap(find.byTooltip('User menu'));
       await tester.pumpAndSettle();
       await tester.tap(find.text('Household & people'));
       await tester.pumpAndSettle();
@@ -313,7 +313,7 @@ void main() {
         expect(find.text('Log out'), findsNothing);
         expect(paths.where((p) => p.endsWith('/people')), isNotEmpty);
         await tester.enterText(find.byType(TextField), 'soup');
-        await tester.tap(find.byTooltip('Open navigation menu'));
+        await tester.tap(find.byTooltip('User menu'));
         await tester.pumpAndSettle();
         await tester.tap(find.text('Household & people'));
         await tester.pumpAndSettle();
@@ -332,7 +332,7 @@ void main() {
           tester.widget<TextField>(find.byType(TextField)).controller!.text,
           isEmpty,
         );
-        await tester.tap(find.byTooltip('Open navigation menu'));
+        await tester.tap(find.byTooltip('User menu'));
         await tester.pumpAndSettle();
         await tester.tap(find.text('Household & people'));
         await tester.pumpAndSettle();
