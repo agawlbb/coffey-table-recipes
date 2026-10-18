@@ -160,76 +160,6 @@ class _ShoppingListScreenState extends State<ShoppingListScreen>
     }
   }
 
-  Future<void> _edit(Map<String, dynamic> item) async {
-    final controller = TextEditingController(text: item['name'] as String);
-    var department = item['department'] as String;
-    final result = await showDialog<String>(
-      context: context,
-      builder: (context) => StatefulBuilder(
-        builder: (context, setDialogState) => AlertDialog(
-          title: const Text('Shopping item'),
-          content: SizedBox(
-            width: 360,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                TextField(
-                  controller: controller,
-                  autofocus: true,
-                  maxLength: 200,
-                  decoration: const InputDecoration(labelText: 'Item'),
-                ),
-                const SizedBox(height: 12),
-                DropdownButtonFormField<String>(
-                  initialValue: department,
-                  decoration: const InputDecoration(labelText: 'Department'),
-                  items: shoppingDepartments
-                      .map((d) => DropdownMenuItem(value: d, child: Text(d)))
-                      .toList(),
-                  onChanged: (value) =>
-                      setDialogState(() => department = value!),
-                ),
-              ],
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context, 'delete'),
-              child: const Text('Delete'),
-            ),
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('Cancel'),
-            ),
-            FilledButton(
-              onPressed: () {
-                if (controller.text.trim().isNotEmpty) {
-                  Navigator.pop(context, 'save');
-                }
-              },
-              child: const Text('Save'),
-            ),
-          ],
-        ),
-      ),
-    );
-    final name = controller.text.trim();
-    // Let the closing dialog finish its animation before disposing its controller.
-    await Future<void>.delayed(const Duration(milliseconds: 250));
-    controller.dispose();
-    if (!mounted || result == null) return;
-    await _save(
-      _items
-          .where((i) => result != 'delete' || i['id'] != item['id'])
-          .map(
-            (i) => i['id'] == item['id']
-                ? {...i, 'name': name, 'department': department}
-                : i,
-          )
-          .toList(),
-    );
-  }
-
   @override
   void dispose() {
     _poll?.cancel();
@@ -336,7 +266,6 @@ class _ShoppingListScreenState extends State<ShoppingListScreen>
                   color: checked ? colors.onSurfaceVariant : colors.onSurface,
                 ),
               ),
-              onTap: busy ? null : () => _edit(item),
             ),
           ),
         );

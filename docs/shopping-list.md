@@ -2,7 +2,7 @@
 
 Open **Shopping list** from the hamburger menu for the selected household.
 All household members share the same list. Items have a name and department;
-tap an item to edit or delete it. Checkboxes apply one strike-through. Hold a
+checkboxes apply one strike-through. Items have no tap-to-edit screen. Hold a
 row and drag to reorder. **Remove checked off** stays at the bottom.
 
 Items appear beneath department headings, with Produce first and Other last.
@@ -52,3 +52,10 @@ including dropping an item into an empty department and saving its new
 classification, within-department ordering that preserves other items, all ten
 headings, and absence of trailing menu/drag icons. No backend schema change is
 required; the existing item department and list order carry the result.
+
+Item tap editing was removed entirely, including the dialog implementation.
+A regression check taps an item and verifies that no edit dialog opens.
+Local metadata inspection found the previously published build was 0349543,
+which predates 9f21758 (all departments and cross-department dragging).
+Those source changes require an explicitly authorized local web rebuild before
+browser verification can exercise them.
