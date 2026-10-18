@@ -729,18 +729,12 @@ class _ShoppingListScreenState extends State<ShoppingListScreen>
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Padding(
-                padding: const EdgeInsets.fromLTRB(20, 8, 20, 12),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: Text(
-                        widget.householdName,
-                        style: Theme.of(context).textTheme.titleMedium
-                            ?.copyWith(color: colors.primary),
-                      ),
-                    ),
-                    if (_disconnected)
+              if (_disconnected)
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 8, 20, 12),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.end,
+                    children: [
                       Tooltip(
                         message: 'No server connection',
                         child: Semantics(
@@ -763,9 +757,11 @@ class _ShoppingListScreenState extends State<ShoppingListScreen>
                           ),
                         ),
                       ),
-                  ],
-                ),
-              ),
+                    ],
+                  ),
+                )
+              else
+                const SizedBox(height: 8),
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 16),
                 child: Card(

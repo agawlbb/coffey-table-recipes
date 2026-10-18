@@ -415,3 +415,10 @@ Validation: 23 focused cache/list/sharing/drag checks pass. The mouse/touch hold
 regression now asserts the source row stays at its original screen coordinate,
 in addition to no toggle on stationary release, cancellation cleanup and valid
 cross-department drops. No app build was requested for this fix.
+
+Shopping header simplification (2026-10-18): removed the household name above
+the add row, reclaiming its vertical space while online. The small Offline
+indicator remains right-aligned and appears only during a connection failure.
+Eleven list/cache checks pass, including no visible household name, phone
+keyboard layout and offline recovery. Static analysis is clean. No app build
+was requested or produced for this change.

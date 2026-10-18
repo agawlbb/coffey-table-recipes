@@ -77,7 +77,7 @@ void main() {
         ),
       );
       await tester.pumpAndSettle();
-      expect(find.text('Our table'), findsOneWidget);
+      expect(find.text('Our table'), findsNothing);
       await tester.enterText(find.byType(TextField), 'Milk');
       await tester.pump();
       await tester.tap(find.byTooltip('Add item'));
