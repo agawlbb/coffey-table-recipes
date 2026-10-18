@@ -251,3 +251,11 @@ reads, five-second polling, inactive/background/covered view pauses, immediate
 recovery, preserved input, failed edits and access revocation. The connection
 indicator and recovery flow were exercised at a 390-pixel phone width. No app
 build was requested or produced; the local web app needs an authorized rebuild.
+
+Android emulator preview (2026-10-18): at the user's request, built main commit
+885398c as a debug Android x64 APK with the existing local Firebase settings.
+Installed on CoffeyTable_Pixel_8_API_36 (emulator-5554) with data preserved.
+Verified package version 1.7.0 (22), successful app startup, recipe home, shared
+hamburger navigation, and the shopping screen with the household's configured
+departments and bottom visibility control. Left Shopping list open in the
+foreground emulator. Generated APK and local configuration remain excluded.
