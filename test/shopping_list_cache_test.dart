@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:ui' show PointerDeviceKind;
 import 'dart:convert';
 
 import 'package:coffey_table_recipes/src/api.dart';
@@ -85,7 +86,7 @@ void main() {
   );
 
   testWidgets(
-    'saved empty-department preference survives reload and reveals targets only while held',
+    'stationary mouse and touch holds reveal empty departments without a checkbox',
     (tester) async {
       tester.view.physicalSize = const Size(800, 1400);
       tester.view.devicePixelRatio = 1;
@@ -111,53 +112,55 @@ void main() {
         };
       }
 
-      Future<void> reload() async {
-        await tester.pumpWidget(const SizedBox());
-        await tester.pumpWidget(screen(memoryCache(disk), request));
+      await tester.pumpWidget(screen(memoryCache(disk), request));
+      await tester.pumpAndSettle();
+      expect(find.byType(Checkbox), findsNothing);
+      expect(find.text('Hide empty departments'), findsNothing);
+      for (final kind in [PointerDeviceKind.mouse, PointerDeviceKind.touch]) {
+        final target = items.single['department'] == 'Dairy'
+            ? 'Bakery'
+            : 'Dairy';
+        expect(find.text(target), findsNothing);
+        final cancelled = await tester.startGesture(
+          tester.getCenter(find.text('Milk')),
+          kind: kind,
+        );
+        await tester.pump(const Duration(milliseconds: 600));
+        expect(find.text(target), findsOneWidget);
+        expect(find.text('Produce'), findsOneWidget);
+        await cancelled.cancel();
         await tester.pumpAndSettle();
+        expect(find.text(target), findsNothing);
+        final released = await tester.startGesture(
+          tester.getCenter(find.text('Milk')),
+          kind: kind,
+        );
+        await tester.pump(const Duration(milliseconds: 600));
+        expect(find.text(target), findsOneWidget);
+        await released.up();
+        await tester.pumpAndSettle();
+        expect(items.single['checked'], false);
+        expect(find.text(target), findsNothing);
+        final drag = await tester.startGesture(
+          tester.getCenter(find.text('Milk')),
+          kind: kind,
+        );
+        await tester.pump(const Duration(milliseconds: 600));
+        await drag.moveTo(
+          tester.getCenter(find.byKey(ValueKey('department-$target'))),
+        );
+        await tester.pump(const Duration(milliseconds: 100));
+        await drag.up();
+        await tester.pumpAndSettle();
+        expect(items.single['department'], target);
+        expect(items.single['checked'], false);
+        expect(find.text('Produce'), findsNothing);
       }
-
-      await reload();
-      await tester.tap(find.text('Hide empty departments'));
+      await tester.pumpWidget(const SizedBox());
+      await tester.pumpWidget(screen(memoryCache(disk), request));
       await tester.pumpAndSettle();
-      await reload();
-      expect(tester.widget<Checkbox>(find.byType(Checkbox)).value, true);
-      expect(find.text('Bakery'), findsNothing);
       expect(find.text('Produce'), findsNothing);
-      final cancelled = await tester.startGesture(
-        tester.getCenter(find.text('Milk')),
-      );
-      await tester.pump(const Duration(milliseconds: 600));
-      expect(find.text('Bakery'), findsOneWidget);
-      expect(find.text('Produce'), findsOneWidget);
-      expect(tester.widget<Checkbox>(find.byType(Checkbox)).value, true);
-      await cancelled.cancel();
-      await tester.pumpAndSettle();
-      expect(find.text('Bakery'), findsNothing);
-      expect(items.single['checked'], false);
-      final drag = await tester.startGesture(
-        tester.getCenter(find.text('Milk')),
-      );
-      await tester.pump(const Duration(milliseconds: 600));
-      await drag.moveTo(
-        tester.getCenter(find.byKey(const ValueKey('department-Bakery'))),
-      );
-      await tester.pump(const Duration(milliseconds: 100));
-      await drag.up();
-      await tester.pumpAndSettle();
-      expect(items.single['department'], 'Bakery');
-      expect(find.text('Dairy'), findsNothing);
-      expect(find.text('Produce'), findsNothing);
-      expect(find.text('Bakery'), findsOneWidget);
-      await reload();
-      expect(tester.widget<Checkbox>(find.byType(Checkbox)).value, true);
-      expect(find.text('Dairy'), findsNothing);
-      await tester.tap(find.text('Hide empty departments'));
-      await tester.pumpAndSettle();
-      await reload();
-      expect(tester.widget<Checkbox>(find.byType(Checkbox)).value, false);
-      expect(find.text('Dairy'), findsOneWidget);
-      expect(find.text('Produce'), findsOneWidget);
+      expect(find.byType(Checkbox), findsNothing);
       expect(tester.takeException(), isNull);
       await tester.pumpWidget(const SizedBox());
     },

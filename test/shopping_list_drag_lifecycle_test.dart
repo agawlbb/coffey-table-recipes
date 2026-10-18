@@ -45,12 +45,13 @@ void main() {
       expect(items.firstWhere((i) => i['name'] == 'Apples')['department'], '');
       expect(
         tester.getBottomLeft(find.text('Apples')).dy,
-        lessThan(tester.getTopLeft(find.text('Produce')).dy),
+        lessThan(tester.getTopLeft(find.text('Dairy & eggs')).dy),
       );
       final assign = await tester.startGesture(
         tester.getCenter(find.text('Apples')),
         kind: PointerDeviceKind.mouse,
       );
+      await tester.pump(const Duration(milliseconds: 600));
       await assign.moveTo(
         tester.getCenter(find.byKey(const ValueKey('department-Produce'))),
       );
@@ -61,8 +62,6 @@ void main() {
         items.firstWhere((i) => i['name'] == 'Apples')['department'],
         'Produce',
       );
-      await tester.tap(find.text('Hide empty departments'));
-      await tester.pumpAndSettle();
       expect(find.byKey(const ValueKey('department-Bakery')), findsNothing);
       expect(find.byKey(const ValueKey('department-Produce')), findsOneWidget);
       expect(
@@ -89,11 +88,8 @@ void main() {
         items.firstWhere((i) => i['id'] == 'milk')['department'],
         'Dairy & eggs',
       );
-      await tester.tap(find.text('Hide empty departments'));
-      await tester.pumpAndSettle();
-      for (final department in shoppingDepartments) {
-        expect(find.byKey(ValueKey('department-$department')), findsOneWidget);
-      }
+      expect(find.text('Hide empty departments'), findsNothing);
+      expect(find.byKey(const ValueKey('department-Produce')), findsNothing);
       await tester.pumpWidget(const SizedBox());
     },
   );
@@ -128,6 +124,8 @@ void main() {
       tester.getCenter(find.text('Apples')),
       kind: PointerDeviceKind.mouse,
     );
+    await gesture.moveBy(const Offset(30, 0));
+    await tester.pump();
     await gesture.moveTo(
       tester.getCenter(find.byKey(const ValueKey('department-Dairy & eggs'))),
     );
@@ -140,9 +138,7 @@ void main() {
       tester.getCenter(find.text('Apples')),
       kind: PointerDeviceKind.touch,
     );
-    await touch.moveTo(
-      tester.getCenter(find.byKey(const ValueKey('department-Produce'))),
-    );
+    await touch.moveBy(const Offset(0, -50));
     await tester.pump(const Duration(milliseconds: 50));
     await touch.up();
     await tester.pumpAndSettle();

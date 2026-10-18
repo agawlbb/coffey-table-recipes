@@ -98,13 +98,12 @@ void main() {
       final text = tester.widget<Text>(find.text('Milk'));
       expect(text.style?.decoration, TextDecoration.lineThrough);
       expect(items.single['checked'], true);
-      expect(
-        find.byType(Checkbox),
-        findsOneWidget,
-      ); // Only the empty-departments control.
+      expect(find.byType(Checkbox), findsNothing);
       expect(
         tester.getTopLeft(find.text('Milk')).dy,
-        greaterThan(tester.getTopLeft(find.text('Other')).dy),
+        greaterThan(
+          tester.getTopLeft(find.byKey(const ValueKey('completed-section'))).dy,
+        ),
       );
       await tester.tap(find.text('Milk'));
       await tester.pumpAndSettle();
@@ -209,7 +208,7 @@ void main() {
       final heading = tester.widget<Text>(find.text('Produce'));
       expect(heading.style!.fontSize, 22);
       expect(heading.style!.fontWeight, FontWeight.w700);
-      expect(find.byType(Checkbox), findsOneWidget);
+      expect(find.byType(Checkbox), findsNothing);
       await tester.tap(find.text('Apples'));
       await tester.pumpAndSettle();
       expect(
@@ -240,8 +239,6 @@ void main() {
       expect(items.every((i) => i['checked'] == true), true);
       expect(items.singleWhere((i) => i['id'] == 'a')['department'], 'Produce');
       expect(items.singleWhere((i) => i['id'] == 'b')['department'], 'Dairy');
-      await tester.tap(find.text('Hide empty departments'));
-      await tester.pumpAndSettle();
       expect(find.text('Produce'), findsNothing);
       expect(find.text('Dairy'), findsNothing);
       expect(find.text('Apples'), findsOneWidget);

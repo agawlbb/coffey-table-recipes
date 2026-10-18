@@ -34,19 +34,18 @@ department remains distinct from having no department.
 
 Unchecked assigned items appear indented beneath larger bold department
 headings in the household's configured order.
-By default every department is displayed as a compact 30-pixel heading, with no empty
-placeholder or drop box. Drag anywhere on the item label or row.
+Occupied departments are displayed as compact headings, with no empty
+placeholder or drop box. Empty departments are hidden until an item is held. Drag anywhere on the item label or row.
 Drop on a department heading to move the item into that department, or on the
 upper/lower half of another item to insert before/after it. The drop saves the
 new department and position together. Headings are not draggable and retain
 accessibility heading semantics. Dragging near the list edge scrolls the list.
 Rows omit both the redundant department subtitle and trailing drag/menu icon.
 
-The bottom **Hide empty departments** checkbox hides only named departments
-that have no items. Unassigned items and occupied departments remain visible;
-unchecking it restores all department headings. This view preference is saved on the device for the current account and
-household across reloads; it does not change anyone else's view. Holding an
-item for dragging temporarily reveals all empty departments until release.
+Empty departments are always hidden during normal list use. A stationary long
+press with a mouse, touch or stylus reveals all department headings before any
+movement. Releasing or cancelling hides empty headings again; a department that
+received an item stays visible. There is no visibility checkbox or preference.
 
 The screen uses the app's existing theme. Its last confirmed local snapshot
 appears while the server refresh is pending. It refreshes when opened or
@@ -368,3 +367,23 @@ e9e35cb7040166116b191a43c5c9904e872f31d9 (1.8.1 build 25), prepared assets
 and installed into the local XAMPP app directory. Verified served JavaScript,
 bootstrap, version metadata and font-manifest hashes against the build.
 No Android build or hosted Flutter app deployment ran.
+
+
+Stationary-hold reveal and automatic hiding (2026-10-18): removed the empty
+visibility checkbox and its local preference reads/writes. Empty departments
+are now hidden unconditionally whenever no item is held or dragged. A primary
+pointer hold reveals them at the normal long-press timeout, independently of
+the mouse drag recognizer (which starts on movement). Moving beyond touch slop
+before the timeout cancels the reveal timer, retaining normal swipe scrolling.
+The existing touch long-press and immediate mouse drag recognizers remain.
+
+Stationary hold release is suppressed as a tap so it cannot check off the item.
+Releasing, dropping, cancellation and disposal clean up hold/drag state, and
+polling waits until the hold ends. Existing stored visibility preferences are
+ignored. Cached list state and household assignments are unaffected.
+
+Validation: all 26 focused cache/list/department/drag checks pass. The regression
+holds mouse and touch pointers stationary, asserts empty targets before any
+move, cancels, releases without moving, then drops into a revealed department
+and reopens the screen. Other drag checks now measure empty targets only after
+holding. The local web rebuild was explicitly requested.

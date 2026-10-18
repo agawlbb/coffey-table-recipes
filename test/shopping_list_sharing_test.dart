@@ -69,6 +69,7 @@ void main() {
           tester.getCenter(find.text(movedName).last),
           kind: PointerDeviceKind.mouse,
         );
+        await tester.pump(const Duration(milliseconds: 600));
         await gesture.moveTo(
           tester.getCenter(find.byKey(const ValueKey('department-Bakery'))),
         );
@@ -124,18 +125,15 @@ void main() {
         ),
       );
       await tester.pumpAndSettle();
-      for (final department in shoppingDepartments) {
-        expect(find.byKey(ValueKey('department-$department')), findsOneWidget);
-      }
       expect(find.byIcon(Icons.drag_handle), findsNothing);
       expect(find.byIcon(Icons.more_vert), findsNothing);
-      final destination = tester.getRect(
-        find.byKey(const ValueKey('department-Dairy & eggs')),
-      );
       final gesture = await tester.startGesture(
         tester.getCenter(find.text('Apples')),
       );
       await tester.pump(const Duration(milliseconds: 600));
+      final destination = tester.getRect(
+        find.byKey(const ValueKey('department-Dairy & eggs')),
+      );
       await gesture.moveTo(destination.center);
       await tester.pump(const Duration(milliseconds: 300));
       await gesture.moveBy(const Offset(0, 2));
@@ -148,13 +146,13 @@ void main() {
         greaterThan(tester.getTopLeft(find.text('Dairy & eggs')).dy),
       );
       for (final department in ['Meat & seafood', 'Bakery', 'Produce']) {
-        final target = tester.getCenter(
-          find.byKey(ValueKey('department-$department')),
-        );
         final nextDrag = await tester.startGesture(
           tester.getCenter(find.text('Apples')),
         );
         await tester.pump(const Duration(milliseconds: 600));
+        final target = tester.getCenter(
+          find.byKey(ValueKey('department-$department')),
+        );
         await nextDrag.moveTo(target);
         await tester.pump(const Duration(milliseconds: 300));
         await nextDrag.moveBy(const Offset(0, 2));
@@ -202,13 +200,13 @@ void main() {
         'Dairy & eggs',
         'Meat & seafood',
       ]) {
-        final target = tester.getCenter(
-          find.byKey(ValueKey('department-$department')),
-        );
         final gesture = await tester.startGesture(
           tester.getCenter(find.text('Apples')),
         );
         await tester.pump(const Duration(milliseconds: 600));
+        final target = tester.getCenter(
+          find.byKey(ValueKey('department-$department')),
+        );
         await gesture.moveTo(target);
         await tester.pump(const Duration(milliseconds: 300));
         await gesture.moveBy(const Offset(0, 2));
@@ -256,13 +254,13 @@ void main() {
     );
     await tester.pumpAndSettle();
     for (final department in ['Dairy & eggs', 'Meat & seafood']) {
-      final target = tester.getCenter(
-        find.byKey(ValueKey('department-$department')),
-      );
       final gesture = await tester.startGesture(
         tester.getCenter(find.text('Apples')),
       );
       await tester.pump(const Duration(milliseconds: 600));
+      final target = tester.getCenter(
+        find.byKey(ValueKey('department-$department')),
+      );
       await gesture.moveTo(target);
       await tester.pump(const Duration(milliseconds: 300));
       await gesture.moveBy(const Offset(0, 2));
@@ -323,9 +321,6 @@ void main() {
             ? Offset(label.right - 2, label.center.dy)
             : Offset(row.right - 12, row.center.dy);
         final department = ['Dairy & eggs', 'Produce', 'Bakery'][attempt];
-        final target = tester.getCenter(
-          find.byKey(ValueKey('department-$department')),
-        );
         final gesture = await tester.startGesture(
           from,
           kind: attempt == 1
@@ -333,6 +328,9 @@ void main() {
               : PointerDeviceKind.mouse,
         );
         await tester.pump(const Duration(milliseconds: 600));
+        final target = tester.getCenter(
+          find.byKey(ValueKey('department-$department')),
+        );
         await gesture.moveTo(target);
         await tester.pump(const Duration(milliseconds: 100));
         await gesture.up();
@@ -341,17 +339,12 @@ void main() {
         expect(saved.single['checked'], false);
       }
       final list = tester.widget<ListView>(find.byType(ListView));
+      expect(list.childrenDelegate.estimatedChildCount, 3);
+      expect(find.byKey(const ValueKey('department-Produce')), findsNothing);
       expect(
-        list.childrenDelegate.estimatedChildCount,
-        shoppingDepartments.length + 2,
+        tester.getSize(find.byKey(const ValueKey('department-Bakery'))).height,
+        30,
       );
-      for (final department in shoppingDepartments) {
-        expect(find.byKey(ValueKey('empty-$department')), findsNothing);
-        expect(
-          tester.getSize(find.byKey(ValueKey('department-$department'))).height,
-          30,
-        );
-      }
       await tester.pumpWidget(const SizedBox());
     },
   );

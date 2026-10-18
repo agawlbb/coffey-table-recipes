@@ -56,8 +56,11 @@ class _ShoppingListScreenState extends State<ShoppingListScreen>
   List<Map<String, dynamic>> _confirmedItems = [];
   final _writes =
       <({List<Map<String, dynamic>> items, Completer<bool> done})>[];
-  bool _hideEmptyDepartments = false;
-  bool _visibilityTouched = false;
+  bool _holding = false;
+  String? _heldItemId;
+  Timer? _holdTimer;
+  int? _holdPointer;
+  Offset? _holdOrigin;
   List<String> _departments = [
     ...shoppingDepartments.where((d) => d != 'Other'),
     'Other',
@@ -82,7 +85,6 @@ class _ShoppingListScreenState extends State<ShoppingListScreen>
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     _restoreCache();
-    _restoreVisibility();
     if (widget.active) _load();
     _poll = Timer.periodic(const Duration(seconds: 5), (_) {
       if (widget.active &&
@@ -138,19 +140,6 @@ class _ShoppingListScreenState extends State<ShoppingListScreen>
     _confirmedItems = _items;
   }
 
-  Future<void> _restoreVisibility() async {
-    final value = await widget.cache?.readHideEmpty();
-    if (mounted && value != null && !_visibilityTouched) {
-      setState(() => _hideEmptyDepartments = value);
-    }
-  }
-
-  void _setHideEmpty(bool value) {
-    _visibilityTouched = true;
-    setState(() => _hideEmptyDepartments = value);
-    unawaited(widget.cache?.saveHideEmpty(value));
-  }
-
   Future<void> _restoreCache() async {
     final data = await widget.cache?.read();
     if (data != null &&
@@ -179,7 +168,7 @@ class _ShoppingListScreenState extends State<ShoppingListScreen>
       error is! ApiException || error.status >= 500 || error.status == 408;
 
   Future<void> _load() async {
-    if (_saving || _reading || _dragging) return;
+    if (_saving || _reading || _dragging || _holding) return;
     _reading = true;
     final generation = _saveGeneration;
     try {
@@ -361,6 +350,8 @@ class _ShoppingListScreenState extends State<ShoppingListScreen>
   @override
   void dispose() {
     _dragging = false;
+    _holding = false;
+    _holdTimer?.cancel();
     _poll?.cancel();
     _autoScroll?.cancel();
     _listController.dispose();
@@ -376,8 +367,8 @@ class _ShoppingListScreenState extends State<ShoppingListScreen>
       (item) => item['department'] == '' && item['checked'] != true,
     ),
     for (final department in _departments)
-      if (!_hideEmptyDepartments ||
-          _dragging ||
+      if (_dragging ||
+          _holding ||
           _items.any(
             (item) =>
                 item['department'] == department && item['checked'] != true,
@@ -393,12 +384,47 @@ class _ShoppingListScreenState extends State<ShoppingListScreen>
     ],
   ];
 
-  void _dragStarted() {
-    if (_hideEmptyDepartments) {
-      setState(() => _dragging = true);
-    } else {
-      _dragging = true;
+  void _pressItem(PointerDownEvent event, String id) {
+    if (_loading ||
+        _disconnected ||
+        _accessDenied ||
+        event.buttons != kPrimaryButton ||
+        _holdPointer != null) {
+      return;
     }
+    _heldItemId = null;
+    _holdPointer = event.pointer;
+    _holdOrigin = event.position;
+    _holdTimer?.cancel();
+    _holdTimer = Timer(kLongPressTimeout, () {
+      if (!mounted || _holdPointer == null) return;
+      setState(() {
+        _holding = true;
+        _heldItemId = id;
+      });
+    });
+  }
+
+  void _movePress(PointerMoveEvent event) {
+    if (event.pointer == _holdPointer &&
+        !_holding &&
+        _holdOrigin != null &&
+        (event.position - _holdOrigin!).distance > kTouchSlop) {
+      _holdTimer?.cancel();
+    }
+  }
+
+  void _endPress(PointerEvent event) {
+    if (event.pointer != _holdPointer) return;
+    _holdTimer?.cancel();
+    _holdPointer = null;
+    _holdOrigin = null;
+    if (_holding && mounted) setState(() => _holding = false);
+  }
+
+  void _dragStarted() {
+    _holdTimer?.cancel();
+    setState(() => _dragging = true);
     _dragPosition = null;
     _autoScroll?.cancel();
     _autoScroll = Timer.periodic(const Duration(milliseconds: 30), (_) {
@@ -432,7 +458,7 @@ class _ShoppingListScreenState extends State<ShoppingListScreen>
     _autoScroll?.cancel();
     _autoScroll = null;
     _dragPosition = null;
-    if (mounted && wasDragging && _hideEmptyDepartments) setState(() {});
+    if (mounted && wasDragging) setState(() {});
   }
 
   void _dropItem(
@@ -490,10 +516,13 @@ class _ShoppingListScreenState extends State<ShoppingListScreen>
           child: InkWell(
             onTap: busy
                 ? null
-                : () => _save([
-                    for (final i in _items)
-                      i['id'] == item['id'] ? {...i, 'checked': !checked} : i,
-                  ]),
+                : () {
+                    if (_heldItemId == item['id']) return;
+                    _save([
+                      for (final i in _items)
+                        i['id'] == item['id'] ? {...i, 'checked': !checked} : i,
+                    ]);
+                  },
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
               child: Align(
@@ -636,11 +665,19 @@ class _ShoppingListScreenState extends State<ShoppingListScreen>
                 childWhenDragging: placeholder,
                 child: child,
               );
-              return source(
-                false,
-                source(
-                  true,
-                  _itemCard(item, busy, highlighted: candidates.isNotEmpty),
+              return Listener(
+                behavior: HitTestBehavior.opaque,
+                onPointerDown: (event) =>
+                    _pressItem(event, item['id'] as String),
+                onPointerMove: _movePress,
+                onPointerUp: _endPress,
+                onPointerCancel: _endPress,
+                child: source(
+                  false,
+                  source(
+                    true,
+                    _itemCard(item, busy, highlighted: candidates.isNotEmpty),
+                  ),
                 ),
               );
             },
@@ -775,14 +812,6 @@ class _ShoppingListScreenState extends State<ShoppingListScreen>
                     mainAxisSize: MainAxisSize.min,
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      CheckboxListTile(
-                        title: const Text('Hide empty departments'),
-                        value: _hideEmptyDepartments,
-                        onChanged: (value) => _setHideEmpty(value!),
-                        controlAffinity: ListTileControlAffinity.leading,
-                        dense: true,
-                        contentPadding: EdgeInsets.zero,
-                      ),
                       OutlinedButton.icon(
                         onPressed:
                             busy || !_items.any((i) => i['checked'] == true)

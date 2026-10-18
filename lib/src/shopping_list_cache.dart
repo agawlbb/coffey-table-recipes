@@ -66,24 +66,6 @@ class ShoppingListCache {
 
   Future<void> clear() => _write('');
 
-  Future<bool?> readHideEmpty() async {
-    final preferenceKey = '$key-view';
-    try {
-      await _pending[preferenceKey];
-      final value = await readStore(preferenceKey);
-      return value == '1'
-          ? true
-          : value == '0'
-          ? false
-          : null;
-    } catch (_) {
-      return null;
-    }
-  }
-
-  Future<void> saveHideEmpty(bool value) =>
-      _write(value ? '1' : '0', storageKey: '$key-view');
-
   Future<void> _write(String value, {String? storageKey}) {
     final target = storageKey ?? key;
     final task = (_pending[target] ?? Future<void>.value()).then((_) async {
