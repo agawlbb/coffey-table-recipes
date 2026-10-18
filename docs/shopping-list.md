@@ -394,3 +394,10 @@ installed into the local XAMPP app directory. Verified served JavaScript,
 bootstrap, version metadata and font-manifest hashes against the build.
 Two additional opening-synchronization widget checks passed. No Android build
 or hosted Flutter app deployment ran.
+
+Stationary-hold Android preview (2026-10-18): explicitly requested debug x64
+build from main commit 4870299 installed on CoffeyTable_Pixel_8_API_36,
+preserving sign-in and app data. Verified installed version 1.8.1 (25) and
+opened Shopping list. Visually confirmed occupied departments only, no empty
+visibility checkbox, inline add button and indented items. Left the emulator
+open on that screen. No household list items were modified for the preview.
