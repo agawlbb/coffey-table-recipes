@@ -76,7 +76,7 @@ void main() {
         200,
         scrollable: find
             .descendant(
-              of: find.byType(ReorderableListView),
+              of: find.byType(ListView),
               matching: find.byType(Scrollable),
             )
             .first,

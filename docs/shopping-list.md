@@ -6,10 +6,12 @@ checkboxes apply one strike-through. Items have no tap-to-edit screen. Hold a
 row and drag to reorder. **Remove checked off** stays at the bottom.
 
 Items appear beneath department headings, with Produce first and Other last.
-Every department is displayed, including an outlined drop area when empty.
-Hold anywhere on an item to reorder it or drag it beneath another department;
-the drop saves its new department and position together. Headings and empty
-drop areas are not draggable. Headings retain accessibility heading semantics.
+Every department is displayed as a compact 30-pixel heading, with no empty
+placeholder or drop box. Hold anywhere on the item label or row to drag.
+Drop on a department heading to move the item into that department, or on the
+upper/lower half of another item to insert before/after it. The drop saves the
+new department and position together. Headings are not draggable and retain
+accessibility heading semantics. Dragging near the list edge scrolls the list.
 Rows omit both the redundant department subtitle and trailing drag/menu icon.
 
 The screen uses the app's existing theme and refreshes while visible and on
@@ -17,8 +19,8 @@ resume. Changes require a connection to coffeybean.com. Concurrent changes are
 protected with server revisions: a stale save reloads the shared list and
 shows a brief retry message. Unsaved add text survives failures.
 
-The backend requires migration 015 and its shopping-list endpoint. No app
-package is built or hosted app deployed for this feature change.
+The backend requires migration 015 and its shopping-list endpoint. Local web
+builds are published only when authorized; the hosted Flutter app is unchanged.
 
 Validation: shopping-list widget tests cover adding, checking, changing
 departments, removing checked items, long-press drag-to-end ordering, and stale
@@ -68,3 +70,10 @@ confirmed list and discard remaining queued changes with an error. Background
 polls no longer rebuild an unchanged list. Seven focused widget checks pass,
 including consecutive moves across populated/empty sections with delayed saves
 and a second complete drag while the first save is explicitly blocked.
+
+Full-row drag validation: replaced the implicit ListTile hit area with an
+opaque long-press drag surface and explicit heading/item drop targets. Mouse
+and touch checks drag from both edges of a label and the row whitespace while
+leaving the checkbox unchecked. Nine shopping-list tests pass, including compact
+headings without empty rows, before/after ordering, successive queued drags,
+conflict recovery and auto-scroll at the list edge. Source analysis is clean.

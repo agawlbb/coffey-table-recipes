@@ -1,3 +1,4 @@
+import 'dart:ui' show PointerDeviceKind;
 import 'dart:async';
 
 import 'package:coffey_table_recipes/src/api.dart';
@@ -44,7 +45,7 @@ void main() {
       expect(find.byIcon(Icons.drag_handle), findsNothing);
       expect(find.byIcon(Icons.more_vert), findsNothing);
       final destination = tester.getRect(
-        find.byKey(const ValueKey('empty-Dairy & eggs')),
+        find.byKey(const ValueKey('department-Dairy & eggs')),
       );
       final gesture = await tester.startGesture(
         tester.getCenter(find.text('Apples')),
@@ -63,7 +64,7 @@ void main() {
       );
       for (final department in ['Meat & seafood', 'Bakery', 'Produce']) {
         final target = tester.getCenter(
-          find.byKey(ValueKey('empty-$department')),
+          find.byKey(ValueKey('department-$department')),
         );
         final nextDrag = await tester.startGesture(
           tester.getCenter(find.text('Apples')),
@@ -116,10 +117,9 @@ void main() {
         'Dairy & eggs',
         'Meat & seafood',
       ]) {
-        final empty = find.byKey(ValueKey('empty-$department'));
-        final target = empty.evaluate().isNotEmpty
-            ? tester.getCenter(empty)
-            : tester.getCenter(find.text('Milk'));
+        final target = tester.getCenter(
+          find.byKey(ValueKey('department-$department')),
+        );
         final gesture = await tester.startGesture(
           tester.getCenter(find.text('Apples')),
         );
@@ -172,7 +172,7 @@ void main() {
     await tester.pumpAndSettle();
     for (final department in ['Dairy & eggs', 'Meat & seafood']) {
       final target = tester.getCenter(
-        find.byKey(ValueKey('empty-$department')),
+        find.byKey(ValueKey('department-$department')),
       );
       final gesture = await tester.startGesture(
         tester.getCenter(find.text('Apples')),
@@ -198,6 +198,110 @@ void main() {
     expect(writes, hasLength(2));
     expect(saved.single['department'], 'Meat & seafood');
     expect(revision, 2);
+    expect(tester.takeException(), isNull);
+    await tester.pumpWidget(const SizedBox());
+  });
+
+  testWidgets(
+    'mouse and touch drags start across the label and row whitespace',
+    (tester) async {
+      tester.view.physicalSize = const Size(800, 1400);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      var saved = [item('A long shopping item label')];
+      var revision = 0;
+      await tester.pumpWidget(
+        MaterialApp(
+          home: ShoppingListScreen(
+            householdId: '1',
+            householdName: 'Our table',
+            request: (path, {body}) async {
+              if (body != null) {
+                revision++;
+                saved = List<Map<String, dynamic>>.from(body['items'] as List);
+              }
+              return {'revision': revision, 'items': saved};
+            },
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      for (var attempt = 0; attempt < 3; attempt++) {
+        final label = tester.getRect(find.text('A long shopping item label'));
+        final row = tester.getRect(
+          find.byKey(const ValueKey('A long shopping item label')),
+        );
+        final from = attempt == 0
+            ? Offset(label.left + 2, label.center.dy)
+            : attempt == 1
+            ? Offset(label.right - 2, label.center.dy)
+            : Offset(row.right - 12, row.center.dy);
+        final department = ['Dairy & eggs', 'Produce', 'Bakery'][attempt];
+        final target = tester.getCenter(
+          find.byKey(ValueKey('department-$department')),
+        );
+        final gesture = await tester.startGesture(
+          from,
+          kind: attempt == 1
+              ? PointerDeviceKind.touch
+              : PointerDeviceKind.mouse,
+        );
+        await tester.pump(const Duration(milliseconds: 600));
+        await gesture.moveTo(target);
+        await tester.pump(const Duration(milliseconds: 100));
+        await gesture.up();
+        await tester.pumpAndSettle();
+        expect(saved.single['department'], department);
+        expect(saved.single['checked'], false);
+      }
+      final list = tester.widget<ListView>(find.byType(ListView));
+      expect(
+        list.childrenDelegate.estimatedChildCount,
+        shoppingDepartments.length + 1,
+      );
+      for (final department in shoppingDepartments) {
+        expect(find.byKey(ValueKey('empty-$department')), findsNothing);
+        expect(
+          tester.getSize(find.byKey(ValueKey('department-$department'))).height,
+          30,
+        );
+      }
+      await tester.pumpWidget(const SizedBox());
+    },
+  );
+
+  testWidgets('dragging at the list edge scrolls to offscreen departments', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(390, 844);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    await tester.pumpWidget(
+      MaterialApp(
+        home: ShoppingListScreen(
+          householdId: '1',
+          householdName: 'Our table',
+          request: (path, {body}) async => {
+            'revision': 0,
+            'items': [for (var i = 0; i < 20; i++) item('Item $i')],
+          },
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    final list = tester.widget<ListView>(find.byType(ListView));
+    final bounds = tester.getRect(find.byType(ListView));
+    final gesture = await tester.startGesture(
+      tester.getCenter(find.text('Item 0')),
+    );
+    await tester.pump(const Duration(milliseconds: 600));
+    await gesture.moveTo(Offset(bounds.center.dx, bounds.bottom - 5));
+    await tester.pump(const Duration(seconds: 1));
+    expect(list.controller!.offset, greaterThan(0));
+    await gesture.cancel();
+    await tester.pumpAndSettle();
     expect(tester.takeException(), isNull);
     await tester.pumpWidget(const SizedBox());
   });
@@ -248,21 +352,21 @@ void main() {
     final to = tester.getCenter(find.text('Carrots'));
     final gesture = await tester.startGesture(from);
     await tester.pump(const Duration(milliseconds: 600));
-    await gesture.moveTo(to + const Offset(0, 55));
+    await gesture.moveTo(to + const Offset(0, 10));
     await tester.pump(const Duration(milliseconds: 300));
-    await gesture.moveBy(const Offset(0, 30));
+    await gesture.moveBy(const Offset(0, 2));
     await tester.pump(const Duration(milliseconds: 300));
     await gesture.up();
     await tester.pumpAndSettle();
     expect(items.map((i) => i['name']), [
+      'Milk',
       'Bananas',
       'Carrots',
       'Apples',
-      'Milk',
     ]);
-    expect(items.last['department'], 'Dairy & eggs');
+    expect(items.first['department'], 'Dairy & eggs');
     expect(
-      items.take(3).every((item) => item['department'] == 'Produce'),
+      items.skip(1).every((item) => item['department'] == 'Produce'),
       isTrue,
     );
     await tester.pumpWidget(const SizedBox());
