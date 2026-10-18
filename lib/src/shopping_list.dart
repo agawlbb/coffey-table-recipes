@@ -5,6 +5,7 @@ import 'package:flutter/gestures.dart';
 
 import 'api.dart';
 import 'shopping_item_id.dart';
+import 'shopping_list_cache.dart';
 
 const shoppingDepartments = [
   'Other',
@@ -32,12 +33,14 @@ class ShoppingListScreen extends StatefulWidget {
     required this.request,
     this.embedded = false,
     this.active = true,
+    this.cache,
   });
   final String householdId;
   final String householdName;
   final ShoppingRequest request;
   final bool embedded;
   final bool active;
+  final ShoppingListCache? cache;
 
   @override
   State<ShoppingListScreen> createState() => _ShoppingListScreenState();
@@ -57,8 +60,11 @@ class _ShoppingListScreenState extends State<ShoppingListScreen>
     'Other',
   ];
   int _revision = 0;
+  int _saveGeneration = 0;
   bool _loading = true, _saving = false, _reading = false;
   bool _dragging = false;
+  bool _routeVisible = false;
+  bool _disconnected = false, _accessDenied = false, _serverLoaded = false;
   final _listController = ScrollController();
   final _listKey = GlobalKey();
   Timer? _autoScroll;
@@ -72,25 +78,37 @@ class _ShoppingListScreenState extends State<ShoppingListScreen>
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    _load();
-    _poll = Timer.periodic(const Duration(seconds: 8), (_) {
+    _restoreCache();
+    if (widget.active) _load();
+    _poll = Timer.periodic(const Duration(seconds: 5), (_) {
       if (widget.active &&
           WidgetsBinding.instance.lifecycleState == AppLifecycleState.resumed &&
-          ModalRoute.of(context)?.isCurrent == true) {
-        _load(quiet: true);
+          _routeVisible) {
+        _load();
       }
     });
   }
 
   @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final visible = ModalRoute.of(context)?.isCurrent ?? true;
+    final opening = visible && !_routeVisible;
+    _routeVisible = visible;
+    if (opening && widget.active) _load();
+  }
+
+  @override
   void didUpdateWidget(covariant ShoppingListScreen oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (widget.active && !oldWidget.active) _load(quiet: true);
+    if (widget.active && !oldWidget.active && _routeVisible) _load();
   }
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (widget.active && state == AppLifecycleState.resumed) _load(quiet: true);
+    if (widget.active && _routeVisible && state == AppLifecycleState.resumed) {
+      _load();
+    }
   }
 
   void _accept(Map<String, dynamic> data) {
@@ -103,31 +121,73 @@ class _ShoppingListScreenState extends State<ShoppingListScreen>
     _confirmedItems = _items;
   }
 
-  Future<void> _load({bool quiet = false}) async {
+  Future<void> _restoreCache() async {
+    final data = await widget.cache?.read();
+    if (data != null &&
+        mounted &&
+        !_serverLoaded &&
+        !_saving &&
+        !_accessDenied) {
+      setState(() {
+        _accept(data);
+        _loading = false;
+      });
+    }
+  }
+
+  void _cacheConfirmed() {
+    unawaited(
+      widget.cache?.save({
+        'revision': _revision,
+        'items': _confirmedItems,
+        'departments': _departments,
+      }),
+    );
+  }
+
+  bool _connectionFailure(Object error) =>
+      error is! ApiException || error.status >= 500 || error.status == 408;
+
+  Future<void> _load() async {
     if (_saving || _reading || _dragging) return;
     _reading = true;
-    final revision = _revision;
+    final generation = _saveGeneration;
     try {
       final data = await widget.request(_path);
-      if (mounted &&
-          !_saving &&
-          !_dragging &&
-          revision == _revision &&
-          (_loading ||
-              data['revision'] != _revision ||
-              (!quiet && _error != null))) {
-        setState(() {
-          _accept(data);
-          _error = null;
-        });
+      if (!mounted) return;
+      final firstResponse = !_serverLoaded;
+      _serverLoaded = true;
+      if (!_saving && !_dragging && generation == _saveGeneration) {
+        final changed =
+            firstResponse || _loading || data['revision'] != _revision;
+        if (changed || _disconnected || _accessDenied || _error != null) {
+          setState(() {
+            if (changed) _accept(data);
+            _disconnected = false;
+            _accessDenied = false;
+            _error = null;
+          });
+        }
+        if (changed) _cacheConfirmed();
       }
     } catch (error) {
-      if (mounted && (!quiet || _items.isEmpty)) {
-        setState(
-          () => _error = error is ApiException
-              ? error.message
-              : 'Could not load the shopping list.',
-        );
+      if (!mounted) return;
+      if (_connectionFailure(error)) {
+        if (!_disconnected) setState(() => _disconnected = true);
+      } else {
+        final denied =
+            error is ApiException && [401, 403, 404].contains(error.status);
+        if (denied) unawaited(widget.cache?.clear());
+        setState(() {
+          _disconnected = false;
+          if (denied) {
+            _accessDenied = true;
+            _items = [];
+            _confirmedItems = [];
+            _revision = 0;
+          }
+          _error = (error as ApiException).message;
+        });
       }
     } finally {
       _reading = false;
@@ -136,6 +196,8 @@ class _ShoppingListScreenState extends State<ShoppingListScreen>
   }
 
   Future<bool> _save(List<Map<String, dynamic>> items) {
+    if (_disconnected || _accessDenied) return Future.value(false);
+    _saveGeneration++;
     final done = Completer<bool>();
     final start = !_saving;
     _writes.add((items: items, done: done));
@@ -164,6 +226,10 @@ class _ShoppingListScreenState extends State<ShoppingListScreen>
         _confirmedItems = (data['items'] as List)
             .map((item) => Map<String, dynamic>.from(item as Map))
             .toList();
+        _serverLoaded = true;
+        _disconnected = false;
+        _accessDenied = false;
+        _cacheConfirmed();
         // Carry server-selected departments into queued snapshots, unless a
         // later drag explicitly chose a different department for that item.
         final sent = {for (final item in write.items) item['id']: item};
@@ -198,6 +264,7 @@ class _ShoppingListScreenState extends State<ShoppingListScreen>
             _confirmedItems = (data['items'] as List)
                 .map((item) => Map<String, dynamic>.from(item as Map))
                 .toList();
+            _cacheConfirmed();
           } catch (_) {
             /* Retain the last confirmed state if refresh fails. */
           }
@@ -209,6 +276,15 @@ class _ShoppingListScreenState extends State<ShoppingListScreen>
         if (mounted) {
           setState(() {
             _items = _confirmedItems;
+            if (_connectionFailure(error)) _disconnected = true;
+            if (error is ApiException &&
+                [401, 403, 404].contains(error.status)) {
+              _accessDenied = true;
+              _items = [];
+              _confirmedItems = [];
+              _revision = 0;
+              unawaited(widget.cache?.clear());
+            }
             _error = error is ApiException
                 ? error.message
                 : 'Could not save the shopping list. Please try again.';
@@ -317,7 +393,9 @@ class _ShoppingListScreenState extends State<ShoppingListScreen>
     bool after = false,
   }) {
     final original = _items.where((item) => item['id'] == id).firstOrNull;
-    if (original == null || target == id) return;
+    if (original == null || target == id || _disconnected || _accessDenied) {
+      return;
+    }
     final items = _items.where((item) => item['id'] != id).toList();
     final targetIndex = target == null
         ? -1
@@ -406,7 +484,8 @@ class _ShoppingListScreenState extends State<ShoppingListScreen>
           return DragTarget<String>(
             key: ValueKey('department-$department'),
             hitTestBehavior: HitTestBehavior.opaque,
-            onWillAcceptWithDetails: (_) => !_loading,
+            onWillAcceptWithDetails: (_) =>
+                !_loading && !_disconnected && !_accessDenied,
             onAcceptWithDetails: (details) {
               _dragFinished();
               _dropItem(details.data, department);
@@ -438,7 +517,10 @@ class _ShoppingListScreenState extends State<ShoppingListScreen>
           builder: (rowContext, constraints) => DragTarget<String>(
             hitTestBehavior: HitTestBehavior.opaque,
             onWillAcceptWithDetails: (details) =>
-                !_loading && details.data != item['id'],
+                !_loading &&
+                !_disconnected &&
+                !_accessDenied &&
+                details.data != item['id'],
             onAcceptWithDetails: (details) {
               final box = rowContext.findRenderObject() as RenderBox;
               final after =
@@ -467,7 +549,9 @@ class _ShoppingListScreenState extends State<ShoppingListScreen>
               Widget source(bool touch, Widget child) => _ShoppingDragSource(
                 touch: touch,
                 data: item['id'] as String,
-                maxSimultaneousDrags: _loading ? 0 : 1,
+                maxSimultaneousDrags: _loading || _disconnected || _accessDenied
+                    ? 0
+                    : 1,
                 onDragStarted: _dragStarted,
                 onDragUpdate: _dragUpdated,
                 onDragCompleted: _dragFinished,
@@ -493,7 +577,7 @@ class _ShoppingListScreenState extends State<ShoppingListScreen>
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
-    final busy = _loading || _saving;
+    final busy = _loading || _saving || _disconnected || _accessDenied;
     return Scaffold(
       appBar: widget.embedded
           ? null
@@ -502,7 +586,7 @@ class _ShoppingListScreenState extends State<ShoppingListScreen>
               actions: [
                 IconButton(
                   tooltip: 'Refresh',
-                  onPressed: busy ? null : () => _load(),
+                  onPressed: _loading || _saving ? null : () => _load(),
                   icon: const Icon(Icons.refresh),
                 ),
               ],
@@ -515,10 +599,39 @@ class _ShoppingListScreenState extends State<ShoppingListScreen>
             children: [
               Padding(
                 padding: const EdgeInsets.fromLTRB(20, 8, 20, 12),
-                child: Text(
-                  widget.householdName,
-                  style: Theme.of(context).textTheme.titleMedium
-                      ?.copyWith(color: colors.primary),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        widget.householdName,
+                        style: Theme.of(context).textTheme.titleMedium
+                            ?.copyWith(color: colors.primary),
+                      ),
+                    ),
+                    if (_disconnected)
+                      Tooltip(
+                        message: 'No server connection',
+                        child: Semantics(
+                          liveRegion: true,
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                Icons.cloud_off_outlined,
+                                size: 16,
+                                color: colors.onSurfaceVariant,
+                              ),
+                              const SizedBox(width: 4),
+                              Text(
+                                'Offline',
+                                style: Theme.of(context).textTheme.labelSmall
+                                    ?.copyWith(color: colors.onSurfaceVariant),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                  ],
                 ),
               ),
               Padding(
@@ -534,7 +647,7 @@ class _ShoppingListScreenState extends State<ShoppingListScreen>
                             final field = TextField(
                               controller: _name,
                               focusNode: _focus,
-                              enabled: !busy,
+                              enabled: !_loading && !_saving,
                               maxLength: 200,
                               textInputAction: TextInputAction.done,
                               decoration: const InputDecoration(
@@ -589,7 +702,7 @@ class _ShoppingListScreenState extends State<ShoppingListScreen>
                         ),
                       ),
                       TextButton(
-                        onPressed: busy ? null : () => _load(),
+                        onPressed: _loading || _saving ? null : () => _load(),
                         child: const Text('Retry'),
                       ),
                     ],

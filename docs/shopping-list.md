@@ -26,8 +26,10 @@ that have no items. Unassigned items and occupied departments remain visible;
 unchecking it restores all department headings. This is a view setting for the
 open screen and does not change the household list or anyone else's view.
 
-The screen uses the app's existing theme and refreshes while visible and on
-resume. Changes require a connection to coffeybean.com. Concurrent changes are
+The screen uses the app's existing theme. Its last confirmed local snapshot
+appears while the server refresh is pending. It refreshes when opened or
+resumed and polls every five seconds while visible. Changes require a connection
+to coffeybean.com. Concurrent changes are
 protected with server revisions: a stale save reloads the shared list and
 shows a brief retry message. Unsaved add text survives failures.
 
@@ -221,3 +223,31 @@ and drag lifecycle tests pass. New checks verify immediate rendering of the
 server-selected department, rename metadata, and pending-add drags that retain
 automatic placement while preserving explicit user overrides. Static analysis
 is clean. Backend fixtures separately cover household persistence and matching.
+
+
+Local shopping cache and live refresh (2026-10-18): confirmed items, order,
+check-offs, configured departments and revision are saved through the existing
+platform storage adapter (browser local storage or native application-support
+files). Keys include server, signed-in account and household. Restoring a cache
+never blocks the opening request or overwrites a newer response/local edit.
+Cache hydration does not invalidate the in-flight opening refresh. Storage
+failures or malformed snapshots are ignored so server access still works.
+Unchanged polling responses do not repeatedly rewrite local storage.
+
+The shopping view refreshes immediately on opening/reactivation, returning from
+another route and app resume. Five-second polling runs only while the view is
+active, foreground and uncovered, with no overlapping reads. Reads defer while
+dragging or saving. A small cloud-off icon and Offline label beside the household
+name indicate connection failure; recovery clears it even if the revision is
+unchanged. Cached content remains visible and typed add text is retained.
+Mutations pause while disconnected; this change does not queue offline writes.
+Only confirmed server state reaches the cache. Access-denied/not-found responses
+clear the relevant cached data rather than displaying it as offline content.
+
+Validation: all 33 focused cache, shopping-list, department, home navigation and
+recipe/cooking menu checks pass. Cache checks cover account/household/server
+isolation, storage failure/corruption, pending refresh and reopening, late cache
+reads, five-second polling, inactive/background/covered view pauses, immediate
+recovery, preserved input, failed edits and access revocation. The connection
+indicator and recovery flow were exercised at a 390-pixel phone width. No app
+build was requested or produced; the local web app needs an authorized rebuild.

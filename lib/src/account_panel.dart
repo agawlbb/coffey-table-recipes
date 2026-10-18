@@ -22,6 +22,7 @@ import 'invitation_entry.dart';
 import 'recipe_browser.dart';
 import 'recipe_trash.dart';
 import 'shopping_list.dart';
+import 'shopping_list_cache.dart';
 import 'shopping_departments.dart';
 import 'recipe_import.dart';
 import 'shared_recipe_import.dart';
@@ -1139,6 +1140,11 @@ class _HouseholdPanelState extends State<HouseholdPanel> {
                     key: ValueKey('shopping-$_selected-$_shoppingRefresh'),
                     embedded: true,
                     active: _shopping,
+                    cache: ShoppingListCache(
+                      account: widget.user.uid,
+                      household: _selected!,
+                      server: apiBaseUrl,
+                    ),
                     householdId: _selected!,
                     householdName: selected['name'] as String,
                     request: (path, {body}) => _request(path, body: body),
