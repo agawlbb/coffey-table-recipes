@@ -164,6 +164,28 @@ class _ShoppingListScreenState extends State<ShoppingListScreen>
         _confirmedItems = (data['items'] as List)
             .map((item) => Map<String, dynamic>.from(item as Map))
             .toList();
+        // Carry server-selected departments into queued snapshots, unless a
+        // later drag explicitly chose a different department for that item.
+        final sent = {for (final item in write.items) item['id']: item};
+        for (final confirmed in _confirmedItems) {
+          final original = sent[confirmed['id']];
+          if (original == null ||
+              original['department'] == confirmed['department']) {
+            continue;
+          }
+          for (final pending in _writes.skip(1)) {
+            for (var i = 0; i < pending.items.length; i++) {
+              final item = pending.items[i];
+              if (item['id'] == confirmed['id'] &&
+                  item['department'] == original['department']) {
+                pending.items[i] = {
+                  ...item,
+                  'department': confirmed['department'],
+                };
+              }
+            }
+          }
+        }
         _writes.removeAt(0);
         if (!write.done.isCompleted) write.done.complete(true);
       } catch (error) {
@@ -200,7 +222,12 @@ class _ShoppingListScreenState extends State<ShoppingListScreen>
         _writes.clear();
       }
     }
-    if (mounted) setState(() => _saving = false);
+    if (mounted) {
+      setState(() {
+        _items = _confirmedItems;
+        _saving = false;
+      });
+    }
   }
 
   Future<void> _add() async {

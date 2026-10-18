@@ -59,8 +59,9 @@ class _ShoppingDepartmentsScreenState extends State<ShoppingDepartmentsScreen> {
 
   Future<void> _save(
     List<String> departments,
-    List<Map<String, dynamic>> items,
-  ) async {
+    List<Map<String, dynamic>> items, {
+    Map<String, String>? renames,
+  }) async {
     setState(() {
       _busy = true;
       _error = null;
@@ -72,6 +73,7 @@ class _ShoppingDepartmentsScreenState extends State<ShoppingDepartmentsScreen> {
           'revision': _revision,
           'departments': departments,
           'items': items,
+          'department_renames': ?renames,
         },
       );
       if (mounted) setState(() => _accept(data));
@@ -107,7 +109,7 @@ class _ShoppingDepartmentsScreenState extends State<ShoppingDepartmentsScreen> {
     await _save(departments, [
       for (final item in _items)
         {...item, if (item['department'] == old) 'department': name},
-    ]);
+    ], renames: old == null ? null : {old: name});
   }
 
   Future<void> _remove(String department) async {

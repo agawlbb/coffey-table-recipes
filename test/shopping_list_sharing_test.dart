@@ -14,6 +14,91 @@ Map<String, dynamic> item(String name) => {
 };
 
 void main() {
+  for (final movedName in ['Apples', 'MILK']) {
+    testWidgets(
+      'queued $movedName drag preserves server assignment or explicit override',
+      (tester) async {
+        tester.view.physicalSize = const Size(800, 1600);
+        tester.view.devicePixelRatio = 1;
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
+        var items = [item('Apples')];
+        var revision = 0;
+        final first = Completer<void>();
+        var writes = 0;
+        await tester.pumpWidget(
+          MaterialApp(
+            home: ShoppingListScreen(
+              householdId: '1',
+              householdName: 'Our table',
+              request: (path, {body}) async {
+                if (body != null) {
+                  expect(body['revision'], revision);
+                  writes++;
+                  if (writes == 1) await first.future;
+                  items = [
+                    for (final value in body['items'] as List)
+                      Map<String, dynamic>.from(value as Map),
+                  ];
+                  if (writes == 1) {
+                    final milk = items.indexWhere((i) => i['name'] == 'MILK');
+                    items[milk] = {
+                      ...items[milk],
+                      'department': 'Dairy & eggs',
+                    };
+                  } else {
+                    expect(
+                      items.singleWhere(
+                        (i) => i['name'] == 'MILK',
+                      )['department'],
+                      movedName == 'MILK' ? 'Bakery' : 'Dairy & eggs',
+                    );
+                  }
+                  revision++;
+                }
+                return {'revision': revision, 'items': items};
+              },
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+        await tester.enterText(find.byType(TextField), 'MILK');
+        await tester.tap(find.text('Add item'));
+        await tester.pump();
+        final gesture = await tester.startGesture(
+          tester.getCenter(find.text(movedName).last),
+          kind: PointerDeviceKind.mouse,
+        );
+        await gesture.moveTo(
+          tester.getCenter(find.byKey(const ValueKey('department-Bakery'))),
+        );
+        await tester.pump(const Duration(milliseconds: 100));
+        await gesture.up();
+        await tester.pump();
+        expect(writes, 1);
+        first.complete();
+        await tester.pumpAndSettle();
+        expect(writes, 2);
+        expect(
+          items.singleWhere((i) => i['name'] == 'Apples')['department'],
+          movedName == 'Apples' ? 'Bakery' : 'Produce',
+        );
+        expect(
+          tester.getTopLeft(find.text('MILK')).dy,
+          greaterThan(
+            tester
+                .getTopLeft(
+                  find.text(movedName == 'MILK' ? 'Bakery' : 'Dairy & eggs'),
+                )
+                .dy,
+          ),
+        );
+        expect(tester.takeException(), isNull);
+        await tester.pumpWidget(const SizedBox());
+      },
+    );
+  }
+
   testWidgets(
     'all departments are drop targets and a drag changes department',
     (tester) async {

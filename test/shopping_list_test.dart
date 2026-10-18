@@ -98,4 +98,49 @@ void main() {
       await tester.pumpWidget(const SizedBox());
     },
   );
+  testWidgets(
+    'server remembered assignment is displayed as soon as adding finishes',
+    (tester) async {
+      var items = <Map<String, dynamic>>[];
+      await tester.pumpWidget(
+        MaterialApp(
+          home: ShoppingListScreen(
+            householdId: '7',
+            householdName: 'Our table',
+            request: (path, {body}) async {
+              if (body != null) {
+                final added = Map<String, dynamic>.from(
+                  (body['items'] as List).last as Map,
+                );
+                expect(added['department'], '');
+                items = [
+                  {...added, 'department': 'Farm stand'},
+                ];
+              }
+              return {
+                'revision': items.isEmpty ? 0 : 1,
+                'items': items,
+                'departments': ['Farm stand'],
+              };
+            },
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      await tester.enterText(find.byType(TextField), 'GreenOnions');
+      await tester.tap(find.text('Add item'));
+      await tester.pumpAndSettle();
+      expect(find.text('GreenOnions'), findsOneWidget);
+      expect(
+        tester.getTopLeft(find.text('GreenOnions')).dy,
+        greaterThan(tester.getTopLeft(find.text('Farm stand')).dy),
+      );
+      expect(
+        tester.widget<TextField>(find.byType(TextField)).controller!.text,
+        isEmpty,
+      );
+      expect(tester.takeException(), isNull);
+      await tester.pumpWidget(const SizedBox());
+    },
+  );
 }

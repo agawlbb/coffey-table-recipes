@@ -37,6 +37,7 @@ void main() {
               if (path.endsWith('/shopping-list')) {
                 if (body != null) {
                   expect(body['revision'], revision);
+                  expect(body['department_renames'], {'Produce': 'Farm stand'});
                   revision++;
                   departments = (body['departments'] as List).cast<String>();
                   items = (body['items'] as List).cast<Map<String, dynamic>>();

@@ -5,13 +5,14 @@ All household members share the same list. Items have a name and optional depart
 checkboxes apply one strike-through. Items have no tap-to-edit screen. Click
 and drag with a mouse, or hold a row on a touch screen, to reorder. **Remove checked off** stays at the bottom.
 
-New items are added without a department, above all department headings. The
-add form contains only the item field and Add item button. Unassigned items
+New items use the household's remembered department when their name matches a
+previous assignment. Unrecognized items appear above all department headings.
+The add form contains only the item field and Add item button. Unassigned items
 have no visible heading. Drag an assigned item to the top strip to remove its
 department, or drop on a department heading to assign it. The named Other
 department remains distinct from having no department.
 
-Assigned items appear beneath department headings, with Produce first and Other last.
+Assigned items appear beneath department headings in the household's configured order.
 By default every department is displayed as a compact 30-pixel heading, with no empty
 placeholder or drop box. Drag anywhere on the item label or row.
 Drop on a department heading to move the item into that department, or on the
@@ -198,3 +199,25 @@ Recipes through the existing navigation handler. Settings remain exclusive to
 the user icon menu. Six department and recipe-menu navigation checks pass,
 including saving a rename and returning through the department drawer to see
 its updated items. Static analysis is clean. No app build was requested.
+
+
+Household department memory (2026-10-18): assignments and changes teach the
+hosted backend a preference for later additions by any household member. Case,
+spacing, punctuation and accents normalize together; common plurals and small
+spelling errors can match when the closest department is unambiguous. Exact
+matches win. Items with no remembered match remain unassigned. Moving an item
+back to the unassigned group teaches that choice as well. Checking off and
+removing items leave their saved associations intact.
+
+The app applies the server-returned department immediately after a successful
+addition. Queued drags inherit server-selected departments without overwriting
+a later explicit department move. Department renames send a mapping so memory
+survives even when the associated items are no longer in the list. Memory stays
+on the household's server record, with no additional controls or explanatory UI.
+No build was requested or produced for this change.
+
+Department-memory validation: all 18 focused shopping-list, department, sharing
+and drag lifecycle tests pass. New checks verify immediate rendering of the
+server-selected department, rename metadata, and pending-add drags that retain
+automatic placement while preserving explicit user overrides. Static analysis
+is clean. Backend fixtures separately cover household persistence and matching.
