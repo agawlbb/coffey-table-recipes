@@ -47,6 +47,11 @@ When the user says "create a release", review progress since the previous releas
 
 `CHANGELOG.md` covers previous releases using Git history, tags, and the release records below. Every future release must update it with the version, release date, and meaningful changes since the prior release. Commit the changelog before tagging the release. Describe only changes supported by the project history.
 
+## 1.8.2 — recipe shopping selection and refinements
+
+Explicitly requested version `1.8.2+26`, tag `v1.8.2`, releases main. Both repositories' local branches and tags were pushed and synchronized before release preparation. The owner clarified that branches unrelated to CFR are outside release scope; remote `codex/fancontrol-watch-testflight` changes only an isolated Fan Control Watch workflow and is retained unchanged. Backend main remains `6934f4592a6ab3b9b5778ee60b4e568f6e0ab40d` with no runtime changes or migrations. Changelog entries reflect changes since 1.8.1. Native source, dependencies and encryption behavior are unchanged, retaining the exempt-encryption declaration and France exclusion.
+
+Pre-release validation: analysis passed; all 341 Flutter tests, 13 iOS configuration/distribution tests, and four Apple status/signing guard tests passed. The Python tests used an ignored workspace temporary directory after the sandbox temporary directory denied access. Platform delivery and native association verification follow after completion.
 ## 1.8.1 — shopping list checking and presentation
 
 Version `1.8.1+25`, tagged `v1.8.1`, is the explicitly requested patch release. Both repositories contain only main locally and on GitHub; project branches and tags were pushed before release preparation. Changes since 1.8.0 add tap-to-check shopping rows, a separate completed-items group that preserves departments, larger bold headings, assigned-item indentation and regression coverage. Native code, dependencies, encryption behavior and signing identities are unchanged; production APNs, actual signed universal-link identity and distribution profiles remain gated before upload. France exclusion is retained. Platform and validation results follow as verified.

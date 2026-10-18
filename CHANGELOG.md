@@ -2,6 +2,17 @@
 
 Release dates and changes are reconstructed from annotated Git tags, commit history, and project release records. Versions before 1.0 are demonstration releases; 1.0 marks the first usable release. Android retains the existing signing identity; iOS delivery and signing are recorded for each release.
 
+## 1.8.2 — 2026-10-18
+
+Build 26; tag `v1.8.2`.
+
+- Add a bottom-sheet ingredient selector for adding recipe ingredients to the household shopping list.
+- Separate shopping ingredient names from quantities and warn about similar existing items.
+- Reveal empty department drop targets during stationary holds and keep held shopping items anchored.
+- Retry transient shopping failures quietly and show clearer save notices; remove the redundant household heading.
+- Warn about duplicate recipe names during import and save.
+- Simplify cooking-mode screen-awake behavior and timer text.
+- Reuse the encrypted Apple signing identity introduced during 1.8.1 recovery.
 ## 1.8.1 — 2026-10-18
 
 Build 25; tag `v1.8.1`.
