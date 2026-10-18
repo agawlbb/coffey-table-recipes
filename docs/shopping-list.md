@@ -183,3 +183,10 @@ exclusive to the account menu. Resolved the account-panel and home-navigation
 test conflicts with both behaviors preserved. All 24 focused shopping,
 department, home and recipe/cooking navigation checks pass; analysis is clean.
 This local merge did not build or deploy an app.
+
+Merged-main local web rebuild (2026-10-18): explicitly requested build completed
+for de593ea3d2873fb59704e2b76af22af08ad73798 (1.7.0 build 22). Installed
+prepared assets into the local XAMPP app directory. Verified HTTP-served
+main.dart.js, flutter_bootstrap.js, version.json and font manifest hashes match
+the generated build. Includes the corrected account-menu settings placement and
+merged recipe/cooking navigation. No hosted Flutter app was deployed.
