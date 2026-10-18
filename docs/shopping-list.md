@@ -298,3 +298,9 @@ Department heading emphasis (2026-10-18): named headings now use 18-pixel bold
 (weight 700) title text, making them larger and heavier than item labels while
 retaining the compact department rows. Six shopping layout/add/drag lifecycle
 checks pass. The requested rebuild targets local web only.
+
+Bold-heading local web rebuild (2026-10-18): built commit
+32d9395f6784fdc3a6d6bb7f13a36b50a01b8f00, prepared cache-safe assets and
+installed into the local XAMPP app directory. Verified localhost JavaScript,
+bootstrap, version metadata and font-manifest hashes against the build.
+The current project version is 1.8.0 (24). No Android build was performed.
