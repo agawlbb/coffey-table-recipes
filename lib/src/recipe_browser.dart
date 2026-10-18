@@ -1593,20 +1593,26 @@ class _RecipeDetailState extends State<RecipeDetail> {
                     Chip(label: Text('${tag['label']}')),
               ],
             ),
-            Wrap(
-              spacing: 16,
-              crossAxisAlignment: WrapCrossAlignment.center,
-              children: [
-                _heading('Ingredients'),
-                if (widget.save != null && widget.householdId.isNotEmpty)
-                  TextButton.icon(
-                    onPressed: ingredients.isEmpty
-                        ? null
-                        : () => _shoppingIngredients(ingredients),
-                    icon: const Icon(Icons.add_shopping_cart),
-                    label: const Text('Add to shopping list'),
+            Padding(
+              padding: const EdgeInsets.only(top: 28, bottom: 12),
+              child: Wrap(
+                spacing: 16,
+                crossAxisAlignment: WrapCrossAlignment.center,
+                children: [
+                  Text(
+                    'Ingredients',
+                    style: Theme.of(context).textTheme.headlineSmall,
                   ),
-              ],
+                  if (widget.save != null && widget.householdId.isNotEmpty)
+                    TextButton.icon(
+                      onPressed: ingredients.isEmpty
+                          ? null
+                          : () => _shoppingIngredients(ingredients),
+                      icon: const Icon(Icons.add_shopping_cart),
+                      label: const Text('Add to shopping list'),
+                    ),
+                ],
+              ),
             ),
             if (ingredients.isEmpty) const Text('No ingredients recorded.'),
             for (final groupId in <String?>[
