@@ -1,5 +1,31 @@
 # Signed iOS builds and TestFlight
 
+## Reusable development signing identity
+
+Fresh Mac runners must import `IOS_DEVELOPMENT_CERT_P12` (base64 PKCS#12) and
+`IOS_DEVELOPMENT_CERT_PASSWORD` from encrypted repository Actions secrets into
+their temporary keychain. This reuses one development certificate for archiving;
+Apple's cloud-managed distribution signing remains in place for App Store
+exports. Cleanup deletes the temporary P12 and keychain. Ubuntu preflight rejects
+missing identity secrets before using a Mac, preventing repeated automatic
+development-certificate creation and eventual account quota exhaustion.
+
+The manual certificate workflow defaults to public-metadata inspection. Its
+replacement action must be explicitly approved by the owner: it checks the exact
+certificate ID, SHA-1 fingerprint, DEVELOPMENT type and Created via API name,
+verifies the public CSR signature, and revokes only that selected certificate.
+The new private key is generated locally, encrypted and excluded from Git; only
+the public CSR reaches Apple and only the public DER certificate becomes an
+artifact. Existing personal and distribution certificates are retained. Local
+packaging and secret storage follow only after owner approval. Do not use this
+workflow to clear unrelated certificate slots.
+
+For signing-only recovery, dispatch the current `ios-testflight.yml` from main
+with `release_tag` set to the immutable release tag and upload enabled. Workflow
+signing setup comes from main; checkout and the package's source report use the
+original release commit. This does not retag or alter the delivered web/Android
+source. Package-only artifact builds continue to select their source normally.
+
 ## Read-only delivery verification
 
 Signed upload builds first export an App Store Connect IPA from the archive.

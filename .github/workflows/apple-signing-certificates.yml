@@ -1,6 +1,21 @@
 name: Inspect Apple signing certificates
 on:
   workflow_dispatch:
+    inputs:
+      action:
+        description: Inspect only, or execute an owner-approved temporary certificate replacement
+        type: choice
+        options: [inspect, replace]
+        default: inspect
+      certificate_id:
+        description: Exact approved temporary development certificate ID
+        type: string
+      fingerprint:
+        description: Exact approved temporary certificate SHA-1 (40 uppercase hexadecimal characters)
+        type: string
+      csr_base64:
+        description: Base64 public CSR only; private key remains local
+        type: string
 permissions:
   contents: read
 jobs:
@@ -9,9 +24,22 @@ jobs:
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
-      - name: Read public certificate metadata only
+      - run: node --test tool/test_apple_certificate_replacement.mjs
+      - name: Inspect or perform explicitly approved certificate operation
         env:
           ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
           ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
           ASC_PRIVATE_KEY: ${{ secrets.ASC_PRIVATE_KEY }}
+          CERT_ACTION: ${{ inputs.action }}
+          REVOKE_CERTIFICATE_ID: ${{ inputs.certificate_id }}
+          REVOKE_SHA1: ${{ inputs.fingerprint }}
+          CSR_BASE64: ${{ inputs.csr_base64 }}
         run: node tool/apple-signing-certificates.mjs
+      - name: Save public certificate only
+        if: inputs.action == 'replace'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: apple-development-public-certificate
+          path: build/apple-public-certificate/development.cer
+          retention-days: 7
+          if-no-files-found: error
