@@ -335,3 +335,11 @@ installed in the local XAMPP app directory. Verified served JavaScript,
 bootstrap, version metadata and font-manifest hashes against the build.
 Includes larger headings, indented items and checked-item grouping at the bottom.
 No Android build or hosted app deployment ran.
+
+Updated Android emulator preview (2026-10-18): explicitly requested debug x64
+build installed successfully on CoffeyTable_Pixel_8_API_36 (emulator-5554),
+preserving sign-in and data. Verified installed version 1.8.0 (24), opened
+Shopping list and visually confirmed the inline plus button, larger department
+labels, indented assigned items and absence of item checkboxes. Left the screen
+open in the foreground emulator. No household list data was modified for this
+preview. Generated packages and local Firebase settings remain excluded.
