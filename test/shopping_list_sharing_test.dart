@@ -302,6 +302,9 @@ void main() {
     expect(list.controller!.offset, greaterThan(0));
     await gesture.cancel();
     await tester.pumpAndSettle();
+    final stoppedOffset = list.controller!.offset;
+    await tester.pump(const Duration(milliseconds: 300));
+    expect(list.controller!.offset, stoppedOffset);
     expect(tester.takeException(), isNull);
     await tester.pumpWidget(const SizedBox());
   });

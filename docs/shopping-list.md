@@ -77,3 +77,22 @@ and touch checks drag from both edges of a label and the row whitespace while
 leaving the checkbox unchecked. Nine shopping-list tests pass, including compact
 headings without empty rows, before/after ordering, successive queued drags,
 conflict recovery and auto-scroll at the list edge. Source analysis is clean.
+
+Drag lifecycle regression: a keyed row in the lazy list also needs an index
+lookup when its department or position changes. Without it the row's drag
+state was disposed after a move; the new regression test reproduced that state
+loss. The list now maps stable row keys to their current indices. Accepted and
+cancelled drags both clean up scrolling and drag flags, even if their original
+row has left the viewport. Item cards consistently request the standard visible
+mouse pointer, including their in-drag variants. The lifecycle test verifies
+the same drag state survives three department moves and checks the exact
+standard cursor after hovering each moved label. The edge-scroll test also
+verifies scrolling stops after cancellation. The SDK-compatible `test` package
+is a development-only dependency needed by Flutter's browser test runner.
+
+Validation: all 307 app unit/widget tests passed, and source analysis was clean.
+The lifecycle regression failed on the prior implementation (the original drag
+state was defunct after the first move) and passes after the index mapping fix.
+The browser runner compiled and launched headless Chrome, but stalled before
+executing test bodies; it was stopped and is not counted as a passing web test.
+This limitation is separate from the passing framework mouse-cursor assertions.

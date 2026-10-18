@@ -252,10 +252,12 @@ class _ShoppingListScreenState extends State<ShoppingListScreen>
         : 0;
   }
 
-  void _dragEnded(DraggableDetails details) {
+  void _dragFinished() {
     _dragging = false;
     _scrollStep = 0;
     _autoScroll?.cancel();
+    _autoScroll = null;
+    _dragPosition = null;
   }
 
   void _dropItem(
@@ -292,35 +294,38 @@ class _ShoppingListScreenState extends State<ShoppingListScreen>
   }) {
     final colors = Theme.of(context).colorScheme;
     final checked = item['checked'] == true;
-    return Card(
-      margin: const EdgeInsets.only(bottom: 6),
-      color: highlighted ? colors.primaryContainer : null,
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(4, 4, 16, 4),
-        child: Row(
-          children: [
-            Checkbox(
-              value: checked,
-              onChanged: busy
-                  ? null
-                  : (value) => _save([
-                      for (final i in _items)
-                        i['id'] == item['id'] ? {...i, 'checked': value} : i,
-                    ]),
-            ),
-            const SizedBox(width: 8),
-            Expanded(
-              child: Text(
-                item['name'] as String,
-                style: TextStyle(
-                  decoration: checked
-                      ? TextDecoration.lineThrough
-                      : TextDecoration.none,
-                  color: checked ? colors.onSurfaceVariant : colors.onSurface,
+    return MouseRegion(
+      cursor: SystemMouseCursors.basic,
+      child: Card(
+        margin: const EdgeInsets.only(bottom: 6),
+        color: highlighted ? colors.primaryContainer : null,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(4, 4, 16, 4),
+          child: Row(
+            children: [
+              Checkbox(
+                value: checked,
+                onChanged: busy
+                    ? null
+                    : (value) => _save([
+                        for (final i in _items)
+                          i['id'] == item['id'] ? {...i, 'checked': value} : i,
+                      ]),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  item['name'] as String,
+                  style: TextStyle(
+                    decoration: checked
+                        ? TextDecoration.lineThrough
+                        : TextDecoration.none,
+                    color: checked ? colors.onSurfaceVariant : colors.onSurface,
+                  ),
                 ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -329,11 +334,21 @@ class _ShoppingListScreenState extends State<ShoppingListScreen>
   Widget _shoppingList(bool busy) {
     final colors = Theme.of(context).colorScheme;
     final rows = _rows;
+    final rowIndices = <Key, int>{
+      for (var i = 0; i < rows.length; i++)
+        ValueKey<String>(
+          rows[i].containsKey('heading')
+              ? 'department-${rows[i]['heading']}'
+              : rows[i]['id'] as String,
+        ): i,
+    };
     return ListView.builder(
       key: _listKey,
       controller: _listController,
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
       itemCount: rows.length,
+      // Preserve the drag recognizer when an item changes its sliver index.
+      findChildIndexCallback: (key) => rowIndices[key],
       itemBuilder: (context, index) {
         final item = rows[index];
         if (item.containsKey('heading')) {
@@ -342,8 +357,10 @@ class _ShoppingListScreenState extends State<ShoppingListScreen>
             key: ValueKey('department-$department'),
             hitTestBehavior: HitTestBehavior.opaque,
             onWillAcceptWithDetails: (_) => !_loading,
-            onAcceptWithDetails: (details) =>
-                _dropItem(details.data, department),
+            onAcceptWithDetails: (details) {
+              _dragFinished();
+              _dropItem(details.data, department);
+            },
             builder: (context, candidates, rejected) => Container(
               height: 30,
               padding: const EdgeInsets.symmetric(horizontal: 4),
@@ -373,13 +390,15 @@ class _ShoppingListScreenState extends State<ShoppingListScreen>
                 !_loading && details.data != item['id'],
             onAcceptWithDetails: (details) {
               final box = rowContext.findRenderObject() as RenderBox;
+              final after =
+                  box.globalToLocal(_dragPosition ?? details.offset).dy >
+                  box.size.height / 2;
+              _dragFinished();
               _dropItem(
                 details.data,
                 item['department'] as String,
                 target: item['id'] as String,
-                after:
-                    box.globalToLocal(_dragPosition ?? details.offset).dy >
-                    box.size.height / 2,
+                after: after,
               );
             },
             builder: (context, candidates, rejected) =>
@@ -389,7 +408,10 @@ class _ShoppingListScreenState extends State<ShoppingListScreen>
                   hitTestBehavior: HitTestBehavior.opaque,
                   onDragStarted: _dragStarted,
                   onDragUpdate: _dragUpdated,
-                  onDragEnd: _dragEnded,
+                  // Completion/cancellation also run if the source row is
+                  // disposed while dragging; onDragEnd is mounted-only.
+                  onDragCompleted: _dragFinished,
+                  onDraggableCanceled: (_, _) => _dragFinished(),
                   feedback: Material(
                     color: Colors.transparent,
                     child: SizedBox(
@@ -401,13 +423,10 @@ class _ShoppingListScreenState extends State<ShoppingListScreen>
                     opacity: .3,
                     child: _itemCard(item, true),
                   ),
-                  child: MouseRegion(
-                    cursor: SystemMouseCursors.grab,
-                    child: _itemCard(
-                      item,
-                      busy,
-                      highlighted: candidates.isNotEmpty,
-                    ),
+                  child: _itemCard(
+                    item,
+                    busy,
+                    highlighted: candidates.isNotEmpty,
                   ),
                 ),
           ),
