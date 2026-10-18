@@ -34,3 +34,8 @@ the Dart VM. ID generation now uses the explicit numeric literal `0x100000000`.
 Compile `tool/check_shopping_item_id.dart` with `dart compile js` and run its
 output with Node (`globalThis.self = globalThis`) to verify 1,000 valid unique
 IDs on the actual JavaScript target, alongside the four widget checks.
+
+Local web build `32beca9` was republished and its served JavaScript/version
+metadata matched the build. In the signed-in built-in browser, tapped **Add
+item** to save Milk, fully reloaded the page, reopened Shopping list and
+confirmed Milk remained. This exercised the actual hosted save and read paths.
