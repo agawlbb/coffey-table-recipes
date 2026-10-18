@@ -356,13 +356,24 @@ class _ShoppingListScreenState extends State<ShoppingListScreen>
 
   List<Map<String, dynamic>> get _rows => [
     {'heading': ''},
-    ..._items.where((item) => item['department'] == ''),
+    ..._items.where(
+      (item) => item['department'] == '' && item['checked'] != true,
+    ),
     for (final department in _departments)
       if (!_hideEmptyDepartments ||
-          _items.any((item) => item['department'] == department)) ...[
+          _items.any(
+            (item) =>
+                item['department'] == department && item['checked'] != true,
+          )) ...[
         {'heading': department},
-        ..._items.where((item) => item['department'] == department),
+        ..._items.where(
+          (item) => item['department'] == department && item['checked'] != true,
+        ),
       ],
+    if (_items.any((item) => item['checked'] == true)) ...[
+      {'completed': true},
+      ..._items.where((item) => item['checked'] == true),
+    ],
   ];
 
   void _dragStarted() {
@@ -418,7 +429,12 @@ class _ShoppingListScreenState extends State<ShoppingListScreen>
     final index = targetIndex >= 0
         ? targetIndex + (after ? 1 : 0)
         : items.lastIndexWhere((item) => item['department'] == department) + 1;
-    items.insert(index, {...original, 'department': department});
+    items.insert(index, {
+      ...original,
+      'department': original['checked'] == true
+          ? original['department']
+          : department,
+    });
     if (List.generate(
       items.length,
       (i) =>
@@ -439,24 +455,26 @@ class _ShoppingListScreenState extends State<ShoppingListScreen>
     final checked = item['checked'] == true;
     return MouseRegion(
       cursor: SystemMouseCursors.basic,
-      child: Card(
-        margin: const EdgeInsets.only(bottom: 6),
-        color: highlighted ? colors.primaryContainer : null,
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(4, 4, 16, 4),
-          child: Row(
-            children: [
-              Checkbox(
-                value: checked,
-                onChanged: busy
-                    ? null
-                    : (value) => _save([
-                        for (final i in _items)
-                          i['id'] == item['id'] ? {...i, 'checked': value} : i,
-                      ]),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
+      child: Semantics(
+        toggled: checked,
+        child: Card(
+          margin: EdgeInsets.only(
+            left: !checked && item['department'] != '' ? 16 : 0,
+            bottom: 6,
+          ),
+          clipBehavior: Clip.antiAlias,
+          color: highlighted ? colors.primaryContainer : null,
+          child: InkWell(
+            onTap: busy
+                ? null
+                : () => _save([
+                    for (final i in _items)
+                      i['id'] == item['id'] ? {...i, 'checked': !checked} : i,
+                  ]),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+              child: Align(
+                alignment: Alignment.centerLeft,
                 child: Text(
                   item['name'] as String,
                   style: TextStyle(
@@ -467,7 +485,7 @@ class _ShoppingListScreenState extends State<ShoppingListScreen>
                   ),
                 ),
               ),
-            ],
+            ),
           ),
         ),
       ),
@@ -482,6 +500,8 @@ class _ShoppingListScreenState extends State<ShoppingListScreen>
         ValueKey<String>(
           rows[i].containsKey('heading')
               ? 'department-${rows[i]['heading']}'
+              : rows[i]['completed'] == true
+              ? 'completed-section'
               : rows[i]['id'] as String,
         ): i,
     };
@@ -494,19 +514,30 @@ class _ShoppingListScreenState extends State<ShoppingListScreen>
       findChildIndexCallback: (key) => rowIndices[key],
       itemBuilder: (context, index) {
         final item = rows[index];
+        if (item['completed'] == true) {
+          return const Divider(key: ValueKey('completed-section'), height: 24);
+        }
         if (item.containsKey('heading')) {
           final department = item['heading'] as String;
           return DragTarget<String>(
             key: ValueKey('department-$department'),
             hitTestBehavior: HitTestBehavior.opaque,
-            onWillAcceptWithDetails: (_) =>
-                !_loading && !_disconnected && !_accessDenied,
+            onWillAcceptWithDetails: (details) =>
+                !_loading &&
+                !_disconnected &&
+                !_accessDenied &&
+                _items.any(
+                  (i) => i['id'] == details.data && i['checked'] != true,
+                ),
             onAcceptWithDetails: (details) {
               _dragFinished();
               _dropItem(details.data, department);
             },
             builder: (context, candidates, rejected) => Container(
-              height: department.isEmpty ? 16 : 30,
+              height: department.isEmpty
+                  ? 16
+                  : (MediaQuery.textScalerOf(context).scale(22) * 1.15 + 4)
+                        .clamp(30, double.infinity),
               padding: const EdgeInsets.symmetric(horizontal: 4),
               alignment: Alignment.centerLeft,
               decoration: BoxDecoration(
@@ -520,7 +551,8 @@ class _ShoppingListScreenState extends State<ShoppingListScreen>
                   department,
                   style: Theme.of(context).textTheme.titleMedium?.copyWith(
                     color: colors.primary,
-                    fontSize: 18,
+                    fontSize: 22,
+                    height: 1.15,
                     fontWeight: FontWeight.w700,
                   ),
                 ),
@@ -536,7 +568,12 @@ class _ShoppingListScreenState extends State<ShoppingListScreen>
                 !_loading &&
                 !_disconnected &&
                 !_accessDenied &&
-                details.data != item['id'],
+                details.data != item['id'] &&
+                _items.any(
+                  (i) =>
+                      i['id'] == details.data &&
+                      i['checked'] == item['checked'],
+                ),
             onAcceptWithDetails: (details) {
               final box = rowContext.findRenderObject() as RenderBox;
               final after =

@@ -148,7 +148,7 @@ void main() {
     await tester.pumpAndSettle();
     expect(items.single['department'], 'Dairy & eggs');
     final click = await tester.startGesture(
-      tester.getCenter(find.byType(Checkbox).first),
+      tester.getCenter(find.text('Apples')),
       kind: PointerDeviceKind.mouse,
     );
     await click.up();

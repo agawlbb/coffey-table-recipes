@@ -20,7 +20,8 @@ Flutter analysis reported no issues. No app build was produced.
 
 Open **Shopping list** from the hamburger menu for the selected household.
 All household members share the same list. Items have a name and optional department;
-checkboxes apply one strike-through. Items have no tap-to-edit screen. Click
+a single tap toggles one strike-through. Items have no per-item checkbox or
+tap-to-edit screen. Checked items appear together below all department groups. Click
 and drag with a mouse, or hold a row on a touch screen, to reorder. **Remove checked off** stays at the bottom.
 
 New items use the household's remembered department when their name matches a
@@ -31,7 +32,8 @@ have no visible heading. Drag an assigned item to the top strip to remove its
 department, or drop on a department heading to assign it. The named Other
 department remains distinct from having no department.
 
-Assigned items appear beneath department headings in the household's configured order.
+Unchecked assigned items appear indented beneath larger bold department
+headings in the household's configured order.
 By default every department is displayed as a compact 30-pixel heading, with no empty
 placeholder or drop box. Drag anywhere on the item label or row.
 Drop on a department heading to move the item into that department, or on the
@@ -304,3 +306,25 @@ Bold-heading local web rebuild (2026-10-18): built commit
 installed into the local XAMPP app directory. Verified localhost JavaScript,
 bootstrap, version metadata and font-manifest hashes against the build.
 The current project version is 1.8.0 (24). No Android build was performed.
+
+
+Tap-to-check and completed grouping (2026-10-18): department headings now use
+22-pixel bold text, with height adapting to text scaling. Unchecked assigned
+items are inset 16 pixels relative to headings; unassigned and checked items
+remain unindented. Removed each item's checkbox. Tapping anywhere on an item
+toggles its strike-through and shared checked state. Touch still uses a hold to
+drag; ordinary mouse dragging remains immediate. A hold/drag does not toggle.
+
+Checked items are excluded from department groups and collected below all
+active items/headings, separated by a divider. Their original department values
+are retained, so unchecking restores the correct group and does not alter the
+household's remembered association. Hide empty departments counts unchecked
+items only. Checked items may reorder among themselves without changing their
+departments; to move one to an active department, uncheck it first. Remove
+checked off continues to remove the entire checked group.
+
+Validation: all 25 focused list, cache, shared-write, department and drag
+lifecycle tests pass. Added an end-to-end check of indentation, larger heading
+style, no item checkboxes, bottom grouping, restore-on-tap, empty-heading
+visibility, and hold-drag without toggling or changing department associations.
+Static analysis is clean. No app build was requested or produced this turn.

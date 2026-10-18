@@ -53,6 +53,10 @@ void main() {
   testWidgets(
     'adds, checks, has no item edit screen, and removes checked items',
     (tester) async {
+      tester.view.physicalSize = const Size(800, 1400);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
       var revision = 0;
       var items = <Map<String, dynamic>>[];
       await tester.pumpWidget(
@@ -89,16 +93,27 @@ void main() {
             .first,
       );
       expect(find.text('Milk'), findsOneWidget);
-      await tester.tap(find.byType(Checkbox).first);
+      await tester.tap(find.text('Milk'));
       await tester.pumpAndSettle();
       final text = tester.widget<Text>(find.text('Milk'));
       expect(text.style?.decoration, TextDecoration.lineThrough);
       expect(items.single['checked'], true);
+      expect(
+        find.byType(Checkbox),
+        findsOneWidget,
+      ); // Only the empty-departments control.
+      expect(
+        tester.getTopLeft(find.text('Milk')).dy,
+        greaterThan(tester.getTopLeft(find.text('Other')).dy),
+      );
       await tester.tap(find.text('Milk'));
       await tester.pumpAndSettle();
       expect(find.byType(AlertDialog), findsNothing);
       expect(find.text('Shopping item'), findsNothing);
       expect(items.single['department'], '');
+      expect(items.single['checked'], false);
+      await tester.tap(find.text('Milk'));
+      await tester.pumpAndSettle();
       await tester.tap(find.text('Remove checked off'));
       await tester.pumpAndSettle();
       expect(items, isEmpty);
@@ -147,6 +162,98 @@ void main() {
         isEmpty,
       );
       expect(tester.takeException(), isNull);
+      await tester.pumpWidget(const SizedBox());
+    },
+  );
+  testWidgets(
+    'tap groups checked items at the bottom and restores their original departments',
+    (tester) async {
+      tester.view.physicalSize = const Size(800, 1400);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      var items = <Map<String, dynamic>>[
+        {
+          'id': 'a',
+          'name': 'Apples',
+          'department': 'Produce',
+          'checked': false,
+        },
+        {'id': 'b', 'name': 'Butter', 'department': 'Dairy', 'checked': false},
+      ];
+      var revision = 0;
+      await tester.pumpWidget(
+        MaterialApp(
+          home: ShoppingListScreen(
+            householdId: '1',
+            householdName: 'Our table',
+            request: (path, {body}) async {
+              if (body != null) {
+                revision++;
+                items = (body['items'] as List).cast<Map<String, dynamic>>();
+              }
+              return {
+                'revision': revision,
+                'items': items,
+                'departments': ['Produce', 'Dairy'],
+              };
+            },
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(
+        tester.getTopLeft(find.text('Apples')).dx,
+        greaterThan(tester.getTopLeft(find.text('Produce')).dx),
+      );
+      final heading = tester.widget<Text>(find.text('Produce'));
+      expect(heading.style!.fontSize, 22);
+      expect(heading.style!.fontWeight, FontWeight.w700);
+      expect(find.byType(Checkbox), findsOneWidget);
+      await tester.tap(find.text('Apples'));
+      await tester.pumpAndSettle();
+      expect(
+        tester.getTopLeft(find.text('Apples')).dy,
+        greaterThan(tester.getTopLeft(find.text('Butter')).dy),
+      );
+      expect(items.first['department'], 'Produce');
+      await tester.tap(find.text('Butter'));
+      await tester.pumpAndSettle();
+      for (final name in ['Apples', 'Butter']) {
+        expect(
+          tester.getTopLeft(find.text(name)).dy,
+          greaterThan(
+            tester
+                .getTopLeft(find.byKey(const ValueKey('completed-section')))
+                .dy,
+          ),
+        );
+      }
+      final move = await tester.startGesture(
+        tester.getCenter(find.text('Apples')),
+      );
+      await tester.pump(const Duration(milliseconds: 600));
+      await move.moveTo(tester.getBottomRight(find.text('Butter')));
+      await tester.pump(const Duration(milliseconds: 100));
+      await move.up();
+      await tester.pumpAndSettle();
+      expect(items.every((i) => i['checked'] == true), true);
+      expect(items.singleWhere((i) => i['id'] == 'a')['department'], 'Produce');
+      expect(items.singleWhere((i) => i['id'] == 'b')['department'], 'Dairy');
+      await tester.tap(find.text('Hide empty departments'));
+      await tester.pumpAndSettle();
+      expect(find.text('Produce'), findsNothing);
+      expect(find.text('Dairy'), findsNothing);
+      expect(find.text('Apples'), findsOneWidget);
+      await tester.tap(find.text('Apples'));
+      await tester.pumpAndSettle();
+      expect(find.text('Produce'), findsOneWidget);
+      expect(
+        tester.getTopLeft(find.text('Apples')).dy,
+        lessThan(tester.getTopLeft(find.text('Butter')).dy),
+      );
+      expect(items.singleWhere((i) => i['id'] == 'a')['checked'], false);
+      expect(items.singleWhere((i) => i['id'] == 'a')['department'], 'Produce');
       await tester.pumpWidget(const SizedBox());
     },
   );

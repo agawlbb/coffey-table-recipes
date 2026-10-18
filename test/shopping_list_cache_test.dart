@@ -101,7 +101,10 @@ void main() {
       await tester.pump();
       expect(reads, 1);
       expect(find.text('Cached milk'), findsOneWidget);
-      expect(tester.widget<Checkbox>(find.byType(Checkbox).first).value, true);
+      expect(
+        tester.widget<Text>(find.text('Cached milk')).style?.decoration,
+        TextDecoration.lineThrough,
+      );
       expect(find.byType(CircularProgressIndicator), findsNothing);
       opening.complete(snapshot(3, 'Fresh milk'));
       await tester.pumpAndSettle();
@@ -154,7 +157,13 @@ void main() {
       expect(find.text('Offline'), findsOneWidget);
       expect(find.byTooltip('No server connection'), findsOneWidget);
       expect(
-        tester.widget<Checkbox>(find.byType(Checkbox).first).onChanged,
+        tester
+            .widget<IconButton>(
+              find.byWidgetPredicate(
+                (w) => w is IconButton && w.tooltip == 'Add item',
+              ),
+            )
+            .onPressed,
         isNull,
       );
       await tester.enterText(find.byType(TextField), 'Keep my draft');
