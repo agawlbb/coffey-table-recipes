@@ -755,9 +755,18 @@ class _RecipeDetailState extends State<RecipeDetail> {
   Future<void> _shoppingIngredients(
     List<Map<String, dynamic>> ingredients,
   ) async {
-    await Navigator.of(context).push<void>(
-      MaterialPageRoute(
-        builder: (_) => RecipeShoppingSelector(
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      isDismissible: false,
+      enableDrag: false,
+      showDragHandle: true,
+      clipBehavior: Clip.antiAlias,
+      constraints: const BoxConstraints(maxWidth: 800),
+      builder: (_) => SizedBox(
+        height: MediaQuery.sizeOf(context).height * .8,
+        child: RecipeShoppingSelector(
           ingredients: ingredients
               .map(ShoppingIngredient.fromRecipe)
               .where((ingredient) => ingredient.name.isNotEmpty)

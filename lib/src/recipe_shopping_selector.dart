@@ -85,7 +85,17 @@ class _RecipeShoppingSelectorState extends State<RecipeShoppingSelector> {
   Widget build(BuildContext context) => PopScope(
     canPop: !_saving,
     child: Scaffold(
-      appBar: AppBar(title: const Text('Add to shopping list')),
+      appBar: AppBar(
+        automaticallyImplyLeading: false,
+        title: const Text('Add to shopping list'),
+        actions: [
+          IconButton(
+            tooltip: 'Close',
+            onPressed: _saving ? null : () => Navigator.of(context).pop(),
+            icon: const Icon(Icons.close),
+          ),
+        ],
+      ),
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
