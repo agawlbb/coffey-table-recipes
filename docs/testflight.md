@@ -10,6 +10,13 @@ exports. Cleanup deletes the temporary P12 and keychain. Ubuntu preflight reject
 missing identity secrets before using a Mac, preventing repeated automatic
 development-certificate creation and eventual account quota exhaustion.
 
+Current reusable certificate: `MUX6GX7BLL`, SHA-1
+`BA5B3DCFC67E3C2CD132D8BE6296129DD70D07B4`, expires October 18, 2027 at
+19:45:17 UTC. Rotate it and both secret values together before expiry through an
+owner-approved operation. The 1.8.1 recovery log confirms this exact imported
+identity signed Runner and both extensions; its local private-key copies were
+removed after successful runner import.
+
 The manual certificate workflow defaults to public-metadata inspection. Its
 replacement action must be explicitly approved by the owner: it checks the exact
 certificate ID, SHA-1 fingerprint, DEVELOPMENT type and Created via API name,
