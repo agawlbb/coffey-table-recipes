@@ -21,6 +21,7 @@ import 'invitation_dialogs.dart';
 import 'invitation_entry.dart';
 import 'recipe_browser.dart';
 import 'recipe_trash.dart';
+import 'shopping_list.dart';
 import 'recipe_import.dart';
 import 'shared_recipe_import.dart';
 import 'offline_recipes.dart';
@@ -970,6 +971,28 @@ class _HouseholdPanelState extends State<HouseholdPanel> {
                                   _recipeRefresh++;
                                 });
                               }
+                            },
+                    ),
+                    ListTile(
+                      leading: const Icon(Icons.shopping_basket_outlined),
+                      title: const Text('Shopping list'),
+                      enabled: selected != null,
+                      onTap: selected == null
+                          ? null
+                          : () {
+                              final householdId = _selected!;
+                              Navigator.pop(context);
+                              Navigator.push<void>(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (_) => ShoppingListScreen(
+                                    householdId: householdId,
+                                    householdName: selected['name'] as String,
+                                    request: (path, {body}) =>
+                                        _request(path, body: body),
+                                  ),
+                                ),
+                              );
                             },
                     ),
                     ListTile(
