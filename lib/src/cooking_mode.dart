@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:wakelock_plus/wakelock_plus.dart';
 
 import 'recipe_time.dart';
+import 'recipe_menu.dart';
 import 'native_timers.dart';
 
 import 'package:flutter/services.dart';
@@ -11,8 +12,14 @@ import 'package:flutter/services.dart';
 import 'recipe_value.dart';
 
 class CookingMode extends StatefulWidget {
-  const CookingMode({super.key, required this.recipe, this.now = DateTime.now});
+  const CookingMode({
+    super.key,
+    required this.recipe,
+    this.now = DateTime.now,
+    this.menuBuilder,
+  });
   final Map<String, dynamic> recipe;
+  final WidgetBuilder? menuBuilder;
   final DateTime Function() now;
   @override
   State<CookingMode> createState() => _CookingModeState();
@@ -299,7 +306,12 @@ class _CookingModeState extends State<CookingMode> with WidgetsBindingObserver {
     final steps = _rows('steps');
     final actions = _rows('actions');
     return Scaffold(
-      appBar: AppBar(title: const Text('Cooking mode')),
+      drawer: widget.menuBuilder?.call(context),
+      appBar: AppBar(
+        title: const Text('Cooking mode'),
+        leadingWidth: widget.menuBuilder == null ? null : 96,
+        leading: widget.menuBuilder == null ? null : const RecipeMenuLeading(),
+      ),
       bottomNavigationBar: SafeArea(
         child: Padding(
           padding: const EdgeInsets.all(12),

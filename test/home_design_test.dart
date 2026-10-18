@@ -263,79 +263,83 @@ void main() {
   );
 
   for (final width in [320.0, 1000.0]) {
-    testWidgets('recipes are the home and settings preserve search at $width', (
-      tester,
-    ) async {
-      tester.view.physicalSize = Size(width, 800);
-      tester.view.devicePixelRatio = 1;
-      addTearDown(tester.view.resetPhysicalSize);
-      addTearDown(tester.view.resetDevicePixelRatio);
-      final paths = <String>[];
-      Future<Map<String, dynamic>> request(
-        String path, {
-        Map<String, dynamic>? body,
-      }) async {
-        paths.add(path);
-        if (path == '/me') {
+    testWidgets(
+      'recipes are the home and Recipes menu clears search at $width',
+      (tester) async {
+        tester.view.physicalSize = Size(width, 800);
+        tester.view.devicePixelRatio = 1;
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
+        final paths = <String>[];
+        Future<Map<String, dynamic>> request(
+          String path, {
+          Map<String, dynamic>? body,
+        }) async {
+          paths.add(path);
+          if (path == '/me') {
+            return {
+              'households': [
+                {'id': '2', 'name': 'Coffey', 'role': 'owner'},
+                {'id': '3', 'name': 'Other household', 'role': 'member'},
+              ],
+            };
+          }
+          if (path.endsWith('/people')) {
+            return {
+              'people': [
+                {'display_name': 'Alex', 'user_id': 'test-user'},
+              ],
+            };
+          }
           return {
-            'households': [
-              {'id': '2', 'name': 'Coffey', 'role': 'owner'},
-              {'id': '3', 'name': 'Other household', 'role': 'member'},
+            'recipes': [
+              {'id': '9', 'title': 'Family soup'},
             ],
+            'next_offset': null,
           };
         }
-        if (path.endsWith('/people')) {
-          return {
-            'people': [
-              {'display_name': 'Alex', 'user_id': 'test-user'},
-            ],
-          };
-        }
-        return {
-          'recipes': [
-            {'id': '9', 'title': 'Family soup'},
-          ],
-          'next_offset': null,
-        };
-      }
 
-      await tester.pumpWidget(
-        MaterialApp(
-          home: HouseholdPanel(user: TestUser(), request: request),
-        ),
-      );
-      await tester.pumpAndSettle();
-      expect(find.text('Family soup'), findsOneWidget);
-      expect(find.text('People at your table'), findsNothing);
-      expect(find.text('Your household'), findsNothing);
-      expect(find.byType(Image), findsNothing);
-      expect(find.byTooltip('User menu'), findsOneWidget);
-      expect(find.text('Log out'), findsNothing);
-      expect(paths.where((p) => p.endsWith('/people')), isNotEmpty);
-      await tester.enterText(find.byType(TextField), 'soup');
-      await tester.tap(find.byTooltip('Open navigation menu'));
-      await tester.pumpAndSettle();
-      await tester.tap(find.text('Household & people'));
-      await tester.pumpAndSettle();
-      expect(find.text('Coffey'), findsOneWidget);
-      expect(find.byType(DropdownButtonFormField<String>), findsNothing);
-      expect(find.byType(ExpansionTile), findsNothing);
-      expect(find.text('Family soup'), findsNothing);
-      expect(find.text('Alex'), findsOneWidget);
-      expect(find.text('Add household member'), findsOneWidget);
-      await tester.tap(find.byTooltip('Open navigation menu'));
-      await tester.pumpAndSettle();
-      await tester.tap(find.text('Recipes').last);
-      await tester.pumpAndSettle();
-      expect(find.text('Family soup'), findsOneWidget);
-      expect(find.text('soup'), findsOneWidget);
-      await tester.tap(find.byTooltip('Open navigation menu'));
-      await tester.pumpAndSettle();
-      await tester.tap(find.text('Household & people'));
-      await tester.pumpAndSettle();
-      expect(find.text('Other household'), findsNothing);
-      expect(paths.any((path) => path.startsWith('/households/3/')), isFalse);
-      expect(tester.takeException(), isNull);
-    });
+        await tester.pumpWidget(
+          MaterialApp(
+            home: HouseholdPanel(user: TestUser(), request: request),
+          ),
+        );
+        await tester.pumpAndSettle();
+        expect(find.text('Family soup'), findsOneWidget);
+        expect(find.text('People at your table'), findsNothing);
+        expect(find.text('Your household'), findsNothing);
+        expect(find.byType(Image), findsNothing);
+        expect(find.byTooltip('User menu'), findsOneWidget);
+        expect(find.text('Log out'), findsNothing);
+        expect(paths.where((p) => p.endsWith('/people')), isNotEmpty);
+        await tester.enterText(find.byType(TextField), 'soup');
+        await tester.tap(find.byTooltip('Open navigation menu'));
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('Household & people'));
+        await tester.pumpAndSettle();
+        expect(find.text('Coffey'), findsOneWidget);
+        expect(find.byType(DropdownButtonFormField<String>), findsNothing);
+        expect(find.byType(ExpansionTile), findsNothing);
+        expect(find.text('Family soup'), findsNothing);
+        expect(find.text('Alex'), findsOneWidget);
+        expect(find.text('Add household member'), findsOneWidget);
+        await tester.tap(find.byTooltip('Open navigation menu'));
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('Recipes').last);
+        await tester.pumpAndSettle();
+        expect(find.text('Family soup'), findsOneWidget);
+        expect(
+          tester.widget<TextField>(find.byType(TextField)).controller!.text,
+          isEmpty,
+        );
+        await tester.tap(find.byTooltip('Open navigation menu'));
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('Household & people'));
+        await tester.pumpAndSettle();
+        expect(find.text('Other household'), findsNothing);
+        expect(paths.any((path) => path.startsWith('/households/3/')), isFalse);
+        expect(tester.takeException(), isNull);
+      },
+    );
   }
 }

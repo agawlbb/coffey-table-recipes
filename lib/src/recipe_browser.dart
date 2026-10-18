@@ -8,6 +8,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter_cache_manager/flutter_cache_manager.dart';
 
 import 'api.dart';
+import 'recipe_menu.dart';
 import 'cooking_mode.dart';
 import 'offline_recipes.dart';
 import 'recipe_sharing.dart';
@@ -112,11 +113,13 @@ class RecipeBrowser extends StatefulWidget {
     required this.request,
     this.embedded = false,
     this.cachedRequest,
+    this.menuBuilder,
     this.save,
   });
   final String householdId;
   final String householdName;
   final RecipeRequest request;
+  final WidgetBuilder? menuBuilder;
   final Future<Map<String, dynamic>?> Function(String path)? cachedRequest;
   final RecipeSave? save;
   final bool embedded;
@@ -365,6 +368,7 @@ class _RecipeBrowserState extends State<RecipeBrowser>
           title: recipe['title'] as String,
           request: widget.request,
           save: widget.save,
+          menuBuilder: widget.menuBuilder,
           onChanged: () {
             if (mounted) _load();
           },
@@ -731,6 +735,7 @@ class RecipeDetail extends StatefulWidget {
     required this.request,
     this.save,
     this.onChanged,
+    this.menuBuilder,
   });
   final String householdId;
   final String recipeId;
@@ -738,6 +743,7 @@ class RecipeDetail extends StatefulWidget {
   final RecipeRequest request;
   final RecipeSave? save;
   final VoidCallback? onChanged;
+  final WidgetBuilder? menuBuilder;
   @override
   State<RecipeDetail> createState() => _RecipeDetailState();
 }
@@ -934,7 +940,10 @@ class _RecipeDetailState extends State<RecipeDetail> {
     );
     if (open != true || !mounted) return;
     await Navigator.of(context).push<void>(
-      MaterialPageRoute(builder: (_) => CookingMode(recipe: recipe)),
+      MaterialPageRoute(
+        builder: (_) =>
+            CookingMode(recipe: recipe, menuBuilder: widget.menuBuilder),
+      ),
     );
   }
 
@@ -1245,6 +1254,7 @@ class _RecipeDetailState extends State<RecipeDetail> {
             title: row['title'] as String,
             request: widget.request,
             save: widget.save,
+            menuBuilder: widget.menuBuilder,
             onChanged: widget.onChanged,
           ),
         ),
@@ -1257,8 +1267,12 @@ class _RecipeDetailState extends State<RecipeDetail> {
 
   @override
   Widget build(BuildContext context) => Scaffold(
+    drawer: widget.menuBuilder?.call(context),
     appBar: AppBar(
-      leading: BackButton(onPressed: () => Navigator.of(context).pop()),
+      leadingWidth: widget.menuBuilder == null ? null : 96,
+      leading: widget.menuBuilder == null
+          ? BackButton(onPressed: () => Navigator.of(context).pop())
+          : const RecipeMenuLeading(),
       title: Text(
         _recipe?['source_type'] == 'blank'
             ? 'Blank recipe'
@@ -1473,7 +1487,10 @@ class _RecipeDetailState extends State<RecipeDetail> {
                   ? null
                   : () => Navigator.of(context).push(
                       MaterialPageRoute<void>(
-                        builder: (_) => CookingMode(recipe: recipe),
+                        builder: (_) => CookingMode(
+                          recipe: recipe,
+                          menuBuilder: widget.menuBuilder,
+                        ),
                       ),
                     ),
               icon: const Icon(Icons.soup_kitchen_outlined),
