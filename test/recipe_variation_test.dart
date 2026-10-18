@@ -556,15 +556,19 @@ void main() {
           tester.getTopRight(find.byTooltip('Delete recipe')).dx,
           lessThan(tester.getTopLeft(find.byType(PopupMenuButton<String>)).dx),
         );
-        final titleFinder = find.descendant(
-          of: find.byType(ListView),
-          matching: find.text('Dairy-free soup'),
-        );
-        final title = tester.getRect(titleFinder);
-        expect(title.width, closeTo(352, 0.1));
         expect(
-          tester.getBottomLeft(titleFinder).dy,
-          lessThan(tester.getTopLeft(find.byType(PopupMenuButton<String>)).dy),
+          find.descendant(
+            of: find.byType(ListView),
+            matching: find.text('Dairy-free soup'),
+          ),
+          findsNothing,
+        );
+        expect(
+          find.descendant(
+            of: find.byType(AppBar),
+            matching: find.text('Dairy-free soup'),
+          ),
+          findsOneWidget,
         );
         expect(
           tester.getCenter(find.byType(PopupMenuButton<String>)).dy,

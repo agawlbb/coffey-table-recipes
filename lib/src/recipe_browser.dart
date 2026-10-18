@@ -1356,12 +1356,6 @@ class _RecipeDetailState extends State<RecipeDetail> {
             Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                Text(
-                  recipe['title'] as String,
-                  textAlign: TextAlign.center,
-                  style: Theme.of(context).textTheme.headlineLarge,
-                ),
-                const SizedBox(height: 8),
                 if (widget.save != null && _recipe?['in_household'] == false)
                   TextButton.icon(
                     onPressed: _attach,
