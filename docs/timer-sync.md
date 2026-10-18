@@ -103,3 +103,15 @@ No release/tag, app push, web deployment or iOS build was performed. Android
 native compilation is now verified; physical-device delivery and audibility
 remain pending installation and an account-scoped test send. iOS compilation
 remains unverified.
+
+## Release 1.8.0/build 24 — 2026-10-18
+
+The requested release now verifies Android and iOS native compilation. The iOS
+distribution IPA passed actual signature/profile checks, including production
+APNs on Runner and hosted universal-link identity, before Xcode uploaded from the
+same archive. See `releases.md` for build and TestFlight processing evidence.
+Android cold/warm recipe links passed on the release APK in the existing emulator.
+These checks do not establish cross-device push delivery, locked/background
+execution, alarm audibility or physical-iPhone behavior; the device acceptance
+matrix above remains outstanding. No timer notifications were sent during release
+validation.
