@@ -328,3 +328,10 @@ lifecycle tests pass. Added an end-to-end check of indentation, larger heading
 style, no item checkboxes, bottom grouping, restore-on-tap, empty-heading
 visibility, and hold-drag without toggling or changing department associations.
 Static analysis is clean. No app build was requested or produced this turn.
+
+Tap-to-check local web rebuild (2026-10-18): built commit
+fb67b906a781df69db6e871d1aa7121bae5567bc (1.8.0 build 24), prepared assets and
+installed in the local XAMPP app directory. Verified served JavaScript,
+bootstrap, version metadata and font-manifest hashes against the build.
+Includes larger headings, indented items and checked-item grouping at the bottom.
+No Android build or hosted app deployment ran.
