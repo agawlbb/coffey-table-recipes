@@ -121,6 +121,9 @@ void main() {
             ? 'Bakery'
             : 'Dairy';
         expect(find.text(target), findsNothing);
+        final originalY = tester
+            .getTopLeft(find.byKey(const ValueKey('milk')))
+            .dy;
         final cancelled = await tester.startGesture(
           tester.getCenter(find.text('Milk')),
           kind: kind,
@@ -128,6 +131,10 @@ void main() {
         await tester.pump(const Duration(milliseconds: 600));
         expect(find.text(target), findsOneWidget);
         expect(find.text('Produce'), findsOneWidget);
+        expect(
+          tester.getTopLeft(find.byKey(const ValueKey('milk'))).dy,
+          closeTo(originalY, 1),
+        );
         await cancelled.cancel();
         await tester.pumpAndSettle();
         expect(find.text(target), findsNothing);

@@ -61,6 +61,8 @@ class _ShoppingListScreenState extends State<ShoppingListScreen>
   Timer? _holdTimer;
   int? _holdPointer;
   Offset? _holdOrigin;
+  Offset _pressAnchor = Offset.zero;
+  bool _dropMoved = false;
   List<String> _departments = [
     ...shoppingDepartments.where((d) => d != 'Other'),
     'Other',
@@ -367,12 +369,9 @@ class _ShoppingListScreenState extends State<ShoppingListScreen>
       (item) => item['department'] == '' && item['checked'] != true,
     ),
     for (final department in _departments)
-      if (_dragging ||
-          _holding ||
-          _items.any(
-            (item) =>
-                item['department'] == department && item['checked'] != true,
-          )) ...[
+      if (_items.any(
+        (item) => item['department'] == department && item['checked'] != true,
+      )) ...[
         {'heading': department},
         ..._items.where(
           (item) => item['department'] == department && item['checked'] != true,
@@ -382,9 +381,16 @@ class _ShoppingListScreenState extends State<ShoppingListScreen>
       {'completed': true},
       ..._items.where((item) => item['checked'] == true),
     ],
+    // Reveal new targets after existing rows so holding never shifts the source.
+    if (_holding || _dragging)
+      for (final department in _departments)
+        if (!_items.any(
+          (i) => i['department'] == department && i['checked'] != true,
+        ))
+          {'heading': department},
   ];
 
-  void _pressItem(PointerDownEvent event, String id) {
+  void _pressItem(PointerDownEvent event, String id, BuildContext rowContext) {
     if (_loading ||
         _disconnected ||
         _accessDenied ||
@@ -393,6 +399,9 @@ class _ShoppingListScreenState extends State<ShoppingListScreen>
       return;
     }
     _heldItemId = null;
+    _dropMoved = false;
+    final box = rowContext.findRenderObject() as RenderBox;
+    _pressAnchor = box.globalToLocal(event.position);
     _holdPointer = event.pointer;
     _holdOrigin = event.position;
     _holdTimer?.cancel();
@@ -406,6 +415,11 @@ class _ShoppingListScreenState extends State<ShoppingListScreen>
   }
 
   void _movePress(PointerMoveEvent event) {
+    if (event.pointer == _holdPointer &&
+        _holdOrigin != null &&
+        (event.position - _holdOrigin!).distance > kTouchSlop) {
+      _dropMoved = true;
+    }
     if (event.pointer == _holdPointer &&
         !_holding &&
         _holdOrigin != null &&
@@ -468,7 +482,11 @@ class _ShoppingListScreenState extends State<ShoppingListScreen>
     bool after = false,
   }) {
     final original = _items.where((item) => item['id'] == id).firstOrNull;
-    if (original == null || target == id || _disconnected || _accessDenied) {
+    if (!_dropMoved ||
+        original == null ||
+        target == id ||
+        _disconnected ||
+        _accessDenied) {
       return;
     }
     final items = _items.where((item) => item['id'] != id).toList();
@@ -657,6 +675,7 @@ class _ShoppingListScreenState extends State<ShoppingListScreen>
                 maxSimultaneousDrags: _loading || _disconnected || _accessDenied
                     ? 0
                     : 1,
+                dragAnchorStrategy: (_, _, _) => _pressAnchor,
                 onDragStarted: _dragStarted,
                 onDragUpdate: _dragUpdated,
                 onDragCompleted: _dragFinished,
@@ -668,7 +687,7 @@ class _ShoppingListScreenState extends State<ShoppingListScreen>
               return Listener(
                 behavior: HitTestBehavior.opaque,
                 onPointerDown: (event) =>
-                    _pressItem(event, item['id'] as String),
+                    _pressItem(event, item['id'] as String, rowContext),
                 onPointerMove: _movePress,
                 onPointerUp: _endPress,
                 onPointerCancel: _endPress,
@@ -845,6 +864,7 @@ class _ShoppingDragSource extends Draggable<String> {
     required super.child,
     required super.feedback,
     required super.childWhenDragging,
+    super.dragAnchorStrategy,
     super.maxSimultaneousDrags,
     super.onDragStarted,
     super.onDragUpdate,

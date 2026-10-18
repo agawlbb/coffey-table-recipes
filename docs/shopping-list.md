@@ -401,3 +401,17 @@ preserving sign-in and app data. Verified installed version 1.8.1 (25) and
 opened Shopping list. Visually confirmed occupied departments only, no empty
 visibility checkbox, inline add button and indented items. Left the emulator
 open on that screen. No household list items were modified for the preview.
+
+
+Hold-position correction (2026-10-18): revealing empty departments no longer
+inserts headings above existing rows. Temporary empty targets appear after the
+existing list, retaining occupied department order and each row's screen
+position. Drag feedback retains the original pointer-to-row anchor captured at
+press time. A stationary hold or small pointer jitter cannot commit a drop;
+the pointer must move beyond touch slop before a department/reorder save.
+This avoids treating a layout change beneath the finger as an intentional move.
+
+Validation: 23 focused cache/list/sharing/drag checks pass. The mouse/touch hold
+regression now asserts the source row stays at its original screen coordinate,
+in addition to no toggle on stationary release, cancellation cleanup and valid
+cross-department drops. No app build was requested for this fix.
