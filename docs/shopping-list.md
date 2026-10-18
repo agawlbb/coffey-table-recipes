@@ -190,3 +190,11 @@ prepared assets into the local XAMPP app directory. Verified HTTP-served
 main.dart.js, flutter_bootstrap.js, version.json and font manifest hashes match
 the generated build. Includes the corrected account-menu settings placement and
 merged recipe/cooking navigation. No hosted Flutter app was deployed.
+
+Department management navigation (2026-10-18): added the shared household
+drawer to the department screen, with the same hamburger and Back controls as
+recipe/cooking detail screens. Its drawer returns to the root shopping list or
+Recipes through the existing navigation handler. Settings remain exclusive to
+the user icon menu. Six department and recipe-menu navigation checks pass,
+including saving a rename and returning through the department drawer to see
+its updated items. Static analysis is clean. No app build was requested.

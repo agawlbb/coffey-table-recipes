@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'api.dart';
+import 'recipe_menu.dart';
 import 'shopping_list.dart';
 
 class ShoppingDepartmentsScreen extends StatefulWidget {
@@ -8,9 +9,11 @@ class ShoppingDepartmentsScreen extends StatefulWidget {
     super.key,
     required this.householdId,
     required this.request,
+    this.menuBuilder,
   });
   final String householdId;
   final ShoppingRequest request;
+  final WidgetBuilder? menuBuilder;
 
   @override
   State<ShoppingDepartmentsScreen> createState() =>
@@ -137,7 +140,12 @@ class _ShoppingDepartmentsScreenState extends State<ShoppingDepartmentsScreen> {
 
   @override
   Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(title: const Text('Shopping list departments')),
+    drawer: widget.menuBuilder?.call(context),
+    appBar: AppBar(
+      title: const Text('Shopping list departments'),
+      leadingWidth: widget.menuBuilder == null ? null : 96,
+      leading: widget.menuBuilder == null ? null : const RecipeMenuLeading(),
+    ),
     body: Center(
       child: ConstrainedBox(
         constraints: const BoxConstraints(maxWidth: 720),

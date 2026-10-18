@@ -73,9 +73,7 @@ void main() {
       await tester.tap(find.text('Save'));
       await tester.pumpAndSettle();
       expect(items.single['department'], 'Farm stand');
-      await tester.pageBack();
-      await tester.pumpAndSettle();
-      expect(find.text('Shopping list departments'), findsOneWidget);
+      expect(find.byType(BackButton), findsOneWidget);
       await tester.tap(find.byTooltip('Open navigation menu'));
       await tester.pumpAndSettle();
       expect(find.text('Household & people').hitTestable(), findsNothing);

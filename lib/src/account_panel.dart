@@ -1007,6 +1007,7 @@ class _HouseholdPanelState extends State<HouseholdPanel> {
                           context,
                           MaterialPageRoute(
                             builder: (_) => ShoppingDepartmentsScreen(
+                              menuBuilder: _buildMenu,
                               householdId: householdId,
                               request: (path, {body}) =>
                                   _request(path, body: body),
