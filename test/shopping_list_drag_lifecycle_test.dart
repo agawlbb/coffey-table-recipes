@@ -6,6 +6,98 @@ import 'package:flutter/rendering.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  testWidgets(
+    'new unassigned items stay above departments and empty sections can be hidden',
+    (tester) async {
+      tester.view.physicalSize = const Size(800, 1400);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      var items = <Map<String, dynamic>>[
+        {
+          'id': 'milk',
+          'name': 'Milk',
+          'department': 'Dairy & eggs',
+          'checked': false,
+        },
+      ];
+      var revision = 0;
+      await tester.pumpWidget(
+        MaterialApp(
+          home: ShoppingListScreen(
+            householdId: '1',
+            householdName: 'Our table',
+            request: (path, {body}) async {
+              if (body != null) {
+                revision++;
+                items = List<Map<String, dynamic>>.from(body['items'] as List);
+              }
+              return {'revision': revision, 'items': items};
+            },
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(find.byType(DropdownButtonFormField<String>), findsNothing);
+      await tester.enterText(find.byType(TextField), 'Apples');
+      await tester.tap(find.text('Add item'));
+      await tester.pumpAndSettle();
+      expect(items.firstWhere((i) => i['name'] == 'Apples')['department'], '');
+      expect(
+        tester.getBottomLeft(find.text('Apples')).dy,
+        lessThan(tester.getTopLeft(find.text('Produce')).dy),
+      );
+      final assign = await tester.startGesture(
+        tester.getCenter(find.text('Apples')),
+        kind: PointerDeviceKind.mouse,
+      );
+      await assign.moveTo(
+        tester.getCenter(find.byKey(const ValueKey('department-Produce'))),
+      );
+      await tester.pump(const Duration(milliseconds: 50));
+      await assign.up();
+      await tester.pumpAndSettle();
+      expect(
+        items.firstWhere((i) => i['name'] == 'Apples')['department'],
+        'Produce',
+      );
+      await tester.tap(find.text('Hide empty departments'));
+      await tester.pumpAndSettle();
+      expect(find.byKey(const ValueKey('department-Bakery')), findsNothing);
+      expect(find.byKey(const ValueKey('department-Produce')), findsOneWidget);
+      expect(
+        find.byKey(const ValueKey('department-Dairy & eggs')),
+        findsOneWidget,
+      );
+      final unassign = await tester.startGesture(
+        tester.getCenter(find.text('Apples')),
+        kind: PointerDeviceKind.mouse,
+      );
+      await unassign.moveTo(
+        tester.getCenter(find.byKey(const ValueKey('department-'))),
+      );
+      await tester.pump(const Duration(milliseconds: 50));
+      await unassign.up();
+      await tester.pumpAndSettle();
+      expect(items.firstWhere((i) => i['name'] == 'Apples')['department'], '');
+      expect(find.byKey(const ValueKey('department-Produce')), findsNothing);
+      expect(
+        tester.getBottomLeft(find.text('Apples')).dy,
+        lessThan(tester.getTopLeft(find.text('Dairy & eggs')).dy),
+      );
+      expect(
+        items.firstWhere((i) => i['id'] == 'milk')['department'],
+        'Dairy & eggs',
+      );
+      await tester.tap(find.text('Hide empty departments'));
+      await tester.pumpAndSettle();
+      for (final department in shoppingDepartments) {
+        expect(find.byKey(ValueKey('department-$department')), findsOneWidget);
+      }
+      await tester.pumpWidget(const SizedBox());
+    },
+  );
+
   testWidgets('mouse dragging starts without a long-press delay', (
     tester,
   ) async {
@@ -56,7 +148,7 @@ void main() {
     await tester.pumpAndSettle();
     expect(items.single['department'], 'Dairy & eggs');
     final click = await tester.startGesture(
-      tester.getCenter(find.byType(Checkbox)),
+      tester.getCenter(find.byType(Checkbox).first),
       kind: PointerDeviceKind.mouse,
     );
     await click.up();

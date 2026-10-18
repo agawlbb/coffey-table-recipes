@@ -82,7 +82,7 @@ void main() {
             .first,
       );
       expect(find.text('Milk'), findsOneWidget);
-      await tester.tap(find.byType(Checkbox));
+      await tester.tap(find.byType(Checkbox).first);
       await tester.pumpAndSettle();
       final text = tester.widget<Text>(find.text('Milk'));
       expect(text.style?.decoration, TextDecoration.lineThrough);
@@ -91,7 +91,7 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.byType(AlertDialog), findsNothing);
       expect(find.text('Shopping item'), findsNothing);
-      expect(items.single['department'], 'Other');
+      expect(items.single['department'], '');
       await tester.tap(find.text('Remove checked off'));
       await tester.pumpAndSettle();
       expect(items, isEmpty);

@@ -47,7 +47,7 @@ class _ShoppingListScreenState extends State<ShoppingListScreen>
   List<Map<String, dynamic>> _confirmedItems = [];
   final _writes =
       <({List<Map<String, dynamic>> items, Completer<bool> done})>[];
-  String _department = 'Other';
+  bool _hideEmptyDepartments = false;
   int _revision = 0;
   bool _loading = true, _saving = false, _reading = false;
   bool _dragging = false;
@@ -194,7 +194,7 @@ class _ShoppingListScreenState extends State<ShoppingListScreen>
       {
         'id': newShoppingItemId(),
         'name': name,
-        'department': _department,
+        'department': '',
         'checked': false,
       },
     ]);
@@ -216,13 +216,17 @@ class _ShoppingListScreenState extends State<ShoppingListScreen>
   }
 
   List<Map<String, dynamic>> get _rows => [
+    {'heading': ''},
+    ..._items.where((item) => item['department'] == ''),
     for (final department in [
       ...shoppingDepartments.where((d) => d != 'Other'),
       'Other',
-    ]) ...[
-      {'heading': department},
-      ..._items.where((item) => item['department'] == department),
-    ],
+    ])
+      if (!_hideEmptyDepartments ||
+          _items.any((item) => item['department'] == department)) ...[
+        {'heading': department},
+        ..._items.where((item) => item['department'] == department),
+      ],
   ];
 
   void _dragStarted() {
@@ -363,7 +367,7 @@ class _ShoppingListScreenState extends State<ShoppingListScreen>
               _dropItem(details.data, department);
             },
             builder: (context, candidates, rejected) => Container(
-              height: 30,
+              height: department.isEmpty ? 16 : 30,
               padding: const EdgeInsets.symmetric(horizontal: 4),
               alignment: Alignment.centerLeft,
               decoration: BoxDecoration(
@@ -371,7 +375,8 @@ class _ShoppingListScreenState extends State<ShoppingListScreen>
                 borderRadius: BorderRadius.circular(8),
               ),
               child: Semantics(
-                header: true,
+                header: department.isNotEmpty,
+                label: department.isEmpty ? 'No department' : null,
                 child: Text(
                   department,
                   style: Theme.of(context).textTheme.titleSmall?.copyWith(
@@ -519,27 +524,6 @@ class _ShoppingListScreenState extends State<ShoppingListScreen>
                             );
                           },
                         ),
-                        const SizedBox(height: 12),
-                        DropdownButtonFormField<String>(
-                          initialValue: _department,
-                          isExpanded: true,
-                          decoration: const InputDecoration(
-                            labelText: 'Department',
-                            contentPadding: EdgeInsets.symmetric(
-                              horizontal: 14,
-                              vertical: 12,
-                            ),
-                          ),
-                          items: shoppingDepartments
-                              .map(
-                                (d) =>
-                                    DropdownMenuItem(value: d, child: Text(d)),
-                              )
-                              .toList(),
-                          onChanged: busy
-                              ? null
-                              : (value) => setState(() => _department = value!),
-                        ),
                       ],
                     ),
                   ),
@@ -573,14 +557,32 @@ class _ShoppingListScreenState extends State<ShoppingListScreen>
                 top: false,
                 child: Padding(
                   padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-                  child: OutlinedButton.icon(
-                    onPressed: busy || !_items.any((i) => i['checked'] == true)
-                        ? null
-                        : () => _save(
-                            _items.where((i) => i['checked'] != true).toList(),
-                          ),
-                    icon: const Icon(Icons.delete_sweep_outlined),
-                    label: const Text('Remove checked off'),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      CheckboxListTile(
+                        title: const Text('Hide empty departments'),
+                        value: _hideEmptyDepartments,
+                        onChanged: (value) =>
+                            setState(() => _hideEmptyDepartments = value!),
+                        controlAffinity: ListTileControlAffinity.leading,
+                        dense: true,
+                        contentPadding: EdgeInsets.zero,
+                      ),
+                      OutlinedButton.icon(
+                        onPressed:
+                            busy || !_items.any((i) => i['checked'] == true)
+                            ? null
+                            : () => _save(
+                                _items
+                                    .where((i) => i['checked'] != true)
+                                    .toList(),
+                              ),
+                        icon: const Icon(Icons.delete_sweep_outlined),
+                        label: const Text('Remove checked off'),
+                      ),
+                    ],
                   ),
                 ),
               ),

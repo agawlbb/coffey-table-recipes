@@ -1,18 +1,29 @@
 # Shopping list
 
 Open **Shopping list** from the hamburger menu for the selected household.
-All household members share the same list. Items have a name and department;
+All household members share the same list. Items have a name and optional department;
 checkboxes apply one strike-through. Items have no tap-to-edit screen. Click
 and drag with a mouse, or hold a row on a touch screen, to reorder. **Remove checked off** stays at the bottom.
 
-Items appear beneath department headings, with Produce first and Other last.
-Every department is displayed as a compact 30-pixel heading, with no empty
+New items are added without a department, above all department headings. The
+add form contains only the item field and Add item button. Unassigned items
+have no visible heading. Drag an assigned item to the top strip to remove its
+department, or drop on a department heading to assign it. The named Other
+department remains distinct from having no department.
+
+Assigned items appear beneath department headings, with Produce first and Other last.
+By default every department is displayed as a compact 30-pixel heading, with no empty
 placeholder or drop box. Drag anywhere on the item label or row.
 Drop on a department heading to move the item into that department, or on the
 upper/lower half of another item to insert before/after it. The drop saves the
 new department and position together. Headings are not draggable and retain
 accessibility heading semantics. Dragging near the list edge scrolls the list.
 Rows omit both the redundant department subtitle and trailing drag/menu icon.
+
+The bottom **Hide empty departments** checkbox hides only named departments
+that have no items. Unassigned items and occupied departments remain visible;
+unchecking it restores all department headings. This is a view setting for the
+open screen and does not change the household list or anyone else's view.
 
 The screen uses the app's existing theme and refreshes while visible and on
 resume. Changes require a connection to coffeybean.com. Concurrent changes are
@@ -114,3 +125,11 @@ to Bakery on three consecutive attempts, without a long-press pause. A full
 reload and reopening Shopping list confirmed the restored original department
 persisted. Browser console checks reported no warnings/errors during the moves.
 The test item was returned to its starting department.
+
+Unassigned-item validation: all twelve focused widget checks pass, including
+adding without a picker, rendering new items above department headings,
+assigning/unassigning by drag, and hiding/restoring empty headings without
+changing existing assignments. The API accepts an explicit empty department
+string, while invalid/missing departments remain rejected. No schema change is
+required. The local web app needs an explicitly authorized rebuild for this
+new feature; the previous mouse-drag build is unchanged.

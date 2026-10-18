@@ -258,7 +258,7 @@ void main() {
       final list = tester.widget<ListView>(find.byType(ListView));
       expect(
         list.childrenDelegate.estimatedChildCount,
-        shoppingDepartments.length + 1,
+        shoppingDepartments.length + 2,
       );
       for (final department in shoppingDepartments) {
         expect(find.byKey(ValueKey('empty-$department')), findsNothing);
