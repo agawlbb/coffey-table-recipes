@@ -269,3 +269,9 @@ behavior. The 320-pixel phone-with-keyboard check verifies the button is beside
 the input and remains visible and functional. All 24 focused shopping/cache/
 department/drag checks pass; static analysis is clean. The user requested a
 local web rebuild only; the Android emulator package remains unchanged.
+
+Compact-add local web rebuild (2026-10-18): built app commit
+334f18682962fecd0fff6dbf1d6bd83273ef9a49, prepared cache-safe web assets and
+installed them in the local XAMPP app directory. Independently verified served
+main.dart.js, flutter_bootstrap.js, version.json and font-manifest hashes match
+the build. Version is 1.7.0 (22). No Android build or hosted app deployment ran.
