@@ -53,6 +53,12 @@ Version `1.8.1+25`, tagged `v1.8.1`, is the explicitly requested patch release. 
 
 Local validation on 2026-10-18: analysis passed, all 327 Flutter tests passed, all 13 iOS configuration/distribution checks passed, both Apple JWT/status tests passed and diff whitespace checks passed. The requested release tag was verified unused. Backend source remains synchronized at `6934f4592a6ab3b9b5778ee60b4e568f6e0ab40d`; no backend runtime changes or migrations are included in this patch.
 
+Web deployment [39159414813](https://github.com/agawlbb/coffey-table-recipes/actions/runs/39159414813) succeeded in 3m31s, including analysis/tests, compilation and hosted asset verification. Public metadata confirms 1.8.1/build 25 from immutable release commit `b37537d211b39f81f0217f055390abd2373b630f`; backend health is OK.
+
+Android release compilation succeeded in 138.6 seconds. Package metadata confirms 1.8.1/build 25. Delivered `G:\My Drive\recipe app\CoffeyTableRecipes-1.8.1-build25.apk` matches source SHA-256 `7e6e225b0f61535de7551c184c2594c1b3113825b54c2e2cfad319fa6ba98a6c`. Signature verification passed and actual certificate `F8:DE:93:3F:14:B9:BB:4B:31:91:A9:4A:ED:C8:63:79:72:C5:AB:22:45:65:F6:AB:D7:80:8F:80:38:D1:20:97` matches the hosted association. Removed the obsolete numbered build 24 APK only after replacement checksum verification.
+
+Installed the verified release on the existing headless Pixel 8/API 36 emulator with data preserved. Android reports the domain verified. Unforced HTTPS VIEW intents opened MainActivity cold and delivered to the running activity warm; the UI hierarchy confirmed Chinese Orange Chicken (recipe 14). Installed metadata confirms 1.8.1/build 25. The emulator started for this check was stopped afterward. Physical-device push/alarm and iPhone link checks were not performed.
+
 ## 1.8.0 — household shopping lists and mobile timer mirroring
 
 Version `1.8.0+24`, tagged `v1.8.0`, releases main in both repositories. Local and GitHub branch inspection found only main when this release began. All local branches and tags were synchronized before preparation. Build 23 was the earlier Android timer-sync test package, so this release uses build 24. Features include household shopping lists and department memory, scoped list caching and visible refresh, external synchronization requests, mobile timer mirroring and shared navigation/presentation refinements.
