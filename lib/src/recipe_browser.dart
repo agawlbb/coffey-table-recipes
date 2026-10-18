@@ -22,6 +22,8 @@ import 'blank_recipe_detail.dart';
 import 'recipe_favorites.dart';
 import 'recipe_filter_dialog.dart';
 import 'recipe_image_prefetch.dart';
+import 'recipe_shopping_selector.dart';
+import 'shopping_item_id.dart';
 
 final recipePhotoCache = CacheManager(
   Config(
@@ -749,6 +751,52 @@ class RecipeDetail extends StatefulWidget {
 }
 
 class _RecipeDetailState extends State<RecipeDetail> {
+  Future<void> _shoppingIngredients(
+    List<Map<String, dynamic>> ingredients,
+  ) async {
+    await Navigator.of(context).push<void>(
+      MaterialPageRoute(
+        builder: (_) => RecipeShoppingSelector(
+          ingredients: [
+            for (final ingredient in ingredients)
+              if ('${ingredient['original_text'] ?? ''}'.trim().isNotEmpty)
+                '${ingredient['original_text']}'.trim(),
+          ],
+          onAdd: (names) async {
+            final path = '/households/${widget.householdId}/shopping-list';
+            final additions = [
+              for (final name in names)
+                {
+                  'id': newShoppingItemId(),
+                  'name': name,
+                  'department': '',
+                  'checked': false,
+                },
+            ];
+            for (var attempt = 0; ; attempt++) {
+              final current = await widget.request(path);
+              final items = recipeRows(current['items']);
+              // Preserve additions while refreshing a conflicting list revision.
+              final ids = items.map((item) => item['id']).toSet();
+              try {
+                await widget.save!(path, {
+                  'revision': current['revision'],
+                  'items': [
+                    ...items,
+                    ...additions.where((item) => !ids.contains(item['id'])),
+                  ],
+                });
+                return;
+              } on ApiException catch (error) {
+                if (error.status != 409 || attempt >= 2) rethrow;
+              }
+            }
+          },
+        ),
+      ),
+    );
+  }
+
   List<Map<String, dynamic>> _favoriteMembers = [];
   String? _currentPerson;
   bool _favoriteBusy = false;
@@ -1537,7 +1585,21 @@ class _RecipeDetailState extends State<RecipeDetail> {
                     Chip(label: Text('${tag['label']}')),
               ],
             ),
-            _heading('Ingredients'),
+            Wrap(
+              spacing: 16,
+              crossAxisAlignment: WrapCrossAlignment.center,
+              children: [
+                _heading('Ingredients'),
+                if (widget.save != null && widget.householdId.isNotEmpty)
+                  TextButton.icon(
+                    onPressed: ingredients.isEmpty
+                        ? null
+                        : () => _shoppingIngredients(ingredients),
+                    icon: const Icon(Icons.add_shopping_cart),
+                    label: const Text('Add to shopping list'),
+                  ),
+              ],
+            ),
             if (ingredients.isEmpty) const Text('No ingredients recorded.'),
             for (final groupId in <String?>[
               null,
