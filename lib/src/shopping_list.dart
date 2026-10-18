@@ -43,6 +43,9 @@ class _ShoppingListScreenState extends State<ShoppingListScreen>
   final _name = TextEditingController();
   final _focus = FocusNode();
   List<Map<String, dynamic>> _items = [];
+  List<Map<String, dynamic>> _confirmedItems = [];
+  final _writes =
+      <({List<Map<String, dynamic>> items, Completer<bool> done})>[];
   String _department = 'Other';
   int _revision = 0;
   bool _loading = true, _saving = false, _reading = false;
@@ -74,6 +77,7 @@ class _ShoppingListScreenState extends State<ShoppingListScreen>
     _items = (data['items'] as List)
         .map((item) => Map<String, dynamic>.from(item as Map))
         .toList();
+    _confirmedItems = _items;
   }
 
   Future<void> _load({bool quiet = false}) async {
@@ -82,7 +86,13 @@ class _ShoppingListScreenState extends State<ShoppingListScreen>
     final revision = _revision;
     try {
       final data = await widget.request(_path);
-      if (mounted && !_saving && !_dragging && revision == _revision) {
+      if (mounted &&
+          !_saving &&
+          !_dragging &&
+          revision == _revision &&
+          (_loading ||
+              data['revision'] != _revision ||
+              (!quiet && _error != null))) {
         setState(() {
           _accept(data);
           _error = null;
@@ -98,44 +108,72 @@ class _ShoppingListScreenState extends State<ShoppingListScreen>
       }
     } finally {
       _reading = false;
-      if (mounted) setState(() => _loading = false);
+      if (mounted && _loading) setState(() => _loading = false);
     }
   }
 
-  Future<bool> _save(List<Map<String, dynamic>> items) async {
-    if (_saving) return false;
+  Future<bool> _save(List<Map<String, dynamic>> items) {
+    final done = Completer<bool>();
+    final start = !_saving;
+    _writes.add((items: items, done: done));
+    // ReorderableList expects the new order synchronously on drop. Keep that
+    // order visible while serializing writes against the server revision.
     setState(() {
+      _items = items;
       _saving = true;
       _error = null;
     });
-    var saved = false;
-    try {
-      final data = await widget.request(
-        _path,
-        body: {'revision': _revision, 'items': items},
-      );
-      if (mounted) setState(() => _accept(data));
-      saved = true;
-    } catch (error) {
-      if (error is ApiException && error.status == 409) {
-        try {
-          final data = await widget.request(_path);
-          if (mounted) setState(() => _accept(data));
-        } catch (_) {
-          /* Keep the last confirmed list when refresh fails. */
+    if (start) unawaited(_drainWrites());
+    return done.future;
+  }
+
+  Future<void> _drainWrites() async {
+    while (_writes.isNotEmpty) {
+      final write = _writes.first;
+      try {
+        final data = await widget.request(
+          _path,
+          body: {'revision': _revision, 'items': write.items},
+        );
+        _revision = data['revision'] as int;
+        _confirmedItems = (data['items'] as List)
+            .map((item) => Map<String, dynamic>.from(item as Map))
+            .toList();
+        _writes.removeAt(0);
+        if (!write.done.isCompleted) write.done.complete(true);
+      } catch (error) {
+        if (error is ApiException && error.status == 409) {
+          try {
+            final data = await widget.request(_path);
+            _revision = data['revision'] as int;
+            _confirmedItems = (data['items'] as List)
+                .map((item) => Map<String, dynamic>.from(item as Map))
+                .toList();
+          } catch (_) {
+            /* Retain the last confirmed state if refresh fails. */
+          }
+        }
+        for (final pending in _writes) {
+          if (!pending.done.isCompleted) pending.done.complete(false);
+        }
+        _writes.clear();
+        if (mounted) {
+          setState(() {
+            _items = _confirmedItems;
+            _error = error is ApiException
+                ? error.message
+                : 'Could not save the shopping list. Please try again.';
+          });
         }
       }
-      if (mounted) {
-        setState(
-          () => _error = error is ApiException
-              ? error.message
-              : 'Could not save the shopping list. Please try again.',
-        );
+      if (!mounted) {
+        for (final pending in _writes) {
+          if (!pending.done.isCompleted) pending.done.complete(false);
+        }
+        _writes.clear();
       }
-    } finally {
-      if (mounted) setState(() => _saving = false);
     }
-    return saved;
+    if (mounted) setState(() => _saving = false);
   }
 
   Future<void> _add() async {
@@ -191,7 +229,7 @@ class _ShoppingListScreenState extends State<ShoppingListScreen>
       onReorderStart: (_) => _dragging = true,
       onReorderEnd: (_) => _dragging = false,
       onReorderItem: (oldIndex, newIndex) {
-        if (busy || !rows[oldIndex].containsKey('id')) return;
+        if (_loading || !rows[oldIndex].containsKey('id')) return;
         final moved = [...rows];
         final item = moved.removeAt(oldIndex);
         // Keep the first heading above every item, even for a drop at the top.
@@ -243,7 +281,7 @@ class _ShoppingListScreenState extends State<ShoppingListScreen>
         return ReorderableDelayedDragStartListener(
           key: ValueKey(item['id']),
           index: index,
-          enabled: !busy,
+          enabled: !_loading,
           child: Card(
             margin: const EdgeInsets.only(bottom: 8),
             child: ListTile(

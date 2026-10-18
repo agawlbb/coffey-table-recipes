@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:coffey_table_recipes/src/api.dart';
 import 'package:coffey_table_recipes/src/shopping_list.dart';
 import 'package:flutter/material.dart';
@@ -59,9 +61,146 @@ void main() {
         tester.getTopLeft(find.text('Apples')).dy,
         greaterThan(tester.getTopLeft(find.text('Dairy & eggs')).dy),
       );
+      for (final department in ['Meat & seafood', 'Bakery', 'Produce']) {
+        final target = tester.getCenter(
+          find.byKey(ValueKey('empty-$department')),
+        );
+        final nextDrag = await tester.startGesture(
+          tester.getCenter(find.text('Apples')),
+        );
+        await tester.pump(const Duration(milliseconds: 600));
+        await nextDrag.moveTo(target);
+        await tester.pump(const Duration(milliseconds: 300));
+        await nextDrag.moveBy(const Offset(0, 2));
+        await tester.pump(const Duration(milliseconds: 300));
+        await nextDrag.up();
+        await tester.pumpAndSettle();
+        expect(items.single['department'], department);
+      }
       await tester.pumpWidget(const SizedBox());
     },
   );
+
+  testWidgets(
+    'consecutive drags survive delayed saves and changing empty sections',
+    (tester) async {
+      tester.view.physicalSize = const Size(800, 2000);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      var items = [
+        item('Apples'),
+        {...item('Milk'), 'department': 'Dairy & eggs'},
+      ];
+      var revision = 1;
+      await tester.pumpWidget(
+        MaterialApp(
+          home: ShoppingListScreen(
+            householdId: '1',
+            householdName: 'Our table',
+            request: (path, {body}) async {
+              if (body != null) {
+                await Future<void>.delayed(const Duration(milliseconds: 600));
+                revision++;
+                items = List<Map<String, dynamic>>.from(body['items'] as List);
+              }
+              return {'revision': revision, 'items': items};
+            },
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      for (final department in [
+        'Dairy & eggs',
+        'Produce',
+        'Dairy & eggs',
+        'Meat & seafood',
+      ]) {
+        final empty = find.byKey(ValueKey('empty-$department'));
+        final target = empty.evaluate().isNotEmpty
+            ? tester.getCenter(empty)
+            : tester.getCenter(find.text('Milk'));
+        final gesture = await tester.startGesture(
+          tester.getCenter(find.text('Apples')),
+        );
+        await tester.pump(const Duration(milliseconds: 600));
+        await gesture.moveTo(target);
+        await tester.pump(const Duration(milliseconds: 300));
+        await gesture.moveBy(const Offset(0, 2));
+        await tester.pump(const Duration(milliseconds: 300));
+        await gesture.up();
+        await tester.pumpAndSettle();
+        expect(
+          items.firstWhere((item) => item['id'] == 'Apples')['department'],
+          department,
+        );
+        expect(tester.takeException(), isNull);
+      }
+      await tester.pumpWidget(const SizedBox());
+    },
+  );
+
+  testWidgets('another drag queues while the first save is pending', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(800, 2000);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final firstSave = Completer<void>();
+    final writes = <Map<String, dynamic>>[];
+    var saved = [item('Apples')];
+    var revision = 0;
+    await tester.pumpWidget(
+      MaterialApp(
+        home: ShoppingListScreen(
+          householdId: '1',
+          householdName: 'Our table',
+          request: (path, {body}) async {
+            if (body != null) {
+              writes.add(body);
+              expect(body['revision'], revision);
+              if (writes.length == 1) await firstSave.future;
+              revision++;
+              saved = List<Map<String, dynamic>>.from(body['items'] as List);
+            }
+            return {'revision': revision, 'items': saved};
+          },
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    for (final department in ['Dairy & eggs', 'Meat & seafood']) {
+      final target = tester.getCenter(
+        find.byKey(ValueKey('empty-$department')),
+      );
+      final gesture = await tester.startGesture(
+        tester.getCenter(find.text('Apples')),
+      );
+      await tester.pump(const Duration(milliseconds: 600));
+      await gesture.moveTo(target);
+      await tester.pump(const Duration(milliseconds: 300));
+      await gesture.moveBy(const Offset(0, 2));
+      await tester.pump(const Duration(milliseconds: 300));
+      await gesture.up();
+      for (var frame = 0; frame < 40; frame++) {
+        await tester.pump(const Duration(milliseconds: 16));
+      }
+      expect(
+        tester.getTopLeft(find.text('Apples')).dy,
+        greaterThan(tester.getTopLeft(find.text(department)).dy),
+        reason: 'Pending-save drop into $department',
+      );
+    }
+    expect(writes, hasLength(1));
+    firstSave.complete();
+    await tester.pumpAndSettle();
+    expect(writes, hasLength(2));
+    expect(saved.single['department'], 'Meat & seafood');
+    expect(revision, 2);
+    expect(tester.takeException(), isNull);
+    await tester.pumpWidget(const SizedBox());
+  });
 
   testWidgets('holding a row reorders the persisted list', (tester) async {
     tester.view.physicalSize = const Size(800, 1000);

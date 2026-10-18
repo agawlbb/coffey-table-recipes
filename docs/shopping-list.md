@@ -59,3 +59,12 @@ Local metadata inspection found the previously published build was 0349543,
 which predates 9f21758 (all departments and cross-department dragging).
 Those source changes require an explicitly authorized local web rebuild before
 browser verification can exercise them.
+
+Repeated-drag fix: a drop updates the visible order immediately, with writes
+queued serially against the latest confirmed server revision. Rows remain
+draggable while earlier saves are pending. Responses confirm their own queued
+snapshot without replacing newer local moves; failed writes restore the last
+confirmed list and discard remaining queued changes with an error. Background
+polls no longer rebuild an unchanged list. Seven focused widget checks pass,
+including consecutive moves across populated/empty sections with delayed saves
+and a second complete drag while the first save is explicitly blocked.
