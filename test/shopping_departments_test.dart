@@ -55,15 +55,15 @@ void main() {
       await tester.pumpAndSettle();
       await tester.tap(find.byTooltip('Open navigation menu'));
       await tester.pumpAndSettle();
-      expect(
-        tester.getTopLeft(find.text('Shopping list departments')).dy,
-        greaterThan(tester.getTopLeft(find.text('Household & people')).dy),
-      );
+      expect(find.text('Household & people'), findsNothing);
+      expect(find.text('Shopping list departments'), findsNothing);
       await tester.tap(find.text('Shopping list'));
       await tester.pumpAndSettle();
       expect(find.text('Apples'), findsOneWidget);
       expect(find.byTooltip('Open navigation menu'), findsOneWidget);
-      await tester.tap(find.byTooltip('Open navigation menu'));
+      await tester.tap(find.byTooltip('User menu'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Household & people'));
       await tester.pumpAndSettle();
       await tester.tap(find.text('Shopping list departments'));
       await tester.pumpAndSettle();
@@ -74,6 +74,16 @@ void main() {
       await tester.pumpAndSettle();
       expect(items.single['department'], 'Farm stand');
       await tester.pageBack();
+      await tester.pumpAndSettle();
+      expect(find.text('Shopping list departments'), findsOneWidget);
+      await tester.tap(find.byTooltip('Open navigation menu'));
+      await tester.pumpAndSettle();
+      expect(find.text('Household & people').hitTestable(), findsNothing);
+      expect(
+        find.text('Shopping list departments').hitTestable(),
+        findsNothing,
+      );
+      await tester.tap(find.text('Shopping list'));
       await tester.pumpAndSettle();
       expect(find.text('Farm stand'), findsOneWidget);
       expect(find.text('Apples'), findsOneWidget);

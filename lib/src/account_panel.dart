@@ -864,6 +864,31 @@ class _HouseholdPanelState extends State<HouseholdPanel> {
                   label: const Text('Add household member'),
                 ),
               ],
+              const SizedBox(height: 24),
+              const Divider(),
+              ListTile(
+                contentPadding: EdgeInsets.zero,
+                leading: const Icon(Icons.category_outlined),
+                title: const Text('Shopping list departments'),
+                trailing: const Icon(Icons.chevron_right),
+                enabled: selected != null && !_busy,
+                onTap: selected == null || _busy
+                    ? null
+                    : () async {
+                        final householdId = _selected!;
+                        await Navigator.push<void>(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => ShoppingDepartmentsScreen(
+                              householdId: householdId,
+                              request: (path, {body}) =>
+                                  _request(path, body: body),
+                            ),
+                          ),
+                        );
+                        if (mounted) setState(() => _shoppingRefresh++);
+                      },
+              ),
             ],
           ],
         ),
@@ -1027,40 +1052,6 @@ class _HouseholdPanelState extends State<HouseholdPanel> {
                                 ),
                               );
                               if (mounted) setState(() => _recipeRefresh++);
-                            },
-                    ),
-                    ListTile(
-                      leading: const Icon(Icons.settings_outlined),
-                      title: const Text('Household & people'),
-                      selected: _settings && !_shopping,
-                      onTap: () {
-                        Navigator.pop(context);
-                        setState(() {
-                          _settings = true;
-                          _shopping = false;
-                        });
-                        _perform(_loadPeople);
-                      },
-                    ),
-                    ListTile(
-                      leading: const Icon(Icons.category_outlined),
-                      title: const Text('Shopping list departments'),
-                      enabled: selected != null,
-                      onTap: selected == null
-                          ? null
-                          : () async {
-                              Navigator.pop(context);
-                              await Navigator.push<void>(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (_) => ShoppingDepartmentsScreen(
-                                    householdId: _selected!,
-                                    request: (path, {body}) =>
-                                        _request(path, body: body),
-                                  ),
-                                ),
-                              );
-                              if (mounted) setState(() => _shoppingRefresh++);
                             },
                     ),
                   ],

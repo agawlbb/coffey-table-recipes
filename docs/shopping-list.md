@@ -141,8 +141,9 @@ Verified HTTP-served main.dart.js, flutter_bootstrap.js, version.json and font
 manifest hashes match the generated build. No hosted Flutter app was deployed.
 
 Shopping navigation and departments (2026-10-18): Shopping list now uses the
-main app scaffold, retaining its hamburger menu and account menu. The drawer
-entry immediately below Household & people opens Shopping list departments.
+main app scaffold, retaining its hamburger menu and account menu. Shopping list departments is a section inside Household & people, reached
+through the user icon menu. Neither settings entry appears in the hamburger
+menu.
 Members of the selected household can add, rename, reorder, and remove names;
 configuration and assigned-item updates are saved together with the list
 revision. Removing an occupied department asks for confirmation and retains its
@@ -165,3 +166,12 @@ Installed prepared assets into the local XAMPP app directory and verified
 localhost main.dart.js, flutter_bootstrap.js, version.json and font manifest
 hashes against the build. This includes the shopping hamburger menu and shared
 department configuration. No hosted Flutter app was deployed.
+
+Settings placement correction (2026-10-18): removed Household & people and
+Shopping list departments from the hamburger drawer. Household & people remains
+in the user icon menu; its household settings card now contains the department
+configuration entry below the people controls. Shopping navigation and returning
+from department edits retain the updated shared list. Nine targeted navigation
+and department tests passed, including drawer exclusions, account-menu access,
+configuration updates, and home layouts at 320 and 1000 pixels. Static analysis
+is clean. No app build was requested or produced for this correction.
