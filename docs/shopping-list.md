@@ -139,3 +139,22 @@ app commit ae177859a10d65a12e83728a02cb6a84bc9a54e1 (1.7.0 build 22).
 Prepared cache-safe assets and installed into the local XAMPP app directory.
 Verified HTTP-served main.dart.js, flutter_bootstrap.js, version.json and font
 manifest hashes match the generated build. No hosted Flutter app was deployed.
+
+Shopping navigation and departments (2026-10-18): Shopping list now uses the
+main app scaffold, retaining its hamburger menu and account menu. The drawer
+entry immediately below Household & people opens Shopping list departments.
+Members of the selected household can add, rename, reorder, and remove names;
+configuration and assigned-item updates are saved together with the list
+revision. Removing an occupied department asks for confirmation and retains its
+items in the unassigned group. Names and order are shared among household
+members. The shopping list loads configured names and refreshes on return.
+Hidden shopping views pause polling while retaining their state and pending
+writes. Existing rows remain readable without any database migration.
+
+Validation: 21 focused Flutter checks passed across department configuration,
+shopping-list behavior/drag lifecycle/sharing, and home navigation. New checks
+exercise the shopping hamburger menu, department rename and return refresh,
+duplicate names, add, actual drag reordering, removal/cancellation, and stale
+configuration recovery. Backend PHP sharing/configuration fixtures also pass.
+No app package was built for this feature request; the installed local web app
+still needs an explicitly requested rebuild.

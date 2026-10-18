@@ -22,6 +22,7 @@ import 'invitation_entry.dart';
 import 'recipe_browser.dart';
 import 'recipe_trash.dart';
 import 'shopping_list.dart';
+import 'shopping_departments.dart';
 import 'recipe_import.dart';
 import 'shared_recipe_import.dart';
 import 'offline_recipes.dart';
@@ -198,6 +199,9 @@ class _HouseholdPanelState extends State<HouseholdPanel> {
   String? _selected;
   String? _error;
   bool _settings = false;
+  bool _shopping = false;
+  bool _shoppingOpened = false;
+  int _shoppingRefresh = 0;
   int _recipeRefresh = 0;
   bool _busy = true;
   List<Map<String, dynamic>> _invitations = [];
@@ -414,6 +418,7 @@ class _HouseholdPanelState extends State<HouseholdPanel> {
       if (saved != null && mounted) {
         setState(() {
           _settings = false;
+          _shopping = false;
           _recipeRefresh++;
         });
       }
@@ -871,7 +876,13 @@ class _HouseholdPanelState extends State<HouseholdPanel> {
         'Your account';
     return Scaffold(
       appBar: AppBar(
-        title: Text(_settings ? 'Household & people' : 'Recipes'),
+        title: Text(
+          _shopping
+              ? 'Shopping list'
+              : _settings
+              ? 'Household & people'
+              : 'Recipes',
+        ),
         actions: [
           if (!kIsWeb && MediaQuery.sizeOf(context).width >= 600)
             Center(
@@ -900,7 +911,10 @@ class _HouseholdPanelState extends State<HouseholdPanel> {
               if (value == 'administration') _openAdministration();
               if (value == 'logout') _logOut();
               if (value == 'household') {
-                setState(() => _settings = true);
+                setState(() {
+                  _settings = true;
+                  _shopping = false;
+                });
                 if (!_busy) _perform(_loadPeople);
               }
             },
@@ -924,10 +938,13 @@ class _HouseholdPanelState extends State<HouseholdPanel> {
                     ListTile(
                       leading: const Icon(Icons.menu_book_outlined),
                       title: const Text('Recipes'),
-                      selected: !_settings,
+                      selected: !_settings && !_shopping,
                       onTap: () {
                         Navigator.pop(context);
-                        setState(() => _settings = false);
+                        setState(() {
+                          _settings = false;
+                          _shopping = false;
+                        });
                       },
                     ),
                     ListTile(
@@ -968,6 +985,7 @@ class _HouseholdPanelState extends State<HouseholdPanel> {
                               if (saved != null && mounted) {
                                 setState(() {
                                   _settings = false;
+                                  _shopping = false;
                                   _recipeRefresh++;
                                 });
                               }
@@ -976,23 +994,17 @@ class _HouseholdPanelState extends State<HouseholdPanel> {
                     ListTile(
                       leading: const Icon(Icons.shopping_basket_outlined),
                       title: const Text('Shopping list'),
+                      selected: _shopping,
                       enabled: selected != null,
                       onTap: selected == null
                           ? null
                           : () {
-                              final householdId = _selected!;
                               Navigator.pop(context);
-                              Navigator.push<void>(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (_) => ShoppingListScreen(
-                                    householdId: householdId,
-                                    householdName: selected['name'] as String,
-                                    request: (path, {body}) =>
-                                        _request(path, body: body),
-                                  ),
-                                ),
-                              );
+                              setState(() {
+                                _shopping = true;
+                                _shoppingOpened = true;
+                                _settings = false;
+                              });
                             },
                     ),
                     ListTile(
@@ -1020,12 +1032,36 @@ class _HouseholdPanelState extends State<HouseholdPanel> {
                     ListTile(
                       leading: const Icon(Icons.settings_outlined),
                       title: const Text('Household & people'),
-                      selected: _settings,
+                      selected: _settings && !_shopping,
                       onTap: () {
                         Navigator.pop(context);
-                        setState(() => _settings = true);
+                        setState(() {
+                          _settings = true;
+                          _shopping = false;
+                        });
                         _perform(_loadPeople);
                       },
+                    ),
+                    ListTile(
+                      leading: const Icon(Icons.category_outlined),
+                      title: const Text('Shopping list departments'),
+                      enabled: selected != null,
+                      onTap: selected == null
+                          ? null
+                          : () async {
+                              Navigator.pop(context);
+                              await Navigator.push<void>(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (_) => ShoppingDepartmentsScreen(
+                                    householdId: _selected!,
+                                    request: (path, {body}) =>
+                                        _request(path, body: body),
+                                  ),
+                                ),
+                              );
+                              if (mounted) setState(() => _shoppingRefresh++);
+                            },
                     ),
                   ],
                 ),
@@ -1044,7 +1080,11 @@ class _HouseholdPanelState extends State<HouseholdPanel> {
             ),
           Expanded(
             child: IndexedStack(
-              index: _settings ? 1 : 0,
+              index: _shopping
+                  ? 2
+                  : _settings
+                  ? 1
+                  : 0,
               children: [
                 _busy && _households.isEmpty
                     ? const Center(child: CircularProgressIndicator())
@@ -1089,6 +1129,17 @@ class _HouseholdPanelState extends State<HouseholdPanel> {
                     ),
                   ),
                 ),
+                if (_shoppingOpened && selected != null)
+                  ShoppingListScreen(
+                    key: ValueKey('shopping-$_selected-$_shoppingRefresh'),
+                    embedded: true,
+                    active: _shopping,
+                    householdId: _selected!,
+                    householdName: selected['name'] as String,
+                    request: (path, {body}) => _request(path, body: body),
+                  )
+                else
+                  const SizedBox(),
               ],
             ),
           ),

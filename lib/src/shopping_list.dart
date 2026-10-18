@@ -30,10 +30,14 @@ class ShoppingListScreen extends StatefulWidget {
     required this.householdId,
     required this.householdName,
     required this.request,
+    this.embedded = false,
+    this.active = true,
   });
   final String householdId;
   final String householdName;
   final ShoppingRequest request;
+  final bool embedded;
+  final bool active;
 
   @override
   State<ShoppingListScreen> createState() => _ShoppingListScreenState();
@@ -48,6 +52,10 @@ class _ShoppingListScreenState extends State<ShoppingListScreen>
   final _writes =
       <({List<Map<String, dynamic>> items, Completer<bool> done})>[];
   bool _hideEmptyDepartments = false;
+  List<String> _departments = [
+    ...shoppingDepartments.where((d) => d != 'Other'),
+    'Other',
+  ];
   int _revision = 0;
   bool _loading = true, _saving = false, _reading = false;
   bool _dragging = false;
@@ -66,7 +74,8 @@ class _ShoppingListScreenState extends State<ShoppingListScreen>
     WidgetsBinding.instance.addObserver(this);
     _load();
     _poll = Timer.periodic(const Duration(seconds: 8), (_) {
-      if (WidgetsBinding.instance.lifecycleState == AppLifecycleState.resumed &&
+      if (widget.active &&
+          WidgetsBinding.instance.lifecycleState == AppLifecycleState.resumed &&
           ModalRoute.of(context)?.isCurrent == true) {
         _load(quiet: true);
       }
@@ -74,11 +83,19 @@ class _ShoppingListScreenState extends State<ShoppingListScreen>
   }
 
   @override
+  void didUpdateWidget(covariant ShoppingListScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.active && !oldWidget.active) _load(quiet: true);
+  }
+
+  @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.resumed) _load(quiet: true);
+    if (widget.active && state == AppLifecycleState.resumed) _load(quiet: true);
   }
 
   void _accept(Map<String, dynamic> data) {
+    _departments =
+        (data['departments'] as List?)?.cast<String>() ?? _departments;
     _revision = data['revision'] as int;
     _items = (data['items'] as List)
         .map((item) => Map<String, dynamic>.from(item as Map))
@@ -141,6 +158,8 @@ class _ShoppingListScreenState extends State<ShoppingListScreen>
           _path,
           body: {'revision': _revision, 'items': write.items},
         );
+        _departments =
+            (data['departments'] as List?)?.cast<String>() ?? _departments;
         _revision = data['revision'] as int;
         _confirmedItems = (data['items'] as List)
             .map((item) => Map<String, dynamic>.from(item as Map))
@@ -151,6 +170,8 @@ class _ShoppingListScreenState extends State<ShoppingListScreen>
         if (error is ApiException && error.status == 409) {
           try {
             final data = await widget.request(_path);
+            _departments =
+                (data['departments'] as List?)?.cast<String>() ?? _departments;
             _revision = data['revision'] as int;
             _confirmedItems = (data['items'] as List)
                 .map((item) => Map<String, dynamic>.from(item as Map))
@@ -218,10 +239,7 @@ class _ShoppingListScreenState extends State<ShoppingListScreen>
   List<Map<String, dynamic>> get _rows => [
     {'heading': ''},
     ..._items.where((item) => item['department'] == ''),
-    for (final department in [
-      ...shoppingDepartments.where((d) => d != 'Other'),
-      'Other',
-    ])
+    for (final department in _departments)
       if (!_hideEmptyDepartments ||
           _items.any((item) => item['department'] == department)) ...[
         {'heading': department},
@@ -450,16 +468,18 @@ class _ShoppingListScreenState extends State<ShoppingListScreen>
     final colors = Theme.of(context).colorScheme;
     final busy = _loading || _saving;
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Shopping list'),
-        actions: [
-          IconButton(
-            tooltip: 'Refresh',
-            onPressed: busy ? null : () => _load(),
-            icon: const Icon(Icons.refresh),
-          ),
-        ],
-      ),
+      appBar: widget.embedded
+          ? null
+          : AppBar(
+              title: const Text('Shopping list'),
+              actions: [
+                IconButton(
+                  tooltip: 'Refresh',
+                  onPressed: busy ? null : () => _load(),
+                  icon: const Icon(Icons.refresh),
+                ),
+              ],
+            ),
       body: Center(
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 720),
