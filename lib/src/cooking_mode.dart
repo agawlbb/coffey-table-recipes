@@ -30,7 +30,6 @@ class _CookingModeState extends State<CookingMode> with WidgetsBindingObserver {
   final Map<String, DateTime> _timers = {};
   Timer? _ticker;
   bool _keepAwake = true;
-  bool _awake = false;
   bool _foreground = true;
   Future<void> _wakeQueue = Future.value();
 
@@ -53,18 +52,8 @@ class _CookingModeState extends State<CookingMode> with WidgetsBindingObserver {
       final enable = mounted && _keepAwake && _foreground;
       try {
         await WakelockPlus.toggle(enable: enable);
-        final actual = enable && await WakelockPlus.enabled;
-        if (mounted) {
-          setState(() {
-            _awake = actual;
-          });
-        }
       } catch (_) {
-        if (mounted) {
-          setState(() {
-            _awake = false;
-          });
-        }
+        // Some platforms do not support keeping the screen awake.
       }
     });
   }
@@ -341,13 +330,6 @@ class _CookingModeState extends State<CookingMode> with WidgetsBindingObserver {
               SwitchListTile(
                 contentPadding: EdgeInsets.zero,
                 title: const Text('Keep screen awake'),
-                subtitle: Text(
-                  !_keepAwake
-                      ? 'Off'
-                      : _awake
-                      ? 'Enabled while cooking'
-                      : 'Unavailable here — check your screen timeout',
-                ),
                 value: _keepAwake,
                 onChanged: (value) {
                   setState(() {
@@ -355,11 +337,6 @@ class _CookingModeState extends State<CookingMode> with WidgetsBindingObserver {
                   });
                   _syncWake();
                 },
-              ),
-              Text(
-                NativeTimers.supported
-                    ? 'Timers use device alarms or notifications and are restored when you return. Check Timer settings for permissions and sound limitations.'
-                    : 'Web timers work only while this page remains active; no background alarm is scheduled.',
               ),
               const SizedBox(height: 16),
               for (final step in steps)
