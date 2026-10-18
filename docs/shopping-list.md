@@ -293,3 +293,8 @@ Compact-add local web rebuild (2026-10-18): built app commit
 installed them in the local XAMPP app directory. Independently verified served
 main.dart.js, flutter_bootstrap.js, version.json and font-manifest hashes match
 the build. Version is 1.7.0 (22). No Android build or hosted app deployment ran.
+
+Department heading emphasis (2026-10-18): named headings now use 18-pixel bold
+(weight 700) title text, making them larger and heavier than item labels while
+retaining the compact department rows. Six shopping layout/add/drag lifecycle
+checks pass. The requested rebuild targets local web only.

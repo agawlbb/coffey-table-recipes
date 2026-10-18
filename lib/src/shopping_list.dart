@@ -518,9 +518,10 @@ class _ShoppingListScreenState extends State<ShoppingListScreen>
                 label: department.isEmpty ? 'No department' : null,
                 child: Text(
                   department,
-                  style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
                     color: colors.primary,
-                    fontWeight: FontWeight.w600,
+                    fontSize: 18,
+                    fontWeight: FontWeight.w700,
                   ),
                 ),
               ),
