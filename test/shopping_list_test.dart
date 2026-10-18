@@ -19,8 +19,9 @@ void main() {
           householdId: '7',
           householdName: 'Our table',
           request: (path, {body}) async {
-            if (body != null)
+            if (body != null) {
               items = List<Map<String, dynamic>>.from(body['items'] as List);
+            }
             return {'revision': body == null ? 0 : 1, 'items': items};
           },
         ),
@@ -70,6 +71,16 @@ void main() {
     await tester.pump();
     await tester.tap(find.widgetWithText(FilledButton, 'Add item'));
     await tester.pumpAndSettle();
+    await tester.scrollUntilVisible(
+      find.text('Milk'),
+      200,
+      scrollable: find
+          .descendant(
+            of: find.byType(ReorderableListView),
+            matching: find.byType(Scrollable),
+          )
+          .first,
+    );
     expect(find.text('Milk'), findsOneWidget);
     await tester.tap(find.byType(Checkbox));
     await tester.pumpAndSettle();
@@ -88,7 +99,6 @@ void main() {
     await tester.tap(find.text('Remove checked off'));
     await tester.pumpAndSettle();
     expect(items, isEmpty);
-    expect(find.text('Your list is empty'), findsOneWidget);
     await tester.pumpWidget(const SizedBox());
   });
 }

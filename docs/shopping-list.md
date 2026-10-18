@@ -6,10 +6,11 @@ tap an item to edit or delete it. Checkboxes apply one strike-through. Hold a
 row and drag to reorder. **Remove checked off** stays at the bottom.
 
 Items appear beneath department headings, with Produce first and Other last.
-Only departments containing items are displayed. Dragging reorders items within
-their department; editing an item's department moves it beneath that heading.
-Headings are separate from draggable rows and identified as accessibility
-headings. Rows omit the redundant department subtitle.
+Every department is displayed, including an outlined drop area when empty.
+Hold anywhere on an item to reorder it or drag it beneath another department;
+the drop saves its new department and position together. Headings and empty
+drop areas are not draggable. Headings retain accessibility heading semantics.
+Rows omit both the redundant department subtitle and trailing drag/menu icon.
 
 The screen uses the app's existing theme and refreshes while visible and on
 resume. Changes require a connection to coffeybean.com. Concurrent changes are
@@ -45,3 +46,9 @@ Local web build `32beca9` was republished and its served JavaScript/version
 metadata matched the build. In the signed-in built-in browser, tapped **Add
 item** to save Milk, fully reloaded the page, reopened Shopping list and
 confirmed Milk remained. This exercised the actual hosted save and read paths.
+
+Department drag validation: all five focused shopping-list widget checks pass,
+including dropping an item into an empty department and saving its new
+classification, within-department ordering that preserves other items, all ten
+headings, and absence of trailing menu/drag icons. No backend schema change is
+required; the existing item department and list order carry the result.

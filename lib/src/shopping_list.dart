@@ -239,16 +239,64 @@ class _ShoppingListScreenState extends State<ShoppingListScreen>
     super.dispose();
   }
 
-  Widget _departmentSection(String department, bool busy) {
+  List<Map<String, dynamic>> get _rows => [
+    for (final department in [
+      ...shoppingDepartments.where((d) => d != 'Other'),
+      'Other',
+    ]) ...[
+      {'heading': department},
+      ..._items.where((item) => item['department'] == department),
+      if (!_items.any((item) => item['department'] == department))
+        {'empty': department},
+    ],
+  ];
+
+  Widget _shoppingList(bool busy) {
     final colors = Theme.of(context).colorScheme;
-    final entries = _items
-        .where((item) => item['department'] == department)
-        .toList();
-    return SliverMainAxisGroup(
-      slivers: [
-        SliverPadding(
-          padding: const EdgeInsets.fromLTRB(20, 20, 20, 10),
-          sliver: SliverToBoxAdapter(
+    final rows = _rows;
+    return ReorderableListView.builder(
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+      buildDefaultDragHandles: false,
+      itemCount: rows.length,
+      onReorderStart: (_) => _dragging = true,
+      onReorderEnd: (_) => _dragging = false,
+      onReorderItem: (oldIndex, newIndex) {
+        if (busy || !rows[oldIndex].containsKey('id')) return;
+        final moved = [...rows];
+        final item = moved.removeAt(oldIndex);
+        // Keep the first heading above every item, even for a drop at the top.
+        moved.insert(newIndex.clamp(1, moved.length), item);
+        var department = '';
+        final items = <Map<String, dynamic>>[];
+        for (final row in moved) {
+          if (row.containsKey('heading')) {
+            department = row['heading'] as String;
+          } else if (row.containsKey('id')) {
+            items.add({...row, 'department': department});
+          }
+        }
+        _save(items);
+      },
+      itemBuilder: (context, index) {
+        final item = rows[index];
+        if (item.containsKey('empty')) {
+          return Container(
+            key: ValueKey('empty-${item['empty']}'),
+            height: 48,
+            margin: const EdgeInsets.only(bottom: 8),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(
+                color: colors.outlineVariant.withValues(alpha: .5),
+              ),
+            ),
+          );
+        }
+        if (item.containsKey('heading')) {
+          final department = item['heading'] as String;
+          return Padding(
+            key: ValueKey('department-$department'),
+            padding: const EdgeInsets.fromLTRB(4, 18, 4, 12),
             child: Semantics(
               header: true,
               child: Text(
@@ -259,68 +307,40 @@ class _ShoppingListScreenState extends State<ShoppingListScreen>
                 ),
               ),
             ),
-          ),
-        ),
-        SliverPadding(
-          padding: const EdgeInsets.symmetric(horizontal: 16),
-          sliver: SliverReorderableList(
-            itemCount: entries.length,
-            onReorderStart: (_) => _dragging = true,
-            onReorderEnd: (_) => _dragging = false,
-            onReorderItem: (oldIndex, newIndex) {
-              if (busy) return;
-              entries.insert(newIndex, entries.removeAt(oldIndex));
-              var index = 0;
-              _save([
-                for (final item in _items)
-                  item['department'] == department ? entries[index++] : item,
-              ]);
-            },
-            itemBuilder: (context, index) {
-              final item = entries[index];
-              final checked = item['checked'] == true;
-              return ReorderableDelayedDragStartListener(
-                key: ValueKey(item['id']),
-                index: index,
-                enabled: !busy,
-                child: Card(
-                  margin: const EdgeInsets.only(bottom: 8),
-                  child: ListTile(
-                    contentPadding: const EdgeInsets.only(left: 4, right: 12),
-                    leading: Checkbox(
-                      value: checked,
-                      onChanged: busy
-                          ? null
-                          : (value) => _save([
-                              for (final i in _items)
-                                i['id'] == item['id']
-                                    ? {...i, 'checked': value}
-                                    : i,
-                            ]),
-                    ),
-                    title: Text(
-                      item['name'] as String,
-                      style: TextStyle(
-                        decoration: checked
-                            ? TextDecoration.lineThrough
-                            : TextDecoration.none,
-                        color: checked
-                            ? colors.onSurfaceVariant
-                            : colors.onSurface,
-                      ),
-                    ),
-                    onTap: busy ? null : () => _edit(item),
-                    trailing: Icon(
-                      Icons.drag_handle,
-                      color: colors.onSurfaceVariant,
-                    ),
-                  ),
+          );
+        }
+        final checked = item['checked'] == true;
+        return ReorderableDelayedDragStartListener(
+          key: ValueKey(item['id']),
+          index: index,
+          enabled: !busy,
+          child: Card(
+            margin: const EdgeInsets.only(bottom: 8),
+            child: ListTile(
+              contentPadding: const EdgeInsets.only(left: 4, right: 16),
+              leading: Checkbox(
+                value: checked,
+                onChanged: busy
+                    ? null
+                    : (value) => _save([
+                        for (final i in _items)
+                          i['id'] == item['id'] ? {...i, 'checked': value} : i,
+                      ]),
+              ),
+              title: Text(
+                item['name'] as String,
+                style: TextStyle(
+                  decoration: checked
+                      ? TextDecoration.lineThrough
+                      : TextDecoration.none,
+                  color: checked ? colors.onSurfaceVariant : colors.onSurface,
                 ),
-              );
-            },
+              ),
+              onTap: busy ? null : () => _edit(item),
+            ),
           ),
-        ),
-      ],
+        );
+      },
     );
   }
 
@@ -451,37 +471,7 @@ class _ShoppingListScreenState extends State<ShoppingListScreen>
               Expanded(
                 child: _loading
                     ? const Center(child: CircularProgressIndicator())
-                    : _items.isEmpty
-                    ? Center(
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(
-                              Icons.shopping_basket_outlined,
-                              size: 52,
-                              color: colors.primary,
-                            ),
-                            const SizedBox(height: 12),
-                            Text(
-                              'Your list is empty',
-                              style: Theme.of(context).textTheme.titleMedium,
-                            ),
-                          ],
-                        ),
-                      )
-                    : CustomScrollView(
-                        slivers: [
-                          for (final department in [
-                            ...shoppingDepartments.where((d) => d != 'Other'),
-                            'Other',
-                          ])
-                            if (_items.any(
-                              (item) => item['department'] == department,
-                            ))
-                              _departmentSection(department, busy),
-                          const SliverToBoxAdapter(child: SizedBox(height: 8)),
-                        ],
-                      ),
+                    : _shoppingList(busy),
               ),
               SafeArea(
                 top: false,

@@ -11,6 +11,58 @@ Map<String, dynamic> item(String name) => {
 };
 
 void main() {
+  testWidgets(
+    'all departments are drop targets and a drag changes department',
+    (tester) async {
+      tester.view.physicalSize = const Size(800, 2000);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      var items = [item('Apples')];
+      var revision = 1;
+      await tester.pumpWidget(
+        MaterialApp(
+          home: ShoppingListScreen(
+            householdId: '1',
+            householdName: 'Our table',
+            request: (path, {body}) async {
+              if (body != null) {
+                revision++;
+                items = List<Map<String, dynamic>>.from(body['items'] as List);
+              }
+              return {'revision': revision, 'items': items};
+            },
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      for (final department in shoppingDepartments) {
+        expect(find.byKey(ValueKey('department-$department')), findsOneWidget);
+      }
+      expect(find.byIcon(Icons.drag_handle), findsNothing);
+      expect(find.byIcon(Icons.more_vert), findsNothing);
+      final destination = tester.getRect(
+        find.byKey(const ValueKey('empty-Dairy & eggs')),
+      );
+      final gesture = await tester.startGesture(
+        tester.getCenter(find.text('Apples')),
+      );
+      await tester.pump(const Duration(milliseconds: 600));
+      await gesture.moveTo(destination.center);
+      await tester.pump(const Duration(milliseconds: 300));
+      await gesture.moveBy(const Offset(0, 2));
+      await tester.pump(const Duration(milliseconds: 300));
+      await gesture.up();
+      await tester.pumpAndSettle();
+      expect(items.single['department'], 'Dairy & eggs');
+      expect(
+        tester.getTopLeft(find.text('Apples')).dy,
+        greaterThan(tester.getTopLeft(find.text('Dairy & eggs')).dy),
+      );
+      await tester.pumpWidget(const SizedBox());
+    },
+  );
+
   testWidgets('holding a row reorders the persisted list', (tester) async {
     tester.view.physicalSize = const Size(800, 1000);
     tester.view.devicePixelRatio = 1;
@@ -64,12 +116,16 @@ void main() {
     await gesture.up();
     await tester.pumpAndSettle();
     expect(items.map((i) => i['name']), [
-      'Milk',
       'Bananas',
       'Carrots',
       'Apples',
+      'Milk',
     ]);
-    expect(items.first['department'], 'Dairy & eggs');
+    expect(items.last['department'], 'Dairy & eggs');
+    expect(
+      items.take(3).every((item) => item['department'] == 'Produce'),
+      isTrue,
+    );
     await tester.pumpWidget(const SizedBox());
   });
 
