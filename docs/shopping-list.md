@@ -387,3 +387,10 @@ holds mouse and touch pointers stationary, asserts empty targets before any
 move, cancels, releases without moving, then drops into a revealed department
 and reopens the screen. Other drag checks now measure empty targets only after
 holding. The local web rebuild was explicitly requested.
+
+Stationary-hold local web rebuild (2026-10-18): built commit
+3993260d3e311633bdf1c18a6a9ca6ff63fed022 (1.8.1 build 25), prepared assets and
+installed into the local XAMPP app directory. Verified served JavaScript,
+bootstrap, version metadata and font-manifest hashes against the build.
+Two additional opening-synchronization widget checks passed. No Android build
+or hosted Flutter app deployment ran.
