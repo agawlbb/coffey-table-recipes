@@ -105,3 +105,12 @@ touch/stylus, so touch swipes remain available for scrolling. Both use the same
 stable row identity, visible pointer, drop targets and save queue. Eleven
 focused checks pass, including the new no-delay gesture, a short touch swipe
 that does not move an item, and a normal mouse checkbox click.
+
+Actual Chrome verification (2026-10-18): published local build 2337e09,
+verified localhost asset hashes/source metadata, and reloaded the user's
+affected tab. The same ordinary mouse drag that failed before rebuilding then
+moved Milk from Bakery to Dairy, from Dairy to Produce, and from Produce back
+to Bakery on three consecutive attempts, without a long-press pause. A full
+reload and reopening Shopping list confirmed the restored original department
+persisted. Browser console checks reported no warnings/errors during the moves.
+The test item was returned to its starting department.
