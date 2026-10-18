@@ -2,6 +2,15 @@
 
 Release dates and changes are reconstructed from annotated Git tags, commit history, and project release records. Versions before 1.0 are demonstration releases; 1.0 marks the first usable release. Android retains the existing signing identity; iOS delivery and signing are recorded for each release.
 
+## 1.8.1 — 2026-10-18
+
+Build 25; tag `v1.8.1`.
+
+- Toggle shopping items by tapping the row, while retaining hold/drag behavior without accidental check-offs.
+- Group checked items below active departments, preserving their departments so unchecking restores their placement.
+- Make shopping department headings larger and bold, indent assigned active items, and adapt heading height to text scaling.
+- Update shopping cache/drag regression coverage and document native Home Assistant/Google Keep synchronization.
+
 ## 1.8.0 — 2026-10-18
 
 Build 24; tag `v1.8.0`. Build 23 was an Android timer-sync test package.

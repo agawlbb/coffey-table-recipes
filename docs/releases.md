@@ -47,6 +47,12 @@ When the user says "create a release", review progress since the previous releas
 
 `CHANGELOG.md` covers previous releases using Git history, tags, and the release records below. Every future release must update it with the version, release date, and meaningful changes since the prior release. Commit the changelog before tagging the release. Describe only changes supported by the project history.
 
+## 1.8.1 — shopping list checking and presentation
+
+Version `1.8.1+25`, tagged `v1.8.1`, is the explicitly requested patch release. Both repositories contain only main locally and on GitHub; project branches and tags were pushed before release preparation. Changes since 1.8.0 add tap-to-check shopping rows, a separate completed-items group that preserves departments, larger bold headings, assigned-item indentation and regression coverage. Native code, dependencies, encryption behavior and signing identities are unchanged; production APNs, actual signed universal-link identity and distribution profiles remain gated before upload. France exclusion is retained. Platform and validation results follow as verified.
+
+Local validation on 2026-10-18: analysis passed, all 327 Flutter tests passed, all 13 iOS configuration/distribution checks passed, both Apple JWT/status tests passed and diff whitespace checks passed. The requested release tag was verified unused. Backend source remains synchronized at `6934f4592a6ab3b9b5778ee60b4e568f6e0ab40d`; no backend runtime changes or migrations are included in this patch.
+
 ## 1.8.0 — household shopping lists and mobile timer mirroring
 
 Version `1.8.0+24`, tagged `v1.8.0`, releases main in both repositories. Local and GitHub branch inspection found only main when this release began. All local branches and tags were synchronized before preparation. Build 23 was the earlier Android timer-sync test package, so this release uses build 24. Features include household shopping lists and department memory, scoped list caching and visible refresh, external synchronization requests, mobile timer mirroring and shared navigation/presentation refinements.
