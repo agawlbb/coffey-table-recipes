@@ -362,3 +362,9 @@ Validation: 26 focused list/cache/department/drag checks pass, including saved
 true/false choices across fresh screen instances, long-press target reveal,
 cancellation, a drop into a previously empty department and subsequent reload.
 Static analysis is clean. The user requested a local web rebuild only.
+
+Visibility-preference local web rebuild (2026-10-18): built commit
+e9e35cb7040166116b191a43c5c9904e872f31d9 (1.8.1 build 25), prepared assets
+and installed into the local XAMPP app directory. Verified served JavaScript,
+bootstrap, version metadata and font-manifest hashes against the build.
+No Android build or hosted Flutter app deployment ran.
