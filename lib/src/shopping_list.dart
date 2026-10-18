@@ -34,6 +34,7 @@ class ShoppingListScreen extends StatefulWidget {
     this.embedded = false,
     this.active = true,
     this.cache,
+    this.requestSynchronization,
   });
   final String householdId;
   final String householdName;
@@ -41,6 +42,7 @@ class ShoppingListScreen extends StatefulWidget {
   final bool embedded;
   final bool active;
   final ShoppingListCache? cache;
+  final Future<void> Function()? requestSynchronization;
 
   @override
   State<ShoppingListScreen> createState() => _ShoppingListScreenState();
@@ -95,13 +97,26 @@ class _ShoppingListScreenState extends State<ShoppingListScreen>
     final visible = ModalRoute.of(context)?.isCurrent ?? true;
     final opening = visible && !_routeVisible;
     _routeVisible = visible;
-    if (opening && widget.active) _load();
+    if (opening && widget.active) _opened();
   }
 
   @override
   void didUpdateWidget(covariant ShoppingListScreen oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (widget.active && !oldWidget.active && _routeVisible) _load();
+    if (widget.active && !oldWidget.active && _routeVisible) _opened();
+  }
+
+  void _opened() {
+    _load();
+    unawaited(_requestSynchronization());
+  }
+
+  Future<void> _requestSynchronization() async {
+    try {
+      await widget.requestSynchronization?.call();
+    } catch (_) {
+      // External synchronization is best effort and must not block the list.
+    }
   }
 
   @override

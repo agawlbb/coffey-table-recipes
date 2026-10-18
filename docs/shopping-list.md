@@ -1,5 +1,21 @@
 # Shopping list
 
+Opening or returning to Shopping list now sends a household request to
+synchronize with an external list. Home Assistant exposes it as Shopping list
+synchronization (`requested`) and
+`coffey_table_recipes_shopping_list_sync_requested`. The request is independent
+of item changes; background polling and ordinary widget rebuilds do not send
+one. Sending is best effort while online and does not block list use. An HA
+automation handles the actual external-list synchronization on its next poll.
+The backend retains 128 requests; HA remembers its cursor across restarts and
+does not replay pre-installation history. Source changes require an explicitly
+authorized app build before the app can send these requests.
+
+Validation: 11 focused shopping/synchronization/cache widget checks passed,
+including one request per opening, reopening a retained view, no requests from
+polling/rebuilds, and a failed synchronization request leaving list items usable.
+Flutter analysis reported no issues. No app build was produced.
+
 Open **Shopping list** from the hamburger menu for the selected household.
 All household members share the same list. Items have a name and optional department;
 checkboxes apply one strike-through. Items have no tap-to-edit screen. Click

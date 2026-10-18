@@ -1148,6 +1148,12 @@ class _HouseholdPanelState extends State<HouseholdPanel> {
                     householdId: _selected!,
                     householdName: selected['name'] as String,
                     request: (path, {body}) => _request(path, body: body),
+                    requestSynchronization: () async {
+                      await _request(
+                        '/households/$_selected/shopping-list/sync-request',
+                        body: {},
+                      );
+                    },
                   )
                 else
                   const SizedBox(),
