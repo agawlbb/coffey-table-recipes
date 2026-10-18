@@ -158,3 +158,10 @@ duplicate names, add, actual drag reordering, removal/cancellation, and stale
 configuration recovery. Backend PHP sharing/configuration fixtures also pass.
 No app package was built for this feature request; the installed local web app
 still needs an explicitly requested rebuild.
+
+Local department-settings web rebuild (2026-10-18): explicitly requested build
+completed for 08d196b58c9b4075f0387bab285bf4b55d10de8f (1.7.0 build 22).
+Installed prepared assets into the local XAMPP app directory and verified
+localhost main.dart.js, flutter_bootstrap.js, version.json and font manifest
+hashes against the build. This includes the shopping hamburger menu and shared
+department configuration. No hosted Flutter app was deployed.
