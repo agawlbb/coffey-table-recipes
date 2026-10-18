@@ -6,7 +6,7 @@ void main() {
   testWidgets('Add item stays visible and usable with a phone keyboard', (
     tester,
   ) async {
-    tester.view.physicalSize = const Size(390, 844);
+    tester.view.physicalSize = const Size(320, 844);
     tester.view.devicePixelRatio = 1;
     tester.view.viewInsets = const FakeViewPadding(bottom: 300);
     addTearDown(tester.view.resetPhysicalSize);
@@ -28,14 +28,21 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
-    final add = find.widgetWithText(FilledButton, 'Add item');
-    expect(tester.widget<FilledButton>(add).onPressed, isNotNull);
+    final add = find.byWidgetPredicate(
+      (widget) => widget is IconButton && widget.tooltip == 'Add item',
+    );
+    expect(tester.widget<IconButton>(add).onPressed, isNotNull);
     await tester.tap(add);
     await tester.pumpAndSettle();
     expect(items, isEmpty);
     await tester.enterText(find.byType(TextField), 'Apples');
     await tester.pump();
     expect(tester.getRect(add).bottom, lessThan(544));
+    final fieldRect = tester.getRect(find.byType(TextField));
+    final addRect = tester.getRect(add);
+    expect(addRect.left, greaterThanOrEqualTo(fieldRect.right));
+    expect((addRect.center.dy - fieldRect.center.dy).abs(), lessThan(1));
+    expect(find.text('Add item'), findsNothing);
     await tester.tap(add);
     await tester.pumpAndSettle();
     expect(items.single['name'], 'Apples');
@@ -69,7 +76,7 @@ void main() {
       expect(find.text('Our table'), findsOneWidget);
       await tester.enterText(find.byType(TextField), 'Milk');
       await tester.pump();
-      await tester.tap(find.widgetWithText(FilledButton, 'Add item'));
+      await tester.tap(find.byTooltip('Add item'));
       await tester.pumpAndSettle();
       await tester.scrollUntilVisible(
         find.text('Milk'),
@@ -128,7 +135,7 @@ void main() {
       );
       await tester.pumpAndSettle();
       await tester.enterText(find.byType(TextField), 'GreenOnions');
-      await tester.tap(find.text('Add item'));
+      await tester.tap(find.byTooltip('Add item'));
       await tester.pumpAndSettle();
       expect(find.text('GreenOnions'), findsOneWidget);
       expect(

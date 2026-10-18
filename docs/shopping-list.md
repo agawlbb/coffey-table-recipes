@@ -7,7 +7,8 @@ and drag with a mouse, or hold a row on a touch screen, to reorder. **Remove che
 
 New items use the household's remembered department when their name matches a
 previous assignment. Unrecognized items appear above all department headings.
-The add form contains only the item field and Add item button. Unassigned items
+The add form contains an item field and a compact plus button on its right,
+including on narrow screens. The button retains an Add item accessibility label. Unassigned items
 have no visible heading. Drag an assigned item to the top strip to remove its
 department, or drop on a department heading to assign it. The named Other
 department remains distinct from having no department.
@@ -259,3 +260,12 @@ Verified package version 1.7.0 (22), successful app startup, recipe home, shared
 hamburger navigation, and the shopping screen with the household's configured
 departments and bottom visibility control. Left Shopping list open in the
 foreground emulator. Generated APK and local configuration remain excluded.
+
+
+Compact add row (2026-10-18): replaced the labeled Add item button and stacked
+phone layout with one row containing the input and a filled plus icon button.
+The control retains its Add item tooltip/accessibility label and keyboard-submit
+behavior. The 320-pixel phone-with-keyboard check verifies the button is beside
+the input and remains visible and functional. All 24 focused shopping/cache/
+department/drag checks pass; static analysis is clean. The user requested a
+local web rebuild only; the Android emulator package remains unchanged.

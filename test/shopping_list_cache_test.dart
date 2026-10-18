@@ -240,7 +240,7 @@ void main() {
     );
     await tester.pumpAndSettle();
     await tester.enterText(find.byType(TextField), 'Unsaved item');
-    await tester.tap(find.text('Add item'));
+    await tester.tap(find.byTooltip('Add item'));
     await tester.pumpAndSettle();
     expect(find.text('Offline'), findsOneWidget);
     expect(find.text('Milk'), findsOneWidget);

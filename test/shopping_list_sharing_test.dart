@@ -63,7 +63,7 @@ void main() {
         );
         await tester.pumpAndSettle();
         await tester.enterText(find.byType(TextField), 'MILK');
-        await tester.tap(find.text('Add item'));
+        await tester.tap(find.byTooltip('Add item'));
         await tester.pump();
         final gesture = await tester.startGesture(
           tester.getCenter(find.text(movedName).last),
@@ -485,7 +485,7 @@ void main() {
     await tester.pumpAndSettle();
     await tester.enterText(find.byType(TextField), 'Milk');
     await tester.pump();
-    await tester.tap(find.widgetWithText(FilledButton, 'Add item'));
+    await tester.tap(find.byTooltip('Add item'));
     await tester.pumpAndSettle();
     expect(find.text('Pears'), findsOneWidget);
     expect(find.text('The shopping list changed. Try again.'), findsOneWidget);

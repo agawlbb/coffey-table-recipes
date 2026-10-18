@@ -40,7 +40,7 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.byType(DropdownButtonFormField<String>), findsNothing);
       await tester.enterText(find.byType(TextField), 'Apples');
-      await tester.tap(find.text('Add item'));
+      await tester.tap(find.byTooltip('Add item'));
       await tester.pumpAndSettle();
       expect(items.firstWhere((i) => i['name'] == 'Apples')['department'], '');
       expect(

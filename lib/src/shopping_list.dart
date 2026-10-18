@@ -640,49 +640,27 @@ class _ShoppingListScreenState extends State<ShoppingListScreen>
                   margin: EdgeInsets.zero,
                   child: Padding(
                     padding: const EdgeInsets.all(16),
-                    child: Column(
+                    child: Row(
                       children: [
-                        LayoutBuilder(
-                          builder: (context, constraints) {
-                            final field = TextField(
-                              controller: _name,
-                              focusNode: _focus,
-                              enabled: !_loading && !_saving,
-                              maxLength: 200,
-                              textInputAction: TextInputAction.done,
-                              decoration: const InputDecoration(
-                                hintText: 'Add an item',
-                                counterText: '',
-                              ),
-                              onSubmitted: (_) => _add(),
-                            );
-                            final add = FilledButton.icon(
-                              onPressed: busy || _items.length >= 500
-                                  ? null
-                                  : _add,
-                              icon: const Icon(Icons.add),
-                              label: const Text('Add item'),
-                            );
-                            if (constraints.maxWidth < 400 ||
-                                MediaQuery.textScalerOf(context).scale(1) >
-                                    1.4) {
-                              return Column(
-                                crossAxisAlignment: CrossAxisAlignment.stretch,
-                                children: [
-                                  field,
-                                  const SizedBox(height: 12),
-                                  add,
-                                ],
-                              );
-                            }
-                            return Row(
-                              children: [
-                                Expanded(child: field),
-                                const SizedBox(width: 12),
-                                add,
-                              ],
-                            );
-                          },
+                        Expanded(
+                          child: TextField(
+                            controller: _name,
+                            focusNode: _focus,
+                            enabled: !_loading && !_saving,
+                            maxLength: 200,
+                            textInputAction: TextInputAction.done,
+                            decoration: const InputDecoration(
+                              hintText: 'Add an item',
+                              counterText: '',
+                            ),
+                            onSubmitted: (_) => _add(),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        IconButton.filled(
+                          tooltip: 'Add item',
+                          onPressed: busy || _items.length >= 500 ? null : _add,
+                          icon: const Icon(Icons.add),
                         ),
                       ],
                     ),
