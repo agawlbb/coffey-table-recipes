@@ -1,9 +1,9 @@
 import 'dart:async';
-import 'dart:math';
 
 import 'package:flutter/material.dart';
 
 import 'api.dart';
+import 'shopping_item_id.dart';
 
 const shoppingDepartments = [
   'Other',
@@ -42,7 +42,6 @@ class _ShoppingListScreenState extends State<ShoppingListScreen>
     with WidgetsBindingObserver {
   final _name = TextEditingController();
   final _focus = FocusNode();
-  final _random = Random.secure();
   List<Map<String, dynamic>> _items = [];
   String _department = 'Other';
   int _revision = 0;
@@ -149,8 +148,7 @@ class _ShoppingListScreenState extends State<ShoppingListScreen>
     final saved = await _save([
       ..._items,
       {
-        'id':
-            '${DateTime.now().microsecondsSinceEpoch}_${_random.nextInt(1 << 32)}',
+        'id': newShoppingItemId(),
         'name': name,
         'department': _department,
         'checked': false,

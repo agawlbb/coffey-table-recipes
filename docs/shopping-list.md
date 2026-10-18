@@ -26,3 +26,11 @@ wide screens and directly below it on phones. It remains enabled when empty
 and focuses the field when pressed. A phone-keyboard widget check verifies
 that the button remains visible and adds the typed item. The focused shopping
 list suite passes all four checks after this usability refinement.
+
+Web add regression (2026-10-18): the browser's compiled Add handler called
+`Random.nextInt(0)` because `1 << 32` uses 32-bit shift semantics on JavaScript.
+This threw before the save request and escaped the widget tests running on
+the Dart VM. ID generation now uses the explicit numeric literal `0x100000000`.
+Compile `tool/check_shopping_item_id.dart` with `dart compile js` and run its
+output with Node (`globalThis.self = globalThis`) to verify 1,000 valid unique
+IDs on the actual JavaScript target, alongside the four widget checks.
