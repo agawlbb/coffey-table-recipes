@@ -422,3 +422,29 @@ indicator remains right-aligned and appears only during a connection failure.
 Eleven list/cache checks pass, including no visible household name, phone
 keyboard layout and offline recovery. Static analysis is clean. No app build
 was requested or produced for this change.
+
+Quiet connection retries and save notices (2026-10-18): shopping reads and saves
+retry transient transport errors, HTTP 408 and server failures twice, after
+2 and 4 seconds. The existing per-request network timeout still applies, so a
+stalled request can take longer than those backoff delays. Refresh failures
+show only the small Offline status after attempts are exhausted; cached content
+remains visible. Failed saves then restore the last confirmed list, retain add
+text and display a neutral-colored, dismissible message: Your change couldn't
+be saved. Please try again when connected. Technical HTTP wording is not shown
+for these connection-related save failures. Sign-in, membership, validation and
+ordinary edit-conflict responses are not retried or hidden.
+
+Retries reuse the same items, IDs and base revision. If a response was lost
+after a save committed, a subsequent conflict is treated as success only when
+a read confirms the requested item IDs, order, names, checked states and
+departments (including server-selected departments for new unassigned items).
+Actual concurrent changes remain conflicts and are never silently overwritten.
+A temporary verification-read failure may use the remaining retry. Closing the
+screen cancels pending retry timers. No offline write queue was introduced.
+
+Validation: 34 focused retry, cache, list, department, drag and opening-sync
+checks pass; static analysis is clean. New checks cover a brief outage without
+alerts, exhausted retries and neutral save text, retained drafts/cache, lost
+save responses with and without temporary verification failure, genuine
+concurrent edits, and cancellation on leaving. No app build was requested or
+produced for this change.

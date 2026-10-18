@@ -79,6 +79,8 @@ class _ShoppingListScreenState extends State<ShoppingListScreen>
   double _scrollStep = 0;
   Offset? _dragPosition;
   String? _error;
+  bool _saveNotice = false;
+  final _retryWaiters = <Timer, Completer<bool>>{};
   Timer? _poll;
   String get _path => '/households/${widget.householdId}/shopping-list';
 
@@ -169,12 +171,72 @@ class _ShoppingListScreenState extends State<ShoppingListScreen>
   bool _connectionFailure(Object error) =>
       error is! ApiException || error.status >= 500 || error.status == 408;
 
+  Future<bool> _retryDelay(Duration delay) {
+    final done = Completer<bool>();
+    late final Timer timer;
+    timer = Timer(delay, () {
+      _retryWaiters.remove(timer);
+      done.complete(true);
+    });
+    _retryWaiters[timer] = done;
+    return done.future;
+  }
+
+  Future<Map<String, dynamic>> _requestWithRetry({
+    Map<String, dynamic>? body,
+  }) async {
+    final knownIds = _confirmedItems.map((i) => i['id']).toSet();
+    for (var attempt = 0; ; attempt++) {
+      try {
+        return await widget.request(_path, body: body);
+      } catch (error) {
+        var retryable = _connectionFailure(error);
+        // A response can be lost after a save commits. A subsequent revision
+        // conflict is success only when the server confirms the requested state.
+        if (body != null &&
+            attempt > 0 &&
+            error is ApiException &&
+            error.status == 409) {
+          try {
+            final current = await widget.request(_path);
+            final expected = (body['items'] as List)
+                .cast<Map<String, dynamic>>();
+            final actual = (current['items'] as List)
+                .cast<Map<String, dynamic>>();
+            final matches =
+                (current['revision'] as int) > (body['revision'] as int) &&
+                actual.length == expected.length &&
+                List.generate(expected.length, (i) {
+                  final wanted = expected[i], saved = actual[i];
+                  return wanted['id'] == saved['id'] &&
+                      wanted['name'] == saved['name'] &&
+                      wanted['checked'] == saved['checked'] &&
+                      (wanted['department'] == saved['department'] ||
+                          (!knownIds.contains(wanted['id']) &&
+                              wanted['department'] == ''));
+                }).every((same) => same);
+            if (matches) return current;
+            rethrow;
+          } catch (verificationError) {
+            if (!_connectionFailure(verificationError)) rethrow;
+            retryable = true;
+          }
+        }
+        if (!retryable || attempt >= 2) rethrow;
+        if (!await _retryDelay(Duration(seconds: attempt == 0 ? 2 : 4)) ||
+            !mounted) {
+          throw const _ShoppingRequestCancelled();
+        }
+      }
+    }
+  }
+
   Future<void> _load() async {
     if (_saving || _reading || _dragging || _holding) return;
     _reading = true;
     final generation = _saveGeneration;
     try {
-      final data = await widget.request(_path);
+      final data = await _requestWithRetry();
       if (!mounted) return;
       final firstResponse = !_serverLoaded;
       _serverLoaded = true;
@@ -186,7 +248,7 @@ class _ShoppingListScreenState extends State<ShoppingListScreen>
             if (changed) _accept(data);
             _disconnected = false;
             _accessDenied = false;
-            _error = null;
+            if (!_saveNotice) _error = null;
           });
         }
         if (changed) _cacheConfirmed();
@@ -207,6 +269,7 @@ class _ShoppingListScreenState extends State<ShoppingListScreen>
             _confirmedItems = [];
             _revision = 0;
           }
+          _saveNotice = false;
           _error = (error as ApiException).message;
         });
       }
@@ -228,6 +291,7 @@ class _ShoppingListScreenState extends State<ShoppingListScreen>
       _items = items;
       _saving = true;
       _error = null;
+      _saveNotice = false;
     });
     if (start) unawaited(_drainWrites());
     return done.future;
@@ -237,8 +301,7 @@ class _ShoppingListScreenState extends State<ShoppingListScreen>
     while (_writes.isNotEmpty) {
       final write = _writes.first;
       try {
-        final data = await widget.request(
-          _path,
+        final data = await _requestWithRetry(
           body: {'revision': _revision, 'items': write.items},
         );
         _departments =
@@ -306,7 +369,10 @@ class _ShoppingListScreenState extends State<ShoppingListScreen>
               _revision = 0;
               unawaited(widget.cache?.clear());
             }
-            _error = error is ApiException
+            _saveNotice = _connectionFailure(error);
+            _error = _saveNotice
+                ? "Your change couldn't be saved. Please try again when connected."
+                : error is ApiException
                 ? error.message
                 : 'Could not save the shopping list. Please try again.';
           });
@@ -354,6 +420,11 @@ class _ShoppingListScreenState extends State<ShoppingListScreen>
     _dragging = false;
     _holding = false;
     _holdTimer?.cancel();
+    for (final entry in _retryWaiters.entries) {
+      entry.key.cancel();
+      entry.value.complete(false);
+    }
+    _retryWaiters.clear();
     _poll?.cancel();
     _autoScroll?.cancel();
     _listController.dispose();
@@ -804,12 +875,23 @@ class _ShoppingListScreenState extends State<ShoppingListScreen>
                       Expanded(
                         child: Text(
                           _error!,
-                          style: TextStyle(color: colors.error),
+                          style: TextStyle(
+                            color: _saveNotice
+                                ? colors.onSurfaceVariant
+                                : colors.error,
+                          ),
                         ),
                       ),
                       TextButton(
-                        onPressed: _loading || _saving ? null : () => _load(),
-                        child: const Text('Retry'),
+                        onPressed: _loading || _saving
+                            ? null
+                            : _saveNotice
+                            ? () => setState(() {
+                                _error = null;
+                                _saveNotice = false;
+                              })
+                            : () => _load(),
+                        child: Text(_saveNotice ? 'Dismiss' : 'Retry'),
                       ),
                     ],
                   ),
@@ -887,4 +969,8 @@ class _ShoppingDragSource extends Draggable<String> {
           );
     return recognizer..onStart = onStart;
   }
+}
+
+class _ShoppingRequestCancelled implements Exception {
+  const _ShoppingRequestCancelled();
 }

@@ -243,6 +243,9 @@ void main() {
       );
       await tester.pumpAndSettle();
       expect(find.text('Milk'), findsOneWidget);
+      expect(find.text('Offline'), findsNothing);
+      await tester.pump(const Duration(seconds: 2));
+      await tester.pump(const Duration(seconds: 4));
       expect(find.text('Offline'), findsOneWidget);
       expect(find.byTooltip('No server connection'), findsOneWidget);
       expect(
@@ -256,12 +259,11 @@ void main() {
         isNull,
       );
       await tester.enterText(find.byType(TextField), 'Keep my draft');
-      await tester.pump(const Duration(seconds: 4));
-      expect(reads, 1);
+      expect(reads, 3);
       connected = true;
-      await tester.pump(const Duration(seconds: 1));
+      await tester.pump(const Duration(seconds: 5));
       await tester.pumpAndSettle();
-      expect(reads, 2);
+      expect(reads, 4);
       expect(find.text('Offline'), findsNothing);
       expect(
         tester.widget<TextField>(find.byType(TextField)).controller!.text,
@@ -270,20 +272,20 @@ void main() {
       active.value = false;
       await tester.pump();
       await tester.pump(const Duration(seconds: 15));
-      expect(reads, 2);
+      expect(reads, 4);
       active.value = true;
       await tester.pumpAndSettle();
-      expect(reads, 3);
+      expect(reads, 5);
       tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
       tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.hidden);
       tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
       await tester.pump(const Duration(seconds: 10));
-      expect(reads, 3);
+      expect(reads, 5);
       tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.hidden);
       tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
       tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
       await tester.pumpAndSettle();
-      expect(reads, 4);
+      expect(reads, 6);
       final navigator = Navigator.of(
         tester.element(find.byType(ShoppingListScreen)),
       );
@@ -296,10 +298,10 @@ void main() {
       );
       await tester.pumpAndSettle();
       await tester.pump(const Duration(seconds: 5));
-      expect(reads, 4);
+      expect(reads, 6);
       navigator.pop();
       await tester.pumpAndSettle();
-      expect(reads, 5);
+      expect(reads, 7);
       await tester.pumpWidget(const SizedBox());
     },
   );
