@@ -133,3 +133,9 @@ changing existing assignments. The API accepts an explicit empty department
 string, while invalid/missing departments remain rejected. No schema change is
 required. The local web app needs an explicitly authorized rebuild for this
 new feature; the previous mouse-drag build is unchanged.
+
+Local web rebuild (2026-10-18): explicitly requested build completed for
+app commit ae177859a10d65a12e83728a02cb6a84bc9a54e1 (1.7.0 build 22).
+Prepared cache-safe assets and installed into the local XAMPP app directory.
+Verified HTTP-served main.dart.js, flutter_bootstrap.js, version.json and font
+manifest hashes match the generated build. No hosted Flutter app was deployed.
