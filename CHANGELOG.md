@@ -2,6 +2,18 @@
 
 Release dates and changes are reconstructed from annotated Git tags, commit history, and project release records. Versions before 1.0 are demonstration releases; 1.0 marks the first usable release. Android retains the existing signing identity; iOS delivery and signing are recorded for each release.
 
+## 1.8.0 — 2026-10-18
+
+Build 24; tag `v1.8.0`. Build 23 was an Android timer-sync test package.
+
+- Added a shared household shopping list with item check-offs, draggable department grouping, configurable departments and a compact add row.
+- Remember household department choices for later additions, including tolerant item-name matching and preservation of pending moves.
+- Cache confirmed shopping lists by account and household; refresh visible lists every five seconds and show connection loss without hiding cached items.
+- Request external shopping-list synchronization when the shopping view opens, using the hosted household integration API.
+- Mirror cooking timers between signed-in mobile devices with opt-in reception, account-scoped recovery, original deadlines and native push handling. Background push delivery remains subject to OS restrictions.
+- Keep shared navigation available in recipe, cooking and shopping views; place recipe titles in the persistent app bar and clarify timer and variation controls.
+- Verify production iOS push permissions and hosted universal-link identity in the exported signed IPA before TestFlight upload.
+
 ## 1.7.0 — 2026-10-17
 
 Build 22; tag `v1.7.0`.

@@ -65,7 +65,7 @@ jobs:
       - run: flutter pub get
       - run: flutter analyze
       - run: flutter test
-      - run: python3 -m unittest discover -s tool -p test_configure_ios.py
+      - run: python3 -m unittest discover -s tool -p 'test_*ios*.py'
       - name: Archive, sign and optionally upload
         timeout-minutes: 25
         env:

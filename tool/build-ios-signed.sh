@@ -64,7 +64,7 @@ Path('build/ios/signing/ExportOptions.plist').write_bytes(plistlib.dumps({
     'teamID': os.environ['IOS_TEAM_ID'],
     'signingStyle': 'automatic',
     'manageAppVersionAndBuildNumber': False,
-    'destination': 'upload' if os.environ['IOS_UPLOAD'] == 'true' else 'export',
+    'destination': 'export',
 }))
 PY
 echo '::notice::Stage: Apple archive and automatic provisioning'
@@ -93,6 +93,21 @@ xcodebuild -exportArchive -archivePath build/ios/archive/Runner.xcarchive \
   -exportPath build/ios/signed -exportOptionsPlist build/ios/signing/ExportOptions.plist \
   -allowProvisioningUpdates "${auth[@]}"
 if [[ "$IOS_UPLOAD" == true ]]; then
+  shopt -s nullglob
+  packages=(build/ios/signed/*.ipa)
+  [[ ${#packages[@]} == 1 ]] || { echo 'Expected exactly one exported IPA'; exit 1; }
+  python3 tool/verify-ios-ipa.py "${packages[0]}"
+  python3 - <<'PY'
+import plistlib
+from pathlib import Path
+source = Path('build/ios/signing/ExportOptions.plist')
+options = plistlib.loads(source.read_bytes())
+options['destination'] = 'upload'
+Path('build/ios/signing/UploadOptions.plist').write_bytes(plistlib.dumps(options))
+PY
+  xcodebuild -exportArchive -archivePath build/ios/archive/Runner.xcarchive \
+    -exportPath build/ios/upload -exportOptionsPlist build/ios/signing/UploadOptions.plist \
+    -allowProvisioningUpdates "${auth[@]}"
   echo 'Upload submitted to App Store Connect. Check processing and TestFlight status there.'
 else
   echo 'Signed IPA exported to build/ios/signed. No upload was performed.'

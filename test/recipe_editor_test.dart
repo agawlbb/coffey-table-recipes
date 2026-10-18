@@ -598,7 +598,11 @@ void main() {
     expect(submitted?['title'], 'New soup');
     expect(original['title'], 'Soup');
     expect(find.text('Recipe saved'), findsOneWidget);
-    expect(find.text('New soup'), findsNWidgets(2));
+    expect(find.text('New soup'), findsOneWidget);
+    expect(
+      find.descendant(of: find.byType(AppBar), matching: find.text('New soup')),
+      findsOneWidget,
+    );
   });
   testWidgets('discard protects text edits and save failure retains draft', (
     tester,

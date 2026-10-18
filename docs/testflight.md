@@ -2,6 +2,14 @@
 
 ## Read-only delivery verification
 
+Signed upload builds first export an App Store Connect IPA from the archive.
+The verifier checks actual app/extension signatures and distribution profiles,
+production APNs on Runner, and the hosted iOS association against its signed
+application identifier. Only after those pass does Xcode perform its upload
+export from the same archive. No IPA artifact is published for upload runs.
+The distribution checks have regression coverage for development/missing APNs,
+missing domain permissions, wrong application identity and wrong/excluded routes.
+
 `testflight-status.yml` runs on Ubuntu and creates no app package. Dispatch with the exact marketing version and build number after upload. It uses the existing App Store Connect secrets only to sign a short-lived API token and sends GET requests to Apple's fixed API origin without redirects. It requires matching version/build, VALID processing, an unexpired build, the exempt-encryption declaration, an internal-ready build state and an existing internal group. Status output excludes tokens, keys and tester contact details. It never changes compliance, groups, testers or distribution. Two local Node tests verify the JWT signature and reject wrong-version, processing, expired, missing-compliance and missing-internal-group cases. This tooling was added during 1.6.0 delivery because no built-in browser was available; it does not alter the immutable app release tag.
 
 Apple references: [List builds](https://developer.apple.com/documentation/appstoreconnectapi/get-v1-builds) and [build beta details](https://developer.apple.com/documentation/appstoreconnectapi/get-v1-buildbetadetails).

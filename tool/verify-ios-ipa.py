@@ -10,6 +10,7 @@ import subprocess
 import sys
 import tempfile
 import zipfile
+from ios_release_checks import validate_entitlements, verify_hosted_association
 
 ipa = Path(sys.argv[1])
 team = os.environ["IOS_TEAM_ID"]
@@ -58,6 +59,10 @@ with tempfile.TemporaryDirectory() as directory:
         assert signed_entitlements["application-identifier"] == team + "." + bundle, "Wrong signed identifier"
         assert signed_entitlements["com.apple.developer.team-identifier"] == team, "Wrong signing team"
         assert not signed_entitlements.get("get-task-allow", False), "Development signing entitlements"
+        if relative == "Runner.app":
+            validate_entitlements(signed_entitlements, entitlements)
+            verify_hosted_association(signed_entitlements['application-identifier'])
+            print('Verified production APNs and hosted iOS association against the exported signed app')
         if not relative.endswith("TimerWidget.appex"):
             assert "group.com.coffeytable.coffeyTableRecipes" in signed_entitlements.get(
                 "com.apple.security.application-groups", []
