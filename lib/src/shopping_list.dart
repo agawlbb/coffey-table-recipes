@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/gestures.dart';
 
 import 'api.dart';
 import 'shopping_item_id.dart';
@@ -401,34 +402,38 @@ class _ShoppingListScreenState extends State<ShoppingListScreen>
                 after: after,
               );
             },
-            builder: (context, candidates, rejected) =>
-                LongPressDraggable<String>(
-                  data: item['id'] as String,
-                  maxSimultaneousDrags: _loading ? 0 : 1,
-                  hitTestBehavior: HitTestBehavior.opaque,
-                  onDragStarted: _dragStarted,
-                  onDragUpdate: _dragUpdated,
-                  // Completion/cancellation also run if the source row is
-                  // disposed while dragging; onDragEnd is mounted-only.
-                  onDragCompleted: _dragFinished,
-                  onDraggableCanceled: (_, _) => _dragFinished(),
-                  feedback: Material(
-                    color: Colors.transparent,
-                    child: SizedBox(
-                      width: constraints.maxWidth,
-                      child: IgnorePointer(child: _itemCard(item, true)),
-                    ),
-                  ),
-                  childWhenDragging: Opacity(
-                    opacity: .3,
-                    child: _itemCard(item, true),
-                  ),
-                  child: _itemCard(
-                    item,
-                    busy,
-                    highlighted: candidates.isNotEmpty,
-                  ),
+            builder: (context, candidates, rejected) {
+              final feedback = Material(
+                color: Colors.transparent,
+                child: SizedBox(
+                  width: constraints.maxWidth,
+                  child: IgnorePointer(child: _itemCard(item, true)),
                 ),
+              );
+              final placeholder = Opacity(
+                opacity: .3,
+                child: _itemCard(item, true),
+              );
+              Widget source(bool touch, Widget child) => _ShoppingDragSource(
+                touch: touch,
+                data: item['id'] as String,
+                maxSimultaneousDrags: _loading ? 0 : 1,
+                onDragStarted: _dragStarted,
+                onDragUpdate: _dragUpdated,
+                onDragCompleted: _dragFinished,
+                onDraggableCanceled: (_, _) => _dragFinished(),
+                feedback: feedback,
+                childWhenDragging: placeholder,
+                child: child,
+              );
+              return source(
+                false,
+                source(
+                  true,
+                  _itemCard(item, busy, highlighted: candidates.isNotEmpty),
+                ),
+              );
+            },
           ),
         );
       },
@@ -584,5 +589,42 @@ class _ShoppingListScreenState extends State<ShoppingListScreen>
         ),
       ),
     );
+  }
+}
+
+// Mouse gestures should use normal click-and-drag; touch retains a long press
+// so a normal swipe can still scroll. Each recognizer filters its own devices.
+class _ShoppingDragSource extends Draggable<String> {
+  const _ShoppingDragSource({
+    required this.touch,
+    required super.data,
+    required super.child,
+    required super.feedback,
+    required super.childWhenDragging,
+    super.maxSimultaneousDrags,
+    super.onDragStarted,
+    super.onDragUpdate,
+    super.onDragCompleted,
+    super.onDraggableCanceled,
+  }) : super(hitTestBehavior: HitTestBehavior.opaque);
+
+  final bool touch;
+
+  @override
+  MultiDragGestureRecognizer createRecognizer(
+    GestureMultiDragStartCallback onStart,
+  ) {
+    final MultiDragGestureRecognizer recognizer = touch
+        ? DelayedMultiDragGestureRecognizer(
+            supportedDevices: const {
+              PointerDeviceKind.touch,
+              PointerDeviceKind.stylus,
+              PointerDeviceKind.invertedStylus,
+            },
+          )
+        : ImmediateMultiDragGestureRecognizer(
+            supportedDevices: const {PointerDeviceKind.mouse},
+          );
+    return recognizer..onStart = onStart;
   }
 }

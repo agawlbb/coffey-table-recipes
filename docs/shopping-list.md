@@ -2,12 +2,12 @@
 
 Open **Shopping list** from the hamburger menu for the selected household.
 All household members share the same list. Items have a name and department;
-checkboxes apply one strike-through. Items have no tap-to-edit screen. Hold a
-row and drag to reorder. **Remove checked off** stays at the bottom.
+checkboxes apply one strike-through. Items have no tap-to-edit screen. Click
+and drag with a mouse, or hold a row on a touch screen, to reorder. **Remove checked off** stays at the bottom.
 
 Items appear beneath department headings, with Produce first and Other last.
 Every department is displayed as a compact 30-pixel heading, with no empty
-placeholder or drop box. Hold anywhere on the item label or row to drag.
+placeholder or drop box. Drag anywhere on the item label or row.
 Drop on a department heading to move the item into that department, or on the
 upper/lower half of another item to insert before/after it. The drop saves the
 new department and position together. Headings are not draggable and retain
@@ -96,3 +96,12 @@ state was defunct after the first move) and passes after the index mapping fix.
 The browser runner compiled and launched headless Chrome, but stalled before
 executing test bodies; it was stopped and is not counted as a passing web test.
 This limitation is separate from the passing framework mouse-cursor assertions.
+
+Mouse gesture regression: a normal click-and-drag in the affected Chrome tab
+made no move because the source required a long press for every pointer type.
+A no-delay mouse test reproduced that failure. Drag sources now filter their
+pointer devices: immediate recognition for mouse and delayed recognition for
+touch/stylus, so touch swipes remain available for scrolling. Both use the same
+stable row identity, visible pointer, drop targets and save queue. Eleven
+focused checks pass, including the new no-delay gesture, a short touch swipe
+that does not move an item, and a normal mouse checkbox click.
