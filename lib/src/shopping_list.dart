@@ -440,9 +440,12 @@ class _ShoppingListScreenState extends State<ShoppingListScreen>
       (item) => item['department'] == '' && item['checked'] != true,
     ),
     for (final department in _departments)
-      if (_items.any(
-        (item) => item['department'] == department && item['checked'] != true,
-      )) ...[
+      if (_holding ||
+          _dragging ||
+          _items.any(
+            (item) =>
+                item['department'] == department && item['checked'] != true,
+          )) ...[
         {'heading': department},
         ..._items.where(
           (item) => item['department'] == department && item['checked'] != true,
@@ -452,13 +455,6 @@ class _ShoppingListScreenState extends State<ShoppingListScreen>
       {'completed': true},
       ..._items.where((item) => item['checked'] == true),
     ],
-    // Reveal new targets after existing rows so holding never shifts the source.
-    if (_holding || _dragging)
-      for (final department in _departments)
-        if (!_items.any(
-          (i) => i['department'] == department && i['checked'] != true,
-        ))
-          {'heading': department},
   ];
 
   void _pressItem(PointerDownEvent event, String id, BuildContext rowContext) {
@@ -525,10 +521,14 @@ class _ShoppingListScreenState extends State<ShoppingListScreen>
   }
 
   void _dragUpdated(DragUpdateDetails details) {
-    _dragPosition = details.globalPosition;
+    _updateDragPosition(details.globalPosition);
+  }
+
+  void _updateDragPosition(Offset position) {
+    _dragPosition = position;
     final box = _listKey.currentContext?.findRenderObject();
     if (box is! RenderBox) return;
-    final y = box.globalToLocal(details.globalPosition).dy;
+    final y = box.globalToLocal(position).dy;
     _scrollStep = y < 48
         ? -12
         : y > box.size.height - 48
@@ -646,134 +646,145 @@ class _ShoppingListScreenState extends State<ShoppingListScreen>
               : rows[i]['id'] as String,
         ): i,
     };
-    return ListView.builder(
-      key: _listKey,
-      controller: _listController,
-      padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
-      itemCount: rows.length,
-      // Preserve the drag recognizer when an item changes its sliver index.
-      findChildIndexCallback: (key) => rowIndices[key],
-      itemBuilder: (context, index) {
-        final item = rows[index];
-        if (item['completed'] == true) {
-          return const Divider(key: ValueKey('completed-section'), height: 24);
+    return Listener(
+      onPointerUp: _endPress,
+      onPointerCancel: _endPress,
+      onPointerMove: (event) {
+        if (_dragging && event.pointer == _holdPointer) {
+          _updateDragPosition(event.position);
         }
-        if (item.containsKey('heading')) {
-          final department = item['heading'] as String;
-          return DragTarget<String>(
-            key: ValueKey('department-$department'),
-            hitTestBehavior: HitTestBehavior.opaque,
-            onWillAcceptWithDetails: (details) =>
-                !_loading &&
-                !_disconnected &&
-                !_accessDenied &&
-                _items.any(
-                  (i) => i['id'] == details.data && i['checked'] != true,
+      },
+      child: ListView.builder(
+        key: _listKey,
+        controller: _listController,
+        padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+        itemCount: rows.length,
+        // Preserve the drag recognizer when an item changes its sliver index.
+        findChildIndexCallback: (key) => rowIndices[key],
+        itemBuilder: (context, index) {
+          final item = rows[index];
+          if (item['completed'] == true) {
+            return const Divider(
+              key: ValueKey('completed-section'),
+              height: 24,
+            );
+          }
+          if (item.containsKey('heading')) {
+            final department = item['heading'] as String;
+            return DragTarget<String>(
+              key: ValueKey('department-$department'),
+              hitTestBehavior: HitTestBehavior.opaque,
+              onWillAcceptWithDetails: (details) =>
+                  !_loading &&
+                  !_disconnected &&
+                  !_accessDenied &&
+                  _items.any(
+                    (i) => i['id'] == details.data && i['checked'] != true,
+                  ),
+              onAcceptWithDetails: (details) {
+                _dragFinished();
+                _dropItem(details.data, department);
+              },
+              builder: (context, candidates, rejected) => Container(
+                height: department.isEmpty
+                    ? 16
+                    : (MediaQuery.textScalerOf(context).scale(22) * 1.15 + 4)
+                          .clamp(30, double.infinity),
+                padding: const EdgeInsets.symmetric(horizontal: 4),
+                alignment: Alignment.centerLeft,
+                decoration: BoxDecoration(
+                  color: candidates.isEmpty ? null : colors.primaryContainer,
+                  borderRadius: BorderRadius.circular(8),
                 ),
-            onAcceptWithDetails: (details) {
-              _dragFinished();
-              _dropItem(details.data, department);
-            },
-            builder: (context, candidates, rejected) => Container(
-              height: department.isEmpty
-                  ? 16
-                  : (MediaQuery.textScalerOf(context).scale(22) * 1.15 + 4)
-                        .clamp(30, double.infinity),
-              padding: const EdgeInsets.symmetric(horizontal: 4),
-              alignment: Alignment.centerLeft,
-              decoration: BoxDecoration(
-                color: candidates.isEmpty ? null : colors.primaryContainer,
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Semantics(
-                header: department.isNotEmpty,
-                label: department.isEmpty ? 'No department' : null,
-                child: Text(
-                  department,
-                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    color: colors.primary,
-                    fontSize: 22,
-                    height: 1.15,
-                    fontWeight: FontWeight.w700,
+                child: Semantics(
+                  header: department.isNotEmpty,
+                  label: department.isEmpty ? 'No department' : null,
+                  child: Text(
+                    department,
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      color: colors.primary,
+                      fontSize: 22,
+                      height: 1.15,
+                      fontWeight: FontWeight.w700,
+                    ),
                   ),
                 ),
               ),
+            );
+          }
+          return LayoutBuilder(
+            key: ValueKey(item['id'] as String),
+            builder: (rowContext, constraints) => DragTarget<String>(
+              hitTestBehavior: HitTestBehavior.opaque,
+              onWillAcceptWithDetails: (details) =>
+                  !_loading &&
+                  !_disconnected &&
+                  !_accessDenied &&
+                  details.data != item['id'] &&
+                  _items.any(
+                    (i) =>
+                        i['id'] == details.data &&
+                        i['checked'] == item['checked'],
+                  ),
+              onAcceptWithDetails: (details) {
+                final box = rowContext.findRenderObject() as RenderBox;
+                final after =
+                    box.globalToLocal(_dragPosition ?? details.offset).dy >
+                    box.size.height / 2;
+                _dragFinished();
+                _dropItem(
+                  details.data,
+                  item['department'] as String,
+                  target: item['id'] as String,
+                  after: after,
+                );
+              },
+              builder: (context, candidates, rejected) {
+                final feedback = Material(
+                  color: Colors.transparent,
+                  child: SizedBox(
+                    width: constraints.maxWidth,
+                    child: IgnorePointer(child: _itemCard(item, true)),
+                  ),
+                );
+                final placeholder = Opacity(
+                  opacity: .3,
+                  child: _itemCard(item, true),
+                );
+                Widget source(bool touch, Widget child) => _ShoppingDragSource(
+                  touch: touch,
+                  data: item['id'] as String,
+                  maxSimultaneousDrags:
+                      _loading || _disconnected || _accessDenied ? 0 : 1,
+                  dragAnchorStrategy: (_, _, _) => _pressAnchor,
+                  onDragStarted: _dragStarted,
+                  onDragUpdate: _dragUpdated,
+                  onDragCompleted: _dragFinished,
+                  onDraggableCanceled: (_, _) => _dragFinished(),
+                  feedback: feedback,
+                  childWhenDragging: placeholder,
+                  child: child,
+                );
+                return Listener(
+                  behavior: HitTestBehavior.opaque,
+                  onPointerDown: (event) =>
+                      _pressItem(event, item['id'] as String, rowContext),
+                  onPointerMove: _movePress,
+                  onPointerUp: _endPress,
+                  onPointerCancel: _endPress,
+                  child: source(
+                    false,
+                    source(
+                      true,
+                      _itemCard(item, busy, highlighted: candidates.isNotEmpty),
+                    ),
+                  ),
+                );
+              },
             ),
           );
-        }
-        return LayoutBuilder(
-          key: ValueKey(item['id'] as String),
-          builder: (rowContext, constraints) => DragTarget<String>(
-            hitTestBehavior: HitTestBehavior.opaque,
-            onWillAcceptWithDetails: (details) =>
-                !_loading &&
-                !_disconnected &&
-                !_accessDenied &&
-                details.data != item['id'] &&
-                _items.any(
-                  (i) =>
-                      i['id'] == details.data &&
-                      i['checked'] == item['checked'],
-                ),
-            onAcceptWithDetails: (details) {
-              final box = rowContext.findRenderObject() as RenderBox;
-              final after =
-                  box.globalToLocal(_dragPosition ?? details.offset).dy >
-                  box.size.height / 2;
-              _dragFinished();
-              _dropItem(
-                details.data,
-                item['department'] as String,
-                target: item['id'] as String,
-                after: after,
-              );
-            },
-            builder: (context, candidates, rejected) {
-              final feedback = Material(
-                color: Colors.transparent,
-                child: SizedBox(
-                  width: constraints.maxWidth,
-                  child: IgnorePointer(child: _itemCard(item, true)),
-                ),
-              );
-              final placeholder = Opacity(
-                opacity: .3,
-                child: _itemCard(item, true),
-              );
-              Widget source(bool touch, Widget child) => _ShoppingDragSource(
-                touch: touch,
-                data: item['id'] as String,
-                maxSimultaneousDrags: _loading || _disconnected || _accessDenied
-                    ? 0
-                    : 1,
-                dragAnchorStrategy: (_, _, _) => _pressAnchor,
-                onDragStarted: _dragStarted,
-                onDragUpdate: _dragUpdated,
-                onDragCompleted: _dragFinished,
-                onDraggableCanceled: (_, _) => _dragFinished(),
-                feedback: feedback,
-                childWhenDragging: placeholder,
-                child: child,
-              );
-              return Listener(
-                behavior: HitTestBehavior.opaque,
-                onPointerDown: (event) =>
-                    _pressItem(event, item['id'] as String, rowContext),
-                onPointerMove: _movePress,
-                onPointerUp: _endPress,
-                onPointerCancel: _endPress,
-                child: source(
-                  false,
-                  source(
-                    true,
-                    _itemCard(item, busy, highlighted: candidates.isNotEmpty),
-                  ),
-                ),
-              );
-            },
-          ),
-        );
-      },
+        },
+      ),
     );
   }
 

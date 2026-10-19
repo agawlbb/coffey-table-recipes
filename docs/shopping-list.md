@@ -448,3 +448,15 @@ alerts, exhausted retries and neutral save text, retained drafts/cache, lost
 save responses with and without temporary verification failure, genuine
 concurrent edits, and cancellation on leaving. No app build was requested or
 produced for this change.
+
+
+Department order and drag scrolling correction (2026-10-18): empty departments
+now appear in the configured department order during a hold or drag, including
+between occupied departments. This supersedes the appended-target workaround
+above. Feedback still uses the original press anchor and stationary release
+cannot save a move. The list viewport tracks drag pointer movement so scrolling
+can reverse upward even after the source row has scrolled offscreen.
+
+Validation covers configured heading order during stationary mouse/touch holds,
+repeated department moves, and downward then upward edge scrolling within one
+drag. No app build was requested.

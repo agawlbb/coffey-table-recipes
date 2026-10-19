@@ -378,6 +378,10 @@ void main() {
     await gesture.moveTo(Offset(bounds.center.dx, bounds.bottom - 5));
     await tester.pump(const Duration(seconds: 1));
     expect(list.controller!.offset, greaterThan(0));
+    final downOffset = list.controller!.offset;
+    await gesture.moveTo(Offset(bounds.center.dx, bounds.top + 5));
+    await tester.pump(const Duration(milliseconds: 600));
+    expect(list.controller!.offset, lessThan(downOffset));
     await gesture.cancel();
     await tester.pumpAndSettle();
     final stoppedOffset = list.controller!.offset;
