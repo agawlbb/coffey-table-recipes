@@ -158,18 +158,18 @@ void main() {
         'Recipe source text',
       );
       await tester.ensureVisible(
-        find.textContaining(RegExp(r'^(Prepare|Update) recipe$')),
+        find.textContaining(RegExp(r'^(Prepare recipe|Continue)$')),
       );
       await tester.tap(
-        find.textContaining(RegExp(r'^(Prepare|Update) recipe$')),
+        find.textContaining(RegExp(r'^(Prepare recipe|Continue)$')),
       );
       await tester.pumpAndSettle();
       await tester.enterText(find.byType(TextField).first, '2 cups');
       await tester.ensureVisible(
-        find.textContaining(RegExp(r'^(Prepare|Update) recipe$')),
+        find.textContaining(RegExp(r'^(Prepare recipe|Continue)$')),
       );
       await tester.tap(
-        find.textContaining(RegExp(r'^(Prepare|Update) recipe$')),
+        find.textContaining(RegExp(r'^(Prepare recipe|Continue)$')),
       );
       await tester.pumpAndSettle();
       await tester.tap(find.text('Save recipe').first);
@@ -203,10 +203,10 @@ void main() {
           '$scheme://www.foodnetwork.com/recipes/tyler-florence/caramelized-onion-and-cornbread-stuffing-recipe3.html';
       await tester.enterText(find.byType(TextField).first, url);
       await tester.ensureVisible(
-        find.textContaining(RegExp(r'^(Prepare|Update) recipe$')),
+        find.textContaining(RegExp(r'^(Prepare recipe|Continue)$')),
       );
       await tester.tap(
-        find.textContaining(RegExp(r'^(Prepare|Update) recipe$')),
+        find.textContaining(RegExp(r'^(Prepare recipe|Continue)$')),
       );
       await tester.pumpAndSettle();
       expect(submitted?['kind'], 'website');
@@ -235,9 +235,11 @@ void main() {
     await tester.pumpAndSettle();
     await tester.enterText(find.byType(TextField).first, 'I make soup');
     await tester.ensureVisible(
-      find.textContaining(RegExp(r'^(Prepare|Update) recipe$')),
+      find.textContaining(RegExp(r'^(Prepare recipe|Continue)$')),
     );
-    await tester.tap(find.textContaining(RegExp(r'^(Prepare|Update) recipe$')));
+    await tester.tap(
+      find.textContaining(RegExp(r'^(Prepare recipe|Continue)$')),
+    );
     await tester.pumpAndSettle();
     expect(called, isTrue);
     expect(find.text('How much water?'), findsOneWidget);
@@ -278,10 +280,10 @@ void main() {
         'Soup with water',
       );
       await tester.ensureVisible(
-        find.textContaining(RegExp(r'^(Prepare|Update) recipe$')),
+        find.textContaining(RegExp(r'^(Prepare recipe|Continue)$')),
       );
       await tester.tap(
-        find.textContaining(RegExp(r'^(Prepare|Update) recipe$')),
+        find.textContaining(RegExp(r'^(Prepare recipe|Continue)$')),
       );
       await tester.pumpAndSettle();
       expect(find.text('Review recipe'), findsOneWidget);
@@ -340,10 +342,10 @@ void main() {
         );
         await tester.pumpAndSettle();
         await tester.ensureVisible(
-          find.textContaining(RegExp(r'^(Prepare|Update) recipe$')),
+          find.textContaining(RegExp(r'^(Prepare recipe|Continue)$')),
         );
         await tester.tap(
-          find.textContaining(RegExp(r'^(Prepare|Update) recipe$')),
+          find.textContaining(RegExp(r'^(Prepare recipe|Continue)$')),
         );
         await tester.pumpAndSettle();
         expect(sent?['kind'], camera ? 'camera' : 'file');
@@ -379,20 +381,34 @@ void main() {
       );
       await tester.enterText(find.byType(TextField).first, 'I make soup');
       await tester.ensureVisible(
-        find.textContaining(RegExp(r'^(Prepare|Update) recipe$')),
+        find.textContaining(RegExp(r'^(Prepare recipe|Continue)$')),
       );
       await tester.tap(
-        find.textContaining(RegExp(r'^(Prepare|Update) recipe$')),
+        find.textContaining(RegExp(r'^(Prepare recipe|Continue)$')),
       );
       await tester.pumpAndSettle();
       expect(find.text('How much water?'), findsOneWidget);
       expect(calls.length, 1);
+      final question = find.text('How much water?');
+      final questionPosition = tester.getTopLeft(question);
+      final questionStyle = tester.widget<Text>(question).style;
+      expect(
+        tester
+            .widget<TextField>(find.byType(TextField).first)
+            .decoration
+            ?.labelText,
+        isNull,
+      );
+      expect(find.text('Continue'), findsOneWidget);
       await tester.enterText(find.byType(TextField).first, '2 cups');
+      await tester.pump();
+      expect(tester.getTopLeft(question), questionPosition);
+      expect(tester.widget<Text>(question).style, questionStyle);
       await tester.ensureVisible(
-        find.textContaining(RegExp(r'^(Prepare|Update) recipe$')),
+        find.textContaining(RegExp(r'^(Prepare recipe|Continue)$')),
       );
       await tester.tap(
-        find.textContaining(RegExp(r'^(Prepare|Update) recipe$')),
+        find.textContaining(RegExp(r'^(Prepare recipe|Continue)$')),
       );
       await tester.pumpAndSettle();
       expect(find.text('Review recipe'), findsOneWidget);
@@ -413,9 +429,11 @@ void main() {
     );
     await tester.enterText(find.byType(TextField).first, 'My recipe');
     await tester.ensureVisible(
-      find.textContaining(RegExp(r'^(Prepare|Update) recipe$')),
+      find.textContaining(RegExp(r'^(Prepare recipe|Continue)$')),
     );
-    await tester.tap(find.textContaining(RegExp(r'^(Prepare|Update) recipe$')));
+    await tester.tap(
+      find.textContaining(RegExp(r'^(Prepare recipe|Continue)$')),
+    );
     await tester.pumpAndSettle();
     expect(find.text('AI unavailable'), findsOneWidget);
     expect(find.text('My recipe'), findsOneWidget);
@@ -447,9 +465,11 @@ void main() {
     await tester.tap(find.text('Choose PDF, image, or text file'));
     await tester.pumpAndSettle();
     await tester.ensureVisible(
-      find.textContaining(RegExp(r'^(Prepare|Update) recipe$')),
+      find.textContaining(RegExp(r'^(Prepare recipe|Continue)$')),
     );
-    await tester.tap(find.textContaining(RegExp(r'^(Prepare|Update) recipe$')));
+    await tester.tap(
+      find.textContaining(RegExp(r'^(Prepare recipe|Continue)$')),
+    );
     await tester.pumpAndSettle();
     expect(sent?['kind'], 'text');
     expect(sent?['text'], 'Recipe text');

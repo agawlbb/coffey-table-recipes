@@ -87,9 +87,9 @@ Future<void> choose(WidgetTester tester, String label) async {
   await tester.pumpAndSettle();
   await tester.tap(find.text(label));
   await tester.pumpAndSettle();
-  await tester.ensureVisible(find.text('Update recipe'));
+  await tester.ensureVisible(find.text('Continue'));
   await tester.pumpAndSettle();
-  await tester.tap(find.text('Update recipe'));
+  await tester.tap(find.text('Continue'));
   await tester.pumpAndSettle();
 }
 
@@ -127,8 +127,8 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('Which pressure release method?'), findsOneWidget);
     await tester.enterText(find.byType(TextField).last, 'Natural release');
-    await tester.ensureVisible(find.text('Update recipe'));
-    await tester.tap(find.text('Update recipe'));
+    await tester.ensureVisible(find.text('Continue'));
+    await tester.tap(find.text('Continue'));
     await tester.pumpAndSettle();
     final editor = tester.widget<RecipeEditor>(find.byType(RecipeEditor));
     expect(editor.recipe['parent_recipe_id'], '10');

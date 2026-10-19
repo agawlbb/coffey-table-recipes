@@ -89,9 +89,11 @@ void main() {
     await settleImage();
     expect(find.text('recipe-edited.png'), findsOneWidget);
     await tester.ensureVisible(
-      find.textContaining(RegExp(r'^(Prepare|Update) recipe$')),
+      find.textContaining(RegExp(r'^(Prepare recipe|Continue)$')),
     );
-    await tester.tap(find.textContaining(RegExp(r'^(Prepare|Update) recipe$')));
+    await tester.tap(
+      find.textContaining(RegExp(r'^(Prepare recipe|Continue)$')),
+    );
     await tester.pumpAndSettle();
     await tester.runAsync(() async {
       final codec = await ui.instantiateImageCodec(
@@ -148,7 +150,12 @@ void main() {
       );
       await tester.pumpAndSettle();
       Future<void> expand(String label) async {
-        final target = find.descendant(of:find.byType(ExpansionTile),matching:find.text(label)).last;
+        final target = find
+            .descendant(
+              of: find.byType(ExpansionTile),
+              matching: find.text(label),
+            )
+            .last;
         await tester.ensureVisible(target);
         final tile = tester.widget<ExpansionTile>(
           find.ancestor(of: target, matching: find.byType(ExpansionTile)).first,

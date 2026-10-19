@@ -823,16 +823,26 @@ class _RecipeImportState extends State<RecipeImport> {
                   )
                     Padding(
                       padding: const EdgeInsets.only(top: 16),
-                      child: TextField(
-                        controller: _answerFields[i],
-                        enabled: !_busy,
-                        minLines: 1,
-                        maxLines: 4,
-                        maxLength: 4000,
-                        decoration: InputDecoration(
-                          labelText: _questions[i],
-                          border: const OutlineInputBorder(),
-                        ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(_questions[i]),
+                          const SizedBox(height: 8),
+                          Semantics(
+                            label: _questions[i],
+                            child: TextField(
+                              controller: _answerFields[i],
+                              enabled: !_busy,
+                              minLines: 1,
+                              maxLines: 4,
+                              maxLength: 4000,
+                              decoration: const InputDecoration(
+                                hintText: 'Your answer',
+                                border: OutlineInputBorder(),
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
                     ),
                   if (_questions.isNotEmpty && !_requiresMethodChoice)
@@ -882,7 +892,7 @@ class _RecipeImportState extends State<RecipeImport> {
                               _questions.isEmpty
                         ? 'Review recipe'
                         : _draft != null && !_editingSource
-                        ? 'Update recipe'
+                        ? 'Continue'
                         : 'Prepare recipe',
                   ),
                 ),
