@@ -1151,6 +1151,17 @@ class _RecipeDetailState extends State<RecipeDetail> {
       }
     } catch (error) {
       if (mounted) {
+        if (_recipe != null && isTemporaryCommunicationFailure(error)) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: const Text(
+                'Could not refresh this recipe. Showing the last loaded version.',
+              ),
+              action: SnackBarAction(label: 'Retry', onPressed: _load),
+            ),
+          );
+          return;
+        }
         setState(() {
           _error = error is ApiException
               ? error.message

@@ -109,6 +109,7 @@ class _RecipeImportState extends State<RecipeImport> {
   String _kind = 'text';
   XFile? _file;
   bool _busy = false;
+  bool _retryingImport = false;
   bool _leaving = false;
   bool _editingSource = false;
   String? _error;
@@ -344,9 +345,16 @@ class _RecipeImportState extends State<RecipeImport> {
           body['file_base64'] = base64Encode(bytes);
         }
       }
-      final data = await widget.request(
-        '/households/${widget.householdId}/recipe-import',
-        body,
+      final data = await retryCommunication(
+        () => widget.request(
+          '/households/${widget.householdId}/recipe-import',
+          body,
+        ),
+        delays: const [Duration(seconds: 2)],
+        active: () => mounted,
+        onRetry: () {
+          if (mounted) setState(() => _retryingImport = true);
+        },
       );
       if (!mounted) return;
       final rawQuestions = data['questions'];
@@ -472,7 +480,12 @@ class _RecipeImportState extends State<RecipeImport> {
         );
       }
     } finally {
-      if (mounted) setState(() => _busy = false);
+      if (mounted) {
+        setState(() {
+          _busy = false;
+          _retryingImport = false;
+        });
+      }
     }
   }
 
@@ -659,6 +672,13 @@ class _RecipeImportState extends State<RecipeImport> {
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 const SizedBox(height: 12),
+                if (_retryingImport)
+                  const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 12),
+                    child: Text(
+                      'The connection was interrupted. Retrying recipe preparation…',
+                    ),
+                  ),
                 if (offlineStatus.value)
                   const Padding(
                     padding: EdgeInsets.symmetric(vertical: 12),

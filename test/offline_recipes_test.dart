@@ -678,7 +678,7 @@ void main() {
     },
   );
 
-  for (final status in [401, 403, 404, 500]) {
+  for (final status in [401, 403, 404]) {
     test('HTTP $status is surfaced instead of stale cache', () async {
       final initial = cache();
       await initial.request('$root/1');
@@ -698,6 +698,29 @@ void main() {
       }
     });
   }
+
+  for (final status in [408, 500, 502, 503, 504]) {
+    test(
+      'HTTP $status preserves saved recipe reads during an outage',
+      () async {
+        await cache().request('$root/1');
+        final failing = cache(
+          fetch: (_) async => throw ApiException(status, 'Temporary outage'),
+        );
+        final saved = await failing.request('$root/1');
+        expect(saved['recipe']['id'], '1');
+        expect(offlineStatus.value, isTrue);
+      },
+    );
+  }
+
+  test('temporary server errors without cached data still fail', () async {
+    await expectLater(
+      cache(fetch: (_) async => throw ApiException(503, 'Unavailable'))
+          .request('$root/99'),
+      throwsA(isA<ApiException>()),
+    );
+  });
 
   test('interrupted sync preserves the last complete index', () async {
     await cache().sync(['1']);

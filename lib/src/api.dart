@@ -9,6 +9,38 @@ bool isOfflineFailure(Object error) =>
     error is http.ClientException ||
     (error is FirebaseAuthException && error.code == 'network-request-failed');
 
+bool isTemporaryCommunicationFailure(Object error) =>
+    isOfflineFailure(error) ||
+    (error is ApiException && [408, 500, 502, 503, 504].contains(error.status));
+
+/// Only use for reads or operations that prepare an unsaved draft.
+/// Writes must handle a lost success response without blindly replaying it.
+Future<T> retryCommunication<T>(
+  Future<T> Function() request, {
+  List<Duration> delays = const [
+    Duration(milliseconds: 500),
+    Duration(milliseconds: 1500),
+  ],
+  Future<void> Function(Duration) wait = Future<void>.delayed,
+  bool Function()? active,
+  void Function()? onRetry,
+}) async {
+  for (var attempt = 0; ; attempt++) {
+    try {
+      return await request();
+    } catch (error) {
+      if (!isTemporaryCommunicationFailure(error) ||
+          attempt >= delays.length ||
+          active?.call() == false) {
+        rethrow;
+      }
+      onRetry?.call();
+      await wait(delays[attempt]);
+      if (active?.call() == false) rethrow;
+    }
+  }
+}
+
 final apiBaseUrl = resolveApiBaseUrl(
   override: const String.fromEnvironment('API_BASE_URL'),
 );
@@ -34,6 +66,23 @@ class RecipeApi {
     String token, {
     Map<String, dynamic>? body,
     Duration timeout = const Duration(seconds: 20),
+  }) async {
+    if (body == null) {
+      return retryCommunication(
+        () => _requestOnce(path, token, timeout: timeout),
+        active: () => !_closed,
+      );
+    }
+    return _requestOnce(path, token, body: body, timeout: timeout);
+  }
+
+  bool _closed = false;
+
+  Future<Map<String, dynamic>> _requestOnce(
+    String path,
+    String token, {
+    Map<String, dynamic>? body,
+    required Duration timeout,
   }) async {
     final uri = Uri.parse('$baseUrl$path');
     final headers = {
@@ -89,7 +138,10 @@ class RecipeApi {
     return body['service'] as String;
   }
 
-  void close() => _client.close();
+  void close() {
+    _closed = true;
+    _client.close();
+  }
 }
 
 class ApiException implements Exception {

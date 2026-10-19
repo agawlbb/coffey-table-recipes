@@ -86,12 +86,16 @@ class OfflineRecipes with WidgetsBindingObserver {
       offlineStatus.value = false;
       _reconnect?.call();
     } catch (error) {
-      if (!_closed && error is ApiException) {
+      if (!_closed &&
+          error is ApiException &&
+          !isTemporaryCommunicationFailure(error)) {
         offlineStatus.value = false;
         await _invalidate('/me', error.status);
         _reconnect?.call();
       }
-      if (!_closed && isOfflineFailure(error)) offlineStatus.value = true;
+      if (!_closed && isTemporaryCommunicationFailure(error)) {
+        offlineStatus.value = true;
+      }
     } finally {
       _probing = false;
     }
@@ -402,7 +406,13 @@ class OfflineRecipes with WidgetsBindingObserver {
       }
       return data;
     } on ApiException catch (error) {
-      // Authorization, deletion and server errors must never become cache hits.
+      if (isTemporaryCommunicationFailure(error)) {
+        if (!_closed) offlineStatus.value = true;
+        final cached = _cacheable(path) ? _cached(path) : null;
+        if (cached != null) return cached;
+        rethrow;
+      }
+      // Authorization and deletion must never become cache hits.
       if (!_closed) offlineStatus.value = false;
       await _invalidate(path, error.status);
       rethrow;

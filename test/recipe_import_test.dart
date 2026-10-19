@@ -27,6 +27,42 @@ Map<String, dynamic> draft(List<String> questions) => {
 };
 
 void main() {
+  testWidgets(
+    'temporary import failure retries without losing clarification answers',
+    (tester) async {
+      var calls = 0;
+      await tester.pumpWidget(
+        MaterialApp(
+          home: RecipeImport(
+            householdId: '2',
+            request: (_, body) async {
+              calls++;
+              if (body['kind'] != 'answers') return draft(['How much water?']);
+              expect((body['answers'] as List).first['answer'], '2 cups');
+              if (calls == 2) throw ApiException(503, 'Temporary outage');
+              return draft([]);
+            },
+          ),
+        ),
+      );
+      await tester.enterText(find.byType(TextField).first, 'I make soup');
+      await tester.ensureVisible(find.text('Prepare recipe'));
+      await tester.tap(find.text('Prepare recipe'));
+      await tester.pumpAndSettle();
+      await tester.enterText(find.byType(TextField).first, '2 cups');
+      await tester.ensureVisible(find.text('Continue'));
+      await tester.tap(find.text('Continue'));
+      await tester.pump();
+      expect(
+        find.textContaining('Retrying recipe preparation'),
+        findsOneWidget,
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('Review recipe'), findsOneWidget);
+      expect(calls, 3);
+      expect(find.text('Temporary outage'), findsNothing);
+    },
+  );
   for (final failure in <Object>[
     TimeoutException('test timeout'),
     http.ClientException('test DNS failure'),

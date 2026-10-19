@@ -4,6 +4,69 @@ import 'package:http/testing.dart';
 import 'package:coffey_table_recipes/src/api.dart';
 
 void main() {
+  test('safe reads recover from a brief server failure', () async {
+    var calls = 0;
+    final api = RecipeApi(
+      baseUrl: 'https://example.test',
+      client: MockClient(
+        (_) async => ++calls == 1
+            ? http.Response('Unavailable', 503)
+            : http.Response('{"recipes":[]}', 200),
+      ),
+    );
+    addTearDown(api.close);
+    expect(await api.request('/recipes', ''), {'recipes': []});
+    expect(calls, 2);
+  });
+
+  test('mutations are never automatically replayed', () async {
+    var calls = 0;
+    final api = RecipeApi(
+      baseUrl: 'https://example.test',
+      client: MockClient((_) async {
+        calls++;
+        throw http.ClientException('Lost response');
+      }),
+    );
+    addTearDown(api.close);
+    await expectLater(api.request('/recipes', '', body: {}), throwsException);
+    expect(calls, 1);
+  });
+
+  test(
+    'communication retries are bounded and skip authorization errors',
+    () async {
+      for (final status in [401, 403, 404, 409, 422, 503]) {
+        var calls = 0;
+        await expectLater(
+          retryCommunication(() async {
+            calls++;
+            throw ApiException(status, 'Failure');
+          }, wait: (_) async {}),
+          throwsA(isA<ApiException>()),
+        );
+        expect(calls, status == 503 ? 3 : 1);
+      }
+    },
+  );
+
+  test('disposed callers stop communication retries', () async {
+    var active = true, calls = 0;
+    await expectLater(
+      retryCommunication(
+        () async {
+          calls++;
+          throw ApiException(503, 'Unavailable');
+        },
+        active: () => active,
+        wait: (_) async {
+          active = false;
+        },
+      ),
+      throwsA(isA<ApiException>()),
+    );
+    expect(calls, 1);
+  });
   for (final status in [401, 406, 502, 504]) {
     test(
       'HTML failure preserves HTTP $status without leaking the page',

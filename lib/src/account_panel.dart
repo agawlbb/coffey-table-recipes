@@ -450,7 +450,10 @@ class _HouseholdPanelState extends State<HouseholdPanel> {
     Map<String, dynamic>? body,
   }) async {
     if (widget.request != null) return widget.request!(path, body: body);
-    if (body != null && _offline != null && offlineStatus.value) {
+    if (body != null &&
+        _offline != null &&
+        offlineStatus.value &&
+        !path.endsWith('/recipe-import')) {
       throw ApiException(
         503,
         'Changes require an internet connection. Reconnect and try again.',
