@@ -3,6 +3,69 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:coffey_table_recipes/src/shopping_list.dart';
 
 void main() {
+  testWidgets('double tap edits inline without completing or moving the item', (
+    tester,
+  ) async {
+    var items = <Map<String, dynamic>>[
+      {'id': 'milk', 'name': 'Milk', 'department': 'Dairy', 'checked': false},
+    ];
+    var writes = 0;
+    await tester.pumpWidget(
+      MaterialApp(
+        home: ShoppingListScreen(
+          householdId: '7',
+          householdName: 'Our table',
+          request: (path, {body}) async {
+            if (body != null) {
+              writes++;
+              items = List<Map<String, dynamic>>.from(body['items'] as List);
+            }
+            return {
+              'revision': writes,
+              'departments': ['Produce', 'Dairy'],
+              'items': items,
+            };
+          },
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    Future<void> edit() async {
+      await tester.tap(find.text(items.single['name'] as String));
+      await tester.pump(const Duration(milliseconds: 80));
+      await tester.tap(find.text(items.single['name'] as String));
+      await tester.pumpAndSettle();
+    }
+
+    await edit();
+    final field = find.byKey(const ValueKey('edit-milk'));
+    expect(tester.widget<TextField>(field).focusNode!.hasFocus, isTrue);
+    expect(tester.testTextInput.isVisible, isTrue);
+    expect(writes, 0);
+    await tester.enterText(field, 'Whole milk');
+    await tester.testTextInput.receiveAction(TextInputAction.done);
+    await tester.pumpAndSettle();
+    expect(items.single, {
+      'id': 'milk',
+      'name': 'Whole milk',
+      'department': 'Dairy',
+      'checked': false,
+    });
+    expect(writes, 1);
+    await edit();
+    await tester.enterText(field, '   ');
+    await tester.testTextInput.receiveAction(TextInputAction.done);
+    await tester.pumpAndSettle();
+    expect(items.single['name'], 'Whole milk');
+    expect(writes, 1);
+    await edit();
+    await tester.enterText(field, 'Oat milk');
+    await tester.tap(find.byTooltip('Add item'));
+    await tester.pumpAndSettle();
+    expect(items.single['name'], 'Oat milk');
+    await tester.pumpWidget(const SizedBox());
+  });
+
   testWidgets('Add item stays visible and usable with a phone keyboard', (
     tester,
   ) async {
@@ -94,6 +157,7 @@ void main() {
       );
       expect(find.text('Milk'), findsOneWidget);
       await tester.tap(find.text('Milk'));
+      await tester.pump(const Duration(milliseconds: 350));
       await tester.pumpAndSettle();
       final text = tester.widget<Text>(find.text('Milk'));
       expect(text.style?.decoration, TextDecoration.lineThrough);
@@ -106,12 +170,14 @@ void main() {
         ),
       );
       await tester.tap(find.text('Milk'));
+      await tester.pump(const Duration(milliseconds: 350));
       await tester.pumpAndSettle();
       expect(find.byType(AlertDialog), findsNothing);
       expect(find.text('Shopping item'), findsNothing);
       expect(items.single['department'], '');
       expect(items.single['checked'], false);
       await tester.tap(find.text('Milk'));
+      await tester.pump(const Duration(milliseconds: 350));
       await tester.pumpAndSettle();
       await tester.tap(find.text('Remove checked off'));
       await tester.pumpAndSettle();
@@ -210,6 +276,7 @@ void main() {
       expect(heading.style!.fontWeight, FontWeight.w700);
       expect(find.byType(Checkbox), findsNothing);
       await tester.tap(find.text('Apples'));
+      await tester.pump(const Duration(milliseconds: 350));
       await tester.pumpAndSettle();
       expect(
         tester.getTopLeft(find.text('Apples')).dy,
@@ -217,6 +284,7 @@ void main() {
       );
       expect(items.first['department'], 'Produce');
       await tester.tap(find.text('Butter'));
+      await tester.pump(const Duration(milliseconds: 350));
       await tester.pumpAndSettle();
       for (final name in ['Apples', 'Butter']) {
         expect(
@@ -243,6 +311,7 @@ void main() {
       expect(find.text('Dairy'), findsNothing);
       expect(find.text('Apples'), findsOneWidget);
       await tester.tap(find.text('Apples'));
+      await tester.pump(const Duration(milliseconds: 350));
       await tester.pumpAndSettle();
       expect(find.text('Produce'), findsOneWidget);
       expect(

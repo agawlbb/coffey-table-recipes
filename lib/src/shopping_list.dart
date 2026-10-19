@@ -52,6 +52,39 @@ class _ShoppingListScreenState extends State<ShoppingListScreen>
     with WidgetsBindingObserver {
   final _name = TextEditingController();
   final _focus = FocusNode();
+  final _editName = TextEditingController();
+  final _editFocus = FocusNode();
+  String? _editingId;
+
+  void _editFocusChanged() {
+    if (!_editFocus.hasFocus) _finishEditing();
+  }
+
+  void _startEditing(Map<String, dynamic> item) {
+    if (_heldItemId == item['id']) return;
+    _finishEditing();
+    _editName.text = item['name'] as String;
+    _editName.selection = TextSelection(
+      baseOffset: 0,
+      extentOffset: _editName.text.length,
+    );
+    setState(() => _editingId = item['id'] as String);
+    _editFocus.requestFocus();
+  }
+
+  void _finishEditing() {
+    final id = _editingId;
+    if (id == null) return;
+    final name = _editName.text.trim();
+    setState(() => _editingId = null);
+    _editFocus.unfocus();
+    final item = _items.where((i) => i['id'] == id).firstOrNull;
+    if (item == null || name.isEmpty || name == item['name']) return;
+    _save([
+      for (final i in _items) i['id'] == id ? {...i, 'name': name} : i,
+    ]);
+  }
+
   List<Map<String, dynamic>> _items = [];
   List<Map<String, dynamic>> _confirmedItems = [];
   final _writes =
@@ -87,6 +120,7 @@ class _ShoppingListScreenState extends State<ShoppingListScreen>
   @override
   void initState() {
     super.initState();
+    _editFocus.addListener(_editFocusChanged);
     WidgetsBinding.instance.addObserver(this);
     _restoreCache();
     if (widget.active) _load();
@@ -232,7 +266,9 @@ class _ShoppingListScreenState extends State<ShoppingListScreen>
   }
 
   Future<void> _load() async {
-    if (_saving || _reading || _dragging || _holding) return;
+    if (_saving || _reading || _dragging || _holding || _editingId != null) {
+      return;
+    }
     _reading = true;
     final generation = _saveGeneration;
     try {
@@ -240,7 +276,10 @@ class _ShoppingListScreenState extends State<ShoppingListScreen>
       if (!mounted) return;
       final firstResponse = !_serverLoaded;
       _serverLoaded = true;
-      if (!_saving && !_dragging && generation == _saveGeneration) {
+      if (!_saving &&
+          !_dragging &&
+          _editingId == null &&
+          generation == _saveGeneration) {
         final changed =
             firstResponse || _loading || data['revision'] != _revision;
         if (changed || _disconnected || _accessDenied || _error != null) {
@@ -429,6 +468,9 @@ class _ShoppingListScreenState extends State<ShoppingListScreen>
     _autoScroll?.cancel();
     _listController.dispose();
     WidgetsBinding.instance.removeObserver(this);
+    _editFocus.removeListener(_editFocusChanged);
+    _editFocus.dispose();
+    _editName.dispose();
     _name.dispose();
     _focus.dispose();
     super.dispose();
@@ -458,7 +500,8 @@ class _ShoppingListScreenState extends State<ShoppingListScreen>
   ];
 
   void _pressItem(PointerDownEvent event, String id, BuildContext rowContext) {
-    if (_loading ||
+    if (_editingId == id ||
+        _loading ||
         _disconnected ||
         _accessDenied ||
         event.buttons != kPrimaryButton ||
@@ -602,32 +645,58 @@ class _ShoppingListScreenState extends State<ShoppingListScreen>
           ),
           clipBehavior: Clip.antiAlias,
           color: highlighted ? colors.primaryContainer : null,
-          child: InkWell(
-            onTap: busy
-                ? null
-                : () {
-                    if (_heldItemId == item['id']) return;
-                    _save([
-                      for (final i in _items)
-                        i['id'] == item['id'] ? {...i, 'checked': !checked} : i,
-                    ]);
-                  },
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-              child: Align(
-                alignment: Alignment.centerLeft,
-                child: Text(
-                  item['name'] as String,
-                  style: TextStyle(
-                    decoration: checked
-                        ? TextDecoration.lineThrough
-                        : TextDecoration.none,
-                    color: checked ? colors.onSurfaceVariant : colors.onSurface,
+          child: _editingId == item['id'] && !busy
+              ? Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 4,
+                  ),
+                  child: TextField(
+                    key: ValueKey('edit-${item['id']}'),
+                    controller: _editName,
+                    focusNode: _editFocus,
+                    autofocus: true,
+                    textCapitalization: TextCapitalization.sentences,
+                    textInputAction: TextInputAction.done,
+                    decoration: const InputDecoration(border: InputBorder.none),
+                    onSubmitted: (_) => _finishEditing(),
+                    onTapOutside: (_) => _finishEditing(),
+                  ),
+                )
+              : InkWell(
+                  onDoubleTap: busy ? null : () => _startEditing(item),
+                  onTap: busy
+                      ? null
+                      : () {
+                          if (_heldItemId == item['id']) return;
+                          _save([
+                            for (final i in _items)
+                              i['id'] == item['id']
+                                  ? {...i, 'checked': !checked}
+                                  : i,
+                          ]);
+                        },
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 14,
+                    ),
+                    child: Align(
+                      alignment: Alignment.centerLeft,
+                      child: Text(
+                        item['name'] as String,
+                        style: TextStyle(
+                          decoration: checked
+                              ? TextDecoration.lineThrough
+                              : TextDecoration.none,
+                          color: checked
+                              ? colors.onSurfaceVariant
+                              : colors.onSurface,
+                        ),
+                      ),
+                    ),
                   ),
                 ),
-              ),
-            ),
-          ),
         ),
       ),
     );
@@ -755,7 +824,12 @@ class _ShoppingListScreenState extends State<ShoppingListScreen>
                   touch: touch,
                   data: item['id'] as String,
                   maxSimultaneousDrags:
-                      _loading || _disconnected || _accessDenied ? 0 : 1,
+                      _editingId == item['id'] ||
+                          _loading ||
+                          _disconnected ||
+                          _accessDenied
+                      ? 0
+                      : 1,
                   dragAnchorStrategy: (_, _, _) => _pressAnchor,
                   onDragStarted: _dragStarted,
                   onDragUpdate: _dragUpdated,

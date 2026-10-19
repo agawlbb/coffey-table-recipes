@@ -148,6 +148,7 @@ void main() {
       kind: PointerDeviceKind.mouse,
     );
     await click.up();
+    await tester.pump(const Duration(milliseconds: 350));
     await tester.pumpAndSettle();
     expect(items.single['checked'], true);
     await tester.pumpWidget(const SizedBox());

@@ -460,3 +460,16 @@ can reverse upward even after the source row has scrolled offscreen.
 Validation covers configured heading order during stationary mouse/touch holds,
 repeated department moves, and downward then upward edge scrolling within one
 drag. No app build was requested.
+
+
+Inline item editing (2026-10-18): double-tapping an item replaces its label with
+a focused text input and requests the device keyboard. Done, focus loss, or a
+tap outside saves a trimmed nonempty name using the existing shared-list save
+queue. Blank or unchanged edits leave the item untouched. Renaming preserves
+its ID, department, position and completion state. Poll refreshes defer while
+editing, and the edited row cannot start a drag. Single taps still toggle
+completion after the double-tap recognition window; holds still move items.
+
+Validation includes inline keyboard focus, no completion/save on double tap,
+Done and outside-tap saves, blank-edit handling and existing drag/tap checks.
+No app build was requested.
