@@ -47,6 +47,11 @@ When the user says "create a release", review progress since the previous releas
 
 `CHANGELOG.md` covers previous releases using Git history, tags, and the release records below. Every future release must update it with the version, release date, and meaningful changes since the prior release. Commit the changelog before tagging the release. Describe only changes supported by the project history.
 
+## 1.8.3 — shopping editing and communication recovery
+
+Explicitly requested version `1.8.3+27`, tag `v1.8.3`, releases main. Both repositories were clean and all local branches/tags were pushed and synchronized before release preparation. The only additional remote branch, `codex/fancontrol-watch-testflight`, remains unrelated to CFR and untouched under the owner's standing clarification. Backend main is unchanged at `6934f4592a6ab3b9b5778ee60b4e568f6e0ab40d`; no backend runtime deployment or migration is included. The changelog records four app changes since 1.8.2. Native code, dependencies, encryption behavior and signing identity are unchanged; retain exempt-encryption metadata and the France distribution exclusion.
+
+Pre-release verification: analysis passed, all 353 Flutter tests passed, all 13 iOS configuration/distribution checks passed, and four Apple JWT/status/certificate-guard tests passed. Platform deliveries and installed native-link validation follow as verified.
 ## 1.8.2 — recipe shopping selection and refinements
 
 Explicitly requested version `1.8.2+26`, tag `v1.8.2`, releases main. Both repositories' local branches and tags were pushed and synchronized before release preparation. The owner clarified that branches unrelated to CFR are outside release scope; remote `codex/fancontrol-watch-testflight` changes only an isolated Fan Control Watch workflow and is retained unchanged. Backend main remains `6934f4592a6ab3b9b5778ee60b4e568f6e0ab40d` with no runtime changes or migrations. Changelog entries reflect changes since 1.8.1. Native source, dependencies and encryption behavior are unchanged, retaining the exempt-encryption declaration and France exclusion.

@@ -2,6 +2,14 @@
 
 Release dates and changes are reconstructed from annotated Git tags, commit history, and project release records. Versions before 1.0 are demonstration releases; 1.0 marks the first usable release. Android retains the existing signing identity; iOS delivery and signing are recorded for each release.
 
+## 1.8.3 — 2026-10-18
+
+Build 27; tag `v1.8.3`.
+
+- Edit shopping item names inline with a double tap.
+- Keep department drop targets ordered and correct shopping-list drag scrolling.
+- Keep importer questions above their answer fields and label the next action Continue.
+- Recover from brief server failures without discarding recipe work; retry safe reads and preserve pending edits and cached recipes.
 ## 1.8.2 — 2026-10-18
 
 Build 26; tag `v1.8.2`.
