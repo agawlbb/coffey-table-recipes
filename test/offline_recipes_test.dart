@@ -102,6 +102,23 @@ void main() {
     offlineStatus.value = false;
   });
 
+  test('persistent rate limiting stops the background download pass', () async {
+    var details = 0;
+    final c = cache(
+      fetch: (path) async {
+        if (RegExp(r'/recipes/\d+$').hasMatch(path)) {
+          details++;
+          throw ApiException(429, 'Updates are temporarily paused.');
+        }
+        return server(path);
+      },
+    );
+    addTearDown(c.close);
+    await c.sync(['1']);
+    expect(details, 3);
+    expect(fetched.any((path) => path.contains('tree=1')), isFalse);
+  });
+
   test(
     'saved blank filter returns only blanks before pagination and grouping',
     () async {

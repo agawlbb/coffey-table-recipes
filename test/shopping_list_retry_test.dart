@@ -7,6 +7,58 @@ import 'package:flutter_test/flutter_test.dart';
 import 'shopping_list_cache_test.dart' show memoryCache, screen, snapshot;
 
 void main() {
+  testWidgets('opening a throttled list keeps cache and retries quietly', (
+    tester,
+  ) async {
+    final cache = memoryCache(<String, String>{});
+    await cache.save(snapshot(1, 'Cached milk'));
+    var attempts = 0;
+    await tester.pumpWidget(
+      screen(cache, (path, {body}) async {
+        if (++attempts < 2) {
+          throw ApiException(
+            429,
+            'HTTP 429',
+            retryAfter: const Duration(seconds: 30),
+          );
+        }
+        return snapshot(2, 'Fresh milk');
+      }),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('Cached milk'), findsOneWidget);
+    expect(find.textContaining('HTTP 429'), findsNothing);
+    await tester.pump(const Duration(seconds: 29));
+    expect(attempts, 1);
+    expect(find.text('Offline'), findsNothing);
+    await tester.pump(const Duration(seconds: 1));
+    await tester.pumpAndSettle();
+    expect(attempts, 2);
+    expect(find.text('Fresh milk'), findsOneWidget);
+    await tester.pumpWidget(const SizedBox());
+  });
+
+  testWidgets('persistent throttling has a quiet paused indicator', (
+    tester,
+  ) async {
+    final cache = memoryCache(<String, String>{});
+    await cache.save(snapshot(1, 'Cached milk'));
+    await tester.pumpWidget(
+      screen(cache, (path, {body}) async {
+        throw ApiException(429, 'HTTP 429');
+      }),
+    );
+    await tester.pumpAndSettle();
+    await tester.pump(const Duration(seconds: 30));
+    await tester.pump(const Duration(seconds: 30));
+    await tester.pumpAndSettle();
+    expect(find.text('Updates paused'), findsOneWidget);
+    expect(find.text('Offline'), findsNothing);
+    expect(find.textContaining('HTTP'), findsNothing);
+    expect(find.text('Cached milk'), findsOneWidget);
+    await tester.pumpWidget(const SizedBox());
+  });
+
   testWidgets('brief refresh failures recover without a user alert', (
     tester,
   ) async {

@@ -105,6 +105,7 @@ class _ShoppingListScreenState extends State<ShoppingListScreen>
   bool _loading = true, _saving = false, _reading = false;
   bool _dragging = false;
   bool _routeVisible = false;
+  bool _rateLimited = false;
   bool _disconnected = false, _accessDenied = false, _serverLoaded = false;
   final _listController = ScrollController();
   final _listKey = GlobalKey();
@@ -203,7 +204,10 @@ class _ShoppingListScreenState extends State<ShoppingListScreen>
   }
 
   bool _connectionFailure(Object error) =>
-      error is! ApiException || error.status >= 500 || error.status == 408;
+      error is! ApiException ||
+      error.status >= 500 ||
+      error.status == 408 ||
+      error.status == 429;
 
   Future<bool> _retryDelay(Duration delay) {
     final done = Completer<bool>();
@@ -257,8 +261,10 @@ class _ShoppingListScreenState extends State<ShoppingListScreen>
           }
         }
         if (!retryable || attempt >= 2) rethrow;
-        if (!await _retryDelay(Duration(seconds: attempt == 0 ? 2 : 4)) ||
-            !mounted) {
+        final delay = error is ApiException && error.status == 429
+            ? error.retryAfter ?? const Duration(seconds: 30)
+            : Duration(seconds: attempt == 0 ? 2 : 4);
+        if (!await _retryDelay(delay) || !mounted) {
           throw const _ShoppingRequestCancelled();
         }
       }
@@ -286,6 +292,7 @@ class _ShoppingListScreenState extends State<ShoppingListScreen>
           setState(() {
             if (changed) _accept(data);
             _disconnected = false;
+            _rateLimited = false;
             _accessDenied = false;
             if (!_saveNotice) _error = null;
           });
@@ -295,7 +302,10 @@ class _ShoppingListScreenState extends State<ShoppingListScreen>
     } catch (error) {
       if (!mounted) return;
       if (_connectionFailure(error)) {
-        if (!_disconnected) setState(() => _disconnected = true);
+        setState(() {
+          _disconnected = true;
+          _rateLimited = error is ApiException && error.status == 429;
+        });
       } else {
         final denied =
             error is ApiException && [401, 403, 404].contains(error.status);
@@ -905,7 +915,7 @@ class _ShoppingListScreenState extends State<ShoppingListScreen>
                               ),
                               const SizedBox(width: 4),
                               Text(
-                                'Offline',
+                                _rateLimited ? 'Updates paused' : 'Offline',
                                 style: Theme.of(context).textTheme.labelSmall
                                     ?.copyWith(color: colors.onSurfaceVariant),
                               ),

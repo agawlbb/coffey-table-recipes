@@ -11,7 +11,8 @@ bool isOfflineFailure(Object error) =>
 
 bool isTemporaryCommunicationFailure(Object error) =>
     isOfflineFailure(error) ||
-    (error is ApiException && [408, 500, 502, 503, 504].contains(error.status));
+    (error is ApiException &&
+        [408, 429, 500, 502, 503, 504].contains(error.status));
 
 /// Only use for reads or operations that prepare an unsaved draft.
 /// Writes must handle a lost success response without blindly replaying it.
@@ -35,7 +36,12 @@ Future<T> retryCommunication<T>(
         rethrow;
       }
       onRetry?.call();
-      await wait(delays[attempt]);
+      final delay = delays[attempt];
+      final cooldown = error is ApiException
+          ? error.retryAfter ??
+                (error.status == 429 ? const Duration(seconds: 30) : null)
+          : null;
+      await wait(cooldown != null && cooldown > delay ? cooldown : delay);
       if (active?.call() == false) rethrow;
     }
   }
@@ -77,6 +83,7 @@ class RecipeApi {
   }
 
   bool _closed = false;
+  DateTime? _limitedUntil;
 
   Future<Map<String, dynamic>> _requestOnce(
     String path,
@@ -84,6 +91,14 @@ class RecipeApi {
     Map<String, dynamic>? body,
     required Duration timeout,
   }) async {
+    final remaining = _limitedUntil?.difference(DateTime.now());
+    if (remaining != null && remaining > Duration.zero) {
+      throw ApiException(
+        429,
+        'Updates are temporarily paused. We’ll try again shortly.',
+        retryAfter: remaining,
+      );
+    }
     final uri = Uri.parse('$baseUrl$path');
     final headers = {
       if (token.isNotEmpty) 'Authorization': 'Bearer $token',
@@ -94,6 +109,11 @@ class RecipeApi {
                 ? _client.get(uri, headers: headers)
                 : _client.post(uri, headers: headers, body: jsonEncode(body)))
             .timeout(timeout);
+    Duration? retryAfter;
+    if (response.statusCode == 429) {
+      retryAfter = rateLimitDelay(response.headers['retry-after']);
+      _limitedUntil = DateTime.now().add(retryAfter);
+    }
     Map<String, dynamic>? data;
     try {
       final decoded = jsonDecode(utf8.decode(response.bodyBytes));
@@ -111,10 +131,13 @@ class RecipeApi {
             ? message
             : response.statusCode == 401
             ? 'Please sign in again.'
+            : response.statusCode == 429
+            ? 'Updates are temporarily paused. We’ll try again shortly.'
             : response.statusCode == 408 || response.statusCode == 504
             ? 'The recipe service took too long to respond. Please try again.'
             : 'The recipe service could not complete the request (HTTP ${response.statusCode}). Please try again.',
         code: error is Map ? error['code'] as String? : null,
+        retryAfter: retryAfter,
       );
     }
     if (data == null) {
@@ -145,10 +168,52 @@ class RecipeApi {
 }
 
 class ApiException implements Exception {
-  ApiException(this.status, this.message, {this.code});
+  ApiException(this.status, this.message, {this.code, this.retryAfter});
+  final Duration? retryAfter;
   final String? code;
   final int status;
   final String message;
   @override
   String toString() => message;
+}
+
+/// Retry-After can be a number of seconds or an HTTP date.
+Duration rateLimitDelay(String? header, {DateTime? now}) {
+  final seconds = int.tryParse(header?.trim() ?? '');
+  if (seconds != null && seconds >= 0) {
+    return Duration(seconds: seconds < 1 ? 1 : seconds);
+  }
+  final match = RegExp(
+    r'^\w{3}, (\d{2}) (\w{3}) (\d{4}) (\d{2}):(\d{2}):(\d{2}) GMT$',
+  ).firstMatch(header?.trim() ?? '');
+  if (match != null) {
+    const months = [
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec',
+    ];
+    final month = months.indexOf(match[2]!) + 1;
+    if (month > 0) {
+      final date = DateTime.utc(
+        int.parse(match[3]!),
+        month,
+        int.parse(match[1]!),
+        int.parse(match[4]!),
+        int.parse(match[5]!),
+        int.parse(match[6]!),
+      );
+      final delay = date.difference(now ?? DateTime.now().toUtc());
+      return delay > Duration.zero ? delay : const Duration(seconds: 1);
+    }
+  }
+  return const Duration(seconds: 30);
 }

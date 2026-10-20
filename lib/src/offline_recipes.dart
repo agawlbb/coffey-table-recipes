@@ -708,6 +708,10 @@ class OfflineRecipes with WidgetsBindingObserver {
           // Persist even the first batch, including successful peers of a failed request.
           await _save(required: true);
           _updateProgress(working: true);
+          if (failure is ApiException &&
+              (failure as ApiException).status == 429) {
+            throw failure!;
+          }
           if (disconnected) {
             offlineStatus.value = true;
             break;

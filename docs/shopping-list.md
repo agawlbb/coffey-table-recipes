@@ -473,3 +473,24 @@ completion after the double-tap recognition window; holds still move items.
 Validation includes inline keyboard focus, no completion/save on double tap,
 Done and outside-tap saves, blank-edit handling and existing drag/tap checks.
 No app build was requested.
+
+
+Opening-time HTTP 429 correction (2026-10-20): server throttling was excluded
+from temporary communication errors, so an automatic opening refresh could
+show a red error despite no user changes. It now receives quiet retries with a
+30-second default cooldown, honoring Retry-After seconds or HTTP dates. RecipeApi
+shares the cooldown across its requests, rejecting network attempts locally
+until it expires. Safe reads retry; generic writes remain single-attempt.
+Shopping saves retain their existing revision-aware reconciliation.
+
+Cached shopping items remain visible. Exhausted throttled refreshes show the
+small neutral “Updates paused” indicator and continue polling for recovery.
+Background recipe text sync stops the pass after persistent throttling instead
+of continuing through remaining batches and category metadata. Completed text
+and successful peers in the current batch remain saved for the next sync.
+
+Validation covers retry delays/header parsing, suppression of requests during
+cooldown, cached opening refresh/recovery, persistent neutral status, and stopping
+background downloads. No app build or hosted deployment was requested.
+
+Validation result: 93 API, offline recipe and shopping-list checks pass.

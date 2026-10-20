@@ -4,6 +4,62 @@ import 'package:http/testing.dart';
 import 'package:coffey_table_recipes/src/api.dart';
 
 void main() {
+  test(
+    'rate limiting uses a quiet cooldown and respects Retry-After',
+    () async {
+      final waits = <Duration>[];
+      var calls = 0;
+      final result = await retryCommunication(() async {
+        if (++calls < 3) {
+          throw ApiException(
+            429,
+            'Busy',
+            retryAfter: const Duration(seconds: 45),
+          );
+        }
+        return 'ok';
+      }, wait: (delay) async => waits.add(delay));
+      expect(result, 'ok');
+      expect(waits, [const Duration(seconds: 45), const Duration(seconds: 45)]);
+      expect(rateLimitDelay(null), const Duration(seconds: 30));
+      expect(rateLimitDelay('60'), const Duration(seconds: 60));
+      expect(
+        rateLimitDelay(
+          'Tue, 20 Oct 2026 18:01:00 GMT',
+          now: DateTime.utc(2026, 10, 20, 18),
+        ),
+        const Duration(minutes: 1),
+      );
+    },
+  );
+
+  test('a throttled API stops other requests during its cooldown', () async {
+    var calls = 0;
+    final api = RecipeApi(
+      baseUrl: 'https://example.test',
+      client: MockClient((_) async {
+        calls++;
+        return http.Response('Busy', 429, headers: {'retry-after': '60'});
+      }),
+    );
+    addTearDown(api.close);
+    await expectLater(
+      api.request('/first', '', body: {}),
+      throwsA(
+        isA<ApiException>().having(
+          (e) => e.retryAfter,
+          'cooldown',
+          const Duration(seconds: 60),
+        ),
+      ),
+    );
+    await expectLater(
+      api.request('/second', '', body: {}),
+      throwsA(isA<ApiException>().having((e) => e.status, 'status', 429)),
+    );
+    expect(calls, 1);
+  });
+
   test('safe reads recover from a brief server failure', () async {
     var calls = 0;
     final api = RecipeApi(
