@@ -1,13 +1,32 @@
 name: Deploy hosted website
 on:
   workflow_dispatch:
+    inputs:
+      publish:
+        description: Publish the selected release after validation (leave false to validate the deployment client only)
+        type: boolean
+        default: false
 permissions:
   contents: read
 concurrency:
   group: hosted-web
   cancel-in-progress: false
 jobs:
+  validate-client:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - name: Validate the isolated deployment trust store without hosting access
+        run: |
+          python3 -m venv "$RUNNER_TEMP/deploy-venv"
+          "$RUNNER_TEMP/deploy-venv/bin/python" -m pip install -r tool/requirements-deploy.txt
+          "$RUNNER_TEMP/deploy-venv/bin/python" -m pip check
+          "$RUNNER_TEMP/deploy-venv/bin/python" tool/test_deploy_web.py
+          "$RUNNER_TEMP/deploy-venv/bin/python" -c 'import certifi, hashlib; from pathlib import Path; bundle = Path(certifi.where()); print("certifi", certifi.__version__, "CA bundle SHA256", hashlib.sha256(bundle.read_bytes()).hexdigest())'
   deploy:
+    needs: validate-client
+    if: inputs.publish == true
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
