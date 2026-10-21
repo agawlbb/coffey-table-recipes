@@ -3,6 +3,7 @@ import importlib.util
 import json
 import os
 from pathlib import Path
+import ssl
 import tempfile
 import unittest
 from unittest.mock import Mock, patch
@@ -12,6 +13,14 @@ deploy = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(deploy)
 
 class DeploymentTests(unittest.TestCase):
+    def test_deployment_bundle_excludes_compromised_emsign_g3_roots(self):
+        roots = ssl.create_default_context(cafile=deploy.certifi.where()).get_ca_certs()
+        names = {value for root in roots for rdn in root['subject']
+                 for key, value in rdn if key == 'commonName'}
+        self.assertTrue(names)
+        self.assertNotIn('emSign Root TLS CA - G3', names)
+        self.assertNotIn('emSign ECC Root CA - G3', names)
+
     def test_explicit_bundle_overrides_environment_ca_selection(self):
         with patch.dict(os.environ, REQUESTS_CA_BUNDLE='untrusted-fixture.pem', CURL_CA_BUNDLE='other-fixture.pem'):
             session = deploy.requests.Session()
