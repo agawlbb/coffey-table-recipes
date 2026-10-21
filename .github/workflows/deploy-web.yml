@@ -32,10 +32,14 @@ jobs:
       - run: flutter test
       - run: flutter build web --base-href=/CoffeyTableRecipes/app/ --dart-define-from-file="$RUNNER_TEMP/firebase.json"
       - run: python3 tool/prepare-web.py
-      - run: python3 -m pip install requests==2.32.5
-      - run: python3 tool/test_deploy_web.py
+      - name: Install isolated deployment client and patched CA bundle
+        run: |
+          python3 -m venv "$RUNNER_TEMP/deploy-venv"
+          "$RUNNER_TEMP/deploy-venv/bin/python" -m pip install -r tool/requirements-deploy.txt
+          "$RUNNER_TEMP/deploy-venv/bin/python" -m pip check
+      - run: '"$RUNNER_TEMP/deploy-venv/bin/python" tool/test_deploy_web.py'
       - name: Publish and verify hosted website
         env:
           CPANEL_USER: ${{ secrets.CPANEL_USER }}
           CPANEL_API_TOKEN: ${{ secrets.CPANEL_API_TOKEN }}
-        run: python3 tool/deploy-web.py
+        run: '"$RUNNER_TEMP/deploy-venv/bin/python" tool/deploy-web.py'

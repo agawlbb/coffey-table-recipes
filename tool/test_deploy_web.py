@@ -12,6 +12,13 @@ deploy = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(deploy)
 
 class DeploymentTests(unittest.TestCase):
+    def test_explicit_bundle_overrides_environment_ca_selection(self):
+        with patch.dict(os.environ, REQUESTS_CA_BUNDLE='untrusted-fixture.pem', CURL_CA_BUNDLE='other-fixture.pem'):
+            session = deploy.requests.Session()
+            settings = session.merge_environment_settings(deploy.HOST, {}, None, deploy.certifi.where(), None)
+            self.assertEqual(settings['verify'], deploy.certifi.where())
+            self.assertTrue(Path(settings['verify']).is_file())
+
     def test_upload_failure_stops_before_extraction(self):
         self.run_case(False)
 
@@ -45,11 +52,14 @@ class DeploymentTests(unittest.TestCase):
                         self.assertEqual(get.call_count, 4)
                         for call in get.call_args_list:
                             self.assertNotIn('headers', call.kwargs)
+                            self.assertEqual(call.kwargs['verify'], deploy.certifi.where())
                     else:
                         with self.assertRaises(RuntimeError):
                             deploy.deploy()
                         self.assertEqual(session.post.call_count, 1)
                         get.assert_not_called()
+                    for call in session.post.call_args_list:
+                        self.assertEqual(call.kwargs['verify'], deploy.certifi.where())
             finally:
                 os.chdir(original)
 
