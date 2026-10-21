@@ -31,3 +31,14 @@ all 353 app tests, plus the four deployment-client tests on Python 3.14.8.
 The production-publish job retains pinned Flutter 3.47.7. Validation-only mode
 executes no app build and makes no hosting request. A successful validation-only
 run is not evidence that production has been deployed with the patched bundle.
+
+GitHub validation-only run 39645258242 passed on immutable tag v1.8.4
+(commit db618d4a19a1f88a10d6410e832f1a9a15c12cfb):
+https://github.com/agawlbb/coffey-table-recipes/actions/runs/39645258242
+
+The runner reported certifi 2026.10.19 and effective bundle SHA-256
+50f79f98dac192b20dbf73f35c56f0b0c557ab267ff5199d1117cc1180b70785.
+All four client tests and pip check passed. The deploy job was explicitly
+skipped, so this proves the new validation flow selected the patched bundle,
+not that any authenticated production request has used it. Public deployment
+metadata still reported v1.8.3/build 27/94b102427650021ce0bc899ad8fd79deef877c6d.
