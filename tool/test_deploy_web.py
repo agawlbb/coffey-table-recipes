@@ -3,6 +3,7 @@ import importlib.util
 import json
 import os
 from pathlib import Path
+import ssl
 import tempfile
 import unittest
 from unittest.mock import Mock, patch
@@ -12,6 +13,21 @@ deploy = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(deploy)
 
 class DeploymentTests(unittest.TestCase):
+    def test_deployment_bundle_excludes_compromised_emsign_g3_roots(self):
+        roots = ssl.create_default_context(cafile=deploy.certifi.where()).get_ca_certs()
+        names = {value for root in roots for rdn in root['subject']
+                 for key, value in rdn if key == 'commonName'}
+        self.assertTrue(names)
+        self.assertNotIn('emSign Root TLS CA - G3', names)
+        self.assertNotIn('emSign ECC Root CA - G3', names)
+
+    def test_explicit_bundle_overrides_environment_ca_selection(self):
+        with patch.dict(os.environ, REQUESTS_CA_BUNDLE='untrusted-fixture.pem', CURL_CA_BUNDLE='other-fixture.pem'):
+            session = deploy.requests.Session()
+            settings = session.merge_environment_settings(deploy.HOST, {}, None, deploy.certifi.where(), None)
+            self.assertEqual(settings['verify'], deploy.certifi.where())
+            self.assertTrue(Path(settings['verify']).is_file())
+
     def test_upload_failure_stops_before_extraction(self):
         self.run_case(False)
 
@@ -45,11 +61,14 @@ class DeploymentTests(unittest.TestCase):
                         self.assertEqual(get.call_count, 4)
                         for call in get.call_args_list:
                             self.assertNotIn('headers', call.kwargs)
+                            self.assertEqual(call.kwargs['verify'], deploy.certifi.where())
                     else:
                         with self.assertRaises(RuntimeError):
                             deploy.deploy()
                         self.assertEqual(session.post.call_count, 1)
                         get.assert_not_called()
+                    for call in session.post.call_args_list:
+                        self.assertEqual(call.kwargs['verify'], deploy.certifi.where())
             finally:
                 os.chdir(original)
 
