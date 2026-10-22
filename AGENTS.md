@@ -9,6 +9,8 @@ Complete and verify project work, commit it, and push it to the existing GitHub 
 
 ## Ownership and offline work
 
+- Version 2 meal-planning development is owned by **Plan CTR meal planning v2** chat (`01a165dd-0324-7e10-8ffc-03bb397420bc`) on `codex/meal-planning-v2`, based on client commit `ab9013e7afa4384c048fc13ce425aede2c5a6b67`. The coordinating chat granted a read-only handoff on 2026-10-22 and remains quiescent during this work. Coordinate with the feature-owner chat before writing or switching branches in the canonical checkout. Keep feature development on this branch until ready for a reviewed merge to `main` for version 2; branch creation does not authorize builds, deployment, or release. Backend feature work will be scoped separately.
+
 - While the laptop is connected, the designated owner is the existing **Reconcile project with GitHub** chat (`01a15fd0-827e-77c3-a0a3-737af531ea3f`). It owns coordination for the Flutter client and PHP backend. Use this canonical Flutter folder: `C:\Users\mailb\StudioProjects\coffey_table_recipes`.
 - Other chats must obtain a read-only handoff before writing to either CTR repository. Check current branches, worktrees, local edits, GitHub heads and active tasks/processes; never assume an earlier clean report is current. Use the canonical folders rather than hidden clones or competing active copies.
 - Only explicitly requested offline work uses a named branch in the same repository, normally `codex/offline-<topic>`. Record the branch and base commit in the handoff; keep private configuration and credentials excluded.
