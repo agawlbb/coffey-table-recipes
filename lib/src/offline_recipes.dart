@@ -363,19 +363,19 @@ class OfflineRecipes with WidgetsBindingObserver {
         parts[2] != 'recipes') {
       return null;
     }
-    if (!offlineStatus.value) {
-      final uri = Uri.parse(path);
-      final library = _libraries[parts[1]] as Map?;
-      // A partially downloaded library has no category tree and may omit
-      // recipes. Use the server online until the requested scope is ready.
-      if (library == null) return null;
-      final scope = uri.queryParameters['scope'] ?? '';
-      if (uri.queryParameters['tree'] == '1' &&
-          (library['scopes'] as Map?)?[scope] == null) {
-        return null;
-      }
-    }
-    return _cached(path);
+    final cached = _cached(path);
+    if (cached == null || offlineStatus.value) return cached;
+    final uri = Uri.parse(path);
+    final library = _libraries[parts[1]] as Map?;
+    final scope = uri.queryParameters['scope'] ?? '';
+    final needsRefresh =
+        library == null ||
+        (uri.queryParameters['tree'] == '1' &&
+            (library['scopes'] as Map?)?[scope] == null);
+    // Show available text even before category download finishes, while asking
+    // the browser to refresh incomplete results in the background.
+    if (needsRefresh) return {...cached, '_cache_needs_refresh': true};
+    return cached;
   }
 
   Future<Map<String, dynamic>> request(String path) async {

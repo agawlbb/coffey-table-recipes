@@ -147,7 +147,9 @@ class _RecipeBrowserState extends State<RecipeBrowser>
   String get _scopeLabel =>
       _trail.isEmpty ? 'All recipes' : _trail.last['label'] as String;
   String? _error;
+  String? _displayPath;
   bool _busy = true;
+  bool _loadingMore = false;
   bool _wasOffline = false;
   @override
   void initState() {
@@ -182,80 +184,153 @@ class _RecipeBrowserState extends State<RecipeBrowser>
     }
   }
 
-  Future<Map<String, dynamic>> _browse(String path, bool useCached) async {
+  Future<Map<String, dynamic>?> _cachedBrowse(String path) async {
+    final memory = _browseCache[path];
+    if (memory != null) return memory;
+    try {
+      return await widget.cachedRequest
+          ?.call(path)
+          .timeout(const Duration(seconds: 2));
+    } catch (_) {
+      // Local storage problems must not prevent an online read.
+      return null;
+    }
+  }
+
+  Future<Map<String, dynamic>> _browse(
+    String path,
+    bool useCached, {
+    bool debounce = false,
+  }) async {
     final generation = _generation;
     if (useCached) {
-      final cached =
-          _browseCache[path] ?? await widget.cachedRequest?.call(path);
+      final cached = await _cachedBrowse(path);
       if (cached != null) return cached;
     }
     // Saved-text searches return above immediately. Only debounce network misses.
-    if (useCached && (Uri.parse(path).queryParameters['q'] ?? '').isNotEmpty) {
+    if ((useCached || debounce) &&
+        (Uri.parse(path).queryParameters['q'] ?? '').isNotEmpty) {
       await Future<void>.delayed(const Duration(milliseconds: 250));
       if (!mounted || generation != _generation) return {};
     }
-    final data = await widget.request(path);
+    // Include token refresh and cache persistence in the UI deadline too.
+    final data = await widget
+        .request(path)
+        .timeout(const Duration(seconds: 30));
     if (mounted && generation == _generation) _browseCache[path] = data;
     return data;
   }
 
   Future<void> _load({bool more = false, bool useCached = false}) async {
-    if (!more && !useCached) _browseCache.clear();
+    if (more && _loadingMore) return;
     final generation = ++_generation;
     if (!more) _query = _search.text.trim();
-    setState(() {
-      _busy = true;
-      _error = null;
-      if (!more) {
-        _recipes.clear();
-        _nodes = [];
-        _next = null;
-      }
-    });
-    try {
-      final query = Uri(
-        queryParameters: {
-          'q': _query,
-          'offset': '${more ? _next ?? 0 : 0}',
-          'tree': more || _query.isNotEmpty || _blankOnly ? '0' : '1',
-          'families': _favoritePeople.isEmpty && !_blankOnly ? '1' : '0',
-          if (_blankOnly) 'blank': '1',
-          if (_favoritePeople.isNotEmpty)
-            'favorite_people': _favoritePeople.join(','),
-          if (_trail.isNotEmpty) 'scope': '${_trail.last['id']}',
-        },
-      ).query;
-      var data = await _browse(
-        '/households/${widget.householdId}/recipes?$query',
-        useCached || more,
-      );
-      if (!mounted || generation != _generation) return;
+    final query = Uri(
+      queryParameters: {
+        'q': _query,
+        'offset': '${more ? _next ?? 0 : 0}',
+        'tree': more || _query.isNotEmpty || _blankOnly ? '0' : '1',
+        'families': _favoritePeople.isEmpty && !_blankOnly ? '1' : '0',
+        if (_blankOnly) 'blank': '1',
+        if (_favoritePeople.isNotEmpty)
+          'favorite_people': _favoritePeople.join(','),
+        if (_trail.isNotEmpty) 'scope': '${_trail.last['id']}',
+      },
+    ).query;
+    final path = '/households/${widget.householdId}/recipes?$query';
+    bool current() => mounted && generation == _generation;
+    List<Map<String, dynamic>> nodesFor(Map<String, dynamic> data) {
       final nodes = _query.isEmpty
           ? recipeRows(data['category_nodes'])
           : <Map<String, dynamic>>[];
       if (_trail.isNotEmpty) {
         nodes.sort((a, b) => _alphabeticalCompare(a, b, 'label'));
       }
-      if (!more && _query.isEmpty && data['view'] == 'categories') {
-        final recipeQuery = Uri(
-          queryParameters: {...Uri.splitQueryString(query), 'tree': '0'},
-        ).query;
-        data = await _browse(
-          '/households/${widget.householdId}/recipes?$recipeQuery',
-          useCached,
-        );
-      }
-      if (!mounted || generation != _generation) return;
+      return nodes;
+    }
+
+    String recipePath() =>
+        '/households/${widget.householdId}/recipes?${Uri(queryParameters: {...Uri.splitQueryString(query), 'tree': '0'}).query}';
+    void display(Map<String, dynamic> data, List<Map<String, dynamic>> nodes) {
+      if (!current()) return;
       setState(() {
+        if (!more) _recipes.clear();
         _recipes.addAll(recipeRows(data['recipes']));
         _recipes.sort((a, b) => _alphabeticalCompare(a, b, 'title'));
         _next = data['next_offset'] as int?;
         if (!more) _nodes = nodes;
+        _busy = false;
       });
+    }
+
+    setState(() {
+      _error = null;
+      _loadingMore = more;
+      if (!more && _displayPath != path) {
+        _recipes.clear();
+        _nodes = [];
+        _next = null;
+      }
+      if (!more) _displayPath = path;
+      _busy = _recipes.isEmpty && _nodes.isEmpty;
+    });
+    try {
+      if (!more) {
+        final cached = await _cachedBrowse(path);
+        if (!current()) return;
+        if (cached != null) {
+          final nodes = nodesFor(cached);
+          display(
+            cached['view'] == 'categories'
+                ? {
+                    ...cached,
+                    'recipes': List.of(_recipes),
+                    'next_offset': _next,
+                  }
+                : cached,
+            nodes,
+          );
+          var complete = cached['_cache_needs_refresh'] != true;
+          if (_query.isEmpty && cached['view'] == 'categories') {
+            final recipes = await _cachedBrowse(recipePath());
+            if (!current()) return;
+            if (recipes != null) display(recipes, nodes);
+            complete =
+                complete &&
+                recipes != null &&
+                recipes['_cache_needs_refresh'] != true;
+          }
+          if (useCached && complete) {
+            unawaited(_loadCategoryImages(nodes, generation));
+            return;
+          }
+        }
+        if (!useCached) _browseCache.clear();
+      }
+      var data = await _browse(path, more, debounce: useCached && !more);
+      if (!mounted || generation != _generation) return;
+      final nodes = nodesFor(data);
+      display(
+        data['view'] == 'categories'
+            ? {...data, 'recipes': List.of(_recipes), 'next_offset': _next}
+            : data,
+        nodes,
+      );
+      if (!more && _query.isEmpty && data['view'] == 'categories') {
+        data = await _browse(recipePath(), false);
+        display(data, nodes);
+      }
+      if (!mounted || generation != _generation) return;
       if (!more) unawaited(_loadCategoryImages(nodes, generation));
     } catch (error) {
       if (mounted && generation == _generation) {
         setState(() {
+          if (error is ApiException && [401, 403, 404].contains(error.status)) {
+            _recipes.clear();
+            _nodes = [];
+            _next = null;
+            _browseCache.clear();
+          }
           _error = error is ApiException
               ? error.message
               : 'Could not load recipes. Check your connection and retry.';
@@ -265,6 +340,7 @@ class _RecipeBrowserState extends State<RecipeBrowser>
       if (mounted && generation == _generation) {
         setState(() {
           _busy = false;
+          _loadingMore = false;
         });
       }
     }
@@ -641,7 +717,9 @@ class _RecipeBrowserState extends State<RecipeBrowser>
                   return Padding(
                     padding: const EdgeInsets.all(16),
                     child: OutlinedButton(
-                      onPressed: _busy ? null : () => _load(more: true),
+                      onPressed: _busy || _loadingMore
+                          ? null
+                          : () => _load(more: true),
                       child: const Text('Load more recipes'),
                     ),
                   );

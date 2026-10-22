@@ -237,14 +237,19 @@ void main() {
   );
 
   test(
-    'online browsing ignores incomplete saved library without categories',
+    'online browsing shows partial saved text while requesting a refresh',
     () async {
       final c = cache();
       failDetail = true;
       await c.sync(['1']);
       offlineStatus.value = false;
-      expect(await c.cachedBrowse('$root?tree=1&families=1'), isNull);
-      expect(await c.cachedBrowse('$root?q=carrot&tree=0'), isNull);
+      final partial = await c.cachedBrowse('$root?tree=1&families=1');
+      expect(partial?['recipes'], isNotEmpty);
+      expect(partial?['_cache_needs_refresh'], isTrue);
+      expect(
+        (await c.cachedBrowse('$root?q=carrot&tree=0'))?['recipes'],
+        isNotEmpty,
+      );
       offlineStatus.value = true;
       expect(await c.cachedBrowse('$root?tree=1&families=1'), isNotNull);
       c.close();
@@ -262,7 +267,9 @@ void main() {
     );
     await c.sync(['1']);
     offlineStatus.value = false;
-    expect(await c.cachedBrowse('$root?tree=1&families=1'), isNull);
+    final partial = await c.cachedBrowse('$root?tree=1&families=1');
+    expect(partial?['recipes'], hasLength(30));
+    expect(partial?['_cache_needs_refresh'], isTrue);
     expect(await c.cachedBrowse('$root?q=carrot&tree=0'), isNotNull);
     c.close();
   });

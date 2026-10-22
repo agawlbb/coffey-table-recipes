@@ -2,10 +2,249 @@ import 'dart:async';
 
 import 'package:coffey_table_recipes/src/recipe_browser.dart';
 import 'package:coffey_table_recipes/src/recipe_value.dart';
+import 'package:coffey_table_recipes/src/offline_recipes.dart';
+import 'package:coffey_table_recipes/src/api.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  testWidgets(
+    'refresh keeps recipes visible while new category supplement stalls',
+    (tester) async {
+      final pending = Completer<Map<String, dynamic>>();
+      var supplement = false;
+      await tester.pumpWidget(
+        MaterialApp(
+          home: RecipeBrowser(
+            householdId: '2',
+            householdName: 'Table',
+            cachedRequest: (path) async =>
+                Uri.parse(path).queryParameters['tree'] == '1'
+                ? {
+                    'view': 'categories',
+                    'category_nodes': [
+                      {'id': '5', 'label': 'Breakfast'},
+                    ],
+                  }
+                : supplement
+                ? null
+                : {
+                    'recipes': [
+                      {'id': '9', 'title': 'Saved muffins'},
+                    ],
+                  },
+            request: (path) async {
+              if (Uri.parse(path).queryParameters['tree'] == '1') {
+                return {
+                  'view': 'categories',
+                  'category_nodes': [
+                    {'id': '5', 'label': 'Breakfast'},
+                  ],
+                };
+              }
+              supplement = true;
+              return pending.future;
+            },
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.byTooltip('Refresh recipes'));
+      await tester.pump();
+      expect(supplement, isTrue);
+      expect(find.text('Saved muffins'), findsOneWidget);
+      expect(find.byType(LinearProgressIndicator), findsNothing);
+      // A second refresh must retain text even if only category metadata is cached.
+      await tester.tap(find.byTooltip('Refresh recipes'));
+      await tester.pump();
+      expect(find.text('Saved muffins'), findsOneWidget);
+      expect(find.byType(LinearProgressIndicator), findsNothing);
+      pending.complete({
+        'recipes': [
+          {'id': '10', 'title': 'New muffins'},
+        ],
+      });
+      await tester.pumpAndSettle();
+      expect(find.text('New muffins'), findsOneWidget);
+      expect(find.text('Saved muffins'), findsNothing);
+    },
+  );
+
+  testWidgets('stalled local cache cannot prevent an online recipe read', (
+    tester,
+  ) async {
+    final cached = Completer<Map<String, dynamic>?>();
+    await tester.pumpWidget(
+      MaterialApp(
+        home: RecipeBrowser(
+          householdId: '2',
+          householdName: 'Table',
+          cachedRequest: (_) => cached.future,
+          request: (_) async => {
+            'recipes': [
+              {'id': '9', 'title': 'Online muffins'},
+            ],
+          },
+        ),
+      ),
+    );
+    await tester.pump(const Duration(seconds: 3));
+    await tester.pumpAndSettle();
+    expect(find.text('Online muffins'), findsOneWidget);
+    expect(find.byType(LinearProgressIndicator), findsNothing);
+    cached.complete(null);
+    await tester.pumpAndSettle();
+  });
+  testWidgets(
+    'returning from shopping and reconnecting show partial cached recipes immediately',
+    (tester) async {
+      final pending = Completer<Map<String, dynamic>>();
+      var shopping = false, browserVersion = 0, calls = 0;
+      late StateSetter update;
+      offlineStatus.value = false;
+      addTearDown(() => offlineStatus.value = false);
+      await tester.pumpWidget(
+        MaterialApp(
+          home: StatefulBuilder(
+            builder: (context, setState) {
+              update = setState;
+              return IndexedStack(
+                index: shopping ? 1 : 0,
+                children: [
+                  RecipeBrowser(
+                    key: ValueKey(browserVersion),
+                    householdId: '2',
+                    householdName: 'Table',
+                    cachedRequest: (_) async => {
+                      '_cache_needs_refresh': true,
+                      'recipes': [
+                        {'id': '9', 'title': 'Saved muffins'},
+                      ],
+                    },
+                    request: (_) {
+                      calls++;
+                      return pending.future;
+                    },
+                  ),
+                  const Text('Shopping list'),
+                ],
+              );
+            },
+          ),
+        ),
+      );
+      await tester.pump();
+      expect(find.text('Saved muffins'), findsOneWidget);
+      expect(find.byType(LinearProgressIndicator), findsNothing);
+      update(() => shopping = true);
+      await tester.pump();
+      update(() {
+        shopping = false;
+        browserVersion++;
+      });
+      await tester.pump();
+      await tester
+          .pump(); // Paint the cached result after the recreated page loads it.
+      expect(find.text('Saved muffins'), findsOneWidget);
+      offlineStatus.value = true;
+      offlineStatus.value = false;
+      await tester.pump();
+      expect(find.text('Saved muffins'), findsOneWidget);
+      expect(find.byType(LinearProgressIndicator), findsNothing);
+      expect(calls, greaterThanOrEqualTo(3));
+      pending.complete({
+        'recipes': [
+          {'id': '10', 'title': 'Fresh muffins'},
+        ],
+      });
+      await tester.pumpAndSettle();
+      expect(find.text('Fresh muffins'), findsOneWidget);
+      expect(find.text('Saved muffins'), findsNothing);
+      await tester.pumpWidget(const SizedBox());
+    },
+  );
+
+  testWidgets(
+    'cached categories stay usable while supplementary recipe request stalls',
+    (tester) async {
+      final pending = Completer<Map<String, dynamic>>();
+      await tester.pumpWidget(
+        MaterialApp(
+          home: RecipeBrowser(
+            householdId: '2',
+            householdName: 'Table',
+            cachedRequest: (path) async =>
+                Uri.parse(path).queryParameters['tree'] == '1'
+                ? {
+                    'view': 'categories',
+                    'category_nodes': [
+                      {'id': '5', 'label': 'Breakfast'},
+                    ],
+                  }
+                : null,
+            request: (_) => pending.future,
+          ),
+        ),
+      );
+      await tester.pump();
+      expect(find.text('Breakfast'), findsOneWidget);
+      expect(find.byType(LinearProgressIndicator), findsNothing);
+      await tester.tap(find.text('Breakfast'));
+      await tester.pump();
+      expect(find.byTooltip('Back one level'), findsOneWidget);
+      pending.complete({'recipes': []});
+      await tester.pumpAndSettle();
+    },
+  );
+
+  testWidgets('stalled uncached read stops loading and offers retry', (
+    tester,
+  ) async {
+    final pending = Completer<Map<String, dynamic>>();
+    await tester.pumpWidget(
+      MaterialApp(
+        home: RecipeBrowser(
+          householdId: '2',
+          householdName: 'Table',
+          request: (_) => pending.future,
+        ),
+      ),
+    );
+    await tester.pump();
+    expect(find.byType(LinearProgressIndicator), findsOneWidget);
+    await tester.pump(const Duration(seconds: 31));
+    await tester.pump();
+    expect(find.byType(LinearProgressIndicator), findsNothing);
+    expect(find.text('Retry'), findsOneWidget);
+    pending.complete({'recipes': []});
+    await tester.pumpAndSettle();
+    expect(find.text('Retry'), findsOneWidget);
+  });
+
+  testWidgets('refresh access denial removes previously cached content', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: RecipeBrowser(
+          householdId: '2',
+          householdName: 'Table',
+          cachedRequest: (_) async => {
+            'recipes': [
+              {'id': '9', 'title': 'Saved muffins'},
+            ],
+          },
+          request: (_) async => throw ApiException(403, 'Access denied'),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('Saved muffins'), findsOneWidget);
+    await tester.tap(find.byTooltip('Refresh recipes'));
+    await tester.pumpAndSettle();
+    expect(find.text('Access denied'), findsOneWidget);
+    expect(find.text('Saved muffins'), findsNothing);
+  });
   testWidgets('All Recipes cancels slow category navigation', (tester) async {
     final pending = Completer<Map<String, dynamic>>();
     await tester.pumpWidget(
