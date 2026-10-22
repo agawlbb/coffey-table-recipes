@@ -14,7 +14,8 @@ Complete and verify project work, commit it, and push it to the existing GitHub 
 - Only explicitly requested offline work uses a named branch in the same repository, normally `codex/offline-<topic>`. Record the branch and base commit in the handoff; keep private configuration and credentials excluded.
 - On the laptop's return, the owner reviews the branch against current main, preserves unique work, merges only accepted changes, tests, commits and synchronizes with GitHub. Remove the temporary branch only after accepted work is preserved and synchronization is verified; archive rejected work recoverably before retiring its branch.
 - Recovery archives are historical evidence, not active checkouts. Do not merge them into main, reset their saved edits, or purge them during routine cleanup.
-- Keep related implementation, documentation and validation in meaningful commits. Preserve useful regression tests, release configuration and immutable release tags. Published history rewrites require a verified backup, exact remote-head check and explicit expected-SHA force-with-lease. Branch-protection exceptions require fresh, specific approval and immediate restoration.
+- Keep related implementation, documentation and validation in meaningful commits. Preserve useful regression tests, release configuration and immutable release tags. Published history rewrites require a verified backup, explicit authorization, an exact remote-head check and explicit expected-SHA force-with-lease.
+- The owner explicitly requested persistent force-push access for `agawlbb` on both CTR main branches on 2026-10-22. Leave that access enabled; do not reintroduce force-push blocking or change other branch-protection settings without specific approval. This setting does not authorize unrequested history rewrites or blind force pushes.
 
 # Hosted development workflow
 
