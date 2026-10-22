@@ -29,7 +29,7 @@ The signed-in home displays recipes from the hosted API, with search, category b
 
 Each browsing scope shows sage-green category cards followed by a horizontal divider and cream-colored recipe cards. The recipe list includes recipes in descendant categories; use Load more recipes to continue through the scope. Search stays within the selected scope.
 
-See `docs/checkpoints.md` for the agreed implementation sequence and `docs/authentication.md` for configured sign-in commands. Default Flutter icons remain until the selected artwork is supplied.
+See [authentication](docs/authentication.md) for configured sign-in commands, [browsing](docs/recipe-browsing.md) for navigation, [timers](docs/timers.md) for alarm controls, and [release records](docs/releases.md) for verified platform delivery. Run/build commands require the explicit build or release authorization described in [AGENTS.md](AGENTS.md).
 
 ## Platforms
 

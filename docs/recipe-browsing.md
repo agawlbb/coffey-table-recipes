@@ -1,5 +1,13 @@
 # Browsing recipes by category
 
+The global keyboard-dismiss control and offline badge share an overlay with the
+Navigator, so opening the keyboard does not place tooltips above their overlay
+ancestor. Breadcrumbs and All Recipes remain usable while requests are pending;
+request-generation guards prevent late category responses from replacing the
+chosen scope. Incomplete online caches fetch missing recipe/category data while
+preserving saved text for offline use. Keep the app-wrapper, keyboard-inset,
+navigation-race and interrupted-download regression tests for these behaviors.
+
 Recipe detail steps show the step number before the heading, followed by the
 instructions. Cooking mode includes the heading alongside its numbered step.
 Steps without headings retain their normal numbered instructions.

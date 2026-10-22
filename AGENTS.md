@@ -1,11 +1,20 @@
 # Repository workflow
 
-The user requests that all future project changes be committed to Git.
+Complete and verify project work, commit it, and push it to the existing GitHub origin. Before declaring completion, verify a clean working tree and matching local/GitHub branch heads. Respect an explicit instruction to keep work local or avoid deployment; report any synchronization blocker instead of claiming completion.
 
 - Commit completed changes after appropriate verification. Include documentation and meaningful validation in the commit where applicable.
 - Keep credentials, local Firebase configuration, signing keys, generated builds and personal import source files out of Git.
 - This repository contains the Flutter app. The PHP server is a separate repository at `C:\xampp\htdocs\CoffeyTableRecipes`. When changing both, commit each repository independently.
-- Do not push or create remote repositories unless the user requests it. Do not overwrite unrelated changes or rewrite history without explicit authorization.
+- Do not create remote repositories, overwrite unrelated changes, or rewrite history without explicit authorization. Inspect workflow push triggers before every push. A source push does not authorize a build or deployment.
+
+## Ownership and offline work
+
+- While the laptop is connected, the designated owner is the existing **Reconcile project with GitHub** chat (`01a15fd0-827e-77c3-a0a3-737af531ea3f`). It owns coordination for the Flutter client and PHP backend. Use this canonical Flutter folder: `C:\Users\mailb\StudioProjects\coffey_table_recipes`.
+- Other chats must obtain a read-only handoff before writing to either CTR repository. Check current branches, worktrees, local edits, GitHub heads and active tasks/processes; never assume an earlier clean report is current. Use the canonical folders rather than hidden clones or competing active copies.
+- Only explicitly requested offline work uses a named branch in the same repository, normally `codex/offline-<topic>`. Record the branch and base commit in the handoff; keep private configuration and credentials excluded.
+- On the laptop's return, the owner reviews the branch against current main, preserves unique work, merges only accepted changes, tests, commits and synchronizes with GitHub. Remove the temporary branch only after accepted work is preserved and synchronization is verified; archive rejected work recoverably before retiring its branch.
+- Recovery archives are historical evidence, not active checkouts. Do not merge them into main, reset their saved edits, or purge them during routine cleanup.
+- Keep related implementation, documentation and validation in meaningful commits. Preserve useful regression tests, release configuration and immutable release tags. Published history rewrites require a verified backup, exact remote-head check and explicit expected-SHA force-with-lease. Branch-protection exceptions require fresh, specific approval and immediate restoration.
 
 # Hosted development workflow
 
