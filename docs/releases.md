@@ -47,6 +47,11 @@ When the user says "create a release", review progress since the previous releas
 
 `CHANGELOG.md` covers previous releases using Git history, tags, and the release records below. Every future release must update it with the version, release date, and meaningful changes since the prior release. Commit the changelog before tagging the release. Describe only changes supported by the project history.
 
+## 1.8.5 — rate-limit recovery and patched deployment client
+
+Requested three-platform release `1.8.5+29`, tag `v1.8.5`, from reconciled main. Both repositories have only main locally and on GitHub; all local branches/tags were pushed and synchronized before release preparation. Backend remains `6934f4592a6ab3b9b5778ee60b4e568f6e0ab40d` with no runtime changes or migrations. Immutable 1.8.4/build 28 remains validation-only and excludes the rate-limit fix; 1.8.5 delivers both that fix and the patched deployment client after last delivered 1.8.3. Native code, package dependencies, signing identity and encryption behavior are unchanged. Retain the exempt-encryption declaration and France distribution exclusion.
+
+Local verification on October 22: analysis passed, all 358 Flutter tests passed, all 13 iOS configuration/distribution tests and four Apple status/signing guard tests passed. An ignored isolated deployment environment with pinned Requests 2.32.5 and certifi 2026.10.19 passed all four offline deployment-client tests and dependency consistency checks. Mock upload output in those tests did not contact hosting. Website publishing will explicitly select `publish: true` on the new release tag. Platform delivery and native link results follow after verification.
 ## 1.8.3 — shopping editing and communication recovery
 
 Explicitly requested version `1.8.3+27`, tag `v1.8.3`, releases main. Both repositories were clean and all local branches/tags were pushed and synchronized before release preparation. Backend main is unchanged at `6934f4592a6ab3b9b5778ee60b4e568f6e0ab40d`; no backend runtime deployment or migration is included. The changelog records four app changes since 1.8.2. Native code, dependencies, encryption behavior and signing identity are unchanged; retain exempt-encryption metadata and the France distribution exclusion.

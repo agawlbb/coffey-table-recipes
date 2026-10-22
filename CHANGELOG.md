@@ -2,6 +2,14 @@
 
 Release dates and changes are reconstructed from annotated Git tags, commit history, and project release records. Versions before 1.0 are demonstration releases; 1.0 marks the first usable release. Android retains the existing signing identity; iOS delivery and signing are recorded for each release.
 
+## 1.8.5 — 2026-10-22
+
+Build 29; tag `v1.8.5`. First three-platform release after delivered 1.8.3; 1.8.4 only validated deployment tooling.
+
+- Recover quietly from server rate limits: honor Retry-After, pause additional requests during cooldown, and retry safe reads without repeatedly contacting the server.
+- Preserve downloaded recipe batches during rate limiting and show Updates paused for shopping refreshes instead of incorrectly reporting Offline.
+- Deliver the reconciled app source using the isolated, patched deployment certificate bundle and explicit publish workflow prepared in 1.8.4.
+- Add rate-limit recovery regression coverage and retain existing native signing and encryption settings.
 ## 1.8.4 — 2026-10-21
 
 Build 28; tag `v1.8.4`.
