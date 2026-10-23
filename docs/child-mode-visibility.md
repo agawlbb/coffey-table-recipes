@@ -40,3 +40,19 @@ Validation:
 These are source, widget, API-client and isolated server-policy checks. No real
 hosted child-account login or AI provider call was performed. No app build,
 hosted app publication or backend deployment was performed.
+
+## Requested local web rebuild
+
+The subsequent user-authorized local web rebuild used clean source
+`e0ede33d11f5fb6b7be83278a0624813d50130ac`, including the child-mode changes
+and the account-registration password autofill fix. Command:
+`flutter build web --no-pub --base-href=/CoffeyTableRecipes/app/ --dart-define-from-file=config/firebase.local.json`.
+Build and Wasm dry run succeeded. Ran `tool/prepare-web.py` and copied the
+prepared assets to the ignored local XAMPP `app/` directory.
+
+HTTP bytes for `version.json`, `main.dart.js`, `flutter_bootstrap.js` and
+`assets/FontManifest.json` matched the prepared build at
+http://localhost/CoffeyTableRecipes/app/. Main JavaScript SHA-256:
+`65c8c0d5f8a524a08b619e972deb088225908d85bc849d3a6bbfff9e0a8ad5a7`.
+Metadata identifies the source above as demonstration version 2.0.0/build 30.
+No native build, release tag, hosted app publication or backend deployment.
