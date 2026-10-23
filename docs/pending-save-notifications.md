@@ -17,7 +17,7 @@ deadline; repeated retries do not restart it. Android restores reminders after
 reboot/update. Notifications contain no recipe text or account identity.
 
 Device notification permission is required. Denial or scheduling failure is
-reported in the app; the in-app warning still works. OS power/notification policy
+reported in the app; the in-app warning still works, including over an open editor. OS power/notification policy
 can delay or suppress delivery, especially Android without exact-alarm permission.
 iOS uses one reminder for the oldest outstanding change per account to avoid its
 pending-notification limit. Web currently shows the in-app warning while open.
@@ -27,5 +27,7 @@ that background Flutter code runs while the OS has suspended it.
 Validation: the local-data suite covers same-identifier retries after a lost
 creation response, process-death recovery, retained local data, original deadline
 across restart, the one-minute boundary, and cancellation on confirmation. Main
-full suite: 408 tests passed; static analysis clean. Native delivery still needs
+full suite: 408 tests passed; feature full suite: 445 tests passed. Two additional
+notification overlay/channel tests passed. Android notification Kotlin compiled
+in isolation against the installed Android SDK. Native delivery still needs
 device verification; no installable app build was requested for this change.
