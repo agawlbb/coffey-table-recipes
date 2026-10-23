@@ -958,39 +958,42 @@ class _ShoppingListScreenState extends State<ShoppingListScreen>
                 )
               else
                 const SizedBox(height: 8),
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                child: Card(
-                  margin: EdgeInsets.zero,
-                  child: Padding(
-                    padding: const EdgeInsets.all(16),
-                    child: Row(
-                      children: [
-                        Expanded(
-                          child: TextField(
-                            controller: _name,
-                            focusNode: _focus,
-                            enabled: !_loading && !_saving,
-                            maxLength: 200,
-                            textInputAction: TextInputAction.done,
-                            decoration: const InputDecoration(
-                              hintText: 'Add an item',
-                              counterText: '',
+              if (!childMode.value)
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  child: Card(
+                    margin: EdgeInsets.zero,
+                    child: Padding(
+                      padding: const EdgeInsets.all(16),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: TextField(
+                              controller: _name,
+                              focusNode: _focus,
+                              enabled: !_loading && !_saving,
+                              maxLength: 200,
+                              textInputAction: TextInputAction.done,
+                              decoration: const InputDecoration(
+                                hintText: 'Add an item',
+                                counterText: '',
+                              ),
+                              onSubmitted: (_) => _add(),
                             ),
-                            onSubmitted: (_) => _add(),
                           ),
-                        ),
-                        const SizedBox(width: 8),
-                        IconButton.filled(
-                          tooltip: 'Add item',
-                          onPressed: busy || _items.length >= 500 ? null : _add,
-                          icon: const Icon(Icons.add),
-                        ),
-                      ],
+                          const SizedBox(width: 8),
+                          IconButton.filled(
+                            tooltip: 'Add item',
+                            onPressed: busy || _items.length >= 500
+                                ? null
+                                : _add,
+                            icon: const Icon(Icons.add),
+                          ),
+                        ],
+                      ),
                     ),
                   ),
                 ),
-              ),
               if (_saving) const LinearProgressIndicator(minHeight: 2),
               if (_error != null)
                 Padding(

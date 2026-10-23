@@ -99,7 +99,7 @@ class BlankRecipeDetail extends StatelessWidget {
                       color: colors.primary.withValues(alpha: .65),
                     ),
                     const SizedBox(height: 6),
-                    if (onPicture != null)
+                    if (!childMode.value && onPicture != null)
                       TextButton(
                         onPressed: childMode.value ? null : onPicture,
                         child: const Text('Add picture'),
@@ -119,7 +119,7 @@ class BlankRecipeDetail extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
                       RecipePhotoGallery(photos: photos),
-                      if (onPicture != null)
+                      if (!childMode.value && onPicture != null)
                         Align(
                           alignment: Alignment.centerRight,
                           child: TextButton.icon(
@@ -132,13 +132,13 @@ class BlankRecipeDetail extends StatelessWidget {
                   ),
                 ),
               ),
-            if (onMealPlan != null)
+            if (!childMode.value && onMealPlan != null)
               TextButton.icon(
                 onPressed: childMode.value ? null : onMealPlan,
                 icon: const Icon(Icons.calendar_month_outlined),
                 label: const Text('Add to meal plan'),
               ),
-            if (onAttach != null) ...[
+            if (!childMode.value && onAttach != null) ...[
               const SizedBox(height: 20),
               FilledButton.icon(
                 onPressed: childMode.value ? null : onAttach,
@@ -146,7 +146,7 @@ class BlankRecipeDetail extends StatelessWidget {
                 label: const Text('Add to my household'),
               ),
             ],
-            if (onImport != null) ...[
+            if (!childMode.value && onImport != null) ...[
               const SizedBox(height: 20),
               Card(
                 key: const ValueKey('blank-recipe-import'),

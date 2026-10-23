@@ -3,6 +3,10 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:coffey_table_recipes/src/child_mode.dart';
 import 'package:coffey_table_recipes/src/meal_planner.dart';
 import 'package:coffey_table_recipes/src/recipe_browser.dart';
+import 'package:coffey_table_recipes/src/shopping_list.dart';
+import 'package:coffey_table_recipes/src/blank_recipe_detail.dart';
+import 'package:coffey_table_recipes/src/recipe_variation.dart';
+import 'package:coffey_table_recipes/src/recipe_import.dart';
 import 'package:coffey_table_recipes/src/recipe_shopping_selector.dart';
 import 'package:coffey_table_recipes/src/meal_plan_ingredients.dart';
 import 'package:coffey_table_recipes/src/administration.dart';
@@ -72,6 +76,92 @@ void main() {
     expect(find.text('Locked'), findsOneWidget);
   });
   tearDown(() => childMode.value = false);
+  test('child AI requests are rejected before network access', () async {
+    childMode.value = true;
+    var calls = 0;
+    final api = RecipeApi(
+      baseUrl: 'https://example.com',
+      client: MockClient((_) async {
+        calls++;
+        return http.Response('{}', 200);
+      }),
+    );
+    for (final path in [
+      '/households/1/recipe-import',
+      '/households/1/recipe-photo',
+      '/households/1/category-image',
+      '/households/1/recipes/2/variation',
+      '/admin/parent-categories/1/category-image',
+    ]) {
+      await expectLater(
+        api.request(path, 'child-fixture', body: {}),
+        throwsStateError,
+      );
+    }
+    expect(calls, 0);
+    api.close();
+  });
+  testWidgets('child cannot use AI import or variation screens directly', (
+    tester,
+  ) async {
+    var calls = 0;
+    Future<Map<String, dynamic>> request(
+      String path,
+      Map<String, dynamic> body,
+    ) async {
+      calls++;
+      return {};
+    }
+
+    for (final screen in <Widget>[
+      RecipeImport(householdId: '1', request: request),
+      RecipeVariation(
+        householdId: '1',
+        parentRecipeId: '2',
+        parentTitle: 'Soup',
+        request: request,
+      ),
+    ]) {
+      childMode.value = false;
+      await tester.pumpWidget(MaterialApp(home: ChildModeScope(child: screen)));
+      await tester.pumpAndSettle();
+      childMode.value = true;
+      await tester.pumpAndSettle();
+      expect(find.text('Unavailable in child mode.'), findsOneWidget);
+      expect(find.byType(TextField), findsNothing);
+      await tester.pumpWidget(const SizedBox());
+    }
+    expect(calls, 0);
+  });
+  testWidgets(
+    'child recipe browsing never requests generated category images',
+    (tester) async {
+      childMode.value = true;
+      var calls = 0;
+      await tester.pumpWidget(
+        MaterialApp(
+          home: RecipeBrowser(
+            householdId: '1',
+            householdName: 'Home',
+            request: (_) async => {
+              'view': 'categories',
+              'category_nodes': [
+                {'id': '5', 'label': 'Breakfast', 'needs_ai_image': true},
+              ],
+            },
+            save: (_, body) async {
+              calls++;
+              return {};
+            },
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('Breakfast'), findsOneWidget);
+      expect(calls, 0);
+      await tester.pumpWidget(const SizedBox());
+    },
+  );
   test('policy permits favorites and PIN changes only', () {
     childMode.value = true;
     for (final path in [
@@ -79,6 +169,10 @@ void main() {
       '/households/1/shopping-list',
       '/households/1/recipes',
       '/admin/users/2/delete',
+      '/households/1/recipe-import',
+      '/households/1/recipe-photo',
+      '/households/1/category-image',
+      '/households/1/recipes/2/variation',
     ]) {
       expect(() => requireChildModeWrite(path), throwsStateError);
     }
@@ -89,6 +183,10 @@ void main() {
     tester,
   ) async {
     childMode.value = true;
+    tester.view.physicalSize = const Size(1200, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
     final fixture = PlanFixture();
     await tester.pumpWidget(
       MaterialApp(
@@ -105,6 +203,7 @@ void main() {
     );
     await tester.pumpAndSettle();
     expect(find.text('Today soup'), findsOneWidget);
+    expect(find.byType(RecipeBrowser), findsNothing);
     expect(find.byType(LongPressDraggable<Map<String, dynamic>>), findsNothing);
     final buttons = tester.widgetList<TextButton>(
       find.widgetWithText(TextButton, '+ Add'),
@@ -112,7 +211,7 @@ void main() {
     expect(buttons.every((b) => b.onPressed == null), isTrue);
     await tester.pumpWidget(const SizedBox());
   });
-  testWidgets('recipe keeps favorite but disables cooking and edits', (
+  testWidgets('recipe keeps favorite but hides child-restricted actions', (
     tester,
   ) async {
     childMode.value = true;
@@ -139,31 +238,77 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
-    expect(
-      tester
-          .widget<FilledButton>(
-            find.widgetWithText(FilledButton, 'Start cooking'),
-          )
-          .onPressed,
-      isNull,
-    );
-    expect(
-      tester
-          .widget<OutlinedButton>(
-            find.widgetWithText(OutlinedButton, 'Add to meal plan'),
-          )
-          .onPressed,
-      isNull,
-    );
-    for (final button in tester.widgetList<IconButton>(
-      find.byType(IconButton),
-    )) {
-      if (button.tooltip == 'Edit recipe' ||
-          button.tooltip == 'Delete recipe') {
-        expect(button.onPressed, isNull);
-      }
+    for (final label in [
+      'Start cooking',
+      'Add to meal plan',
+      'Request variation',
+      'Add to shopping list',
+    ]) {
+      expect(find.text(label), findsNothing);
     }
+    expect(find.byTooltip('Edit recipe'), findsNothing);
+    expect(find.byTooltip('Delete recipe'), findsNothing);
+    expect(find.byTooltip('Favorite (hold for household)'), findsOneWidget);
     await tester.pumpWidget(const SizedBox());
+  });
+  testWidgets('child shopping list hides add input while retaining items', (
+    tester,
+  ) async {
+    childMode.value = true;
+    await tester.pumpWidget(
+      MaterialApp(
+        home: ShoppingListScreen(
+          householdId: '1',
+          householdName: 'Home',
+          request: (path, {body}) async => {
+            'revision': 0,
+            'items': [
+              {
+                'id': '1',
+                'name': 'Milk',
+                'department': 'Dairy',
+                'checked': false,
+              },
+            ],
+            'departments': ['Dairy'],
+          },
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('Milk'), findsOneWidget);
+    expect(find.byType(TextField), findsNothing);
+    expect(find.byTooltip('Add item'), findsNothing);
+    await tester.pumpWidget(const SizedBox());
+  });
+  testWidgets('blank child recipe hides editing and AI import controls', (
+    tester,
+  ) async {
+    childMode.value = true;
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: BlankRecipeDetail(
+            title: 'Blank',
+            photos: const [],
+            favorite: false,
+            onPicture: () {},
+            onMealPlan: () {},
+            onAttach: () {},
+            onImport: (_) {},
+          ),
+        ),
+      ),
+    );
+    expect(find.text('Blank'), findsOneWidget);
+    for (final label in [
+      'Add picture',
+      'Add to meal plan',
+      'Add to my household',
+      'Import recipe',
+    ]) {
+      expect(find.text(label), findsNothing);
+    }
   });
   testWidgets('enabling requires matching PINs before saving', (tester) async {
     final writes = <Map<String, dynamic>>[];

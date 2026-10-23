@@ -4,6 +4,7 @@ import 'dart:math';
 import 'package:flutter/material.dart';
 
 import 'api.dart';
+import 'child_mode.dart';
 import 'offline_recipes.dart';
 import 'recipe_editor.dart';
 
@@ -70,6 +71,7 @@ class _RecipeVariationState extends State<RecipeVariation> {
   }
 
   Future<void> _prepare() async {
+    if (childMode.value) return;
     if (_busy || _reviewing || _leaving || offlineStatus.value) return;
     final changes = _submittedChanges ?? _changes.text.trim();
     if (changes.isEmpty) {
@@ -201,113 +203,120 @@ class _RecipeVariationState extends State<RecipeVariation> {
   }
 
   @override
-  Widget build(BuildContext context) => PopScope(
-    canPop: _leaving,
-    onPopInvokedWithResult: (didPop, _) {
-      if (!didPop) _close();
-    },
-    child: Scaffold(
-      appBar: AppBar(
-        title: const Text('Request variation'),
-        leading: BackButton(onPressed: _close),
-        actions: [TextButton(onPressed: _close, child: const Text('Cancel'))],
-      ),
-      body: Center(
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 720),
-          child: ListView(
-            padding: const EdgeInsets.all(20),
-            children: [
-              Text(
-                'Variation of ${widget.parentTitle}',
-                style: Theme.of(context).textTheme.titleLarge,
-              ),
-              const SizedBox(height: 12),
-              const SizedBox(height: 20),
-              if (_submittedChanges == null)
-                TextField(
-                  controller: _changes,
-                  enabled: !_busy,
-                  minLines: 4,
-                  maxLines: 10,
-                  maxLength: 4000,
-                  decoration: const InputDecoration(
-                    labelText: 'What would you like to change?',
-                    hintText: 'For example: make it dairy-free, use chicken instead, or adapt it for the slow cooker.',
-                    alignLabelWithHint: true,
-                    border: OutlineInputBorder(),
-                  ),
-                )
-              else ...[
-                Text(_submittedChanges!),
-                const SizedBox(height: 20),
-                Text(
-                  _questions.isEmpty
-                      ? 'Variation ready to review'
-                      : 'A few details about your variation',
-                  style: Theme.of(context).textTheme.titleMedium,
-                ),
-                for (var i = 0; i < _questions.length; i++)
-                  Padding(
-                    padding: const EdgeInsets.only(top: 16),
-                    child: TextField(
-                      controller: _answerFields[i],
-                      enabled: !_busy,
-                      minLines: 1,
-                      maxLines: 4,
-                      maxLength: 2000,
-                      decoration: InputDecoration(
-                        labelText: _questions[i],
-                        border: const OutlineInputBorder(),
+  Widget build(BuildContext context) => childModeOf(context)
+      ? Scaffold(
+          appBar: AppBar(title: const Text('Recipe variation')),
+          body: const Center(child: Text('Unavailable in child mode.')),
+        )
+      : PopScope(
+          canPop: _leaving,
+          onPopInvokedWithResult: (didPop, _) {
+            if (!didPop) _close();
+          },
+          child: Scaffold(
+            appBar: AppBar(
+              title: const Text('Request variation'),
+              leading: BackButton(onPressed: _close),
+              actions: [
+                TextButton(onPressed: _close, child: const Text('Cancel')),
+              ],
+            ),
+            body: Center(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 720),
+                child: ListView(
+                  padding: const EdgeInsets.all(20),
+                  children: [
+                    Text(
+                      'Variation of ${widget.parentTitle}',
+                      style: Theme.of(context).textTheme.titleLarge,
+                    ),
+                    const SizedBox(height: 12),
+                    const SizedBox(height: 20),
+                    if (_submittedChanges == null)
+                      TextField(
+                        controller: _changes,
+                        enabled: !_busy,
+                        minLines: 4,
+                        maxLines: 10,
+                        maxLength: 4000,
+                        decoration: const InputDecoration(
+                          labelText: 'What would you like to change?',
+                          hintText: 'For example: make it dairy-free, use chicken instead, or adapt it for the slow cooker.',
+                          alignLabelWithHint: true,
+                          border: OutlineInputBorder(),
+                        ),
+                      )
+                    else ...[
+                      Text(_submittedChanges!),
+                      const SizedBox(height: 20),
+                      Text(
+                        _questions.isEmpty
+                            ? 'Variation ready to review'
+                            : 'A few details about your variation',
+                        style: Theme.of(context).textTheme.titleMedium,
+                      ),
+                      for (var i = 0; i < _questions.length; i++)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 16),
+                          child: TextField(
+                            controller: _answerFields[i],
+                            enabled: !_busy,
+                            minLines: 1,
+                            maxLines: 4,
+                            maxLength: 2000,
+                            decoration: InputDecoration(
+                              labelText: _questions[i],
+                              border: const OutlineInputBorder(),
+                            ),
+                          ),
+                        ),
+                    ],
+                    if (offlineStatus.value)
+                      const Padding(
+                        padding: EdgeInsets.only(top: 16),
+                        child: Text(
+                          'Connect to the internet to request a variation.',
+                        ),
+                      ),
+                    if (_error != null)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 16),
+                        child: Text(
+                          _error!,
+                          style: TextStyle(
+                            color: Theme.of(context).colorScheme.error,
+                          ),
+                        ),
+                      ),
+                    const SizedBox(height: 20),
+                    FilledButton.icon(
+                      onPressed: _busy || _reviewing || offlineStatus.value
+                          ? null
+                          : _draft != null && _questions.isEmpty
+                          ? _review
+                          : _prepare,
+                      icon: _busy
+                          ? const SizedBox(
+                              width: 18,
+                              height: 18,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : const Icon(Icons.auto_awesome),
+                      label: Text(
+                        _busy
+                            ? 'Preparing variation…'
+                            : _draft != null && _questions.isEmpty
+                            ? 'Review variation'
+                            : _draft != null
+                            ? 'Continue'
+                            : 'Prepare variation',
                       ),
                     ),
-                  ),
-              ],
-              if (offlineStatus.value)
-                const Padding(
-                  padding: EdgeInsets.only(top: 16),
-                  child: Text(
-                    'Connect to the internet to request a variation.',
-                  ),
-                ),
-              if (_error != null)
-                Padding(
-                  padding: const EdgeInsets.only(top: 16),
-                  child: Text(
-                    _error!,
-                    style: TextStyle(
-                      color: Theme.of(context).colorScheme.error,
-                    ),
-                  ),
-                ),
-              const SizedBox(height: 20),
-              FilledButton.icon(
-                onPressed: _busy || _reviewing || offlineStatus.value
-                    ? null
-                    : _draft != null && _questions.isEmpty
-                    ? _review
-                    : _prepare,
-                icon: _busy
-                    ? const SizedBox(
-                        width: 18,
-                        height: 18,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                    : const Icon(Icons.auto_awesome),
-                label: Text(
-                  _busy
-                      ? 'Preparing variation…'
-                      : _draft != null && _questions.isEmpty
-                      ? 'Review variation'
-                      : _draft != null
-                      ? 'Continue'
-                      : 'Prepare variation',
+                  ],
                 ),
               ),
-            ],
+            ),
           ),
-        ),
-      ),
-    ),
-  );
+        );
 }

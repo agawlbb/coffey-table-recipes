@@ -414,11 +414,11 @@ class _RecipeBrowserState extends State<RecipeBrowser>
     List<Map<String, dynamic>> nodes,
     int generation,
   ) async {
-    if (widget.save == null) return;
+    if (widget.save == null || childMode.value) return;
     for (final category in nodes.where(
       (node) => node['needs_ai_image'] == true && node['image_url'] == null,
     )) {
-      if (!mounted || generation != _generation) return;
+      if (!mounted || generation != _generation || childMode.value) return;
       try {
         final image = await widget.save!(
           '/households/${widget.householdId}/category-image',
@@ -1643,7 +1643,8 @@ class _RecipeDetailState extends State<RecipeDetail> {
             : _recipe?['title'] as String? ?? widget.title,
       ),
       actions: [
-        if (_recipe?['source_type'] == 'blank' &&
+        if (!childModeOf(context) &&
+            _recipe?['source_type'] == 'blank' &&
             widget.save != null &&
             _recipe?['in_household'] != false) ...[
           IconButton(
@@ -1731,7 +1732,9 @@ class _RecipeDetailState extends State<RecipeDetail> {
             Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                if (widget.save != null && _recipe?['in_household'] == false)
+                if (!childModeOf(context) &&
+                    widget.save != null &&
+                    _recipe?['in_household'] == false)
                   TextButton.icon(
                     onPressed: childModeOf(context) ? null : _attach,
                     icon: const Icon(Icons.add),
@@ -1739,7 +1742,8 @@ class _RecipeDetailState extends State<RecipeDetail> {
                   ),
                 Row(
                   children: [
-                    if (widget.save != null &&
+                    if (!childModeOf(context) &&
+                        widget.save != null &&
                         _recipe?['in_household'] != false)
                       IconButton(
                         tooltip: 'Edit recipe',
@@ -1755,7 +1759,8 @@ class _RecipeDetailState extends State<RecipeDetail> {
                         onPressed: _sharing ? null : () => _shareRecipe(anchor),
                       ),
                     ),
-                    if (widget.save != null &&
+                    if (!childModeOf(context) &&
+                        widget.save != null &&
                         _recipe?['in_household'] != false)
                       IconButton(
                         tooltip: 'Delete recipe',
@@ -1855,21 +1860,24 @@ class _RecipeDetailState extends State<RecipeDetail> {
               ],
             ),
             const SizedBox(height: 16),
-            FilledButton.icon(
-              onPressed: childModeOf(context) || steps.isEmpty
-                  ? null
-                  : () => Navigator.of(context).push(
-                      MaterialPageRoute<void>(
-                        builder: (_) => CookingMode(
-                          recipe: recipe,
-                          menuBuilder: widget.menuBuilder,
+            if (!childModeOf(context))
+              FilledButton.icon(
+                onPressed: childModeOf(context) || steps.isEmpty
+                    ? null
+                    : () => Navigator.of(context).push(
+                        MaterialPageRoute<void>(
+                          builder: (_) => CookingMode(
+                            recipe: recipe,
+                            menuBuilder: widget.menuBuilder,
+                          ),
                         ),
                       ),
-                    ),
-              icon: const Icon(Icons.soup_kitchen_outlined),
-              label: const Text('Start cooking'),
-            ),
-            if (widget.save != null && recipe['in_household'] != false)
+                icon: const Icon(Icons.soup_kitchen_outlined),
+                label: const Text('Start cooking'),
+              ),
+            if (!childModeOf(context) &&
+                widget.save != null &&
+                recipe['in_household'] != false)
               Padding(
                 padding: const EdgeInsets.only(top: 12),
                 child: Row(
@@ -1956,7 +1964,9 @@ class _RecipeDetailState extends State<RecipeDetail> {
                     'Ingredients',
                     style: Theme.of(context).textTheme.headlineSmall,
                   ),
-                  if (widget.save != null && widget.householdId.isNotEmpty)
+                  if (!childModeOf(context) &&
+                      widget.save != null &&
+                      widget.householdId.isNotEmpty)
                     TextButton.icon(
                       onPressed: childModeOf(context) || ingredients.isEmpty
                           ? null

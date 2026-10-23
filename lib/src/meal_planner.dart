@@ -942,7 +942,8 @@ class _MealPlannerState extends State<MealPlanner> with WidgetsBindingObserver {
       ],
     );
     return LayoutBuilder(
-      builder: (context, constraints) => constraints.maxWidth < 950
+      builder: (context, constraints) =>
+          childMode.value || constraints.maxWidth < 950
           ? list
           : Row(
               children: [
