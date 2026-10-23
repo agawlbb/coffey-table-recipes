@@ -8,9 +8,11 @@ class RecipeShoppingSelector extends StatefulWidget {
     required this.ingredients,
     required this.onAdd,
     this.loadExisting,
+    this.onChooseDates,
   });
 
   final List<ShoppingIngredient> ingredients;
+  final Future<List<ShoppingIngredient>?> Function(BuildContext)? onChooseDates;
   final Future<void> Function(List<String>) onAdd;
   final Future<List<String>> Function()? loadExisting;
 
@@ -21,6 +23,8 @@ class RecipeShoppingSelector extends StatefulWidget {
 class _RecipeShoppingSelectorState extends State<RecipeShoppingSelector> {
   final _selected = <int>{};
   bool _saving = false;
+  bool _changingDates = false;
+  late List<ShoppingIngredient> _ingredients;
   String? _error;
   List<String> _existing = [];
   bool _loading = true;
@@ -28,6 +32,7 @@ class _RecipeShoppingSelectorState extends State<RecipeShoppingSelector> {
   @override
   void initState() {
     super.initState();
+    _ingredients = widget.ingredients;
     _load();
   }
 
@@ -50,10 +55,32 @@ class _RecipeShoppingSelectorState extends State<RecipeShoppingSelector> {
     }
   }
 
+  Future<void> _chooseDates() async {
+    setState(() => _changingDates = true);
+    try {
+      final ingredients = await widget.onChooseDates!(context);
+      if (mounted && ingredients != null) {
+        setState(() {
+          _ingredients = ingredients;
+          _selected.clear();
+          _error = null;
+        });
+      }
+    } catch (_) {
+      if (mounted) {
+        setState(
+          () => _error = 'Could not load meal ingredients. Please try again.',
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _changingDates = false);
+    }
+  }
+
   String? _match(int index) {
     if (!_selected.contains(index)) return null;
     for (final name in _existing) {
-      if (similarShoppingIngredients(widget.ingredients[index].name, name)) {
+      if (similarShoppingIngredients(_ingredients[index].name, name)) {
         return name;
       }
     }
@@ -67,8 +94,8 @@ class _RecipeShoppingSelectorState extends State<RecipeShoppingSelector> {
     });
     try {
       await widget.onAdd([
-        for (var i = 0; i < widget.ingredients.length; i++)
-          if (_selected.contains(i)) widget.ingredients[i].name,
+        for (var i = 0; i < _ingredients.length; i++)
+          if (_selected.contains(i)) _ingredients[i].name,
       ]);
       if (mounted) Navigator.of(context).pop();
     } catch (_) {
@@ -87,7 +114,17 @@ class _RecipeShoppingSelectorState extends State<RecipeShoppingSelector> {
     child: Scaffold(
       appBar: AppBar(
         automaticallyImplyLeading: false,
-        title: const Text('Add to shopping list'),
+        title: Row(
+          children: [
+            Flexible(child: Text('Add to shopping list')),
+            if (widget.onChooseDates != null)
+              IconButton(
+                tooltip: 'Choose meal dates',
+                onPressed: _saving || _changingDates ? null : _chooseDates,
+                icon: const Icon(Icons.calendar_month_outlined),
+              ),
+          ],
+        ),
         actions: [
           IconButton(
             tooltip: 'Close',
@@ -99,7 +136,7 @@ class _RecipeShoppingSelectorState extends State<RecipeShoppingSelector> {
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
-          for (var i = 0; i < widget.ingredients.length; i++)
+          for (var i = 0; i < _ingredients.length; i++)
             Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
@@ -113,13 +150,13 @@ class _RecipeShoppingSelectorState extends State<RecipeShoppingSelector> {
                             : null,
                         child: ListTile(
                           selected: _selected.contains(i),
-                          title: Text(widget.ingredients[i].name),
+                          title: Text(_ingredients[i].name),
                           trailing: Icon(
                             _selected.contains(i)
                                 ? Icons.check_circle
                                 : Icons.radio_button_unchecked,
                           ),
-                          onTap: _saving
+                          onTap: _saving || _changingDates
                               ? null
                               : () => setState(() {
                                   if (!_selected.add(i)) _selected.remove(i);
@@ -127,11 +164,11 @@ class _RecipeShoppingSelectorState extends State<RecipeShoppingSelector> {
                         ),
                       ),
                     ),
-                    if (widget.ingredients[i].details.isNotEmpty)
+                    if (_ingredients[i].details.isNotEmpty)
                       Flexible(
                         child: Padding(
                           padding: const EdgeInsets.all(8),
-                          child: Text(widget.ingredients[i].details),
+                          child: Text(_ingredients[i].details),
                         ),
                       ),
                   ],
@@ -148,6 +185,9 @@ class _RecipeShoppingSelectorState extends State<RecipeShoppingSelector> {
                   ),
               ],
             ),
+          if (_ingredients.isEmpty && !_changingDates)
+            const Text('No ingredients for these dates.'),
+          if (_changingDates) const LinearProgressIndicator(),
           if (_error != null) Text(_error!),
           if (_loading && _error == null) const LinearProgressIndicator(),
           if (_loading && _error != null)
@@ -157,7 +197,9 @@ class _RecipeShoppingSelectorState extends State<RecipeShoppingSelector> {
       bottomNavigationBar: SafeArea(
         minimum: const EdgeInsets.all(16),
         child: FilledButton(
-          onPressed: _saving || _loading || _selected.isEmpty ? null : _add,
+          onPressed: _saving || _changingDates || _loading || _selected.isEmpty
+              ? null
+              : _add,
           child: _saving
               ? const SizedBox(
                   width: 20,

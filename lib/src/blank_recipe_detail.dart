@@ -16,6 +16,7 @@ class BlankRecipeDetail extends StatelessWidget {
     this.onPicture,
     this.onImport,
     this.onAttach,
+    this.onMealPlan,
     this.offline = false,
     this.showFavorite = false,
   });
@@ -23,7 +24,11 @@ class BlankRecipeDetail extends StatelessWidget {
   final List<Map<String, dynamic>> photos;
   final bool favorite;
   final String favoriteNames;
-  final VoidCallback? onFavorite, onHouseholdFavorites, onPicture, onAttach;
+  final VoidCallback? onFavorite,
+      onHouseholdFavorites,
+      onPicture,
+      onAttach,
+      onMealPlan;
   final ValueChanged<String>? onImport;
   final bool offline;
   final bool showFavorite;
@@ -123,6 +128,12 @@ class BlankRecipeDetail extends StatelessWidget {
                     ],
                   ),
                 ),
+              ),
+            if (onMealPlan != null)
+              TextButton.icon(
+                onPressed: onMealPlan,
+                icon: const Icon(Icons.calendar_month_outlined),
+                label: const Text('Add to meal plan'),
               ),
             if (onAttach != null) ...[
               const SizedBox(height: 20),

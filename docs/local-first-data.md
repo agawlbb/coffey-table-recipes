@@ -96,6 +96,29 @@ Do not bypass this layer with a network-first load or clear a populated view
 while synchronizing. Keep authoritative access checks and conflict handling when
 adding new kinds of queued operations.
 
+## Meal-planning branch integration
+
+The feature branch mirrors the full supported calendar (2000-01-01 through
+2199-12-31) once, then serves visible ranges from it. A range change never needs
+a new download to display already mirrored meals. Add/move/remove update the
+local calendar immediately, persist their ordered revisions and survive restart.
+The planner observes repository changes; refresh does not hide a loaded calendar,
+including a confirmed empty plan. Pairings and shopping ingredients are derived
+from mirrored recipe/meal data, including pending local calendar edits.
+
+Past-date confirmation and shared-recipe confirmation remain explicit. If the
+server requires confirmation during synchronization, the local draft stays in
+Review and can only be reapplied after the user reviews that request. Household
+access rejection clears action readiness; late authorized responses cannot
+restore revoked data. Existing drag scrolling, trash drops, dated recipe picker,
+variation confirmation, unscheduled meals and ingredient selection are retained.
+
+Feature validation on 2026-10-23: full suite passed (433 tests). After the final
+whole-library refresh and household-filtered pairing changes, all 94 affected
+local-data, offline-library, planner/access and Add recipe tests passed. Analysis
+is clean. Backend source/schema and the experiment branch remain unchanged; no
+app build or deployment was requested or performed.
+
 The shared repository is identical on main and the meal-planning branch. It also
 protects against late read responses overwriting a newer acknowledged edit,
 access-loss races, creation-ID transitions and stale copies after online recipe
@@ -146,6 +169,13 @@ restart, repeated category reads with zero HTTP requests, replacement, failed
 persistence, rejecting partial initial data and preserving pending shopping edits.
 The former offline-cache download is disabled in production. Completed versions
 are stored in LocalData; older caches never satisfy the initial setup gate.
+
+Complete-database feature validation (2026-10-23): all 440 Flutter tests passed;
+analysis of the changed sources is clean. The feature gate also requires the
+complete calendar/history. Existing planner UI and its durable outbox are retained.
+The feature's legacy per-recipe downloader is disabled. Newly joined households
+wait for an active sync and then bootstrap immediately, rather than waiting for
+the next periodic pass. Snapshot/local-store/API code is shared with main.
 
 ## Complete-database test builds (2026-10-23)
 

@@ -23,8 +23,8 @@ import 'blank_recipe_detail.dart';
 import 'recipe_favorites.dart';
 import 'recipe_filter_dialog.dart';
 import 'recipe_image_prefetch.dart';
-import 'recipe_shopping_selector.dart';
-import 'shopping_item_id.dart';
+import 'recipe_shopping.dart';
+import 'meal_plan_actions.dart';
 import 'shopping_ingredient.dart';
 
 final recipePhotoCache = CacheManager(
@@ -121,6 +121,15 @@ class RecipeBrowser extends StatefulWidget {
     this.cachedRequest,
     this.menuBuilder,
     this.save,
+    this.onSelect,
+    this.mealPlanDestination,
+    this.mealPlanToday,
+    this.onViewMealPlan,
+    this.onAddRecipe,
+    this.onRecentlyDeleted,
+    this.dragRecipes = false,
+    this.onRecipeDragUpdate,
+    this.onRecipeDragEnd,
   });
   final String householdId;
   final String householdName;
@@ -129,6 +138,15 @@ class RecipeBrowser extends StatefulWidget {
   final Future<Map<String, dynamic>?> Function(String path)? cachedRequest;
   final RecipeSave? save;
   final bool embedded;
+  final ValueChanged<Map<String, dynamic>>? onSelect;
+  final String? mealPlanDestination;
+  final DateTime? mealPlanToday;
+  final VoidCallback? onViewMealPlan;
+  final VoidCallback? onAddRecipe;
+  final VoidCallback? onRecentlyDeleted;
+  final bool dragRecipes;
+  final ValueChanged<DragUpdateDetails>? onRecipeDragUpdate;
+  final VoidCallback? onRecipeDragEnd;
   final bool localOnly;
   @override
   State<RecipeBrowser> createState() => _RecipeBrowserState();
@@ -421,6 +439,7 @@ class _RecipeBrowserState extends State<RecipeBrowser>
   }
 
   void _enterCategory(Map<String, dynamic> category) {
+    mealPlanNotices.dismiss();
     setState(() {
       _trail.add(category);
       _search.clear();
@@ -434,6 +453,7 @@ class _RecipeBrowserState extends State<RecipeBrowser>
   }
 
   void _returnToLevel(int depth) {
+    mealPlanNotices.dismiss();
     FocusScope.of(context).unfocus();
     setState(() {
       _trail.removeRange(depth, _trail.length);
@@ -476,7 +496,62 @@ class _RecipeBrowserState extends State<RecipeBrowser>
     }
   }
 
+  Future<void> _planRecipe(Map<String, dynamic> recipe) async {
+    final add = await showModalBottomSheet<bool>(
+      context: context,
+      builder: (context) => SafeArea(
+        child: ListTile(
+          leading: const Icon(Icons.calendar_month_outlined),
+          title: const Text('Add to meal plan'),
+          onTap: () => Navigator.pop(context, true),
+        ),
+      ),
+    );
+    if (add == true && mounted) {
+      await addDatedMeal(
+        context,
+        householdId: widget.householdId,
+        recipe: recipe,
+        request: widget.request,
+        save: widget.save!,
+        viewPlan: widget.onViewMealPlan,
+      );
+    }
+  }
+
+  bool _selectingMeal = false;
   Future<void> _open(Map<String, dynamic> recipe) async {
+    if (widget.onSelect != null) {
+      if (_selectingMeal) return;
+      _selectingMeal = true;
+      try {
+        final data = await widget.request(
+          '/households/${widget.householdId}/recipes/${recipe['id']}',
+        );
+        if (!mounted) return;
+        final full = Map<String, dynamic>.from(data['recipe'] as Map);
+        final result = widget.mealPlanDestination == null
+            ? await chooseDatedMealRecipe(
+                context,
+                full,
+                today: widget.mealPlanToday ?? DateTime.now(),
+              )
+            : await confirmMealRecipe(
+                context,
+                full,
+                destination: widget.mealPlanDestination!,
+              );
+        if (mounted && result != null) widget.onSelect!(result);
+      } catch (error) {
+        if (mounted) {
+          ScaffoldMessenger.of(context)
+              .showSnackBar(SnackBar(content: Text('$error')));
+        }
+      } finally {
+        _selectingMeal = false;
+      }
+      return;
+    }
     await Navigator.of(context).push(
       MaterialPageRoute<void>(
         builder: (_) => RecipeDetail(
@@ -487,6 +562,7 @@ class _RecipeBrowserState extends State<RecipeBrowser>
           cachedRequest: widget.cachedRequest,
           save: widget.save,
           menuBuilder: widget.menuBuilder,
+          onViewMealPlan: widget.onViewMealPlan,
           onChanged: () {
             if (mounted) _load();
           },
@@ -575,6 +651,32 @@ class _RecipeBrowserState extends State<RecipeBrowser>
               ),
             ),
           ),
+          if (widget.onSelect == null &&
+              widget.mealPlanDestination == null &&
+              (widget.onAddRecipe != null || widget.onRecentlyDeleted != null))
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
+              child: Wrap(
+                spacing: 12,
+                children: [
+                  if (widget.onAddRecipe != null)
+                    ValueListenableBuilder<bool>(
+                      valueListenable: offlineStatus,
+                      builder: (context, offline, _) => TextButton.icon(
+                        onPressed: widget.onAddRecipe,
+                        icon: const Icon(Icons.add_circle_outline),
+                        label: const Text('Add recipe'),
+                      ),
+                    ),
+                  if (widget.onRecentlyDeleted != null)
+                    TextButton.icon(
+                      onPressed: widget.onRecentlyDeleted,
+                      icon: const Icon(Icons.delete_outline),
+                      label: const Text('Recently deleted'),
+                    ),
+                ],
+              ),
+            ),
           if (_filterCount > 0)
             Padding(
               padding: const EdgeInsets.fromLTRB(20, 0, 20, 8),
@@ -644,6 +746,20 @@ class _RecipeBrowserState extends State<RecipeBrowser>
               ),
             ),
           ),
+          if (widget.mealPlanDestination != null)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(28, 0, 20, 16),
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  'Add to ${widget.mealPlanDestination}',
+                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                    fontWeight: FontWeight.bold,
+                    color: Theme.of(context).colorScheme.secondary,
+                  ),
+                ),
+              ),
+            ),
           if (_busy) const LinearProgressIndicator(),
           if (_error != null)
             Padding(
@@ -767,11 +883,17 @@ class _RecipeBrowserState extends State<RecipeBrowser>
                   );
                 }
                 final recipe = _recipes[recipeIndex];
-                return Card(
+                final card = Card(
                   color: const Color(0xfffff9ee),
                   clipBehavior: Clip.antiAlias,
                   child: InkWell(
                     onTap: () => _open(recipe),
+                    onLongPress:
+                        widget.save == null ||
+                            widget.onSelect != null ||
+                            widget.dragRecipes
+                        ? null
+                        : () => _planRecipe(recipe),
                     child: Padding(
                       padding: const EdgeInsets.all(16),
                       child: Row(
@@ -807,6 +929,18 @@ class _RecipeBrowserState extends State<RecipeBrowser>
                     ),
                   ),
                 );
+                return widget.dragRecipes
+                    ? LongPressDraggable<Map<String, dynamic>>(
+                        data: {'recipe': recipe},
+                        onDragUpdate: widget.onRecipeDragUpdate,
+                        onDragEnd: (_) => widget.onRecipeDragEnd?.call(),
+                        feedback: Material(
+                          borderRadius: BorderRadius.circular(24),
+                          child: SizedBox(width: 280, child: card),
+                        ),
+                        child: card,
+                      )
+                    : card;
               },
             ),
           ),
@@ -860,6 +994,7 @@ class RecipeDetail extends StatefulWidget {
     this.save,
     this.onChanged,
     this.menuBuilder,
+    this.onViewMealPlan,
   });
   final String householdId;
   final String recipeId;
@@ -869,73 +1004,20 @@ class RecipeDetail extends StatefulWidget {
   final RecipeSave? save;
   final VoidCallback? onChanged;
   final WidgetBuilder? menuBuilder;
+  final VoidCallback? onViewMealPlan;
   @override
   State<RecipeDetail> createState() => _RecipeDetailState();
 }
 
 class _RecipeDetailState extends State<RecipeDetail> {
-  Future<void> _shoppingIngredients(
-    List<Map<String, dynamic>> ingredients,
-  ) async {
-    await showModalBottomSheet<void>(
-      context: context,
-      isScrollControlled: true,
-      useSafeArea: true,
-      isDismissible: false,
-      enableDrag: false,
-      showDragHandle: true,
-      clipBehavior: Clip.antiAlias,
-      constraints: const BoxConstraints(maxWidth: 800),
-      builder: (_) => SizedBox(
-        height: MediaQuery.sizeOf(context).height * .8,
-        child: RecipeShoppingSelector(
-          ingredients: ingredients
-              .map(ShoppingIngredient.fromRecipe)
-              .where((ingredient) => ingredient.name.isNotEmpty)
-              .toList(),
-          loadExisting: () async {
-            final data = await widget.request(
-              '/households/${widget.householdId}/shopping-list',
-            );
-            return [
-              for (final item in recipeRows(data['items'])) '${item['name']}',
-            ];
-          },
-          onAdd: (names) async {
-            final path = '/households/${widget.householdId}/shopping-list';
-            final additions = [
-              for (final name in names)
-                {
-                  'id': newShoppingItemId(),
-                  'name': name,
-                  'department': '',
-                  'checked': false,
-                },
-            ];
-            for (var attempt = 0; ; attempt++) {
-              final current = await widget.request(path);
-              final items = recipeRows(current['items']);
-              // Preserve additions while refreshing a conflicting list revision.
-              final ids = items.map((item) => item['id']).toSet();
-              try {
-                await widget.save!(path, {
-                  'revision': current['revision'],
-                  'items': [
-                    ...items,
-                    ...additions.where((item) => !ids.contains(item['id'])),
-                  ],
-                });
-                return;
-              } on ApiException catch (error) {
-                if (error.status != 409 || attempt >= 2) rethrow;
-              }
-            }
-          },
-        ),
-      ),
-    );
-  }
-
+  Future<void> _shoppingIngredients(List<Map<String, dynamic>> ingredients) =>
+      showRecipeShopping(
+        context,
+        householdId: widget.householdId,
+        request: widget.request,
+        save: widget.save!,
+        ingredients: ingredients.map(ShoppingIngredient.fromRecipe).toList(),
+      );
   List<Map<String, dynamic>> _favoriteMembers = [];
   String? _currentPerson;
   bool _favoriteBusy = false;
@@ -1489,6 +1571,7 @@ class _RecipeDetailState extends State<RecipeDetail> {
             save: widget.save,
             menuBuilder: widget.menuBuilder,
             onChanged: widget.onChanged,
+            onViewMealPlan: widget.onViewMealPlan,
           ),
         ),
       );
@@ -1563,6 +1646,17 @@ class _RecipeDetailState extends State<RecipeDetail> {
             ? () => _favorite(household: true)
             : null,
         onPicture: editable ? _edit : null,
+        onMealPlan: editable
+            ? () => addDatedMeal(
+                context,
+                householdId: widget.householdId,
+                recipe: recipe,
+                request: widget.request,
+                save: widget.save!,
+                viewPlan: widget.onViewMealPlan,
+                exactRecipe: true,
+              )
+            : null,
         onImport: editable ? _importBlank : null,
         onAttach: widget.save != null && recipe['in_household'] == false
             ? _attach
@@ -1723,15 +1817,44 @@ class _RecipeDetailState extends State<RecipeDetail> {
               icon: const Icon(Icons.soup_kitchen_outlined),
               label: const Text('Start cooking'),
             ),
-            if (widget.save != null && _recipe?['in_household'] != false)
+            if (widget.save != null && recipe['in_household'] != false)
               Padding(
                 padding: const EdgeInsets.only(top: 12),
-                child: OutlinedButton.icon(
-                  onPressed: _deleting || _variationOpen
-                      ? null
-                      : _requestVariation,
-                  icon: const Icon(Icons.auto_awesome),
-                  label: const Text('Request variation'),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(
+                      child: OutlinedButton(
+                        onPressed: _deleting
+                            ? null
+                            : () => addDatedMeal(
+                                context,
+                                householdId: widget.householdId,
+                                recipe: recipe,
+                                request: widget.request,
+                                save: widget.save!,
+                                viewPlan: widget.onViewMealPlan,
+                                exactRecipe: true,
+                              ),
+                        child: const Text(
+                          'Add to meal plan',
+                          textAlign: TextAlign.center,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: OutlinedButton(
+                        onPressed: _deleting || _variationOpen
+                            ? null
+                            : _requestVariation,
+                        child: const Text(
+                          'Request variation',
+                          textAlign: TextAlign.center,
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               ),
             if (recipe['description'] != null)
@@ -1791,6 +1914,7 @@ class _RecipeDetailState extends State<RecipeDetail> {
                 ],
               ),
             ),
+
             if (ingredients.isEmpty) const Text('No ingredients recorded.'),
             for (final groupId in <String?>[
               null,

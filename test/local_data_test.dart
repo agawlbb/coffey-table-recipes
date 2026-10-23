@@ -74,6 +74,83 @@ void main() {
     }
   });
 
+  test(
+    'optimistic meal persists selected cover before server acknowledgement',
+    () async {
+      const plan = '/households/1/meal-plan';
+      final data = store(
+        fetch: (path) async => path == recipe
+            ? {
+                'recipe': {
+                  'id': '7',
+                  'title': 'Cake',
+                  'revision': 1,
+                  'photos': [
+                    {
+                      'source_url': 'https://example.com/other.jpg',
+                      'is_cover': false,
+                    },
+                    {
+                      'source_url': 'https://example.com/cover.jpg',
+                      'is_cover': true,
+                    },
+                  ],
+                },
+              }
+            : {'revision': 1, 'today': '2026-10-23', 'entries': []},
+      );
+      await data.request(plan);
+      await data.request(recipe);
+      await data.save(plan, {
+        'revision': 1,
+        'operation': 'add',
+        'id': 'meal',
+        'kind': 'recipe',
+        'recipe_id': '7',
+        'date': '2026-10-24',
+      });
+      expect(
+        (await data.cached(plan))!['entries'][0]['photo_url'],
+        'https://example.com/cover.jpg',
+      );
+      final restarted = store();
+      expect(
+        (await restarted.cached(plan))!['entries'][0]['photo_url'],
+        'https://example.com/cover.jpg',
+      );
+    },
+  );
+  test(
+    'restaurants queue locally and outing name survives list removal',
+    () async {
+      const listPath = '/households/1/restaurants',
+          plan = '/households/1/meal-plan';
+      final data = store(
+        fetch: (path) async => path == listPath
+            ? {'revision': 0, 'items': []}
+            : {'revision': 1, 'today': '2026-10-23', 'entries': []},
+      );
+      await data.request(listPath);
+      await data.request(plan);
+      await data.save(listPath, {
+        'revision': 0,
+        'items': [
+          {'id': 'cafe', 'name': 'Cafe', 'logo_reference': null},
+        ],
+      });
+      await data.save(plan, {
+        'revision': 1,
+        'operation': 'add',
+        'id': 'outing',
+        'kind': 'restaurant',
+        'restaurant_id': 'cafe',
+        'date': '2026-10-24',
+      });
+      await data.save(listPath, {'revision': 1, 'items': []});
+      expect((await data.cached(plan))!['entries'][0]['title'], 'Cafe');
+      expect((await data.cached(plan))!['entries'][0]['restaurant_id'], 'cafe');
+    },
+  );
   test('restart reads local data while refresh never completes', () async {
     final first = store();
     await first.request(list);
@@ -367,6 +444,43 @@ void main() {
       expect(reminders.last, isEmpty);
       expect(find.textContaining('after one minute'), findsNothing);
       await tester.pumpWidget(const SizedBox());
+    },
+  );
+
+  test(
+    'meal additions and moves require valid dates before queueing',
+    () async {
+      const root = '/households/1/meal-plan';
+      final data = store(
+        fetch: (_) async => {
+          'revision': 1,
+          'today': '2026-10-23',
+          'entries': [],
+        },
+      );
+      await data.request(root);
+      for (final operation in ['add', 'move']) {
+        for (final date in [null, '', '2026-02-31', 'not-a-date']) {
+          await expectLater(
+            data.save(root, {
+              'revision': 1,
+              'operation': operation,
+              'id': 'meal',
+              'kind': 'leftovers',
+              'date': date,
+            }),
+            throwsA(
+              isA<ApiException>().having(
+                (error) => error.code,
+                'code',
+                'date_required',
+              ),
+            ),
+          );
+          expect(data.pending, 0);
+          expect((await data.cached(root))!['entries'], isEmpty);
+        }
+      }
     },
   );
 
