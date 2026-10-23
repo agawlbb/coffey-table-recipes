@@ -52,3 +52,38 @@ f8de933f14b9bb4b3191a94aedc8637972c5ab224565f6abd7808f8038d12097.
 This supersedes the earlier d5d04a8 test package. Install over the existing app;
 retain device data. No native installation/ANR log capture, backend change,
 hosted Flutter publication or release tag was performed for this correction.
+
+
+## iOS blank-filter and recipe-opening report, 2026-10-23
+
+The user reported intermittent waits of approximately one minute in 2.0.0: a
+linear indicator after applying the blank-only filter, then a circular indicator
+opening a recipe. No physical-device trace or reproduction is available, so the
+exact cause of that incident remains unconfirmed.
+
+Ready household browsing now receives `LocalData.readView`, a synchronous read of
+the committed in-memory generation. Root/category/filter reads, filter people,
+recipe detail and initial favorites bypass asynchronous request/cache wrappers.
+Detail navigation carries the same reader into related recipes. Background
+snapshot persistence is independent: readers retain the prior committed data
+until the replacement is durable, then local change events update the screen.
+Permission rejection still blocks removed household data. A local detail refresh
+error preserves already displayed content unless access was rejected. Editing
+continues to load its editor catalog through the existing local repository API.
+
+This removes an asynchronous loading seam; it does not establish that a network
+request caused the original iPhone waits. Existing async callers normally resolve
+from local data, but the detail screen still had the legacy cache/request timeout
+sequence and started without a displayed recipe. The production route now reads
+locally before its first paint instead of relying on that sequence finishing.
+
+Focused validation: `recipe_browser_test.dart`, `recipe_filter_dialog_test.dart`
+and `blank_recipe_detail_layout_test.dart` passed in the combined affected run.
+After correcting the new regression's filter selector, all 8 snapshot-database
+tests passed, including an iOS-mode widget scenario with stalled persistence and
+never-completing async/cache readers: filter/open remain usable for a simulated
+minute, no loading indicators or async reads occur, and committed replacement
+data appears afterward. All 27 `local_data_test.dart` tests passed. Changed Dart
+files were formatted; analysis of the three source files and snapshot test passed.
+No full suite, build, release, hosted publication or physical-device run was done
+for this bounded source change. TestFlight 2.0.0/build30 predates this patch.

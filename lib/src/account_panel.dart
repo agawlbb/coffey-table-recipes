@@ -1525,6 +1525,7 @@ class _HouseholdPanelState extends State<HouseholdPanel> {
                       )
                     : RecipeBrowser(
                         localOnly: _local != null,
+                        localRead: _local?.readView,
                         key: ValueKey('$_selected|$_recipeRefresh'),
                         embedded: true,
                         householdId: _selected!,

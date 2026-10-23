@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter_test/flutter_test.dart';
@@ -261,6 +262,76 @@ void main() {
     expect(timer.elapsed, lessThan(const Duration(seconds: 5)));
     data.dispose();
   });
+
+  testWidgets(
+    'iOS blank filtering and detail do not wait for background persistence',
+    (tester) async {
+      final saving = Completer<void>();
+      var stall = false;
+      var asynchronousReads = 0;
+      final data = LocalData(
+        key: 'ios-local',
+        snapshotOnly: true,
+        fetch: (_) async => throw StateError('Unexpected network'),
+        send: (_, body) async => {},
+        readStore: (_) async => null,
+        writeStore: (_, value) async {
+          if (stall) await saving.future;
+        },
+      );
+      final first = snapshot('Local blank dish');
+      (first['responses']
+              as Map)['/households/1/recipes/1']['recipe']['source_type'] =
+          'blank';
+      await data.installSnapshot(first);
+      stall = true;
+      final background = data.installSnapshot(snapshot('Incoming change'));
+      await tester.pump();
+      await tester.pumpWidget(
+        MaterialApp(
+          home: RecipeBrowser(
+            householdId: '1',
+            householdName: 'Table',
+            localOnly: true,
+            localRead: data.readView,
+            cachedRequest: (_) {
+              asynchronousReads++;
+              return Completer<Map<String, dynamic>?>().future;
+            },
+            request: (_) {
+              asynchronousReads++;
+              return Completer<Map<String, dynamic>>().future;
+            },
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.byTooltip('Filters'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Blank recipes only'));
+      await tester.tap(find.text('Apply'));
+      await tester.pumpAndSettle();
+      expect(find.text('Local blank dish'), findsOneWidget);
+      expect(find.byType(LinearProgressIndicator), findsNothing);
+      await tester.tap(find.text('Local blank dish'));
+      await tester.pumpAndSettle();
+      expect(find.text('Local blank dish'), findsWidgets);
+      expect(find.byType(CircularProgressIndicator), findsNothing);
+      expect(asynchronousReads, 0);
+      await tester.pump(const Duration(minutes: 1));
+      expect(find.text('Local blank dish'), findsWidgets);
+      expect(find.byType(CircularProgressIndicator), findsNothing);
+      saving.complete();
+      await background;
+      await tester.pumpAndSettle();
+      expect(find.text('Incoming change'), findsWidgets);
+      expect(asynchronousReads, 0);
+      expect(tester.takeException(), isNull);
+      await tester.pumpWidget(const SizedBox());
+      data.dispose();
+    },
+    variant: TargetPlatformVariant.only(TargetPlatform.iOS),
+  );
 
   testWidgets(
     'local read failure leaves the hamburger menu and input responsive',

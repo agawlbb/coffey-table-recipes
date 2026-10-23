@@ -884,6 +884,26 @@ class LocalData extends ChangeNotifier {
     },
   );
 
+  /// Ready household screens read the committed in-memory generation directly.
+  /// Never wait for file I/O, an outbox write, a token, or a background download.
+  Map<String, dynamic> readView(String input) {
+    final path = _path(input);
+    if (_closed) throw StateError('Repository closed');
+    if (_blocked.keys.any((prefix) => _under(path, prefix))) {
+      throw ApiException(
+        403,
+        'Access to this data was removed.',
+        code: 'household_access_removed',
+      );
+    }
+    final uri = Uri.parse(path);
+    final browse = _snapshotBrowse(uri);
+    if (browse != null) return browse;
+    final direct = _data[path];
+    if (direct is Map) return _copy(direct);
+    throw StateError('Local database is incomplete for $path');
+  }
+
   Future<Map<String, dynamic>> request(String input) async {
     await _load();
     final path = _path(input);

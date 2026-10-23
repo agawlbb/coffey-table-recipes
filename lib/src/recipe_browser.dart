@@ -120,6 +120,7 @@ class RecipeBrowser extends StatefulWidget {
     required this.request,
     this.embedded = false,
     this.localOnly = false,
+    this.localRead,
     this.cachedRequest,
     this.menuBuilder,
     this.save,
@@ -150,6 +151,7 @@ class RecipeBrowser extends StatefulWidget {
   final ValueChanged<DragUpdateDetails>? onRecipeDragUpdate;
   final VoidCallback? onRecipeDragEnd;
   final bool localOnly;
+  final Map<String, dynamic> Function(String path)? localRead;
   @override
   State<RecipeBrowser> createState() => _RecipeBrowserState();
 }
@@ -315,11 +317,15 @@ class _RecipeBrowserState extends State<RecipeBrowser>
     });
     try {
       if (widget.localOnly) {
-        final data = await widget.request(path);
+        final data = widget.localRead != null
+            ? widget.localRead!(path)
+            : await widget.request(path);
         if (!current()) return;
         final nodes = nodesFor(data);
         if (!more && _query.isEmpty && data['view'] == 'categories') {
-          final recipes = await widget.request(recipePath());
+          final recipes = widget.localRead != null
+              ? widget.localRead!(recipePath())
+              : await widget.request(recipePath());
           display(recipes, nodes);
         } else {
           display(data, nodes);
@@ -476,9 +482,11 @@ class _RecipeBrowserState extends State<RecipeBrowser>
           blankOnly: _blankOnly,
           favoritePeople: _favoritePeople,
           loadPeople: () async => recipeRows(
-            (await widget.request(
-              '/households/${widget.householdId}/people',
-            ))['people'],
+            (widget.localRead != null
+                ? widget.localRead!('/households/${widget.householdId}/people')
+                : await widget.request(
+                    '/households/${widget.householdId}/people',
+                  ))['people'],
           ),
         ),
       );
@@ -562,6 +570,7 @@ class _RecipeBrowserState extends State<RecipeBrowser>
           title: recipe['title'] as String,
           request: widget.request,
           cachedRequest: widget.cachedRequest,
+          localRead: widget.localRead,
           save: widget.save,
           menuBuilder: widget.menuBuilder,
           onViewMealPlan: widget.onViewMealPlan,
@@ -997,6 +1006,7 @@ class RecipeDetail extends StatefulWidget {
     required this.title,
     required this.request,
     this.cachedRequest,
+    this.localRead,
     this.save,
     this.onChanged,
     this.menuBuilder,
@@ -1006,6 +1016,7 @@ class RecipeDetail extends StatefulWidget {
   final String recipeId;
   final String title;
   final RecipeRequest request;
+  final Map<String, dynamic> Function(String path)? localRead;
   final Future<Map<String, dynamic>?> Function(String path)? cachedRequest;
   final RecipeSave? save;
   final VoidCallback? onChanged;
@@ -1039,7 +1050,9 @@ class _RecipeDetailState extends State<RecipeDetail> {
   Future<void> _loadFavorites() async {
     if (widget.save == null) return;
     try {
-      final data = await widget.request(_favoritesPath);
+      final data = widget.localRead != null
+          ? widget.localRead!(_favoritesPath)
+          : await widget.request(_favoritesPath);
       if (mounted) setState(() => _acceptFavorites(data));
     } catch (_) {
       /* Recipe content stays available offline. Writes retry the read. */
@@ -1373,6 +1386,29 @@ class _RecipeDetailState extends State<RecipeDetail> {
       );
     }
 
+    if (widget.localRead != null) {
+      try {
+        display(widget.localRead!(path));
+        if (_recipe == null) throw StateError('Missing local recipe');
+        _prefetchImages(_recipe!);
+        _loadFavorites();
+      } catch (error) {
+        if (current()) {
+          final denied =
+              error is ApiException && [401, 403, 404].contains(error.status);
+          setState(() {
+            if (denied) _recipe = null;
+            if (_recipe == null) {
+              _error = error is ApiException
+                  ? error.message
+                  : 'The local recipe database could not be read.';
+            }
+          });
+        }
+      }
+      return;
+    }
+
     try {
       final cached = await widget.cachedRequest
           ?.call(path)
@@ -1579,6 +1615,7 @@ class _RecipeDetailState extends State<RecipeDetail> {
             title: row['title'] as String,
             request: widget.request,
             cachedRequest: widget.cachedRequest,
+            localRead: widget.localRead,
             save: widget.save,
             menuBuilder: widget.menuBuilder,
             onChanged: widget.onChanged,
