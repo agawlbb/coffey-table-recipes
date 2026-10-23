@@ -527,7 +527,7 @@ class LocalData extends ChangeNotifier {
             Uri.parse(entry.key).pathSegments.length == 4 &&
             entry.value is Map &&
             entry.value['recipe'] is Map)
-          _copy(entry.value['recipe'] as Map),
+          Map<String, dynamic>.from(entry.value['recipe'] as Map),
     ];
     final known = rows.map((r) => '${r['id']}').toSet();
     String representative(Map row) {
@@ -536,17 +536,23 @@ class LocalData extends ChangeNotifier {
       return known.contains(id) ? id : '${row['id']}';
     }
 
-    bool inCategory(Map row, String category) {
-      final descendants = {
-        category,
-        ...categories
-            .where((c) => c['parent_id'] == category)
-            .map((c) => '${c['id']}'),
-      };
-      return (row['category_assignments'] as List? ?? []).any(
-        (c) => descendants.contains('${c['category_id']}'),
-      );
+    final categoryById = <String, Map>{
+      for (final category in categories) '${category['id']}': category as Map,
+    };
+    final membership = <String, Set<String>>{};
+    for (final row in rows) {
+      final ids = <String>{};
+      for (final assignment in row['category_assignments'] as List? ?? []) {
+        String? id = '${assignment['category_id']}';
+        while (id != null && ids.add(id)) {
+          final parent = categoryById[id]?['parent_id'];
+          id = parent == null ? null : '$parent';
+        }
+      }
+      membership['${row['id']}'] = ids;
     }
+    bool inCategory(Map row, String category) =>
+        membership['${row['id']}']!.contains(category);
 
     final q = (uri.queryParameters['q'] ?? '').toLowerCase();
     final scope = uri.queryParameters['scope'] ?? '';
@@ -572,7 +578,7 @@ class LocalData extends ChangeNotifier {
                 (scope.isEmpty ||
                     rows.any((r) => inCategory(r, '${category['id']}'))))
               {
-                ...category as Map,
+                ...Map<String, dynamic>.from(category as Map),
                 'needs_ai_image': false,
                 'recipe_count': families
                     ? rows
@@ -605,20 +611,23 @@ class LocalData extends ChangeNotifier {
           return false;
         }
       }
+      if (q.isEmpty) return true;
       return [
         row['title'],
         row['description'],
         for (final i in row['ingredients'] as List? ?? []) i['ingredient_name'],
         for (final t in row['tags'] as List? ?? []) t['label'],
-        for (final c in categories)
-          if (inCategory(row, '${c['id']}')) c['label'],
+        for (final id in membership['${row['id']}']!)
+          categoryById[id]?['label'],
       ].join(' ').toLowerCase().contains(q);
     }).toList();
     if (families) {
       final ids = rows.map(representative).toSet();
       rows = [
         for (final id in ids)
-          _copy((_data['$root/$id'] as Map)['recipe'] as Map),
+          Map<String, dynamic>.from(
+            (_data['$root/$id'] as Map)['recipe'] as Map,
+          ),
       ];
     }
     rows.sort((a, b) {
