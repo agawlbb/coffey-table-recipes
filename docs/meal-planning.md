@@ -158,3 +158,13 @@ Validation: flutter analyze --no-pub clean; full Flutter suite passed (405 tests
 
 ### Android cooking-measures and scrolling test APK (2026-10-23)
 Built source `9f15da09a52a21f497a2e64e17dbc7c43dd603e6` using `flutter build apk --debug --dart-define-from-file=config/firebase.local.json`. Delivered `G:/My Drive/recipe app/CoffeyTableRecipes-meal-planning-v2-test-9f15da0.apk` (199,774,032 bytes). Source/delivery SHA-256 match: `cfe621826f7b86f914d3e004b549347776815509dfb2e83189287026473a588e`. APK v2 signing verifies with existing Android Debug certificate SHA-256 `f8de933f14b9bb4b3191a94aedc8637972c5ab224565f6abd7808f8038d12097`; package `com.coffeytable.coffey_table_recipes`, version 1.8.5/build29, debuggable. No device installation, release/tag, main merge, backend change or hosted Flutter deployment. Earlier packages and the separate experiment are preserved.
+
+
+## Drag stop safety and toolbar zones (2026-10-23, no rebuild)
+Meal-plan ingredient rows display the ingredient name and amount/unit only, omitting preparation, parenthetical/comma notes and optional-detail labels. Recipe-view shopping behavior remains unchanged.
+
+The toolbar's entire left third is the trash target. Its right two-thirds trigger upward scrolling when the dragged tile reaches the toolbar or above; the date list itself no longer triggers upward scrolling. The bottom edge still scrolls toward future dates. Trash hover never scrolls.
+
+The planner tracks the active drag pointer independently of the source tile. Pointer release/cancellation stops the timer even after the source leaves the viewport. App backgrounding, route changes, hiding the planner, access loss and disposal also stop scrolling; stale drag updates cannot restart it on an inactive screen. No app rebuild is part of this change; existing APKs do not include it.
+
+Validation: flutter analyze --no-pub clean; full Flutter suite passed (411 tests). Regression coverage includes quantity-only details, exact toolbar trash-third sizing, no upward scrolling inside the date list, trash hover without scrolling, pointer release/cancellation after the source leaves the viewport, background/navigation/hide stops, and stale drag updates on inactive screens. No rebuild was performed.

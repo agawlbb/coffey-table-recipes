@@ -120,7 +120,7 @@ class PlanFixture {
         householdName: 'Table',
         request: request,
         save: save,
-        active: false,
+        active: true,
         now: () => DateTime(2026, 10, 22),
       ),
     ),
@@ -157,6 +157,12 @@ void main() {
       await tester.pump(const Duration(milliseconds: 180));
       expect(controller.offset, middle);
       await gesture.moveTo(Offset(bounds.center.dx, bounds.top + 15));
+      await tester.pump(const Duration(milliseconds: 240));
+      expect(controller.offset, middle);
+      final toolbar = tester.getRect(find.byKey(const ValueKey('meal-trash')));
+      await gesture.moveTo(
+        Offset(toolbar.right + toolbar.width / 2, toolbar.center.dy),
+      );
       await tester.pump(const Duration(milliseconds: 240));
       expect(controller.offset, lessThan(middle));
       await gesture.cancel();

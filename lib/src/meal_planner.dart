@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/gestures.dart';
 
 import 'api.dart';
 import 'meal_plan_actions.dart';
@@ -34,6 +35,11 @@ class _MealPlannerState extends State<MealPlanner> with WidgetsBindingObserver {
   final _scroll = ScrollController();
   final _scrollArea = GlobalKey();
   final _center = GlobalKey();
+  final _toolbar = GlobalKey();
+  final _pressedPointers = <int>{};
+  int? _dragPointer;
+  ModalRoute<dynamic>? _route;
+  bool _background = false;
   List<Map<String, dynamic>> _entries = [];
   late DateTime _today;
   int _revision = 0, _pastDays = 30, _futureDays = 45, _generation = 0;
@@ -77,6 +83,7 @@ class _MealPlannerState extends State<MealPlanner> with WidgetsBindingObserver {
     final now = widget.now?.call() ?? DateTime.now();
     _today = DateTime(now.year, now.month, now.day);
     WidgetsBinding.instance.addObserver(this);
+    GestureBinding.instance.pointerRouter.addGlobalRoute(_trackPointer);
     _scroll.addListener(_extend);
     _load();
     _refresh = Timer.periodic(const Duration(seconds: 30), (_) {
@@ -89,11 +96,24 @@ class _MealPlannerState extends State<MealPlanner> with WidgetsBindingObserver {
   @override
   void didUpdateWidget(MealPlanner old) {
     super.didUpdateWidget(old);
+    if (!widget.active && old.active) _stopDragScroll();
     if (widget.active && !old.active) _load(quiet: true);
   }
 
   @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _route = ModalRoute.of(context);
+    if (!(_route?.isCurrent ?? true)) _stopDragScroll();
+  }
+
+  @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
+    _background = state != AppLifecycleState.resumed;
+    if (_background) {
+      _stopDragScroll();
+      _pressedPointers.clear();
+    }
     if (state == AppLifecycleState.resumed && widget.active) _load(quiet: true);
   }
 
@@ -101,6 +121,7 @@ class _MealPlannerState extends State<MealPlanner> with WidgetsBindingObserver {
   void dispose() {
     _generation++;
     WidgetsBinding.instance.removeObserver(this);
+    GestureBinding.instance.pointerRouter.removeGlobalRoute(_trackPointer);
     _refresh?.cancel();
     _stopDragScroll();
     _scroll.dispose();
@@ -472,41 +493,81 @@ class _MealPlannerState extends State<MealPlanner> with WidgetsBindingObserver {
     }
   }
 
+  void _trackPointer(PointerEvent event) {
+    if (event is PointerDownEvent) _pressedPointers.add(event.pointer);
+    if (event is PointerMoveEvent && event.pointer == _dragPointer) {
+      _dragPosition = event.position;
+    }
+    if (event is PointerUpEvent || event is PointerCancelEvent) {
+      _pressedPointers.remove(event.pointer);
+      if (event.pointer == _dragPointer) _stopDragScroll();
+    }
+  }
+
   void _stopDragScroll() {
     _dragScroll?.cancel();
     _dragScroll = null;
     _dragPosition = null;
+    _dragPointer = null;
   }
 
   void _autoScroll(DragUpdateDetails details) {
+    if (!widget.active ||
+        _background ||
+        _pressedPointers.isEmpty ||
+        !(_route?.isCurrent ?? true)) {
+      return;
+    }
+    _dragPointer ??= _pressedPointers.last;
     _dragPosition = details.globalPosition;
     _dragScroll ??= Timer.periodic(const Duration(milliseconds: 30), (_) {
+      if (!mounted ||
+          !widget.active ||
+          _background ||
+          !_ready ||
+          !(_route?.isCurrent ?? true) ||
+          !_pressedPointers.contains(_dragPointer)) {
+        _stopDragScroll();
+        return;
+      }
       final box = _scrollArea.currentContext?.findRenderObject() as RenderBox?;
+      final toolbar = _toolbar.currentContext?.findRenderObject() as RenderBox?;
       final position = _dragPosition;
-      if (box == null || position == null || !_scroll.hasClients || !_ready) {
+      if (box == null ||
+          toolbar == null ||
+          position == null ||
+          !_scroll.hasClients) {
         return;
       }
       final point = box.globalToLocal(position);
+      final barPoint = toolbar.globalToLocal(position);
       if (point.dx < 0 ||
           point.dx > box.size.width ||
-          point.dy < -24 ||
+          position.dy < 0 ||
           point.dy > box.size.height + 24) {
         return;
       }
+      final up =
+          barPoint.dy <= toolbar.size.height &&
+          barPoint.dx >= toolbar.size.width / 3 &&
+          barPoint.dx <= toolbar.size.width;
       final edge = (box.size.height / 3).clamp(40.0, 120.0);
-      final direction = point.dy < edge
+      final down = point.dy > box.size.height - edge;
+      final direction = up
           ? -1
-          : point.dy > box.size.height - edge
+          : down
           ? 1
           : 0;
       if (direction == 0) return;
-      final distance = direction < 0 ? point.dy : box.size.height - point.dy;
-      final speed = 6 + 18 * (1 - distance.clamp(0, edge) / edge);
-      final next = (_scroll.offset + direction * speed).clamp(
-        _scroll.position.minScrollExtent,
-        _scroll.position.maxScrollExtent,
+      final speed = up
+          ? 18.0
+          : 6 + 18 * (1 - (box.size.height - point.dy).clamp(0, edge) / edge);
+      _scroll.jumpTo(
+        (_scroll.offset + direction * speed).clamp(
+          _scroll.position.minScrollExtent,
+          _scroll.position.maxScrollExtent,
+        ),
       );
-      _scroll.jumpTo(next);
     });
   }
 
@@ -690,52 +751,60 @@ class _MealPlannerState extends State<MealPlanner> with WidgetsBindingObserver {
     }
     final list = Column(
       children: [
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-          child: Wrap(
-            alignment: WrapAlignment.spaceBetween,
-            crossAxisAlignment: WrapCrossAlignment.center,
-            spacing: 8,
+        SizedBox(
+          key: _toolbar,
+          height: 80,
+          child: Row(
             children: [
-              DragTarget<Map<String, dynamic>>(
-                key: const ValueKey('meal-trash'),
-                onWillAcceptWithDetails: (details) =>
-                    !_saving && details.data['entry'] is Map<String, dynamic>,
-                onAcceptWithDetails: (details) {
-                  _stopDragScroll();
-                  _remove(details.data['entry'] as Map<String, dynamic>);
-                },
-                builder: (context, candidates, rejected) => Tooltip(
-                  message: 'Drag a meal here to delete',
-                  child: Container(
-                    width: 104,
-                    height: 80,
-                    alignment: Alignment.centerLeft,
-                    padding: const EdgeInsets.only(left: 12),
-                    decoration: BoxDecoration(
-                      color: candidates.isEmpty
-                          ? Colors.transparent
-                          : Theme.of(context).colorScheme.errorContainer,
-                      borderRadius: BorderRadius.circular(12),
+              Expanded(
+                child: DragTarget<Map<String, dynamic>>(
+                  key: const ValueKey('meal-trash'),
+                  onWillAcceptWithDetails: (details) =>
+                      !_saving && details.data['entry'] is Map<String, dynamic>,
+                  onAcceptWithDetails: (details) {
+                    _stopDragScroll();
+                    _remove(details.data['entry'] as Map<String, dynamic>);
+                  },
+                  builder: (context, candidates, rejected) => Tooltip(
+                    message: 'Drag a meal here to delete',
+                    child: Container(
+                      height: 80,
+                      alignment: Alignment.centerLeft,
+                      padding: const EdgeInsets.only(left: 28),
+                      decoration: BoxDecoration(
+                        color: candidates.isEmpty
+                            ? Colors.transparent
+                            : Theme.of(context).colorScheme.errorContainer,
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: const Icon(Icons.delete_outline),
                     ),
-                    child: const Icon(Icons.delete_outline),
                   ),
                 ),
               ),
-              TextButton(
-                onPressed: () => _scroll.hasClients
-                    ? _scroll.animateTo(
-                        0,
-                        duration: const Duration(milliseconds: 250),
-                        curve: Curves.easeOut,
-                      )
-                    : null,
-                child: const Text('Today'),
-              ),
-              TextButton.icon(
-                onPressed: _saving ? null : _ingredients,
-                icon: const Icon(Icons.add_shopping_cart),
-                label: const Text('Ingredients'),
+              Expanded(
+                flex: 2,
+                child: Wrap(
+                  alignment: WrapAlignment.spaceEvenly,
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  children: [
+                    TextButton(
+                      onPressed: () => _scroll.hasClients
+                          ? _scroll.animateTo(
+                              0,
+                              duration: const Duration(milliseconds: 250),
+                              curve: Curves.easeOut,
+                            )
+                          : null,
+                      child: const Text('Today'),
+                    ),
+                    TextButton.icon(
+                      onPressed: _saving ? null : _ingredients,
+                      icon: const Icon(Icons.add_shopping_cart),
+                      label: const Text('Ingredients'),
+                    ),
+                  ],
+                ),
               ),
             ],
           ),

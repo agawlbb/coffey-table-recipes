@@ -8,6 +8,27 @@ import 'package:coffey_table_recipes/src/shopping_ingredient.dart';
 import 'meal_planner_test.dart' show PlanFixture;
 
 void main() {
+  test('planner ingredient details contain only quantity and unit', () {
+    final rows = mealPlanIngredients([
+      {
+        'ingredient_name': 'Butter (room temperature)',
+        'quantity_decimal': '.5',
+        'original_unit': 'cup',
+        'preparation': 'softened',
+        'is_optional': true,
+      },
+      {
+        'ingredient_name': 'Onion, finely chopped',
+        'quantity_decimal': '1',
+        'preparation': 'diced',
+      },
+    ]);
+    expect(rows[0].name, 'Butter');
+    expect(rows[0].details, '1/2 cup');
+    expect(rows[1].name, 'Onion');
+    expect(rows[1].details, '1');
+  });
+
   test('customary amounts round upward to standard cooking measures', () {
     for (final pair in [
       ('1.0833333', '1 1/8 cup'),

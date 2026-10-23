@@ -1,4 +1,5 @@
 import 'meal_plan_actions.dart';
+import 'ingredient_amount.dart';
 
 import 'shopping_ingredient.dart';
 
@@ -131,7 +132,15 @@ ShoppingIngredient _displayIngredient(Map<String, dynamic> row) {
               : '');
     }
   }
-  return ShoppingIngredient.fromRecipe(copy);
+  final ingredient = ShoppingIngredient.fromRecipe(copy);
+  final fields = ingredientEditingFields(copy);
+  return ShoppingIngredient(
+    ingredient.name,
+    details: [
+      fields['amount'],
+      fields['unit'],
+    ].where((value) => value != null && '$value'.trim().isNotEmpty).join(' '),
+  );
 }
 
 String _quantity(num value, bool customary) {
