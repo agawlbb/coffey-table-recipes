@@ -2,6 +2,17 @@
 
 Release dates and changes are reconstructed from annotated Git tags, commit history, and project release records. Versions before 1.0 are demonstration releases; 1.0 marks the first usable release. Android retains the existing signing identity; iOS delivery and signing are recorded for each release.
 
+## 2.1.0 — 2026-10-23
+
+Build 31; tag `v2.1.0`.
+
+- Add PIN-protected account child mode: viewing and favorites remain available while editing, AI generation, shopping/planner changes and cooking/timer controls are restricted. Administrators can request a reset applied on a new login.
+- Identify child accounts in household people, place Child mode after Household & people, and move Manage restaurants directly below Shopping list departments with matching presentation.
+- Warn about blank planned recipes during ingredient review, preserving other available ingredients and updating the warning with the selected dates.
+- Open the planner with today at the top and refine the approved ivory date cards, bold headings, Today accent/shadow, rounded recipe pictures and centered captions.
+- Read saved recipe views before their first paint, retaining local browsing during stalled background storage and respecting access removal.
+- Add optional shared shopping-entry notes, with inline editing, offline persistence, revision-safe synchronization and compatibility with older clients.
+- Identify password fields for platform autofill and honor household AI-image settings in local snapshots.
 ## 2.0.0 — 2026-10-23
 
 Build 30; tag `v2.0.0`. Releases the accepted meal planner and local-first household data after 1.8.5.
