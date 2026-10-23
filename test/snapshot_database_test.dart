@@ -261,20 +261,27 @@ void main() {
     expect(timer.elapsed, lessThan(const Duration(seconds: 5)));
     data.dispose();
   });
+
   testWidgets(
-    'a local read exception does not turn into a connection error or lock input',
+    'local read failure leaves the hamburger menu and input responsive',
     (tester) async {
       var reads = 0;
       await tester.pumpWidget(
         MaterialApp(
-          home: RecipeBrowser(
-            householdId: '1',
-            householdName: 'Table',
-            localOnly: true,
-            request: (_) async {
-              reads++;
-              throw StateError('Local test failure');
-            },
+          home: Scaffold(
+            key: const ValueKey('local-error-scaffold'),
+            appBar: AppBar(title: const Text('Recipes')),
+            drawer: const Drawer(child: Text('Household navigation')),
+            body: RecipeBrowser(
+              householdId: '1',
+              householdName: 'Table',
+              embedded: true,
+              localOnly: true,
+              request: (_) async {
+                reads++;
+                throw StateError('Local test failure');
+              },
+            ),
           ),
         ),
       );
@@ -285,6 +292,15 @@ void main() {
       );
       expect(find.textContaining('connection'), findsNothing);
       expect(find.byType(LinearProgressIndicator), findsNothing);
+      await tester.tap(find.byTooltip('Open navigation menu'));
+      await tester.pumpAndSettle();
+      expect(find.text('Household navigation'), findsOneWidget);
+      tester
+          .state<ScaffoldState>(
+            find.byKey(const ValueKey('local-error-scaffold')),
+          )
+          .closeDrawer();
+      await tester.pumpAndSettle();
       await tester.tap(find.byType(TextField));
       await tester.enterText(find.byType(TextField), 'Soup');
       await tester.pumpAndSettle();
