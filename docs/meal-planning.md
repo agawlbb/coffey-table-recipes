@@ -8,7 +8,7 @@ change the release version, main branches, release tags or published app.
 
 Open Meal planner from the existing navigation drawer. The scrolling date list
 opens with today near the middle; Today returns there. Earlier dates have a
-darker background and today has the primary tint. Each date offers Add: Recipe
+darker background; today uses an olive heading, badge and left border. Each date offers Add: Recipe
 opens the existing recipe browser in selection mode; Leftovers and Restaurant
 outing create matching placeholder tiles. The recipe browser stays beside the
 date list on wide screens and supports dragging recipes into the plan.
@@ -117,3 +117,7 @@ release, tag, hosted frontend/backend deployment or dependency change occurred.
 Date Add opens the existing browser with a persistent contrasting Add to [full date] line under its breadcrumbs. Every selection loads the current recipe family and opens confirmation: choose the original or an available household variation, then Add; Cancel leaves the picker open without a write. Normal browsing is unchanged. Recipe detail keeps full-width Start cooking, followed by equal-width Add to meal plan and Request variation buttons. Trash deletion retains past-history confirmation and access/revision guards.
 
 Validation: flutter analyze --no-pub clean; full flutter test --no-pub suite passed (389 tests).
+
+
+### Updated Android debug build (2026-10-23)
+Built source `1595dc13e5cb85556bab4438d5eac6513fe24175` with `flutter build apk --debug --dart-define-from-file=config/firebase.local.json`. Saved `G:/My Drive/recipe app/CoffeyTableRecipes-meal-planning-v2-test-1595dc1.apk` (199,763,398 bytes). Source and delivered copy SHA-256: `8c687d2774db9d9764fad2674e9804bbb5ff5fe17ee3975ec6d0125050e96358`. APK v2 signature verifies with the existing Android Debug certificate (`f8de933f14b9bb4b3191a94aedc8637972c5ab224565f6abd7808f8038d12097`). Package `com.coffeytable.coffey_table_recipes`, version 1.8.5/build 29, debuggable, minimum SDK 24/target 36. No device installation, release tagging, main merge, or hosted Flutter deployment performed. Existing packages retained.
