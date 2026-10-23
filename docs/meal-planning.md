@@ -65,7 +65,7 @@ can consume this API; recommendation screens are outside this implementation.
 
 ## Ingredients and shopping
 
-Ingredients opens a date-range picker for today/upcoming meals, then reuses
+Ingredients opens today and all future planned meals directly, then reuses
 RecipeShoppingSelector and the same shopping-list write helper as recipe detail.
 Each scheduled occurrence contributes once. Explicit amounts with the same
 ingredient name, compatible unit spelling, preparation and optional status are
@@ -132,3 +132,11 @@ Validation: full Flutter suite passed (397 tests); flutter analyze --no-pub clea
 
 ### Android test APK after confirmation and feedback changes
 Built source 1e77b0676de5638d63740f40823f259d1fdfb05a using flutter build apk --debug --dart-define-from-file=config/firebase.local.json. Saved G:/My Drive/recipe app/CoffeyTableRecipes-meal-planning-v2-test-1e77b06.apk (199,766,529 bytes). Source and delivered copy SHA-256: c3cd85f9961f1619e2554a3450bb6a0b1d7bf89853d6b65b5f50db83ec829b8c. APK v2 signature verifies using the existing Android Debug certificate f8de933f14b9bb4b3191a94aedc8637972c5ab224565f6abd7808f8038d12097; package com.coffeytable.coffey_table_recipes, version 1.8.5/build29, debuggable. No installation, release, main merge, backend or hosted Flutter deployment. Earlier test packages and the experiment branch were preserved.
+
+
+## Ingredient review update (2026-10-23)
+Removed the manual planner refresh icon; automatic refresh remains. Ingredients opens the existing shopping selector directly for today through all supported future planned dates (2199-12-31). Its title has a calendar button for an optional custom today/future range. Cancel preserves the list and checked ingredients; applying a range replaces the list and clears prior selections. Empty ranges still show the calendar action.
+
+A broad plan read discovers all scheduled recipe dates, including dates outside the visible scrolling window. Ingredient requests group occupied dates into nonoverlapping spans of at most 366 days to respect the existing API limit. No backend change or database mutation is required. Amounts trim trailing zeroes; customary quantities use common mixed fractions with the existing recipe-import tolerance, while metric amounts retain decimals. Compatible quantities are summed before formatting; descriptive quantities, optional ingredients and incompatible units remain separate.
+
+Validation: flutter analyze --no-pub clean; full flutter test --no-pub suite passed (401 tests). Coverage includes direct all-future opening, distant planned meals within API bounds, calendar cancellation, custom-list replacement and selection reset, customary fractions and trimmed metric amounts. Access regressions now use automatic resume refresh instead of the removed button.

@@ -9,6 +9,7 @@ import 'recipe_browser.dart';
 import 'recipe_editor.dart';
 import 'recipe_shopping.dart';
 import 'shopping_item_id.dart';
+import 'shopping_ingredient.dart';
 
 class MealPlanner extends StatefulWidget {
   const MealPlanner({
@@ -408,42 +409,65 @@ class _MealPlannerState extends State<MealPlanner> with WidgetsBindingObserver {
   Future<void> _ingredients() async {
     if (!_ready) return;
     final epoch = _accessEpoch;
-    final range = await showDateRangePicker(
-      context: context,
-      firstDate: _today,
-      lastDate: DateTime(_today.year + 2),
-      initialDateRange: DateTimeRange(start: _today, end: _day(6)),
-      helpText: 'Meal ingredients',
-      saveText: 'Ingredients',
-    );
-    if (range == null || !_usable(epoch)) return;
-    try {
-      final data = await widget.request(
-        '$_path/ingredients?from=${mealPlanDate(range.start)}&to=${mealPlanDate(range.end)}',
-      );
-      if (!mounted || !_usable(epoch)) return;
-      final ingredients = mealPlanIngredients(recipeRows(data['ingredients']));
-      if (ingredients.isEmpty) {
-        _message('No ingredients for these dates.');
-        return;
+    Future<List<ShoppingIngredient>> load(DateTime start, DateTime end) async {
+      try {
+        final result = await loadMealPlanIngredients(
+          widget.request,
+          _path,
+          start,
+          end,
+        );
+        if (!_usable(epoch)) throw StateError('Meal plan access changed.');
+        return result;
+      } catch (error) {
+        _invalidateAccess(error);
+        rethrow;
       }
+    }
+
+    try {
+      var range = DateTimeRange(start: _today, end: DateTime(2199, 12, 31));
+      final ingredients = await load(range.start, range.end);
+      if (!mounted || !_usable(epoch)) return;
       await showRecipeShopping(
         context,
         householdId: widget.householdId,
         request: widget.request,
         save: widget.save,
         ingredients: ingredients,
+        onChooseDates: (sheetContext) async {
+          final selected = await showDateRangePicker(
+            context: sheetContext,
+            firstDate: _today,
+            lastDate: DateTime(2199, 12, 31),
+            initialDateRange: DateTimeRange(
+              start: range.start,
+              end: range.end.year == 2199 ? _day(6) : range.end,
+            ),
+            helpText: 'Meal ingredients',
+            saveText: 'Apply',
+          );
+          if (selected == null) return null;
+          if (!_usable(epoch)) return null;
+          try {
+            final result = await load(selected.start, selected.end);
+            range = selected;
+            return result;
+          } catch (_) {
+            if (!_usable(epoch) && sheetContext.mounted) {
+              Navigator.of(sheetContext).pop();
+            }
+            rethrow;
+          }
+        },
       );
     } catch (error) {
-      if (!mounted || !_usable(epoch)) return;
-      if (_invalidateAccess(error)) return;
-      if (mounted) {
-        _message(
-          error is ApiException
-              ? error.message
-              : 'Could not load meal ingredients.',
-        );
-      }
+      if (!_usable(epoch)) return;
+      _message(
+        error is ApiException
+            ? error.message
+            : 'Could not load meal ingredients.',
+      );
     }
   }
 
@@ -702,11 +726,6 @@ class _MealPlannerState extends State<MealPlanner> with WidgetsBindingObserver {
                 onPressed: _saving ? null : _ingredients,
                 icon: const Icon(Icons.add_shopping_cart),
                 label: const Text('Ingredients'),
-              ),
-              IconButton(
-                tooltip: 'Refresh meal plan',
-                onPressed: _saving ? null : () => _load(quiet: true),
-                icon: const Icon(Icons.refresh),
               ),
             ],
           ),

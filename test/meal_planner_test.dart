@@ -335,7 +335,7 @@ void main() {
       ]);
       expect(result.length, 6);
       expect(result[0].name, 'Flour');
-      expect(result[0].details, '1.5 cup');
+      expect(result[0].details, '1 1/2 cup');
       expect(result[1].details, '100 g');
       expect(result[2].details, 'to taste');
       expect(result[3].details, 'a pinch');

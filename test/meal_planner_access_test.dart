@@ -21,7 +21,7 @@ void main() {
             body: MealPlanner(
               householdId: '1',
               householdName: 'Table',
-              active: false,
+              active: true,
               now: () => DateTime(2026, 10, 22),
               save: fixture.save,
               request: (path) {
@@ -43,9 +43,11 @@ void main() {
         ),
       );
       await tester.pumpAndSettle();
-      await tester.tap(find.byTooltip('Refresh meal plan'));
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
       await tester.pump();
-      await tester.tap(find.byTooltip('Refresh meal plan'));
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
       await tester.pumpAndSettle();
       pending.complete(await fixture.request('/snapshot'));
       await tester.pumpAndSettle();
@@ -68,7 +70,7 @@ void main() {
             body: MealPlanner(
               householdId: '1',
               householdName: 'Table',
-              active: false,
+              active: true,
               now: () => DateTime(2026, 10, 22),
               request: fixture.request,
               save: (path, body) async => throw ApiException(
@@ -125,7 +127,12 @@ void main() {
         expect(find.text('Today soup'), findsOneWidget);
         expect(find.text('Bread idea'), findsOneWidget);
         error = failure;
-        await tester.tap(find.byTooltip('Refresh meal plan'));
+        tester.binding.handleAppLifecycleStateChanged(
+          AppLifecycleState.inactive,
+        );
+        tester.binding.handleAppLifecycleStateChanged(
+          AppLifecycleState.resumed,
+        );
         await tester.pumpAndSettle();
         expect(find.text('Today soup'), findsNothing);
         expect(find.text('Bread idea'), findsNothing);
@@ -176,7 +183,7 @@ void main() {
             body: MealPlanner(
               householdId: '1',
               householdName: 'Table',
-              active: false,
+              active: true,
               now: () => DateTime(2026, 10, 22),
               save: fixture.save,
               request: (path) async {
@@ -189,7 +196,8 @@ void main() {
       );
       await tester.pumpAndSettle();
       failed = true;
-      await tester.tap(find.byTooltip('Refresh meal plan'));
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
       await tester.pumpAndSettle();
       expect(find.text('Today soup'), findsOneWidget);
       expect(find.text('Bread idea'), findsOneWidget);
