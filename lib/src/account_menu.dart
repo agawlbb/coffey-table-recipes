@@ -120,11 +120,6 @@ class AccountMenu extends StatelessWidget {
         ),
         const PopupMenuDivider(),
         action(
-          'childMode',
-          childMode.value ? 'Child mode: On' : 'Child mode: Off',
-          Icons.lock_outline,
-        ),
-        action(
           'name',
           'Account display name',
           Icons.person_outline,
@@ -137,6 +132,11 @@ class AccountMenu extends StatelessWidget {
           enabled: canEditTableName && !childMode.value,
         ),
         action('household', 'Household & people', Icons.people_outline),
+        action(
+          'childMode',
+          childMode.value ? 'Child mode: On' : 'Child mode: Off',
+          Icons.lock_outline,
+        ),
         if (showTimers && !childMode.value)
           action('timers', 'Timer settings', Icons.alarm_outlined),
         if (administrator && !childMode.value)

@@ -187,7 +187,7 @@ void main() {
     'household names save and people show account or invitation icons',
     (tester) async {
       final people = <Map<String, dynamic>>[
-        {'display_name': 'Alex', 'user_id': 'test-user'},
+        {'display_name': 'Alex', 'user_id': 'test-user', 'child_mode': true},
         {'display_name': 'Sam', 'user_id': null},
       ];
       String householdName = 'Coffey';
@@ -230,6 +230,21 @@ void main() {
       expect(find.text('Alex'), findsOneWidget);
       expect(find.text('Sam'), findsOneWidget);
       expect(find.byIcon(Icons.account_circle), findsOneWidget);
+      expect(find.byTooltip('Child account'), findsOneWidget);
+      expect(
+        find.descendant(
+          of: find.widgetWithText(ListTile, 'Alex'),
+          matching: find.byIcon(Icons.child_care),
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(
+          of: find.widgetWithText(ListTile, 'Sam'),
+          matching: find.byIcon(Icons.child_care),
+        ),
+        findsNothing,
+      );
       expect(find.byTooltip('Has a login account'), findsNothing);
       await tester.tap(find.byTooltip('Invite to household'));
       await tester.pumpAndSettle();

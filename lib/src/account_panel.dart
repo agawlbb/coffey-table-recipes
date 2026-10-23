@@ -1334,7 +1334,23 @@ class _HouseholdPanelState extends State<HouseholdPanel> {
                                 : () => _invitePerson(person),
                           ),
                   ),
-                  title: Text(person['display_name'] as String),
+                  title: Row(
+                    children: [
+                      Flexible(child: Text(person['display_name'] as String)),
+                      if (person['user_id'] != null &&
+                          person['child_mode'] == true) ...[
+                        const SizedBox(width: 8),
+                        const Tooltip(
+                          message: 'Child account',
+                          child: Icon(
+                            Icons.child_care,
+                            semanticLabel: 'Child account',
+                            size: 20,
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
                   trailing: person == _ownPerson
                       ? IconButton(
                           tooltip: 'Change name at the table',

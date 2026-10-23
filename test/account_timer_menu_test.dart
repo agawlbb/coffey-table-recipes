@@ -35,6 +35,7 @@ void main() {
       'Account display name': 'name',
       'Name at the table': 'tableName',
       'Household & people': 'household',
+      'Child mode: Off': 'childMode',
       'Timer settings': 'timers',
       'Administration': 'administration',
       'Log out': 'logout',
@@ -42,6 +43,10 @@ void main() {
       await tester.tap(find.byTooltip('User menu'));
       await tester.pumpAndSettle();
       expect(tester.takeException(), isNull);
+      expect(
+        tester.getTopLeft(find.text('Child mode: Off')).dy,
+        greaterThan(tester.getTopLeft(find.text('Household & people')).dy),
+      );
       await tester.tap(find.text(entry.key));
       await tester.pumpAndSettle();
       expect(action, entry.value);
@@ -81,7 +86,9 @@ void main() {
       await tester.pumpWidget(const MaterialApp(home: TimerSettings()));
       await tester.pumpAndSettle();
       expect(find.text('Receive timers from other devices'), findsOneWidget);
-      final receive = tester.widget<SwitchListTile>(find.byType(SwitchListTile));
+      final receive = tester.widget<SwitchListTile>(
+        find.byType(SwitchListTile),
+      );
       expect(receive.value, false);
       expect(receive.onChanged, isNull);
       await tester.tap(find.text('Alarm tone'));

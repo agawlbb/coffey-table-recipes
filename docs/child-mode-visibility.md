@@ -56,3 +56,21 @@ http://localhost/CoffeyTableRecipes/app/. Main JavaScript SHA-256:
 `65c8c0d5f8a524a08b619e972deb088225908d85bc849d3a6bbfff9e0a8ad5a7`.
 Metadata identifies the source above as demonstration version 2.0.0/build 30.
 No native build, release tag, hosted app publication or backend deployment.
+
+## User menu and household child status
+
+Child mode now appears immediately after Household & people in the user badge
+menu. People at your table shows a child-care icon beside linked accounts whose
+server-provided `child_mode` flag is true, with a Child account tooltip and
+accessible label. Existing account and invitation icons remain.
+
+The PHP people endpoint and household snapshots provide the flag from protected
+account policy storage after membership authorization. They expose no Firebase
+UID or PIN metadata. Snapshot versions change with the status, and a pending
+administrator reset retains the child badge until a qualifying new login.
+
+Validation: all 22 tests passed in
+`flutter test --no-pub test/account_timer_menu_test.dart test/home_design_test.dart test/child_mode_test.dart`;
+formatting and analysis of the two changed implementation files and two test
+files passed. PHP syntax, child-mode policy, household snapshot and new household
+child-status fixtures passed. This follow-up does not build the Flutter app.
