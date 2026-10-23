@@ -123,6 +123,7 @@ class RecipeBrowser extends StatefulWidget {
     this.save,
     this.onSelect,
     this.mealPlanDestination,
+    this.mealPlanToday,
     this.onViewMealPlan,
     this.onAddRecipe,
     this.dragRecipes = false,
@@ -138,6 +139,7 @@ class RecipeBrowser extends StatefulWidget {
   final bool embedded;
   final ValueChanged<Map<String, dynamic>>? onSelect;
   final String? mealPlanDestination;
+  final DateTime? mealPlanToday;
   final VoidCallback? onViewMealPlan;
   final VoidCallback? onAddRecipe;
   final bool dragRecipes;
@@ -504,7 +506,7 @@ class _RecipeBrowserState extends State<RecipeBrowser>
       ),
     );
     if (add == true && mounted) {
-      await addUnscheduledMeal(
+      await addDatedMeal(
         context,
         householdId: widget.householdId,
         recipe: recipe,
@@ -526,11 +528,17 @@ class _RecipeBrowserState extends State<RecipeBrowser>
         );
         if (!mounted) return;
         final full = Map<String, dynamic>.from(data['recipe'] as Map);
-        final result = await confirmMealRecipe(
-          context,
-          full,
-          destination: widget.mealPlanDestination ?? 'meal plan',
-        );
+        final result = widget.mealPlanDestination == null
+            ? await chooseDatedMealRecipe(
+                context,
+                full,
+                today: widget.mealPlanToday ?? DateTime.now(),
+              )
+            : await confirmMealRecipe(
+                context,
+                full,
+                destination: widget.mealPlanDestination!,
+              );
         if (mounted && result != null) widget.onSelect!(result);
       } catch (error) {
         if (mounted) {
@@ -1628,7 +1636,7 @@ class _RecipeDetailState extends State<RecipeDetail> {
             : null,
         onPicture: editable ? _edit : null,
         onMealPlan: editable
-            ? () => addUnscheduledMeal(
+            ? () => addDatedMeal(
                 context,
                 householdId: widget.householdId,
                 recipe: recipe,
@@ -1807,7 +1815,7 @@ class _RecipeDetailState extends State<RecipeDetail> {
                       child: OutlinedButton(
                         onPressed: _deleting
                             ? null
-                            : () => addUnscheduledMeal(
+                            : () => addDatedMeal(
                                 context,
                                 householdId: widget.householdId,
                                 recipe: recipe,

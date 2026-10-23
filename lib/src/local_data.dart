@@ -29,7 +29,7 @@ String describeLocalData(Map value) {
     }
   }
   if (data['operation'] != null) {
-    lines.add('${data['operation']} meal · ${data['date'] ?? 'Unscheduled'}');
+    lines.add('${data['operation']} meal · ${data['date'] ?? 'Missing date'}');
   }
   for (final row in data['items'] as List? ?? []) {
     lines.add('${row['checked'] == true ? '☑' : '☐'} ${row['name']}');
@@ -42,7 +42,7 @@ String describeLocalData(Map value) {
   }
   for (final row in data['entries'] as List? ?? []) {
     lines.add(
-      '${row['plan_date'] ?? 'Unscheduled'} · ${row['title'] ?? row['kind']}',
+      '${row['plan_date'] ?? 'Missing date'} · ${row['title'] ?? row['kind']}',
     );
   }
   for (final row in data['recipes'] as List? ?? []) {
@@ -1041,6 +1041,23 @@ class LocalData extends ChangeNotifier {
         403,
         'Access to this data was removed. Local drafts are retained.',
       );
+    }
+    if (Uri.parse(path).path.endsWith('/meal-plan') &&
+        ['add', 'move'].contains(body['operation'])) {
+      final date = body['date'];
+      final parsed = date is String ? DateTime.tryParse(date) : null;
+      if (date is! String ||
+          !RegExp(r'^\d{4}-\d{2}-\d{2}$').hasMatch(date) ||
+          parsed == null ||
+          parsed.year < 2000 ||
+          parsed.year > 2199 ||
+          !parsed.toIso8601String().startsWith('${date}T')) {
+        throw ApiException(
+          422,
+          'Choose a date for this meal.',
+          code: 'date_required',
+        );
+      }
     }
     if (!canSave(path)) return send(path, body);
     final before = jsonEncode({'data': _data, 'queue': _queue});

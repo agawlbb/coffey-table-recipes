@@ -48,9 +48,9 @@ class PlanFixture {
       'id': 'idea',
       'recipe_id': '2',
       'kind': 'recipe',
-      'title': 'Bread idea',
+      'title': 'Bread plan',
       'available': true,
-      'plan_date': null,
+      'plan_date': '2026-10-24',
     },
   ];
   Future<Map<String, dynamic>> request(String path) async {
@@ -327,23 +327,14 @@ void main() {
       expect((today.decoration as BoxDecoration).color, Colors.transparent);
       expect((today.decoration as BoxDecoration).border, isNotNull);
       expect(find.byIcon(Icons.more_horiz), findsNothing);
-      final gesture = await tester.startGesture(
-        tester.getCenter(find.text('Today soup')),
-      );
-      await tester.pump(const Duration(milliseconds: 600));
-      await gesture.moveTo(
-        tester.getCenter(find.byKey(const ValueKey('meal-day-unscheduled'))),
-      );
-      await gesture.up();
-      await tester.pumpAndSettle();
+      expect(find.text('Unscheduled'), findsNothing);
+      expect(find.byKey(const ValueKey('meal-day-unscheduled')), findsNothing);
       expect(fixture.writes, isEmpty);
       await tester.pumpWidget(const SizedBox());
     },
   );
 
-  testWidgets('browser adds an unscheduled meal and provides View plan', (
-    tester,
-  ) async {
+  testWidgets('browser selects a date and provides View plan', (tester) async {
     final fixture = PlanFixture();
     var viewed = false;
     await tester.pumpWidget(
@@ -365,11 +356,17 @@ void main() {
     await tester.tap(find.text('Add to meal plan'));
     await tester.pumpAndSettle();
     expect(fixture.writes, isEmpty);
-    await tester.tap(find.text('Add'));
+    await tester.tap(find.byKey(const ValueKey('choose-meal-2026-10-22')));
     await tester.pumpAndSettle();
-    expect(fixture.writes.single['date'], isNull);
-    expect(fixture.writes.single['recipe_id'], '5');
-    expect(fixture.reads.where((p) => p.contains('/pairings/')), isEmpty);
+    expect(fixture.writes.single['date'], '2026-10-22');
+    await tester.tap(find.text('Garlic bread'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Add selected'));
+    await tester.pumpAndSettle();
+    expect(fixture.writes.first['recipe_id'], '5');
+    expect(fixture.writes.last['recipe_id'], '3');
+    expect(fixture.writes.last['date'], '2026-10-22');
+    expect(fixture.reads.where((p) => p.contains('/pairings/')).length, 1);
     await tester.tap(find.text('View plan'));
     expect(viewed, isTrue);
     await tester.pumpWidget(const SizedBox());
@@ -482,42 +479,34 @@ void main() {
     await tester.pumpWidget(const SizedBox());
   });
 
-  testWidgets(
-    'moving a dated meal does not offer pairings, moving an idea does',
-    (tester) async {
-      final fixture = PlanFixture();
-      await tester.binding.setSurfaceSize(const Size(390, 900));
-      addTearDown(() => tester.binding.setSurfaceSize(null));
-      await tester.pumpWidget(fixture.app());
+  testWidgets('moving dated meals never offers pairings', (tester) async {
+    final fixture = PlanFixture();
+    await tester.binding.setSurfaceSize(const Size(390, 900));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    await tester.pumpWidget(fixture.app());
+    await tester.pumpAndSettle();
+    Future<void> drop(String label, String date) async {
+      final tile = find.text(label);
+      await tester.ensureVisible(tile);
       await tester.pumpAndSettle();
-      Future<void> drop(String label, String date) async {
-        final tile = find.text(label);
-        await tester.ensureVisible(tile);
-        await tester.pumpAndSettle();
-        final gesture = await tester.startGesture(tester.getCenter(tile));
-        await tester.pump(const Duration(milliseconds: 600));
-        final target = find.byKey(ValueKey('meal-day-$date'));
-        await gesture.moveTo(tester.getTopLeft(target) + const Offset(60, 30));
-        await tester.pump(const Duration(milliseconds: 100));
-        await gesture.up();
-        await tester.pumpAndSettle();
-      }
+      final gesture = await tester.startGesture(tester.getCenter(tile));
+      await tester.pump(const Duration(milliseconds: 600));
+      final target = find.byKey(ValueKey('meal-day-$date'));
+      await gesture.moveTo(tester.getTopLeft(target) + const Offset(60, 30));
+      await tester.pump(const Duration(milliseconds: 100));
+      await gesture.up();
+      await tester.pumpAndSettle();
+    }
 
-      await drop('Today soup', '2026-10-23');
-      expect(fixture.writes.last['operation'], 'move');
-      expect(fixture.writes.last['date'], '2026-10-23');
-      expect(fixture.reads.where((p) => p.contains('/pairings/')), isEmpty);
-      await drop('Bread idea', '2026-10-22');
-      expect(find.text('Frequently made together'), findsOneWidget);
-      await tester.tap(find.text('Garlic bread'));
-      await tester.pumpAndSettle();
-      await tester.tap(find.text('Add selected'));
-      await tester.pumpAndSettle();
-      expect(fixture.reads.where((p) => p.contains('/pairings/')).length, 1);
-      expect(fixture.writes.last['recipe_id'], '3');
-      await tester.pumpWidget(const SizedBox());
-    },
-  );
+    await drop('Today soup', '2026-10-23');
+    expect(fixture.writes.last['operation'], 'move');
+    expect(fixture.writes.last['date'], '2026-10-23');
+    expect(fixture.reads.where((p) => p.contains('/pairings/')), isEmpty);
+    await drop('Bread plan', '2026-10-25');
+    expect(find.text('Frequently made together'), findsNothing);
+    expect(fixture.reads.where((p) => p.contains('/pairings/')), isEmpty);
+    await tester.pumpWidget(const SizedBox());
+  });
 
   testWidgets('stale plan is refreshed and does not silently retry a write', (
     tester,
