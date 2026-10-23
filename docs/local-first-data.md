@@ -14,6 +14,12 @@ Account startup also mirrors shopping lists, people, favorite membership and the
 blank-recipe editor catalog. Browsing and recipe details observe local updates.
 Background refresh is coalesced, throttled and limited to the latest watched
 views, rather than polling every search the user has ever entered.
+Foreground library synchronization checks complete recipe text/categories every
+minute, including ingredient-only and instruction-only changes. The current API
+inventory omits recipe revisions, so unchanged browse rows cannot prove unchanged
+recipe content. Active shopping-list reads retain their five-second refresh
+interval. A future revision/delta endpoint can reduce background traffic without
+changing the local-first UI contract.
 
 ## Writes and synchronization
 
@@ -67,3 +73,16 @@ Future screens must use local repository reads and local-change notifications.
 Do not bypass this layer with a network-first load or clear a populated view
 while synchronizing. Keep authoritative access checks and conflict handling when
 adding new kinds of queued operations.
+
+The shared repository is identical on main and the meal-planning branch. It also
+protects against late read responses overwriting a newer acknowledged edit,
+access-loss races, creation-ID transitions and stale copies after online recipe
+deletion/restoration. The feature branch alone integrates full-calendar range
+reads, household-filtered local pairings and local ingredient collection into
+the planner UI; its feature-specific controls are not merged into main.
+
+Final main verification on 2026-10-23: all 398 Flutter tests passed, static
+analysis clean, and `git diff --check` clean. This includes the final shared
+store, whole-library refresh, account integration and new synchronization-race
+regressions. No app build, release tag, backend deployment or hosted Flutter
+publication was performed.

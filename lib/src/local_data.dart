@@ -102,11 +102,13 @@ class LocalData extends ChangeNotifier {
   final _inflight = <String, Future<Map<String, dynamic>>>{};
   final _attempted = <String, DateTime>{};
   final _watched = <String, String>{};
+  final _versions = <String, int>{};
   Future<void>? _ready, _draining;
   Future<void> _disk = Future.value(), _edits = Future.value();
   Timer? _timer;
   bool _closed = false;
   int _epoch = 0;
+  int _accessEpoch = 0;
   String? error;
   int get pending => _queue.length;
   List<Map<String, dynamic>> get conflicts =>
@@ -148,7 +150,42 @@ class LocalData extends ChangeNotifier {
           !_dirty(path) &&
           !_aliases.values.any((id) => path == '$root/$id'),
     );
+    _bump(root);
     _changed(root);
+  }
+
+  /// Online-only delete/restore/attach actions must update the same local source
+  /// as ordinary edits, rather than leaving a stale second copy on screen.
+  Future<void> acceptServerRecipe(
+    String path,
+    Map<String, dynamic> result,
+  ) async {
+    await _serial(() async {
+      await _load();
+      final parts = Uri.parse(path).pathSegments;
+      if (parts.length < 3 || parts[2] != 'recipes') return;
+      final root = '/${parts.take(3).join('/')}';
+      final recipe = result['recipe'] as Map?;
+      final id = result['deleted_recipe_id'] ?? recipe?['id'];
+      if (id == null) return;
+      _data.removeWhere((p, _) => Uri.parse(p).path == root);
+      final detail = '$root/$id';
+      if (result['deleted_recipe_id'] != null) {
+        _data.removeWhere((p, _) => _under(p, detail));
+        _blocked[detail] = 404;
+        final related = _queue
+            .where((q) => _under(q['path'] as String, detail))
+            .toList();
+        _archive.addAll(related.map(_copy));
+        _queue.removeWhere((q) => related.contains(q));
+      } else if (recipe != null) {
+        _blocked.remove(detail);
+        _data[detail] = _copy(result);
+      }
+      await _persist();
+      _bump(root);
+      _changed(root);
+    });
   }
 
   void _watch(String path) {
@@ -258,16 +295,112 @@ class LocalData extends ChangeNotifier {
     return Uri.parse(path).path;
   }
 
-  bool _dirty(String path) =>
-      _queue.any((q) => _resource(q['path'] as String) == _resource(path));
+  bool _dirty(String path) => _queue.any(
+    (q) =>
+        _resource(q['path'] as String) == _resource(path) ||
+        q['creating'] == true && path.contains('/${q['local_id']}') ||
+        Uri.parse(path).path.endsWith('/recipes') &&
+            (q['path'] as String).startsWith('${Uri.parse(path).path}/'),
+  );
+
+  String? _recipeRoot(String path) {
+    final parts = Uri.parse(path).pathSegments;
+    return parts.length >= 3 && parts[2] == 'recipes'
+        ? '/${parts.take(3).join('/')}'
+        : null;
+  }
+
+  int _version(String path) =>
+      (_versions[_resource(path)] ?? 0) + (_versions[_recipeRoot(path)] ?? 0);
+  void _bump(String path) {
+    final resource = _resource(path);
+    _versions[resource] = (_versions[resource] ?? 0) + 1;
+    final root = _recipeRoot(path);
+    if (root != null && root != resource) {
+      _versions[root] = (_versions[root] ?? 0) + 1;
+    }
+  }
 
   Future<Map<String, dynamic>?> cached(String input) async {
     await _load();
     final path = _path(input), uri = Uri.parse(_path(input));
     if (_blocked.keys.any((prefix) => _under(path, prefix))) return null;
     final direct = _data[path];
-    if (direct is Map) return _overlayRecipes(path, _copy(direct));
+    if (direct is Map &&
+        !uri.path.contains('/meal-plan/ingredients') &&
+        !uri.path.contains('/meal-plan/pairings/')) {
+      return _overlayRecipes(path, _copy(direct));
+    }
     final parts = uri.pathSegments;
+    if (parts.length == 5 &&
+        parts[2] == 'meal-plan' &&
+        parts[3] == 'pairings') {
+      final recipe =
+          (await cached(
+                '/households/${parts[1]}/recipes/${parts[4]}',
+              ))?['recipe']
+              as Map?;
+      if (recipe != null) {
+        final pairings = recipe['pairings'] as List? ?? [];
+        if (fallback == null) {
+          return {
+            'recipes': pairings
+                .where((p) => p['in_household'] != false)
+                .toList(),
+          };
+        }
+        final owned = <String>{};
+        int? offset = 0;
+        do {
+          final inventory = await fallback!.call(
+            '/households/${parts[1]}/recipes?offset=$offset',
+          );
+          if (inventory == null) return null;
+          owned.addAll(
+            (inventory['recipes'] as List? ?? []).map((row) => '${row['id']}'),
+          );
+          offset = inventory['next_offset'] as int?;
+        } while (offset != null);
+        return {
+          'recipes': pairings
+              .where((p) => owned.contains('${p['id']}'))
+              .toList(),
+        };
+      }
+    }
+    if (parts.length == 4 &&
+        parts[2] == 'meal-plan' &&
+        parts[3] == 'ingredients') {
+      final plan = _data['/households/${parts[1]}/meal-plan'] as Map?;
+      if (plan != null) {
+        final rows = <Map<String, dynamic>>[];
+        final range = _filterPlan(plan, uri);
+        for (final meal in range['entries'] as List) {
+          if (meal['kind'] != 'recipe' || meal['plan_date'] == null) continue;
+          if (meal['available'] == false) {
+            throw ApiException(
+              409,
+              'A planned recipe is unavailable. Update the plan before collecting ingredients.',
+            );
+          }
+          final recipe =
+              (await cached(
+                    '/households/${parts[1]}/recipes/${meal['recipe_id']}',
+                  ))?['recipe']
+                  as Map?;
+          if (recipe == null) return null;
+          for (final ingredient in recipe['ingredients'] as List? ?? []) {
+            rows.add({
+              ...Map<String, dynamic>.from(ingredient as Map),
+              'meal_entry_id': meal['id'],
+              'plan_date': meal['plan_date'],
+              'recipe_title': recipe['title'],
+            });
+          }
+        }
+        return {'ingredients': rows};
+      }
+    }
     if (parts.length == 3 &&
         parts[2] == 'recipes' &&
         uri.queryParameters.containsKey('favorite_people')) {
@@ -407,9 +540,31 @@ class LocalData extends ChangeNotifier {
       throw ApiException(
         403,
         'Access to this data was removed. Reconnect and sign in again.',
+        code: 'household_access_removed',
       );
     }
     if (!mirrors(path)) return fetch(path);
+    if (Uri.parse(path).pathSegments.any((part) => part.startsWith('local-'))) {
+      final local = await cached(path);
+      if (local != null) return local;
+      throw ApiException(
+        404,
+        'This local recipe is not available on this device.',
+      );
+    }
+    if (Uri.parse(path).path.endsWith('/meal-plan')) {
+      final fullPath = '${Uri.parse(path).path}?from=2000-01-01&to=2199-12-31';
+      _watch(fullPath);
+      final local = await cached(path);
+      if (local != null) {
+        if (!_dirty(path)) {
+          unawaited(refresh(fullPath).catchError((Object _) => local));
+        }
+        return local;
+      }
+      final full = await refresh(fullPath, force: true);
+      return _filterPlan(full, Uri.parse(path));
+    }
     _watch(path);
     final saved = await cached(path);
     if (saved != null) {
@@ -434,17 +589,37 @@ class LocalData extends ChangeNotifier {
     }
     if (_inflight.containsKey(path)) return _inflight[path]!;
     final previous = _attempted[path];
+    final interval = Uri.parse(path).path.endsWith('/shopping-list')
+        ? const Duration(seconds: 5)
+        : const Duration(seconds: 20);
     if (!force &&
         previous != null &&
-        DateTime.now().difference(previous) < const Duration(seconds: 20)) {
+        DateTime.now().difference(previous) < interval) {
       final saved = await cached(path);
       if (saved != null) return saved;
     }
     _attempted[path] = DateTime.now();
     if (_attempted.length > 64) _attempted.remove(_attempted.keys.first);
+    final accessEpoch = _accessEpoch;
+    final version = _version(path);
     final task = () async {
       try {
         final result = await fetch(path);
+        if (accessEpoch != _accessEpoch) {
+          throw ApiException(
+            403,
+            'Household access changed. Reconnect before loading this data.',
+            code: 'household_access_removed',
+          );
+        }
+        if (version != _version(path)) {
+          final latest = await cached(path);
+          if (latest != null) return latest;
+          throw ApiException(
+            404,
+            'This data changed while synchronizing. Open it again.',
+          );
+        }
         if (_closed || _dirty(path)) return await cached(path) ?? result;
         final changed = jsonEncode(_data[path]) != jsonEncode(result);
         _data[path] = _copy(result);
@@ -514,6 +689,7 @@ class LocalData extends ChangeNotifier {
         ? '/households/${parts[1]}/'
         : path;
     final newlyBlocked = !_blocked.containsKey(prefix);
+    if (newlyBlocked) _accessEpoch++;
     _blocked[prefix] = status;
     _data.removeWhere((p, _) => _under(p, prefix));
     for (final q in _queue.where((q) => _under(q['path'] as String, prefix))) {
@@ -550,6 +726,17 @@ class LocalData extends ChangeNotifier {
     final before = jsonEncode({'data': _data, 'queue': _queue});
     final resource = Uri.parse(path).path;
     final value = _copy(body);
+    final previous = await cached(resource);
+    final previousRevision =
+        (previous?['recipe'] as Map?)?['revision'] ?? previous?['revision'];
+    if (body['revision'] != null &&
+        previousRevision != null &&
+        '${body['revision']}' != '$previousRevision') {
+      throw ApiException(
+        409,
+        'This data changed on this device. Review the current version and try again.',
+      );
+    }
     final id = newShoppingItemId();
     final q = <String, dynamic>{'id': id, 'path': resource, 'body': value};
     Map<String, dynamic> response;
@@ -598,6 +785,12 @@ class LocalData extends ChangeNotifier {
                   '${path.replaceFirst('/meal-plan', '/recipes')}/${value['recipe_id']}',
                 ))?['recipe']
                 as Map?;
+        if (value['kind'] == 'recipe' && recipe == null) {
+          throw ApiException(
+            503,
+            'Download this recipe before adding it to the local meal plan.',
+          );
+        }
         entries.add({
           'id': entryId,
           'kind': value['kind'],
@@ -658,6 +851,7 @@ class LocalData extends ChangeNotifier {
         'Could not save on this device. Your change has not been queued. Free storage and retry.',
       );
     }
+    _bump(resource);
     _changed(resource);
     // Start after this local transaction releases its serialization lock.
     scheduleMicrotask(() => unawaited(synchronize()));
@@ -693,19 +887,23 @@ class LocalData extends ChangeNotifier {
       }).firstOrNull;
       if (q == null) return;
       final path = _path(q['path'] as String);
+      var delivered = false;
+      final accessEpoch = _accessEpoch;
       try {
         await _serial(() async {
           q['sending'] = true;
           await _persist(); // Crash during send is never mistaken for unsent work.
         });
         final result = await send(path, _copy(q['body'] as Map));
-        if (_closed) return;
+        delivered = true;
+        if (_closed || accessEpoch != _accessEpoch) return;
         await _serial(() async {
           if (q['creating'] == true) {
             final serverId = '${(result['recipe'] as Map)['id']}';
             final localId = q['local_id'] as String;
             _aliases[localId] = serverId;
             final root = Uri.parse(path).path;
+            final newerLocal = _data['$root/$localId'] as Map?;
             _data.remove('$root/$localId');
             // Resolve references in queued plan/recipe changes, not arbitrary text.
             for (final pending in _queue.skip(1)) {
@@ -715,7 +913,16 @@ class LocalData extends ChangeNotifier {
               }
               pending['path'] = _path(pending['path'] as String);
             }
-            _data['$root/$serverId'] = _copy(result);
+            if (newerLocal != null &&
+                _queue
+                    .skip(1)
+                    .any((pending) => pending['path'] == '$root/$serverId')) {
+              final local = _copy(newerLocal);
+              (local['recipe'] as Map)['id'] = serverId;
+              _data['$root/$serverId'] = local;
+            } else {
+              _data['$root/$serverId'] = _copy(result);
+            }
           }
           _queue.remove(q);
           final next = _queue
@@ -767,27 +974,37 @@ class LocalData extends ChangeNotifier {
           }
           error = null;
           await _persist();
+          _bump(path);
           _changed(path);
         });
         if (result['recipe'] is Map) {
           final recipePath = q['creating'] == true
               ? '$path/${(result['recipe'] as Map)['id']}'
               : path;
-          await onRecipeSaved?.call(recipePath, result);
+          try {
+            await onRecipeSaved?.call(recipePath, result);
+          } catch (_) {
+            error = 'The server saved this recipe, but its local search index needs another sync.';
+            _changed(recipePath);
+          }
         }
       } catch (failure) {
         await _serial(() async {
           q.remove('sending');
+          if (delivered && !_queue.contains(q)) _queue.insert(0, q);
           if (failure is ApiException && [401, 403].contains(failure.status)) {
             _deny(path, failure.status);
             _changed(path);
           }
           // Revision-checked writes can be retried safely; creates cannot, because
           // a lost success response could otherwise create a duplicate recipe.
-          if (q['creating'] == true ||
+          if (delivered ||
+              q['creating'] == true ||
               failure is ApiException &&
                   !isTemporaryCommunicationFailure(failure)) {
             q['problem'] = failure is ApiException ? failure.message : 'The save response was lost. Review the server before retrying this new recipe.';
+            if (failure is ApiException) q['problem_code'] = failure.code;
+            if (delivered) q['problem'] = 'The server accepted this change, but this device could not record the confirmation. Compare with the server before continuing.';
           }
           error =
               'Synchronization paused; $pending local change(s) are saved on this device.';
@@ -829,6 +1046,7 @@ class LocalData extends ChangeNotifier {
       if (q['creating'] == true) _data.remove('$path/${q['local_id']}');
       error = null;
       await _persist();
+      _bump(path);
       _changed(path);
     });
     unawaited(synchronize());
@@ -848,6 +1066,12 @@ class LocalData extends ChangeNotifier {
       final related = _queue.where((q) => q['path'] == first['path']).toList();
       final latest = related.last;
       final body = _copy(latest['body'] as Map);
+      if (first['problem_code'] == 'past_confirmation_required') {
+        body['confirm_past'] = true;
+      }
+      if (first['problem_code'] == 'shared_confirmation_required') {
+        body['confirm_shared_edit'] = true;
+      }
       body['revision'] =
           (server['recipe'] as Map?)?['revision'] ?? server['revision'];
       if (server['recipe'] is Map) {
@@ -874,6 +1098,9 @@ class LocalData extends ChangeNotifier {
         // Rebase only the first operation; later operations retain their order.
         body.clear();
         body.addAll(_copy(first['body'] as Map));
+        if (first['problem_code'] == 'past_confirmation_required') {
+          body['confirm_past'] = true;
+        }
         body['revision'] = server['revision'];
       }
       _archive.addAll(related.map(_copy));

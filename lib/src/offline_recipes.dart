@@ -604,8 +604,12 @@ class OfflineRecipes with WidgetsBindingObserver {
     return data == null ? null : Map<String, dynamic>.from(data as Map);
   }
 
-  Future<void> sync(List<String> households) => downloadLibrary
-      ? _sync ??= _synchronize(households).whenComplete(() => _sync = null)
+  Future<void> sync(List<String> households, {bool refreshDetails = false}) =>
+      downloadLibrary
+      ? _sync ??= _synchronize(
+          households,
+          refreshDetails: refreshDetails,
+        ).whenComplete(() => _sync = null)
       : Future<void>.value();
 
   Future<void> retry() async {
@@ -615,7 +619,10 @@ class OfflineRecipes with WidgetsBindingObserver {
     }
   }
 
-  Future<void> _synchronize(List<String> households) async {
+  Future<void> _synchronize(
+    List<String> households, {
+    bool refreshDetails = false,
+  }) async {
     await _load();
     if (_closed) return;
     _pruneHouseholds(households);
@@ -649,6 +656,7 @@ class OfflineRecipes with WidgetsBindingObserver {
         final previous = _libraries[household] as Map?;
         final lastSync = DateTime.tryParse('${previous?['synced_at']}');
         var fresh =
+            !refreshDetails &&
             lastSync != null &&
             DateTime.now().difference(lastSync) < const Duration(hours: 24);
         // Always check the inventory: a recent snapshot may lack newly added recipes.

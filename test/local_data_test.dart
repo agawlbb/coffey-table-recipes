@@ -17,6 +17,7 @@ void main() {
     LocalWrite? send,
     Future<void> Function(String, String)? write,
     String key = 'server|account',
+    Future<Map<String, dynamic>?> Function(String)? fallback,
   }) {
     final data = LocalData(
       key: key,
@@ -24,6 +25,7 @@ void main() {
           fetch ??
           (path) async => Map<String, dynamic>.from(server[path] as Map),
       send: send ?? (path, body) async => throw TimeoutException('offline'),
+      fallback: fallback,
       readStore: (key) async => disk[key],
       writeStore:
           write ??
@@ -352,4 +354,240 @@ void main() {
     expect((await data.cached(path))!['people'][0]['favorite'], true);
     expect(data.pending, 1);
   });
+  test(
+    'offline meal add move and remove survive restart and feed ingredients',
+    () async {
+      const root = '/households/1/meal-plan';
+      final data = store(
+        fetch: (path) async => path.startsWith(root)
+            ? {'revision': 1, 'today': '2026-10-23', 'entries': []}
+            : {
+                'recipe': {
+                  'id': '7',
+                  'revision': '1',
+                  'title': 'Soup',
+                  'ingredients': [
+                    {'ingredient_name': 'Carrot', 'quantity_decimal': 2},
+                  ],
+                  'pairings': [
+                    {'id': '8', 'title': 'Bread'},
+                  ],
+                },
+              },
+      );
+      await data.request('$root?from=2026-10-23&to=2026-10-25');
+      await data.request(recipe);
+      await data.save(root, {
+        'revision': 1,
+        'operation': 'add',
+        'id': 'meal',
+        'kind': 'recipe',
+        'recipe_id': '7',
+        'date': '2026-10-24',
+      });
+      final ingredients = await data.request(
+        '$root/ingredients?from=2026-10-23&to=2026-10-25',
+      );
+      expect(ingredients['ingredients'][0]['ingredient_name'], 'Carrot');
+      expect(
+        (await data.request('$root/pairings/7'))['recipes'][0]['title'],
+        'Bread',
+      );
+      await data.save(root, {
+        'revision': 2,
+        'operation': 'move',
+        'id': 'meal',
+        'date': '2026-11-01',
+      });
+      expect(
+        (await data.request('$root?from=2026-10-23&to=2026-10-25'))['entries'],
+        isEmpty,
+      );
+      await settle(data);
+      data.dispose();
+      stores.remove(data);
+      final restarted = store();
+      final future = await restarted.request(
+        '$root?from=2026-11-01&to=2026-11-01',
+      );
+      expect(future['entries'][0]['title'], 'Soup');
+      await restarted.save(root, {
+        'revision': 3,
+        'operation': 'remove',
+        'id': 'meal',
+      });
+      expect(
+        (await restarted.request(
+          '$root?from=2026-11-01&to=2026-11-01',
+        ))['entries'],
+        isEmpty,
+      );
+      await settle(restarted);
+      expect(restarted.pending, 3);
+    },
+  );
+
+  test('first planner read downloads the full calendar once', () async {
+    final calls = <String>[];
+    final data = store(
+      fetch: (path) async {
+        calls.add(path);
+        return {'revision': 0, 'entries': [], 'today': '2026-10-23'};
+      },
+    );
+    await data.request('/households/1/meal-plan?from=2026-10-23&to=2026-10-24');
+    final result = await data.request(
+      '/households/1/meal-plan?from=2027-01-01&to=2027-01-31',
+    );
+    expect(result['entries'], isEmpty);
+    expect(calls, ['/households/1/meal-plan?from=2000-01-01&to=2199-12-31']);
+  });
+  test('late authorized response cannot restore revoked data', () async {
+    final seed = store();
+    await seed.request(list);
+    await Future<void>.delayed(Duration.zero);
+    final response = Completer<Map<String, dynamic>>();
+    final data = store(
+      fetch: (path) async {
+        if (path == list) return response.future;
+        throw ApiException(403, 'Membership removed');
+      },
+    );
+    final old = data.refresh(list, force: true);
+    await expectLater(
+      data.refresh('/households/1/people', force: true),
+      throwsA(isA<ApiException>()),
+    );
+    final failed = expectLater(
+      old,
+      throwsA(isA<ApiException>().having((e) => e.status, 'status', 403)),
+    );
+    response.complete(server[list] as Map<String, dynamic>);
+    await failed;
+    expect(await data.cached(list), isNull);
+  });
+
+  test('creation receipt does not replace a later local recipe edit', () async {
+    final creation = Completer<Map<String, dynamic>>();
+    final edit = Completer<Map<String, dynamic>>();
+    final data = store(
+      send: (path, body) =>
+          path.endsWith('/recipes') ? creation.future : edit.future,
+    );
+    const root = '/households/1/recipes';
+    final original = await data.save(root, {'title': 'First soup'});
+    final id = original['recipe']['id'];
+    await data.save('$root/$id', {'title': 'Edited soup', 'revision': '1'});
+    creation.complete({
+      'recipe': {'id': '99', 'title': 'First soup', 'revision': '2'},
+    });
+    await Future<void>.delayed(Duration.zero);
+    expect((await data.request('$root/$id'))['recipe']['title'], 'Edited soup');
+    edit.complete({
+      'recipe': {'id': '99', 'title': 'Edited soup', 'revision': '3'},
+    });
+    await settle(data);
+    expect(data.pending, 0);
+  });
+  test(
+    'online deletion and restore update the local source immediately',
+    () async {
+      final data = store();
+      await data.request(recipe);
+      await data.acceptServerRecipe('$recipe/delete', {
+        'deleted_recipe_id': '7',
+      });
+      expect(await data.cached(recipe), isNull);
+      await data.acceptServerRecipe('$recipe/restore', {
+        'recipe': {'id': '7', 'title': 'Restored soup', 'revision': '2'},
+      });
+      expect((await data.request(recipe))['recipe']['title'], 'Restored soup');
+    },
+  );
+
+  test(
+    'an old read cannot roll back an already synchronized local edit',
+    () async {
+      final seed = store();
+      await seed.request(list);
+      await Future<void>.delayed(Duration.zero);
+      final response = Completer<Map<String, dynamic>>();
+      final data = store(
+        fetch: (_) => response.future,
+        send: (_, body) async => {
+          'revision': 2,
+          'items': body['items'],
+          'departments': [],
+        },
+      );
+      final old = data.refresh(list, force: true);
+      await data.save(list, {
+        'revision': 1,
+        'items': [item('Bread')],
+      });
+      await settle(data);
+      expect(data.pending, 0);
+      response.complete(server[list] as Map<String, dynamic>);
+      expect((await old)['items'][0]['name'], 'Bread');
+      expect((await data.cached(list))!['items'][0]['name'], 'Bread');
+    },
+  );
+
+  test(
+    'local recipe identifiers are never requested from the backend',
+    () async {
+      var reads = 0;
+      final delivery = Completer<Map<String, dynamic>>();
+      final data = store(
+        fetch: (_) async {
+          reads++;
+          throw ApiException(404, 'Unknown route');
+        },
+        send: (_, body) => delivery.future,
+      );
+      const root = '/households/1/recipes';
+      final result = await data.save(root, {'title': 'Offline soup'});
+      expect(
+        (await data.request(
+          '$root/${result['recipe']['id']}',
+        ))['recipe']['title'],
+        'Offline soup',
+      );
+      await Future<void>.delayed(Duration.zero);
+      expect(reads, 0);
+      delivery.complete({
+        'recipe': {'id': '99', 'title': 'Offline soup', 'revision': '2'},
+      });
+      await settle(data);
+    },
+  );
+  test(
+    'local paired dishes are restricted to the household inventory',
+    () async {
+      server[recipe] = {
+        'recipe': {
+          'id': '7',
+          'title': 'Soup',
+          'pairings': [
+            {'id': '8', 'title': 'Household bread'},
+            {'id': '9', 'title': 'Unavailable dish'},
+          ],
+        },
+      };
+      final data = store(
+        fallback: (path) async =>
+            Uri.parse(path).path == '/households/1/recipes'
+            ? {
+                'recipes': [
+                  {'id': '8', 'title': 'Household bread'},
+                ],
+                'next_offset': null,
+              }
+            : null,
+      );
+      await data.request(recipe);
+      final result = await data.request('/households/1/meal-plan/pairings/7');
+      expect((result['recipes'] as List).map((row) => row['id']), ['8']);
+    },
+  );
 }

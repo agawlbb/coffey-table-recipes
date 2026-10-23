@@ -1023,4 +1023,26 @@ void main() {
       expect(tester.takeException(), isNull);
     },
   );
+  test('background mirror refreshes ingredient-only edits with an unchanged inventory', () async {
+    var note = 'First instructions';
+    final saved = cache(
+      fetch: (path) async {
+        final data = await server(path);
+        if (path == '$root/1') {
+          return {
+            'recipe': {...data['recipe'] as Map, 'notes': note},
+          };
+        }
+        return data;
+      },
+    );
+    await saved.sync(['1']);
+    note = 'Updated instructions';
+    await saved.sync(['1'], refreshDetails: true);
+    expect(
+      (await saved.cachedRead('$root/1'))!['recipe']['notes'],
+      'Updated instructions',
+    );
+    saved.close();
+  });
 }
