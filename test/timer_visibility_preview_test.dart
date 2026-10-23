@@ -1,3 +1,5 @@
+import 'package:coffey_table_recipes/src/child_mode.dart';
+
 import 'dart:async';
 
 import 'package:coffey_table_recipes/src/active_timers.dart';
@@ -8,6 +10,7 @@ import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   tearDown(() {
+    childMode.value = false;
     NativeTimers.active.value = [];
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
         .setMockMethodCallHandler(NativeTimers.channel, null);
@@ -35,8 +38,10 @@ void main() {
       await tester.pumpWidget(
         MaterialApp(
           navigatorKey: navigator,
-          builder: (_, child) => Overlay.wrap(
-            child: ActiveTimerHost(navigatorKey: navigator, child: child!),
+          builder: (_, child) => ChildModeScope(
+            child: Overlay.wrap(
+              child: ActiveTimerHost(navigatorKey: navigator, child: child!),
+            ),
           ),
           home: const Scaffold(body: Text('Recipe page')),
         ),
@@ -59,6 +64,16 @@ void main() {
       expect(find.text('Orange chicken'), findsOneWidget);
       await tester.tap(find.text('Orange chicken'));
       await tester.pumpAndSettle();
+      childMode.value = true;
+      await tester.pump();
+      expect(
+        tester
+            .widget<TextButton>(find.widgetWithText(TextButton, 'Stop'))
+            .onPressed,
+        isNull,
+      );
+      childMode.value = false;
+      await tester.pump();
       await tester.tap(find.text('Stop'));
       await tester.pumpAndSettle();
       expect(find.textContaining('Could not stop'), findsOneWidget);

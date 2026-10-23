@@ -164,6 +164,7 @@ class _RunningTimersSheetState extends State<RunningTimersSheet> {
   }
 
   Future<void> _stop(String key) async {
+    if (childMode.value) return;
     setState(() {
       _busy.add(key);
       _error = null;
@@ -181,6 +182,7 @@ class _RunningTimersSheetState extends State<RunningTimersSheet> {
 
   @override
   Widget build(BuildContext context) {
+    final readOnly = childModeOf(context);
     final rows = [...NativeTimers.active.value]
       ..sort((a, b) => (a['deadline'] as num).compareTo(b['deadline'] as num));
     return FractionallySizedBox(
@@ -213,7 +215,7 @@ class _RunningTimersSheetState extends State<RunningTimersSheet> {
                         title: Text('${row['title'] ?? 'Cooking timer'}'),
                         subtitle: Text(timerCountdown(row, DateTime.now())),
                         trailing: TextButton(
-                          onPressed: _busy.contains(key)
+                          onPressed: readOnly || _busy.contains(key)
                               ? null
                               : () => _stop(key),
                           child: const Text('Stop'),
