@@ -850,14 +850,14 @@ void main() {
         ),
       ),
     );
-    expect(find.text('Offline'), findsNothing);
+    expect(find.text('Sync paused'), findsNothing);
     offlineStatus.value = true;
     await tester.pump();
     expect(find.byIcon(Icons.cloud_off_outlined), findsOneWidget);
-    expect(tester.getSize(find.text('Offline')).height, lessThan(25));
+    expect(tester.getSize(find.text('Sync paused')).height, lessThan(25));
     offlineStatus.value = false;
     await tester.pump();
-    expect(find.text('Offline'), findsNothing);
+    expect(find.text('Sync paused'), findsNothing);
   });
 
   testWidgets('reconnection refreshes browsing while preserving search', (
@@ -978,4 +978,22 @@ void main() {
     );
     saved.close();
   });
+  test(
+    'refreshing persisted text does not restart first-download status',
+    () async {
+      final saved = cache();
+      await saved.sync(['1']);
+      expect(saved.progress.value.ready, isTrue);
+      final states = <RecipeSyncProgress>[];
+      saved.progress.addListener(() => states.add(saved.progress.value));
+      await saved.sync(['1'], refreshDetails: true);
+      expect(states, isNotEmpty);
+      expect(states.every((state) => state.ready), isTrue);
+      failDetail = true;
+      await saved.sync(['1'], refreshDetails: true);
+      expect((await saved.cachedRead('$root/2'))!['recipe'], isNotNull);
+      expect(saved.progress.value.saved, 31);
+      saved.close();
+    },
+  );
 }
