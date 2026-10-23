@@ -13,8 +13,7 @@ opens the existing recipe browser in selection mode; Leftovers and Restaurant
 outing create matching placeholder tiles. The recipe browser stays beside the
 date list on wide screens and supports dragging recipes into the plan.
 
-Hold a tile to drag it to another date. Meal options offer Move to date,
-Unscheduled and Remove; tapping the recipe opens its normal detail page.
+Hold a tile to drag it to another date, or drop it on the toolbar trash can to remove it. Scheduled meals cannot be moved back to Unscheduled. Tapping the recipe opens its normal detail page. Today uses olive accents without past-date background shading.
 Recipe-browser long press and the recipe detail page offer Add to meal plan.
 These additions go into the household's Unscheduled section, visible only when
 it has entries. The recipe action's View plan shortcut returns to the planner.
@@ -112,3 +111,9 @@ target SDK 36 and arm64-v8a/armeabi-v7a/x86_64 architectures. Source and destina
 SHA-256 both equal `a24c477548ba9045b5374dcbcb44cf88881270230ce9edffd733e7b87ef328f1`.
 Generated APK/configuration remain excluded from Git. No device installation,
 release, tag, hosted frontend/backend deployment or dependency change occurred.
+
+
+## Planner interaction update (2026-10-23)
+Date Add opens the existing browser with a persistent contrasting Add to [full date] line under its breadcrumbs. Every selection loads the current recipe family and opens confirmation: choose the original or an available household variation, then Add; Cancel leaves the picker open without a write. Normal browsing is unchanged. Recipe detail keeps full-width Start cooking, followed by equal-width Add to meal plan and Request variation buttons. Trash deletion retains past-history confirmation and access/revision guards.
+
+Validation: flutter analyze --no-pub clean; full flutter test --no-pub suite passed (389 tests).

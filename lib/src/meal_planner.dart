@@ -367,6 +367,10 @@ class _MealPlannerState extends State<MealPlanner> with WidgetsBindingObserver {
           householdId: widget.householdId,
           householdName: widget.householdName,
           request: widget.request,
+          mealPlanDestination: date == null
+              ? 'Unscheduled'
+              : MaterialLocalizations.of(context)
+                    .formatFullDate(DateTime.parse(date)),
           onSelect: (recipe) => Navigator.pop(context, recipe),
         ),
       ),
@@ -392,60 +396,13 @@ class _MealPlannerState extends State<MealPlanner> with WidgetsBindingObserver {
     }
   }
 
-  Future<void> _menu(Map<String, dynamic> entry) async {
-    if (!_ready) return;
-    final epoch = _accessEpoch;
-    final action = await showModalBottomSheet<String>(
-      context: context,
-      useSafeArea: true,
-      builder: (context) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            ListTile(
-              leading: const Icon(Icons.event_outlined),
-              title: const Text('Move to date'),
-              onTap: () => Navigator.pop(context, 'move'),
-            ),
-            if (entry['plan_date'] != null)
-              ListTile(
-                leading: const Icon(Icons.inbox_outlined),
-                title: const Text('Unscheduled'),
-                onTap: () => Navigator.pop(context, 'unscheduled'),
-              ),
-            ListTile(
-              leading: const Icon(Icons.delete_outline),
-              title: const Text('Remove'),
-              onTap: () => Navigator.pop(context, 'remove'),
-            ),
-          ],
-        ),
-      ),
-    );
-    if (!mounted || !_usable(epoch)) return;
-    if (action == 'remove') {
-      await _change({
-        'operation': 'remove',
-        'id': entry['id'],
-        '_revision': entry['_revision'],
-      }, oldDate: entry['plan_date'] as String?);
-      return;
-    }
-    if (action == 'unscheduled') {
-      await _move(entry, null);
-      return;
-    }
-    if (action == 'move') {
-      final date = await showDatePicker(
-        context: context,
-        initialDate: DateTime.tryParse('${entry['plan_date']}') ?? _today,
-        firstDate: DateTime(2000),
-        lastDate: DateTime(2199, 12, 31),
-      );
-      if (date != null && _usable(epoch)) {
-        await _move(entry, mealPlanDate(date));
-      }
-    }
+  Future<void> _remove(Map<String, dynamic> entry) async {
+    if (!_ready || _saving) return;
+    await _change({
+      'operation': 'remove',
+      'id': entry['id'],
+      '_revision': entry['_revision'],
+    }, oldDate: entry['plan_date'] as String?);
   }
 
   Future<void> _ingredients() async {
@@ -579,14 +536,6 @@ class _MealPlannerState extends State<MealPlanner> with WidgetsBindingObserver {
                 ],
               ),
             ),
-            Align(
-              alignment: Alignment.centerRight,
-              child: IconButton(
-                tooltip: 'Meal options for ${entry['title']}',
-                onPressed: _saving ? null : () => _menu(entry),
-                icon: const Icon(Icons.more_horiz),
-              ),
-            ),
           ],
         ),
       ),
@@ -612,7 +561,7 @@ class _MealPlannerState extends State<MealPlanner> with WidgetsBindingObserver {
         : MaterialLocalizations.of(context)
               .formatMediumDate(DateTime.parse(date));
     return DragTarget<Map<String, dynamic>>(
-      onWillAcceptWithDetails: (_) => !_saving,
+      onWillAcceptWithDetails: (_) => !_saving && date != null,
       onAcceptWithDetails: (details) {
         final entry = details.data['entry'];
         if (entry is Map<String, dynamic>) {
@@ -628,11 +577,12 @@ class _MealPlannerState extends State<MealPlanner> with WidgetsBindingObserver {
         decoration: BoxDecoration(
           color: candidates.isNotEmpty
               ? colors.primaryContainer
-              : today
-              ? colors.primary.withValues(alpha: .12)
               : past
               ? colors.onSurface.withValues(alpha: .12)
               : Colors.transparent,
+          border: today
+              ? Border(left: BorderSide(color: colors.primary, width: 3))
+              : null,
           borderRadius: BorderRadius.circular(20),
         ),
         child: Column(
@@ -647,12 +597,16 @@ class _MealPlannerState extends State<MealPlanner> with WidgetsBindingObserver {
                     children: [
                       Text(
                         label,
-                        style: Theme.of(context).textTheme.titleSmall,
+                        style: Theme.of(context).textTheme.titleSmall
+                            ?.copyWith(color: today ? colors.primary : null),
                       ),
                       if (today)
                         Chip(
-                          label: const Text('Today'),
-                          backgroundColor: colors.primaryContainer,
+                          label: Text(
+                            'Today',
+                            style: TextStyle(color: colors.onPrimary),
+                          ),
+                          backgroundColor: colors.primary,
                         ),
                     ],
                   ),
@@ -723,6 +677,28 @@ class _MealPlannerState extends State<MealPlanner> with WidgetsBindingObserver {
                 onPressed: _saving ? null : _ingredients,
                 icon: const Icon(Icons.add_shopping_cart),
                 label: const Text('Ingredients'),
+              ),
+              DragTarget<Map<String, dynamic>>(
+                key: const ValueKey('meal-trash'),
+                onWillAcceptWithDetails: (details) =>
+                    !_saving && details.data['entry'] is Map<String, dynamic>,
+                onAcceptWithDetails: (details) {
+                  _dragScroll?.cancel();
+                  _remove(details.data['entry'] as Map<String, dynamic>);
+                },
+                builder: (context, candidates, rejected) => Tooltip(
+                  message: 'Drag a meal here to delete',
+                  child: Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: candidates.isEmpty
+                          ? Colors.transparent
+                          : Theme.of(context).colorScheme.errorContainer,
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: const Icon(Icons.delete_outline),
+                  ),
+                ),
               ),
               IconButton(
                 tooltip: 'Refresh meal plan',
@@ -796,6 +772,7 @@ class _MealPlannerState extends State<MealPlanner> with WidgetsBindingObserver {
                     dragRecipes: true,
                     onRecipeDragUpdate: _autoScroll,
                     onRecipeDragEnd: () => _dragScroll?.cancel(),
+                    mealPlanDestination: 'Unscheduled',
                     onSelect: (recipe) => _add(recipe, null),
                   ),
                 ),

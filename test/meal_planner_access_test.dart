@@ -6,7 +6,7 @@ import 'package:coffey_table_recipes/src/recipe_browser.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-import 'meal_planner_test.dart' show PlanFixture;
+import 'meal_planner_test.dart' show PlanFixture, trashMeal;
 
 void main() {
   testWidgets(
@@ -82,10 +82,7 @@ void main() {
       );
       await tester.pumpAndSettle();
       final reads = fixture.reads.length;
-      await tester.tap(find.byTooltip('Meal options for Today soup'));
-      await tester.pumpAndSettle();
-      await tester.tap(find.text('Remove'));
-      await tester.pumpAndSettle();
+      await trashMeal(tester, 'Today soup');
       expect(find.text('Today soup'), findsNothing);
       expect(find.text('Ingredients'), findsNothing);
       expect(find.text('Please sign in again.'), findsOneWidget);
@@ -283,13 +280,7 @@ void main() {
         ),
       );
       await tester.pumpAndSettle();
-      final options = find.byTooltip('Meal options for Yesterday soup');
-      await tester.ensureVisible(options);
-      await tester.pumpAndSettle();
-      await tester.tap(options);
-      await tester.pumpAndSettle();
-      await tester.tap(find.text('Remove'));
-      await tester.pumpAndSettle();
+      await trashMeal(tester, 'Yesterday soup');
       expect(find.text('Change this past meal?'), findsOneWidget);
       denied = true;
       await tester.pump(const Duration(seconds: 30));

@@ -5,6 +5,20 @@ import 'package:coffey_table_recipes/src/recipe_browser.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+Future<void> trashMeal(WidgetTester tester, String title) async {
+  final tile = find.text(title);
+  await tester.ensureVisible(tile);
+  await tester.pumpAndSettle();
+  final gesture = await tester.startGesture(tester.getCenter(tile));
+  await tester.pump(const Duration(milliseconds: 600));
+  await gesture.moveTo(
+    tester.getCenter(find.byKey(const ValueKey('meal-trash'))),
+  );
+  await tester.pump(const Duration(milliseconds: 100));
+  await gesture.up();
+  await tester.pumpAndSettle();
+}
+
 class PlanFixture {
   int revision = 1;
   bool conflict = false;
@@ -43,6 +57,11 @@ class PlanFixture {
         'recipes': [
           {'id': '3', 'title': 'Garlic bread'},
         ],
+      };
+    }
+    if (path.endsWith('/recipes/5')) {
+      return {
+        'recipe': {'id': '5', 'title': 'Picker pasta', 'variation_family': []},
       };
     }
     if (path.contains('/recipes?')) {
@@ -109,6 +128,89 @@ class PlanFixture {
 }
 
 void main() {
+  testWidgets('picker confirms variation selection and cancel adds nothing', (
+    tester,
+  ) async {
+    Map<String, dynamic>? selected;
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: RecipeBrowser(
+            householdId: '1',
+            householdName: 'Table',
+            mealPlanDestination: 'Friday, October 23',
+            onSelect: (recipe) => selected = recipe,
+            request: (path) async => path.endsWith('/recipes/5')
+                ? {
+                    'recipe': {
+                      'id': '5',
+                      'title': 'Pasta',
+                      'variation_family': [
+                        {'id': '5', 'title': 'Pasta', 'in_household': true},
+                        {
+                          'id': '6',
+                          'title': 'Spicy pasta',
+                          'in_household': true,
+                        },
+                        {
+                          'id': '7',
+                          'title': 'Removed pasta',
+                          'in_household': false,
+                        },
+                      ],
+                    },
+                  }
+                : {
+                    'recipes': [
+                      {'id': '5', 'title': 'Pasta'},
+                    ],
+                  },
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Pasta'));
+    await tester.pumpAndSettle();
+    expect(find.text('Removed pasta'), findsNothing);
+    await tester.tap(find.text('Spicy pasta'));
+    await tester.tap(find.text('Cancel'));
+    await tester.pumpAndSettle();
+    expect(selected, isNull);
+    await tester.tap(find.text('Pasta'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Spicy pasta'));
+    await tester.tap(find.text('Add'));
+    await tester.pumpAndSettle();
+    expect(selected?['id'], '6');
+  });
+
+  testWidgets(
+    'today is unshaded and scheduled meals cannot drop into unscheduled',
+    (tester) async {
+      final fixture = PlanFixture();
+      await tester.pumpWidget(fixture.app());
+      await tester.pumpAndSettle();
+      final today = tester.widget<Container>(
+        find.byKey(const ValueKey('meal-day-2026-10-22')),
+      );
+      expect((today.decoration as BoxDecoration).color, Colors.transparent);
+      expect((today.decoration as BoxDecoration).border, isNotNull);
+      expect(find.byIcon(Icons.more_horiz), findsNothing);
+      final gesture = await tester.startGesture(
+        tester.getCenter(find.text('Today soup')),
+      );
+      await tester.pump(const Duration(milliseconds: 600));
+      await gesture.moveTo(
+        tester.getCenter(find.byKey(const ValueKey('meal-day-unscheduled'))),
+      );
+      await gesture.up();
+      await tester.pumpAndSettle();
+      expect(fixture.writes, isEmpty);
+      await tester.pumpWidget(const SizedBox());
+    },
+  );
+
   testWidgets('browser adds an unscheduled meal and provides View plan', (
     tester,
   ) async {
@@ -208,13 +310,7 @@ void main() {
       addTearDown(() => tester.binding.setSurfaceSize(null));
       await tester.pumpWidget(fixture.app());
       await tester.pumpAndSettle();
-      final options = find.byTooltip('Meal options for Yesterday soup');
-      await tester.ensureVisible(options);
-      await tester.pumpAndSettle();
-      await tester.tap(options);
-      await tester.pumpAndSettle();
-      await tester.tap(find.text('Remove'));
-      await tester.pumpAndSettle();
+      await trashMeal(tester, 'Yesterday soup');
       expect(find.text('Change this past meal?'), findsOneWidget);
       expect(
         find.text('This will update your cooking history.'),
@@ -223,10 +319,7 @@ void main() {
       await tester.tap(find.text('Cancel'));
       await tester.pumpAndSettle();
       expect(fixture.writes, isEmpty);
-      await tester.tap(options);
-      await tester.pumpAndSettle();
-      await tester.tap(find.text('Remove'));
-      await tester.pumpAndSettle();
+      await trashMeal(tester, 'Yesterday soup');
       await tester.tap(find.text('Change'));
       await tester.pumpAndSettle();
       expect(fixture.writes.single['confirm_past'], isTrue);
@@ -301,10 +394,7 @@ void main() {
     addTearDown(() => tester.binding.setSurfaceSize(null));
     await tester.pumpWidget(fixture.app());
     await tester.pumpAndSettle();
-    await tester.tap(find.byTooltip('Meal options for Today soup'));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('Remove'));
-    await tester.pumpAndSettle();
+    await trashMeal(tester, 'Today soup');
     expect(fixture.writes, isEmpty);
     expect(
       find.text(
@@ -330,6 +420,10 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.byType(RecipeBrowser), findsOneWidget);
       await tester.tap(find.text('Picker pasta'));
+      await tester.pumpAndSettle();
+      expect(fixture.writes, isEmpty);
+      expect(find.text('Add to Thursday, October 22, 2026'), findsOneWidget);
+      await tester.tap(find.text('Add'));
       await tester.pumpAndSettle();
       expect(fixture.writes.single['recipe_id'], '5');
       expect(fixture.writes.single['date'], '2026-10-22');

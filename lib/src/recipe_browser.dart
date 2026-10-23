@@ -119,6 +119,7 @@ class RecipeBrowser extends StatefulWidget {
     this.menuBuilder,
     this.save,
     this.onSelect,
+    this.mealPlanDestination,
     this.onViewMealPlan,
     this.dragRecipes = false,
     this.onRecipeDragUpdate,
@@ -132,6 +133,7 @@ class RecipeBrowser extends StatefulWidget {
   final RecipeSave? save;
   final bool embedded;
   final ValueChanged<Map<String, dynamic>>? onSelect;
+  final String? mealPlanDestination;
   final VoidCallback? onViewMealPlan;
   final bool dragRecipes;
   final ValueChanged<DragUpdateDetails>? onRecipeDragUpdate;
@@ -471,9 +473,79 @@ class _RecipeBrowserState extends State<RecipeBrowser>
     }
   }
 
+  bool _selectingMeal = false;
   Future<void> _open(Map<String, dynamic> recipe) async {
     if (widget.onSelect != null) {
-      widget.onSelect!(recipe);
+      if (_selectingMeal) return;
+      _selectingMeal = true;
+      try {
+        final data = await widget.request(
+          '/households/${widget.householdId}/recipes/${recipe['id']}',
+        );
+        if (!mounted) return;
+        final full = Map<String, dynamic>.from(data['recipe'] as Map);
+        final choices = <Map<String, dynamic>>[
+          full,
+          ...recipeRows(full['variation_family'] ?? full['related']).where(
+            (row) =>
+                '${row['id']}' != '${full['id']}' &&
+                row['in_household'] != false,
+          ),
+        ];
+        var selected = full;
+        final result = await showDialog<Map<String, dynamic>>(
+          context: context,
+          builder: (context) => StatefulBuilder(
+            builder: (context, update) => AlertDialog(
+              title: Text(
+                choices.length == 1
+                    ? 'Add to ${widget.mealPlanDestination ?? 'meal plan'}?'
+                    : 'Choose recipe to add',
+              ),
+              content: choices.length == 1
+                  ? Text('${full['title']}')
+                  : SizedBox(
+                      width: 360,
+                      child: SingleChildScrollView(
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            for (final choice in choices)
+                              ListTile(
+                                title: Text('${choice['title']}'),
+                                leading: Icon(
+                                  '${selected['id']}' == '${choice['id']}'
+                                      ? Icons.radio_button_checked
+                                      : Icons.radio_button_unchecked,
+                                ),
+                                onTap: () => update(() => selected = choice),
+                              ),
+                          ],
+                        ),
+                      ),
+                    ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text('Cancel'),
+                ),
+                FilledButton(
+                  onPressed: () => Navigator.pop(context, selected),
+                  child: const Text('Add'),
+                ),
+              ],
+            ),
+          ),
+        );
+        if (mounted && result != null) widget.onSelect!(result);
+      } catch (error) {
+        if (mounted) {
+          ScaffoldMessenger.of(context)
+              .showSnackBar(SnackBar(content: Text('$error')));
+        }
+      } finally {
+        _selectingMeal = false;
+      }
       return;
     }
     await Navigator.of(context).push(
@@ -642,6 +714,19 @@ class _RecipeBrowserState extends State<RecipeBrowser>
               ),
             ),
           ),
+          if (widget.mealPlanDestination != null)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(28, 0, 20, 16),
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  'Add to ${widget.mealPlanDestination}',
+                  style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                    color: Theme.of(context).colorScheme.secondary,
+                  ),
+                ),
+              ),
+            ),
           if (_busy) const LinearProgressIndicator(),
           if (_error != null)
             Padding(
@@ -1659,15 +1744,43 @@ class _RecipeDetailState extends State<RecipeDetail> {
               icon: const Icon(Icons.soup_kitchen_outlined),
               label: const Text('Start cooking'),
             ),
-            if (widget.save != null && _recipe?['in_household'] != false)
+            if (widget.save != null && recipe['in_household'] != false)
               Padding(
                 padding: const EdgeInsets.only(top: 12),
-                child: OutlinedButton.icon(
-                  onPressed: _deleting || _variationOpen
-                      ? null
-                      : _requestVariation,
-                  icon: const Icon(Icons.auto_awesome),
-                  label: const Text('Request variation'),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(
+                      child: OutlinedButton(
+                        onPressed: _deleting
+                            ? null
+                            : () => addUnscheduledMeal(
+                                context,
+                                householdId: widget.householdId,
+                                recipe: recipe,
+                                request: widget.request,
+                                save: widget.save!,
+                                viewPlan: widget.onViewMealPlan,
+                              ),
+                        child: const Text(
+                          'Add to meal plan',
+                          textAlign: TextAlign.center,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: OutlinedButton(
+                        onPressed: _deleting || _variationOpen
+                            ? null
+                            : _requestVariation,
+                        child: const Text(
+                          'Request variation',
+                          textAlign: TextAlign.center,
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               ),
             if (recipe['description'] != null)
@@ -1727,22 +1840,7 @@ class _RecipeDetailState extends State<RecipeDetail> {
                 ],
               ),
             ),
-            if (widget.save != null && recipe['in_household'] != false)
-              Align(
-                alignment: Alignment.centerLeft,
-                child: TextButton.icon(
-                  onPressed: () => addUnscheduledMeal(
-                    context,
-                    householdId: widget.householdId,
-                    recipe: recipe,
-                    request: widget.request,
-                    save: widget.save!,
-                    viewPlan: widget.onViewMealPlan,
-                  ),
-                  icon: const Icon(Icons.calendar_month_outlined),
-                  label: const Text('Add to meal plan'),
-                ),
-              ),
+
             if (ingredients.isEmpty) const Text('No ingredients recorded.'),
             for (final groupId in <String?>[
               null,
