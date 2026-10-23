@@ -662,6 +662,9 @@ class _MealPlannerState extends State<MealPlanner> with WidgetsBindingObserver {
     final card = SizedBox(
       width: 145,
       child: Card(
+        color: Colors.transparent,
+        surfaceTintColor: Colors.transparent,
+        elevation: 0,
         clipBehavior: Clip.antiAlias,
         margin: EdgeInsets.zero,
         child: Column(
@@ -711,6 +714,7 @@ class _MealPlannerState extends State<MealPlanner> with WidgetsBindingObserver {
                     padding: const EdgeInsets.fromLTRB(10, 8, 10, 0),
                     child: Text(
                       '${entry['title']}',
+                      textAlign: TextAlign.center,
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
                     ),
@@ -760,7 +764,7 @@ class _MealPlannerState extends State<MealPlanner> with WidgetsBindingObserver {
               ? colors.primaryContainer
               : past
               ? colors.onSurface.withValues(alpha: .12)
-              : Colors.transparent,
+              : Colors.white,
           border: today
               ? Border(left: BorderSide(color: colors.primary, width: 3))
               : null,

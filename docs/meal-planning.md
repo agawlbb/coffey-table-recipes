@@ -235,3 +235,7 @@ Final rebuilt local web source5af8df24f6dc05dbe2aac97568f601c6408de018 includes 
 The planner opens with Today at the top of its date viewport; scrolling upward reveals past dates. The Today button returns to that same top alignment. Removed the former 30-percent viewport anchor while retaining the centered sliver structure and past/future scrolling. Updated past-meal test navigation for initially offscreen dates and added behavioral coverage for opening alignment, scrolling into history and returning to Today.
 
 Validation: changed Dart files formatted and analyzed clean; all34 focused planner, drag-stop and access tests passed in one final invocation. No build or deployment was performed, as requested.
+
+### Date and dish tile styling (2026-10-23)
+Today and future date sections use white backgrounds, retaining the Today accent and darker past dates. Dish tile labels are centered beneath their pictures on transparent, unelevated cards so the date background remains visible. Existing Today appearance expectation updated. Focused validation: affected-file Dart analysis clean; all 15 meal planner tests pass; the initial combined run also passed the 19 drag-stop/access tests (its sole failure was the outdated transparent Today expectation). Local web rebuild requested; native and hosted app unchanged.
+

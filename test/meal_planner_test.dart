@@ -352,7 +352,7 @@ void main() {
   });
 
   testWidgets(
-    'today is unshaded and scheduled meals cannot drop into unscheduled',
+    'today has a white background and scheduled meals cannot drop into unscheduled',
     (tester) async {
       final fixture = PlanFixture();
       await tester.pumpWidget(fixture.app());
@@ -360,7 +360,7 @@ void main() {
       final today = tester.widget<Container>(
         find.byKey(const ValueKey('meal-day-2026-10-22')),
       );
-      expect((today.decoration as BoxDecoration).color, Colors.transparent);
+      expect((today.decoration as BoxDecoration).color, Colors.white);
       expect((today.decoration as BoxDecoration).border, isNotNull);
       expect(find.byIcon(Icons.more_horiz), findsNothing);
       expect(find.text('Unscheduled'), findsNothing);
