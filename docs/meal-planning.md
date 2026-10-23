@@ -71,3 +71,13 @@ dragging with pairing rules, recipe-picker reuse, conflicts and ingredient sums.
 The backend adds membership, date/timezone, revision rollback, history rollover,
 purge retention and repeated-occurrence ingredient fixtures. See the PHP
 repository's docs/meal-planning.md for migration/deployment and hosted results.
+
+## Localhost web build — 2026-10-23
+
+At the user's request, built feature source `ceb333c5d268ae6a82918dd35e052df264b133e2`
+with the existing ignored Firebase configuration and hosted coffeybean.com API.
+Published the generated assets only to the local XAMPP app directory and verified
+SHA-256 matches for served main.dart.js, flutter_bootstrap.js, version.json and
+assets/FontManifest.json. Apache serves http://localhost/CoffeyTableRecipes/app/.
+The existing 1.8.5+29 version label was retained; this is a feature-branch preview,
+not a version 2 release. No hosted frontend, main branch or release tag changed.
