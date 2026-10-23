@@ -125,7 +125,7 @@ void main() {
         );
         await tester.pumpAndSettle();
         expect(find.text('Today soup'), findsOneWidget);
-        expect(find.text('Bread idea'), findsOneWidget);
+        expect(find.text('Bread plan'), findsOneWidget);
         error = failure;
         tester.binding.handleAppLifecycleStateChanged(
           AppLifecycleState.inactive,
@@ -135,7 +135,7 @@ void main() {
         );
         await tester.pumpAndSettle();
         expect(find.text('Today soup'), findsNothing);
-        expect(find.text('Bread idea'), findsNothing);
+        expect(find.text('Bread plan'), findsNothing);
         expect(find.text('Unscheduled'), findsNothing);
         expect(find.byType(RecipeBrowser), findsNothing);
         expect(find.text('+ Add'), findsNothing);
@@ -200,7 +200,7 @@ void main() {
       tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
       await tester.pumpAndSettle();
       expect(find.text('Today soup'), findsOneWidget);
-      expect(find.text('Bread idea'), findsOneWidget);
+      expect(find.text('Bread plan'), findsOneWidget);
       expect(find.text('Ingredients'), findsOneWidget);
       await tester.pumpWidget(const SizedBox());
     });

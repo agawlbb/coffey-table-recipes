@@ -371,6 +371,43 @@ void main() {
   );
 
   test(
+    'meal additions and moves require valid dates before queueing',
+    () async {
+      const root = '/households/1/meal-plan';
+      final data = store(
+        fetch: (_) async => {
+          'revision': 1,
+          'today': '2026-10-23',
+          'entries': [],
+        },
+      );
+      await data.request(root);
+      for (final operation in ['add', 'move']) {
+        for (final date in [null, '', '2026-02-31', 'not-a-date']) {
+          await expectLater(
+            data.save(root, {
+              'revision': 1,
+              'operation': operation,
+              'id': 'meal',
+              'kind': 'leftovers',
+              'date': date,
+            }),
+            throwsA(
+              isA<ApiException>().having(
+                (error) => error.code,
+                'code',
+                'date_required',
+              ),
+            ),
+          );
+          expect(data.pending, 0);
+          expect((await data.cached(root))!['entries'], isEmpty);
+        }
+      }
+    },
+  );
+
+  test(
     'full plan snapshot serves different ranges without a network wait',
     () async {
       const root = '/households/1/meal-plan';

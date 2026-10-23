@@ -19,7 +19,7 @@ void main() {
             recipeId: '5',
             title: 'Pasta',
             request: (path) async => path.contains('/meal-plan')
-                ? {'revision': 1}
+                ? {'revision': 1, 'today': '2026-10-22'}
                 : {
                     'recipe': {
                       'id': '5',
@@ -55,13 +55,13 @@ void main() {
       await tester.pumpAndSettle();
       if (variations) {
         await tester.tap(find.text('Spicy pasta'));
-      } else {
-        expect(find.text('Add to meal plan?'), findsOneWidget);
+        await tester.tap(find.text('Next'));
+        await tester.pumpAndSettle();
       }
-      await tester.tap(find.text('Add'));
+      await tester.tap(find.byKey(const ValueKey('choose-meal-2026-10-22')));
       await tester.pumpAndSettle();
       expect(writes.single['recipe_id'], variations ? '6' : '5');
-      expect(writes.single['date'], isNull);
+      expect(writes.single['date'], '2026-10-22');
       mealPlanNotices.dismiss();
       await tester.pumpAndSettle();
       await tester.pumpWidget(const SizedBox());
@@ -78,11 +78,11 @@ void main() {
           builder: (context) {
             origin = context;
             return TextButton(
-              onPressed: () => addUnscheduledMeal(
+              onPressed: () => addDatedMeal(
                 context,
                 householdId: '1',
-                recipe: {'id': '5', 'title': 'Pasta'},
-                request: (_) async => {'revision': 1},
+                recipe: {'id': '5', 'title': 'Pasta', 'variation_family': []},
+                request: (_) async => {'revision': 1, 'today': '2026-10-22'},
                 save: (_, _) async => action == 'late' ? pending.future : {},
                 viewPlan: () {},
               ),
@@ -113,7 +113,7 @@ void main() {
       await tester.pumpAndSettle();
       await tester.tap(find.text('Plan'));
       await tester.pumpAndSettle();
-      await tester.tap(find.text('Add'));
+      await tester.tap(find.byKey(const ValueKey('choose-meal-2026-10-22')));
       await tester.pumpAndSettle();
       if (action != 'late') {
         expect(find.text('Added to meal plan'), findsOneWidget);

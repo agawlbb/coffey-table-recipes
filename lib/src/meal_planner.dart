@@ -264,7 +264,7 @@ class _MealPlannerState extends State<MealPlanner> with WidgetsBindingObserver {
   void _message(String text) =>
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(text)));
 
-  Future<void> _add(Map<String, dynamic> recipe, String? date) async {
+  Future<void> _add(Map<String, dynamic> recipe, String date) async {
     final ok = await _change({
       'operation': 'add',
       'id': newShoppingItemId(),
@@ -272,7 +272,7 @@ class _MealPlannerState extends State<MealPlanner> with WidgetsBindingObserver {
       'recipe_id': '${recipe['id']}',
       'date': date,
     });
-    if (ok && mounted && date != null) await _pairings('${recipe['id']}', date);
+    if (ok && mounted) await _pairings('${recipe['id']}', date);
   }
 
   Future<void> _pairings(String recipeId, String date) async {
@@ -363,7 +363,7 @@ class _MealPlannerState extends State<MealPlanner> with WidgetsBindingObserver {
     }
   }
 
-  Future<void> _pick(String? date) async {
+  Future<void> _pick(String date) async {
     if (!_ready) return;
     final epoch = _accessEpoch;
     final selection = await showModalBottomSheet<String>(
@@ -404,10 +404,8 @@ class _MealPlannerState extends State<MealPlanner> with WidgetsBindingObserver {
           householdId: widget.householdId,
           householdName: widget.householdName,
           request: widget.request,
-          mealPlanDestination: date == null
-              ? 'Unscheduled'
-              : MaterialLocalizations.of(context)
-                    .formatFullDate(DateTime.parse(date)),
+          mealPlanDestination: MaterialLocalizations.of(context)
+              .formatFullDate(DateTime.parse(date)),
           onSelect: (recipe) => Navigator.pop(context, recipe),
         ),
       ),
@@ -415,22 +413,14 @@ class _MealPlannerState extends State<MealPlanner> with WidgetsBindingObserver {
     if (recipe != null && _usable(epoch)) await _add(recipe, date);
   }
 
-  Future<void> _move(Map<String, dynamic> entry, String? date) async {
+  Future<void> _move(Map<String, dynamic> entry, String date) async {
     if (entry['plan_date'] == date) return;
-    final wasUnscheduled = entry['plan_date'] == null;
-    final ok = await _change({
+    await _change({
       'operation': 'move',
       'id': entry['id'],
       'date': date,
       '_revision': entry['_revision'],
     }, oldDate: entry['plan_date'] as String?);
-    if (ok &&
-        wasUnscheduled &&
-        date != null &&
-        entry['kind'] == 'recipe' &&
-        mounted) {
-      await _pairings('${entry['recipe_id']}', date);
-    }
   }
 
   Future<void> _remove(Map<String, dynamic> entry) async {
@@ -660,17 +650,15 @@ class _MealPlannerState extends State<MealPlanner> with WidgetsBindingObserver {
     );
   }
 
-  Widget _dateSection(String? date) {
+  Widget _dateSection(String date) {
     final entries = _entries.where((e) => e['plan_date'] == date).toList();
     final today = date == mealPlanDate(_today);
     final past = _past(date);
     final colors = Theme.of(context).colorScheme;
-    final label = date == null
-        ? 'Unscheduled'
-        : MaterialLocalizations.of(context)
-              .formatMediumDate(DateTime.parse(date));
+    final label = MaterialLocalizations.of(context)
+        .formatMediumDate(DateTime.parse(date));
     return DragTarget<Map<String, dynamic>>(
-      onWillAcceptWithDetails: (_) => !_saving && date != null,
+      onWillAcceptWithDetails: (_) => !_saving,
       onAcceptWithDetails: (details) {
         final entry = details.data['entry'];
         if (entry is Map<String, dynamic>) {
@@ -680,7 +668,7 @@ class _MealPlannerState extends State<MealPlanner> with WidgetsBindingObserver {
         }
       },
       builder: (context, candidates, rejected) => Container(
-        key: ValueKey('meal-day-${date ?? 'unscheduled'}'),
+        key: ValueKey('meal-day-$date'),
         margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
@@ -837,11 +825,6 @@ class _MealPlannerState extends State<MealPlanner> with WidgetsBindingObserver {
             ),
           ),
         if (_saving) const LinearProgressIndicator(),
-        if (_entries.any((e) => e['plan_date'] == null))
-          ConstrainedBox(
-            constraints: const BoxConstraints(maxHeight: 225),
-            child: SingleChildScrollView(child: _dateSection(null)),
-          ),
         Expanded(
           child: _loading && _entries.isEmpty
               ? const Center(child: CircularProgressIndicator())
@@ -887,8 +870,9 @@ class _MealPlannerState extends State<MealPlanner> with WidgetsBindingObserver {
                     dragRecipes: true,
                     onRecipeDragUpdate: _autoScroll,
                     onRecipeDragEnd: _stopDragScroll,
-                    mealPlanDestination: 'Unscheduled',
-                    onSelect: (recipe) => _add(recipe, null),
+                    mealPlanToday: _today,
+                    onSelect: (recipe) =>
+                        _add(recipe, recipe['_meal_date'] as String),
                   ),
                 ),
               ],

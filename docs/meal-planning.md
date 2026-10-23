@@ -13,14 +13,12 @@ opens the existing recipe browser in selection mode; Leftovers and Restaurant
 outing create matching placeholder tiles. The recipe browser stays beside the
 date list on wide screens and supports dragging recipes into the plan.
 
-Hold a tile to drag it to another date, or drop it on the toolbar trash can to remove it. Scheduled meals cannot be moved back to Unscheduled. Tapping the recipe opens its normal detail page. Today uses olive accents without past-date background shading.
+Hold a tile to drag it to another date, or drop it on the toolbar trash can to remove it. Every add or move requires a date. Tapping the recipe opens its normal detail page. Today uses olive accents without past-date background shading.
 Recipe-browser long press and the recipe detail page offer Add to meal plan.
-These additions go into the household's Unscheduled section, visible only when
-it has entries. The recipe action's View plan shortcut returns to the planner.
+These additions choose a recipe variation if needed, then a date from household today and the following six days, with Another date opening the calendar. The recipe action's View plan shortcut returns to the planner.
 
 A recipe newly assigned to a date offers existing frequently paired recipes,
-excluding recipes already there. This also applies when scheduling an
-unscheduled dish. Moving between dates never offers pairings. Suggested additions
+excluding recipes already there. This applies to additions from the browser and recipe viewer as well. Moving between dates never offers pairings. Suggested additions
 do not recursively offer more suggestions. Placeholders have no ingredients,
 recipe history or pairings.
 
@@ -195,3 +193,7 @@ Resolved overlap by preserving planner-specific navigation/readiness and adding 
 
 ### Updated feature Android test APK after main integration (2026-10-23)
 Built clean source `27dc7320f50fe3e5213516f764e2763438a12f46` with `flutter build apk --debug --no-pub --dart-define-from-file=config/firebase.local.json`. Delivered `G:/My Drive/recipe app/CoffeyTableRecipes-meal-planning-v2-test-27dc732.apk` (199,898,038 bytes). Source and delivered SHA-256 match: `ae6d3b511892b813e9efcf006637ac29e78a2f6cc8606367f35f8c336e47222f`. APK v2 signature verifies with existing Android Debug certificate SHA-256 `f8de933f14b9bb4b3191a94aedc8637972c5ab224565f6abd7808f8038d12097`. Package `com.coffeytable.coffey_table_recipes`, version 1.8.5/build29, debuggable, minimum SDK24/target36. Build succeeded with existing plugin compatibility warnings; last merged-source verification was 458 passing Flutter tests and clean analysis. No device installation, release/tag, web build, backend change or hosted deployment. Existing packages retained. This subsequent commit only records build verification.
+
+
+## Accepted required-date planner (2026-10-23)
+The user accepted and merged the no-Unscheduled experiment into this feature. The Unscheduled section and undated add routes are removed. Normal browser, regular/blank viewer and wide planner browser taps choose a variation if applicable, then a date; direct dated Add/drag retain the selected date. All new add/move operations require valid dates before durable queuing. No legacy migration was requested because no existing unscheduled meals need handling. Historical experiment/build records are in `meal-planning-no-unscheduled.md`; its separate branch was retired after accepted history was preserved and synchronized. No rebuild or deployment accompanied acceptance.
