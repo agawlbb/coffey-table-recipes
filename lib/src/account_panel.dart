@@ -376,6 +376,7 @@ class _HouseholdPanelState extends State<HouseholdPanel> {
               }
               return _onlineRequest(path);
             },
+            downloadLibrary: false,
           )..start(() {
             if (mounted) unawaited(_load(reviewInvitations: false));
           });
@@ -386,10 +387,8 @@ class _HouseholdPanelState extends State<HouseholdPanel> {
         fetch: (path) => _offline!.request(path),
         readServer: (path) => _onlineRequest(path),
         send: (path, body) => _onlineRequest(path, body: body),
-        fallback: (path) => _offline!.cachedRead(path),
         online: () => !offlineStatus.value,
-        onRecipeSaved: (path, data) =>
-            _offline!.rememberSavedRecipe(path, data),
+        snapshotOnly: true,
       )..start();
       localDataChanges.addListener(_localChanged);
       _mirrorTimer = Timer.periodic(const Duration(minutes: 1), (_) {
@@ -603,44 +602,92 @@ class _HouseholdPanelState extends State<HouseholdPanel> {
     }
   }
 
+  final _readyHouseholds = <String>{};
+  bool _databaseChecking = true;
+  String? _databaseError;
+  String _databaseProgress = 'Checking local database';
+  double? _databaseFraction;
   Future<void>? _librarySync;
-  Future<void> _syncLibrary(List<String> households) =>
-      _librarySync ??= () async {
-        try {
-          await _offline!.sync(households, refreshDetails: true);
-          if (!mounted || _local == null) return;
-          for (final household in households) {
-            _local!.inventoryUpdated(household);
-            await _local!.blank(
-              '/households/$household/recipe-blank',
-              refresh: true,
-            );
-            final root = '/households/$household/recipes';
-            int? offset = 0;
-            do {
-              final page = await _offline!.cachedRead('$root?offset=$offset');
-              if (page == null || !mounted) return;
-              final rows = recipeRows(page['recipes']);
-              for (var start = 0; start < rows.length; start += 3) {
-                if (!mounted) return;
-                await Future.wait(
-                  rows
-                      .skip(start)
-                      .take(3)
-                      .map(
-                        (row) => _local!
-                            .request('$root/${row['id']}/favorites')
-                            .catchError((Object _) => <String, dynamic>{}),
-                      ),
-                );
-              }
-              offset = page['next_offset'] as int?;
-            } while (offset != null);
+  Future<void> _syncLibrary(
+    List<String> households,
+  ) => _librarySync ??= () async {
+    for (var index = 0; index < households.length; index++) {
+      final household = households[index];
+      if (!mounted) return;
+      setState(() {
+        _databaseError = null;
+        _databaseProgress =
+            'Downloading household ${index + 1} of ${households.length}';
+        _databaseFraction = index / households.length;
+      });
+      try {
+        final epoch = _local!.snapshotEpoch;
+        final version = await _local!.snapshotVersion(household);
+        final token = await _idToken();
+        if (token == null) throw ApiException(401, 'Please sign in again.');
+        final snapshot = await _api.request(
+          '/households/$household/snapshot${version == null ? '' : '?version=$version'}',
+          token,
+          timeout: const Duration(seconds: 90),
+          onProgress: (received, total) {
+            if (!mounted || _readyHouseholds.contains(household)) return;
+            setState(() {
+              _databaseProgress =
+                  'Downloaded ${(received / 1024).round()} KB${total == null ? '' : ' of ${(total / 1024).round()} KB'}';
+              _databaseFraction = total == null || total == 0
+                  ? null
+                  : (index + 0.8 * received / total) / households.length;
+            });
+          },
+        );
+        if (!mounted) return;
+        if (_local!.snapshotEpoch != epoch) continue;
+        if (snapshot['unchanged'] != true) {
+          if (snapshot['schema'] != 1 ||
+              snapshot['household_id'] != household ||
+              snapshot['version'] is! String ||
+              snapshot['recipes'] is! List ||
+              snapshot['categories'] is! List ||
+              snapshot['responses'] is! Map ||
+              snapshot['edit_options'] is! Map) {
+            throw const FormatException('Incomplete database response');
           }
-        } catch (_) {
-          // The local store reports interrupted synchronization without blocking a screen.
+          final responses = snapshot['responses'] as Map;
+          for (final row in snapshot['recipes'] as List) {
+            if (responses['/households/$household/recipes/${row['id']}']?['recipe']
+                    is! Map ||
+                responses['/households/$household/recipes/${row['id']}/favorites']
+                    is! Map) {
+              throw const FormatException('Missing recipe data');
+            }
+          }
+          for (final resource in ['people', 'shopping-list', 'recipe-blank', 'meal-plan', 'meal-plan/history']) {
+            if (responses['/households/$household/$resource'] is! Map) {
+              throw const FormatException('Missing household data');
+            }
+          }
+          setState(() {
+            _databaseProgress =
+                'Saving ${(snapshot['recipes'] as List).length} recipes on this device';
+            _databaseFraction = (index + 0.8) / households.length;
+          });
+          await _local!.installSnapshot(snapshot);
         }
-      }().whenComplete(() => _librarySync = null);
+        if (await _local!.snapshotVersion(household) != null && mounted) {
+          setState(() {
+            _readyHouseholds.add(household);
+            _databaseFraction = (index + 1) / households.length;
+          });
+        }
+      } catch (error) {
+        if (mounted) {
+          setState(() {
+            _databaseError = error is ApiException ? error.message : 'Database download could not finish. Your existing local data is safe. Retry to finish setup.';
+          });
+        }
+      }
+    }
+  }().whenComplete(() => _librarySync = null);
 
   Future<void> _load({bool reviewInvitations = true}) async {
     // This cache chooses public browsing only. It never authorizes a mutation,
@@ -662,8 +709,41 @@ class _HouseholdPanelState extends State<HouseholdPanel> {
         /* A missing or corrupt browsing preference needs no error. */
       }
     }
+    if (_households.isEmpty) {
+      try {
+        final cached = await _cachedRead('/me')
+            .timeout(const Duration(seconds: 2));
+        final households = recipeRows(cached?['households']);
+        if (mounted && households.isNotEmpty) {
+          setState(() {
+            // Browsing context only; roles/invitations still require /me.
+            _households = households;
+            _selected = households.first['id'].toString();
+          });
+        }
+      } catch (_) {
+        // A cache failure cannot block online startup.
+      }
+    }
+    if (_local != null) {
+      for (final h in _households) {
+        final id = h['id'] as String;
+        if (await _local!.snapshotVersion(id) != null && await _local!.cached('/households/$id/meal-plan') != null) {
+          _readyHouseholds.add(id);
+        }
+      }
+      if (mounted) setState(() => _databaseChecking = false);
+    }
     await _perform(() async {
-      final data = await _request('/me');
+      final data = _local == null
+          ? await _request('/me')
+          : await _local!.refresh('/me', force: true).catchError((
+              Object error,
+            ) async {
+              final saved = await _local!.cached('/me');
+              if (saved != null) return saved;
+              throw error;
+            });
       _userId = (data['user'] as Map?)?['id'] as String?;
       _administrator =
           (data['user'] as Map?)?['account_role'] == 'administrator';
@@ -791,7 +871,8 @@ class _HouseholdPanelState extends State<HouseholdPanel> {
   }
 
   Future<void> _loadPeople() async {
-    if (_selected == null) {
+    if (_selected == null ||
+        (_local != null && !_readyHouseholds.contains(_selected))) {
       _people = [];
       return;
     }
@@ -820,6 +901,11 @@ class _HouseholdPanelState extends State<HouseholdPanel> {
       final household = Map<String, dynamic>.from(data['household'] as Map);
       _households.add(household);
       _selected = household['id'] as String;
+      if (_local != null) {
+        unawaited(
+          _syncLibrary(_households.map((h) => h['id'] as String).toList()),
+        );
+      }
       await _loadPeople();
     });
   }
@@ -905,6 +991,40 @@ class _HouseholdPanelState extends State<HouseholdPanel> {
   }
 
   Widget _buildMenu(BuildContext menuContext) {
+    if (_local != null &&
+        (_databaseChecking ||
+            (_selected != null && !_readyHouseholds.contains(_selected)))) {
+      return Scaffold(
+        appBar: AppBar(title: const Text('Downloading database')),
+        body: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Text('Saving your household data on this device'),
+                const SizedBox(height: 20),
+                LinearProgressIndicator(value: _databaseFraction),
+                const SizedBox(height: 12),
+                Text(_databaseProgress),
+                if (_databaseError != null) ...[
+                  const SizedBox(height: 16),
+                  Text(_databaseError!),
+                  TextButton(
+                    onPressed: () => unawaited(
+                      _syncLibrary(
+                        _households.map((h) => h['id'] as String).toList(),
+                      ),
+                    ),
+                    child: const Text('Retry download'),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ),
+      );
+    }
     final selected = _households.where((h) => h['id'] == _selected).firstOrNull;
     return Drawer(
       child: SafeArea(
@@ -997,6 +1117,40 @@ class _HouseholdPanelState extends State<HouseholdPanel> {
 
   @override
   Widget build(BuildContext context) {
+    if (_local != null &&
+        (_databaseChecking ||
+            (_selected != null && !_readyHouseholds.contains(_selected)))) {
+      return Scaffold(
+        appBar: AppBar(title: const Text('Downloading database')),
+        body: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Text('Saving your household data on this device'),
+                const SizedBox(height: 20),
+                LinearProgressIndicator(value: _databaseFraction),
+                const SizedBox(height: 12),
+                Text(_databaseProgress),
+                if (_databaseError != null) ...[
+                  const SizedBox(height: 16),
+                  Text(_databaseError!),
+                  TextButton(
+                    onPressed: () => unawaited(
+                      _syncLibrary(
+                        _households.map((h) => h['id'] as String).toList(),
+                      ),
+                    ),
+                    child: const Text('Retry download'),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ),
+      );
+    }
     final selected = _households.where((h) => h['id'] == _selected).firstOrNull;
     final canAdd =
         selected != null && ['owner', 'admin'].contains(selected['role']);
@@ -1199,11 +1353,6 @@ class _HouseholdPanelState extends State<HouseholdPanel> {
       drawer: _buildMenu(context),
       body: Column(
         children: [
-          if (_offline != null && _households.isNotEmpty)
-            RecipeSyncStatus(
-              progress: _offline!.progress,
-              retry: () => unawaited(_offline!.retry()),
-            ),
           Expanded(
             child: IndexedStack(
               index: _planning
