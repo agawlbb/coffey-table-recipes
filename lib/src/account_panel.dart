@@ -20,6 +20,7 @@ import 'email_verification_screen.dart';
 import 'invitation_dialogs.dart';
 import 'invitation_entry.dart';
 import 'recipe_browser.dart';
+import 'meal_planner.dart';
 import 'recipe_trash.dart';
 import 'shopping_list.dart';
 import 'shopping_list_cache.dart';
@@ -201,6 +202,8 @@ class _HouseholdPanelState extends State<HouseholdPanel> {
   String? _error;
   bool _settings = false;
   bool _shopping = false;
+  bool _planning = false;
+  bool _plannerOpened = false;
   bool _shoppingOpened = false;
   int _shoppingRefresh = 0;
   int _recipeRefresh = 0;
@@ -420,6 +423,7 @@ class _HouseholdPanelState extends State<HouseholdPanel> {
         setState(() {
           _settings = false;
           _shopping = false;
+          _planning = false;
           _recipeRefresh++;
         });
       }
@@ -435,7 +439,11 @@ class _HouseholdPanelState extends State<HouseholdPanel> {
   ) async {
     final data = await _request(path, body: body);
     // Generation returns an unsaved draft, not a replacement for its parent.
-    if (path.endsWith('/variation')) return data;
+    if (path.endsWith('/variation') ||
+        path.contains('/meal-plan') ||
+        path.contains('/shopping-list')) {
+      return data;
+    }
     await _offline?.rememberSavedRecipe(path, data);
     if (_offline != null) {
       unawaited(
@@ -760,6 +768,16 @@ class _HouseholdPanelState extends State<HouseholdPanel> {
     navigator.popUntil((route) => route.isFirst);
   }
 
+  void _openMealPlan() {
+    Navigator.of(context).popUntil((route) => route.isFirst);
+    setState(() {
+      _settings = false;
+      _shopping = false;
+      _planning = true;
+      _plannerOpened = true;
+    });
+  }
+
   Widget _buildMenu(BuildContext menuContext) {
     final selected = _households.where((h) => h['id'] == _selected).firstOrNull;
     return Drawer(
@@ -779,13 +797,14 @@ class _HouseholdPanelState extends State<HouseholdPanel> {
                   ListTile(
                     leading: const Icon(Icons.menu_book_outlined),
                     title: const Text('Recipes'),
-                    selected: !_settings && !_shopping,
+                    selected: !_settings && !_shopping && !_planning,
                     onTap: () {
                       _leaveMenu();
                       setState(() {
                         _settings = false;
                         _shopping = false;
                         _recipeRefresh++;
+                        _planning = false;
                       });
                     },
                   ),
@@ -828,9 +847,22 @@ class _HouseholdPanelState extends State<HouseholdPanel> {
                               setState(() {
                                 _settings = false;
                                 _shopping = false;
+                                _planning = false;
                                 _recipeRefresh++;
                               });
                             }
+                          },
+                  ),
+                  ListTile(
+                    leading: const Icon(Icons.calendar_month_outlined),
+                    title: const Text('Meal planner'),
+                    selected: _planning,
+                    enabled: selected != null,
+                    onTap: selected == null
+                        ? null
+                        : () {
+                            _leaveMenu();
+                            _openMealPlan();
                           },
                   ),
                   ListTile(
@@ -844,6 +876,7 @@ class _HouseholdPanelState extends State<HouseholdPanel> {
                             _leaveMenu();
                             setState(() {
                               _shopping = true;
+                              _planning = false;
                               _shoppingOpened = true;
                               _settings = false;
                             });
@@ -1034,7 +1067,9 @@ class _HouseholdPanelState extends State<HouseholdPanel> {
     return Scaffold(
       appBar: AppBar(
         title: Text(
-          _shopping
+          _planning
+              ? 'Meal planner'
+              : _shopping
               ? 'Shopping list'
               : _settings
               ? 'Household & people'
@@ -1070,6 +1105,7 @@ class _HouseholdPanelState extends State<HouseholdPanel> {
               if (value == 'household') {
                 setState(() {
                   _settings = true;
+                  _planning = false;
                   _shopping = false;
                 });
                 if (!_busy) _perform(_loadPeople);
@@ -1088,7 +1124,9 @@ class _HouseholdPanelState extends State<HouseholdPanel> {
             ),
           Expanded(
             child: IndexedStack(
-              index: _shopping
+              index: _planning
+                  ? 3
+                  : _shopping
                   ? 2
                   : _settings
                   ? 1
@@ -1128,6 +1166,7 @@ class _HouseholdPanelState extends State<HouseholdPanel> {
                         menuBuilder: _buildMenu,
                         cachedRequest: _offline?.cachedBrowse,
                         save: _saveRecipe,
+                        onViewMealPlan: _openMealPlan,
                       ),
                 Center(
                   child: ConstrainedBox(
@@ -1157,6 +1196,17 @@ class _HouseholdPanelState extends State<HouseholdPanel> {
                         body: {},
                       );
                     },
+                  )
+                else
+                  const SizedBox(),
+                if (_plannerOpened && selected != null)
+                  MealPlanner(
+                    key: ValueKey('meal-plan-$_selected'),
+                    householdId: _selected!,
+                    householdName: selected['name'] as String,
+                    active: _planning,
+                    request: (path) => _request(path),
+                    save: (path, body) => _request(path, body: body),
                   )
                 else
                   const SizedBox(),
