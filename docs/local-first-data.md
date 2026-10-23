@@ -114,3 +114,10 @@ restart, repeated category reads with zero HTTP requests, replacement, failed
 persistence, rejecting partial initial data and preserving pending shopping edits.
 The former offline-cache download is disabled in production. Completed versions
 are stored in LocalData; older caches never satisfy the initial setup gate.
+
+Complete-database feature validation (2026-10-23): all 440 Flutter tests passed;
+analysis of the changed sources is clean. The feature gate also requires the
+complete calendar/history. Existing planner UI and its durable outbox are retained.
+The feature's legacy per-recipe downloader is disabled. Newly joined households
+wait for an active sync and then bootstrap immediately, rather than waiting for
+the next periodic pass. Snapshot/local-store/API code is shared with main.

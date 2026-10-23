@@ -608,9 +608,26 @@ class _HouseholdPanelState extends State<HouseholdPanel> {
   String _databaseProgress = 'Checking local database';
   double? _databaseFraction;
   Future<void>? _librarySync;
-  Future<void> _syncLibrary(
-    List<String> households,
-  ) => _librarySync ??= () async {
+  Future<void> _syncLibrary(List<String> households) async {
+    final active = _librarySync;
+    if (active != null) {
+      await active;
+      final missing = households
+          .where((id) => !_readyHouseholds.contains(id))
+          .toList();
+      if (mounted && missing.isNotEmpty) await _syncLibrary(missing);
+      return;
+    }
+    final task = _downloadLibraries(households);
+    _librarySync = task;
+    try {
+      await task;
+    } finally {
+      _librarySync = null;
+    }
+  }
+
+  Future<void> _downloadLibraries(List<String> households) async {
     for (var index = 0; index < households.length; index++) {
       final household = households[index];
       if (!mounted) return;
@@ -641,7 +658,10 @@ class _HouseholdPanelState extends State<HouseholdPanel> {
           },
         );
         if (!mounted) return;
-        if (_local!.snapshotEpoch != epoch) continue;
+        if (_local!.snapshotEpoch != epoch) {
+          if (!_readyHouseholds.contains(household)) index--;
+          continue;
+        }
         if (snapshot['unchanged'] != true) {
           if (snapshot['schema'] != 1 ||
               snapshot['household_id'] != household ||
@@ -661,7 +681,13 @@ class _HouseholdPanelState extends State<HouseholdPanel> {
               throw const FormatException('Missing recipe data');
             }
           }
-          for (final resource in ['people', 'shopping-list', 'recipe-blank', 'meal-plan', 'meal-plan/history']) {
+          for (final resource in [
+            'people',
+            'shopping-list',
+            'recipe-blank',
+            'meal-plan',
+            'meal-plan/history',
+          ]) {
             if (responses['/households/$household/$resource'] is! Map) {
               throw const FormatException('Missing household data');
             }
@@ -687,7 +713,7 @@ class _HouseholdPanelState extends State<HouseholdPanel> {
         }
       }
     }
-  }().whenComplete(() => _librarySync = null);
+  }
 
   Future<void> _load({bool reviewInvitations = true}) async {
     // This cache chooses public browsing only. It never authorizes a mutation,
@@ -728,7 +754,8 @@ class _HouseholdPanelState extends State<HouseholdPanel> {
     if (_local != null) {
       for (final h in _households) {
         final id = h['id'] as String;
-        if (await _local!.snapshotVersion(id) != null && await _local!.cached('/households/$id/meal-plan') != null) {
+        if (await _local!.snapshotVersion(id) != null &&
+            await _local!.cached('/households/$id/meal-plan') != null) {
           _readyHouseholds.add(id);
         }
       }

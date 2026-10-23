@@ -40,9 +40,11 @@ class OfflineRecipes with WidgetsBindingObserver {
     required this.fetch,
     this.read = readOfflineStore,
     this.write = writeOfflineStore,
+    this.downloadLibrary = true,
   });
   final String key;
   final OfflineRequest fetch;
+  final bool downloadLibrary;
   final Future<String?> Function(String) read;
   final Future<void> Function(String, String) write;
   Map<String, dynamic> _responses = {};
@@ -570,10 +572,12 @@ class OfflineRecipes with WidgetsBindingObserver {
   }
 
   Future<void> sync(List<String> households, {bool refreshDetails = false}) =>
-      _sync ??= _synchronize(
-        households,
-        refreshDetails: refreshDetails,
-      ).whenComplete(() => _sync = null);
+      downloadLibrary
+      ? _sync ??= _synchronize(
+          households,
+          refreshDetails: refreshDetails,
+        ).whenComplete(() => _sync = null)
+      : Future<void>.value();
 
   Future<void> retry() async {
     if (offlineStatus.value) await _probe();
