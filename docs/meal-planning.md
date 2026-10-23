@@ -154,3 +154,7 @@ Dragging near the top/bottom of the date list uses a continuous 30 ms timer and 
 Add recipe moved out of the household drawer to directly below the normal recipe browser search bar. It reuses the existing import flow, household identity, offline restriction and saved-recipe cache handling. Meal-plan selection browsers hide the action.
 
 Validation: flutter analyze --no-pub clean; full Flutter suite passed (405 tests). New regressions cover continuous high-frequency drag updates, upward/downward scrolling and stopping, cocoa powder and other rounded customary quantities with unchanged metric values, Add recipe placement/callback/offline disabling and picker hiding.
+
+
+### Android cooking-measures and scrolling test APK (2026-10-23)
+Built source `9f15da09a52a21f497a2e64e17dbc7c43dd603e6` using `flutter build apk --debug --dart-define-from-file=config/firebase.local.json`. Delivered `G:/My Drive/recipe app/CoffeyTableRecipes-meal-planning-v2-test-9f15da0.apk` (199,774,032 bytes). Source/delivery SHA-256 match: `cfe621826f7b86f914d3e004b549347776815509dfb2e83189287026473a588e`. APK v2 signing verifies with existing Android Debug certificate SHA-256 `f8de933f14b9bb4b3191a94aedc8637972c5ab224565f6abd7808f8038d12097`; package `com.coffeytable.coffey_table_recipes`, version 1.8.5/build29, debuggable. No device installation, release/tag, main merge, backend change or hosted Flutter deployment. Earlier packages and the separate experiment are preserved.
