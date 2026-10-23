@@ -27,7 +27,29 @@ that background Flutter code runs while the OS has suspended it.
 Validation: the local-data suite covers same-identifier retries after a lost
 creation response, process-death recovery, retained local data, original deadline
 across restart, the one-minute boundary, and cancellation on confirmation. Main
-full suite: 408 tests passed; feature full suite: 445 tests passed. Two additional
-notification overlay/channel tests passed. Android notification Kotlin compiled
-in isolation against the installed Android SDK. Native delivery still needs
-device verification; no installable app build was requested for this change.
+full suite: 410 tests passed; feature full suite: 447 tests passed. Static
+analysis passed. The overlay test verifies the warning over an open recipe editor;
+the native bridge test verifies schedule/cancel payloads without recipe content.
+Android notification Kotlin also compiled in isolation. Physical-device delivery
+still needs verification; no phone was connected for this work.
+
+## Requested main test builds, 2026-10-23
+
+Both builds use clean main source `e87db52e8cd6563367bce59f1375b83e50f4f81a`,
+version 1.8.5+29, the existing private Firebase configuration and coffeybean.com.
+The subsequent documentation commit does not change their runtime source.
+
+- Local web: `http://localhost/CoffeyTableRecipes/app/`. Served version metadata
+  matches the source commit. HTTP-served main.dart.js matches the build output:
+  SHA-256 `1e2be1c89f512a1ad84ecc219b1c5c7364b41c5f85cc267737b74d7209088f62`.
+- Android debug test APK:
+  `G:\My Drive\recipe app\CoffeyTableRecipes-main-local-sync-e87db52.apk`.
+  Verified package `com.coffeytable.coffey_table_recipes`, versionCode 29,
+  versionName 1.8.5, minSdk24, targetSdk36. Signature verification passed and the
+  certificate matches the preceding test APK:
+  SHA-256 `f8de933f14b9bb4b3191a94aedc8637972c5ab224565f6abd7808f8038d12097`.
+  Shared copy matches the build output, 199846094 bytes:
+  SHA-256 `4c3041a2d3ef1fbd3fe5996fc4fa515c4eb093128e03cad6fd2c2c1d7da3ff04`.
+
+No release tag or hosted Flutter publication was performed. The hosted receipt
+backend was separately deployed and verified in Actions run39998462691.
