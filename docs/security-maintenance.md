@@ -49,3 +49,71 @@ Sources:
 - https://docs.gradle.org/9.8.1/release-notes.html
 - https://kotlinlang.org/docs/gradle-configure-project.html
 - https://developer.android.com/build/releases/about-agp
+
+## Kotlin/KAPT and Firebase Auth review (October 23, 2026)
+
+### Android build tooling
+
+Updated the external Kotlin Gradle plugin from 2.4.0 to 2.4.21 to include
+the fix for GHSA-r937-wjx7-w2jp / CVE-2026-53914. The upstream fix restricts
+deserialization of KAPT incremental-cache metadata. Before the update, a Gradle
+projectsEvaluated inspection confirmed Kotlin 2.4.0 in the actual app/plugin
+projects and no KAPT plugin, task or configuration in any inspected project.
+Static inspection also found no KAPT use in the repository or the resolved
+plugins' Android Gradle scripts. The affected version was present, but use of
+the vulnerable cache path was not found; this is not evidence of exploitation
+or a runtime vulnerability in the installed Android app.
+
+Keep AGP 9.1.0, Java/Kotlin bytecode target 17 and the security-updated Gradle
+9.8.1 wrapper. KGP 2.4.21's fully tested range includes AGP 9.1.0 but ends at
+Gradle 9.7.0. Kotlin permits newer Gradle versions with possible limitations,
+so the existing newer wrapper requires actual build validation rather than a
+downgrade that would undo the earlier Gradle security update.
+
+Validation: the authorized local `flutter build apk --debug
+--dart-define-from-file=config/firebase.local.json` passed with Flutter 3.47.6,
+Dart 3.13.5, AGP 9.1.0, Gradle 9.8.1 and Kotlin 2.4.21. Existing built-in
+Kotlin migration, SDK XML, Java native-access and deprecated-API warnings
+remain non-fatal. The debug APK and local inspection logs are ignored
+validation artifacts; no release, upload or production deployment occurred.
+The same Gradle inspection after the build confirmed resolved Kotlin 2.4.21
+throughout the app/plugin projects and no KAPT plugins, tasks or configurations.
+
+### Firebase Apple Auth: compatibility blocker
+
+The locked firebase_core 4.15.0, firebase_auth 6.7.0 and firebase_messaging
+16.7.0 Swift packages pin Firebase Apple SDK 12.19.0. The conditional legacy
+duplicate-keychain-entry logging path predates the Auth logging-safety fix
+in 13.1.0 (PR 16892). No actual keychain leakage has been observed. The
+12.19.3 patch updates Firestore's certificate trust store and does not include
+this Auth fix; CTR does not use Firestore.
+
+Official packages released today (firebase_core 5.1.0, firebase_auth 7.0.1 and
+firebase_messaging 17.0.1) all pin Apple SDK 13.1.1. CTR already uses Swift
+Package Manager, but the existing Google Sign-In dependency prevents a direct
+upgrade: locked google_sign_in_ios 6.3.6 and latest 6.3.8 both require native
+GoogleSignIn >=9.0.0,<10.0.0. All published native 9.x manifests (9.0.0,
+9.1.0 and 9.2.0) require GTMSessionFetcher >=3.3.0,<4.0.0, while Firebase
+13 requires >=4.0.0. Native GoogleSignIn 10.1.0 allows the newer fetcher but
+is outside the Flutter plugin's declared range.
+
+Firebase dependencies remain unchanged. A fix needs either an official
+compatible Google Sign-In Flutter release or a separately reviewed native
+compatibility change/backport, including macOS/iOS dependency resolution and
+authentication validation. Do not force the major SDK version into the
+existing plugins or describe 12.19.3 as the Auth remediation. Moving to the
+new FlutterFire major versions also raises Android minSdk to 24 and updates
+the Firebase Android BoM to 35.x; assess those changes as part of that work.
+
+Sources:
+- https://github.com/advisories/GHSA-r937-wjx7-w2jp
+- https://github.com/JetBrains/kotlin/commit/bf51df6
+- https://kotlinlang.org/docs/gradle-configure-project.html
+- https://github.com/firebase/firebase-ios-sdk/pull/16892
+- https://firebase.google.com/support/release-notes/ios
+- https://pub.dev/packages/firebase_core/versions/5.1.0
+- https://pub.dev/packages/firebase_auth/versions/7.0.1
+- https://pub.dev/packages/firebase_messaging/versions/17.0.1
+- https://pub.dev/packages/google_sign_in_ios/versions/6.3.8
+- https://github.com/google/GoogleSignIn-iOS/blob/9.2.0/Package.swift
+- https://github.com/google/GoogleSignIn-iOS/blob/10.1.0/Package.swift
