@@ -41,6 +41,21 @@ screen and ask the user to review/retry, without silently replaying the write.
 The planner refreshes on return/resume and every 30 seconds while active. Writes
 require a connection; no offline mutation queue is introduced.
 
+Planner readiness is discarded on an HTTP 401 (authentication interruption),
+404 household_not_found (missing membership/household), or 403 account_disabled.
+These meanings were checked against the backend authentication/bootstrap and
+HouseholdService::membership paths. This clears in-memory entries/revision and
+hides planner actions and its desktop recipe picker until an authorized refresh
+succeeds. It does not sign out the user or delete household membership. Network
+failures, 429/5xx responses and unrelated 404 errors retain useful cached meals.
+Access invalidation also applies to a mounted hidden tab and prevents late reads
+or pending planner confirmations/pickers from restoring or changing stale state.
+Regression coverage includes denial on writes, expired authentication, recovery,
+out-of-order reads, hidden-tab completion and transient failures. This source fix
+does not rebuild localhost or deploy the app/backend.
+Validated on 2026-10-23 with clean Flutter analysis and 29 passing focused access,
+planner and navigation tests, including 14 new access-state regressions.
+
 Dated recipe entries themselves are durable preparation history once their date
 is before household today. No confirmation or daily job is needed. Correcting a
 past entry corrects that history. Each occurrence keeps the recipe identity,

@@ -37,9 +37,38 @@ class _MealPlannerState extends State<MealPlanner> with WidgetsBindingObserver {
   late DateTime _today;
   int _revision = 0, _pastDays = 30, _futureDays = 45, _generation = 0;
   bool _loading = true, _saving = false, _fetching = false;
+  bool _ready = false;
+  int _accessEpoch = 0;
   String? _error;
   Timer? _refresh, _dragScroll;
   String get _path => '/households/${widget.householdId}/meal-plan';
+
+  // A missing route/recipe is not evidence that household membership was lost.
+  // A 401 interrupts session readiness, but does not remove the household or
+  // sign the user out: a successful retry can restore the plan.
+  bool _invalidateAccess(Object error) {
+    if (error is! ApiException ||
+        !(error.status == 401 ||
+            (error.status == 404 && error.code == 'household_not_found') ||
+            (error.status == 403 && error.code == 'account_disabled'))) {
+      return false;
+    }
+    if (!mounted) return true;
+    setState(() {
+      _ready = false;
+      _entries = [];
+      _revision = 0;
+      _accessEpoch++;
+      _generation++;
+      _fetching = false;
+      _loading = false;
+      _error = error.message;
+    });
+    _dragScroll?.cancel();
+    return true;
+  }
+
+  bool _usable(int epoch) => mounted && _ready && epoch == _accessEpoch;
   @override
   void initState() {
     super.initState();
@@ -96,10 +125,12 @@ class _MealPlannerState extends State<MealPlanner> with WidgetsBindingObserver {
             .toList();
         _error = null;
         _loading = false;
+        _ready = true;
       });
       return true;
     } catch (error) {
       if (mounted && generation == _generation) {
+        if (_invalidateAccess(error)) return false;
         setState(() {
           _error = error is ApiException
               ? error.message
@@ -151,11 +182,12 @@ class _MealPlannerState extends State<MealPlanner> with WidgetsBindingObserver {
     String? oldDate,
     bool confirmed = false,
   }) async {
-    if (_saving) return false;
+    if (_saving || !_ready) return false;
+    final epoch = _accessEpoch;
     final expectedRevision = operation['_revision'] ?? _revision;
     final past = _past(oldDate) || _past(operation['date'] as String?);
     if (past && !confirmed && !await _confirmPast()) return false;
-    if (!mounted) return false;
+    if (!_usable(epoch)) return false;
     setState(() => _saving = true);
     _generation++; // In-flight polls must not replace a mutation's newer revision.
     try {
@@ -164,17 +196,18 @@ class _MealPlannerState extends State<MealPlanner> with WidgetsBindingObserver {
         'revision': expectedRevision,
         'confirm_past': past || confirmed,
       });
-      if (!mounted) return false;
+      if (!_usable(epoch)) return false;
       _revision = (result['revision'] as num).toInt();
       await _load(quiet: true);
       return true;
     } on ApiException catch (error) {
-      if (!mounted) return false;
+      if (!_usable(epoch)) return false;
+      if (_invalidateAccess(error)) return false;
       await _load(quiet: true);
-      if (!mounted) return false;
+      if (!_usable(epoch)) return false;
       if (error.code == 'past_confirmation_required' && !confirmed) {
         setState(() => _saving = false);
-        if (await _confirmPast()) {
+        if (await _confirmPast() && _usable(epoch)) {
           return _change(operation, oldDate: oldDate, confirmed: true);
         }
         return false;
@@ -206,9 +239,11 @@ class _MealPlannerState extends State<MealPlanner> with WidgetsBindingObserver {
   }
 
   Future<void> _pairings(String recipeId, String date) async {
+    if (!_ready) return;
+    final epoch = _accessEpoch;
     try {
       final data = await widget.request('$_path/pairings/$recipeId');
-      if (!mounted) return;
+      if (!mounted || !_usable(epoch)) return;
       final existing = _entries
           .where((e) => e['plan_date'] == date)
           .map((e) => '${e['recipe_id']}')
@@ -267,12 +302,12 @@ class _MealPlannerState extends State<MealPlanner> with WidgetsBindingObserver {
           ),
         ),
       );
-      if (add != true || !mounted) return;
+      if (add != true || !_usable(epoch)) return;
       // Confirm once for the whole suggestion selection on a past date.
       final past = _past(date);
       if (past && !await _confirmPast()) return;
       for (final id in selected) {
-        if (!mounted) break;
+        if (!_usable(epoch)) break;
         final ok = await _change({
           'operation': 'add',
           'id': newShoppingItemId(),
@@ -282,7 +317,9 @@ class _MealPlannerState extends State<MealPlanner> with WidgetsBindingObserver {
         }, confirmed: past);
         if (!ok) break;
       }
-    } catch (_) {
+    } catch (error) {
+      if (!mounted || !_usable(epoch)) return;
+      if (_invalidateAccess(error)) return;
       if (mounted) {
         _message('Could not load paired dishes. Your meal was added.');
       }
@@ -290,6 +327,8 @@ class _MealPlannerState extends State<MealPlanner> with WidgetsBindingObserver {
   }
 
   Future<void> _pick(String? date) async {
+    if (!_ready) return;
+    final epoch = _accessEpoch;
     final selection = await showModalBottomSheet<String>(
       context: context,
       useSafeArea: true,
@@ -311,7 +350,7 @@ class _MealPlannerState extends State<MealPlanner> with WidgetsBindingObserver {
         ),
       ),
     );
-    if (!mounted || selection == null) return;
+    if (!mounted || !_usable(epoch) || selection == null) return;
     if (selection != 'recipe') {
       await _change({
         'operation': 'add',
@@ -332,7 +371,7 @@ class _MealPlannerState extends State<MealPlanner> with WidgetsBindingObserver {
         ),
       ),
     );
-    if (recipe != null && mounted) await _add(recipe, date);
+    if (recipe != null && _usable(epoch)) await _add(recipe, date);
   }
 
   Future<void> _move(Map<String, dynamic> entry, String? date) async {
@@ -354,6 +393,8 @@ class _MealPlannerState extends State<MealPlanner> with WidgetsBindingObserver {
   }
 
   Future<void> _menu(Map<String, dynamic> entry) async {
+    if (!_ready) return;
+    final epoch = _accessEpoch;
     final action = await showModalBottomSheet<String>(
       context: context,
       useSafeArea: true,
@@ -381,7 +422,7 @@ class _MealPlannerState extends State<MealPlanner> with WidgetsBindingObserver {
         ),
       ),
     );
-    if (!mounted) return;
+    if (!mounted || !_usable(epoch)) return;
     if (action == 'remove') {
       await _change({
         'operation': 'remove',
@@ -401,11 +442,15 @@ class _MealPlannerState extends State<MealPlanner> with WidgetsBindingObserver {
         firstDate: DateTime(2000),
         lastDate: DateTime(2199, 12, 31),
       );
-      if (date != null && mounted) await _move(entry, mealPlanDate(date));
+      if (date != null && _usable(epoch)) {
+        await _move(entry, mealPlanDate(date));
+      }
     }
   }
 
   Future<void> _ingredients() async {
+    if (!_ready) return;
+    final epoch = _accessEpoch;
     final range = await showDateRangePicker(
       context: context,
       firstDate: _today,
@@ -414,12 +459,12 @@ class _MealPlannerState extends State<MealPlanner> with WidgetsBindingObserver {
       helpText: 'Meal ingredients',
       saveText: 'Ingredients',
     );
-    if (range == null || !mounted) return;
+    if (range == null || !_usable(epoch)) return;
     try {
       final data = await widget.request(
         '$_path/ingredients?from=${mealPlanDate(range.start)}&to=${mealPlanDate(range.end)}',
       );
-      if (!mounted) return;
+      if (!mounted || !_usable(epoch)) return;
       final ingredients = mealPlanIngredients(recipeRows(data['ingredients']));
       if (ingredients.isEmpty) {
         _message('No ingredients for these dates.');
@@ -433,6 +478,8 @@ class _MealPlannerState extends State<MealPlanner> with WidgetsBindingObserver {
         ingredients: ingredients,
       );
     } catch (error) {
+      if (!mounted || !_usable(epoch)) return;
+      if (_invalidateAccess(error)) return;
       if (mounted) {
         _message(
           error is ApiException
@@ -632,6 +679,27 @@ class _MealPlannerState extends State<MealPlanner> with WidgetsBindingObserver {
 
   @override
   Widget build(BuildContext context) {
+    if (!_ready) {
+      return Column(
+        children: [
+          if (_error != null)
+            Padding(
+              padding: const EdgeInsets.all(20),
+              child: Column(
+                children: [
+                  Text(_error!),
+                  TextButton(
+                    onPressed: _fetching ? null : () => _load(),
+                    child: const Text('Retry'),
+                  ),
+                ],
+              ),
+            ),
+          if (_loading)
+            const Expanded(child: Center(child: CircularProgressIndicator())),
+        ],
+      );
+    }
     final list = Column(
       children: [
         Padding(
