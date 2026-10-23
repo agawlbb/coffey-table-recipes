@@ -48,12 +48,25 @@ change after review still conflicts. An unresolved conflict does not block
 independent resources. Account/membership rejection invalidates mirrored reads;
 unsent drafts remain account-scoped for recovery.
 
-The server has no general idempotency receipt for new recipe creation. If the
-creation response is lost, or the app closes during synchronization, the outbox
-requires review rather than automatically creating a duplicate. Revision-checked
-updates and absolute favorite settings can retry without silently applying a
-write twice. Never force a stale revision or rebase a conflicting edit without
-the user's review.
+New recipe creates and edits carry a durable save identifier. The server commits
+an immutable response receipt atomically with the recipe. Lost responses and
+process interruptions can retry the same submission without duplicate creation
+or reapplying an edit. Legacy ambiguous submissions without an identifier still
+require review. Never force stale revisions or silently rebase actual conflicts.
+
+A change without server confirmation after one minute triggers an in-app alert
+across screens and a scheduled Android/iOS notification when permission permits.
+The local change stays available; confirmation cancels the reminder. See
+`pending-save-notifications.md` for platform and lifecycle limits.
+
+Shopping-list reads and add/edit/check/reorder/delete operations use the same
+local snapshot and durable outbox. Incoming household snapshots preserve pending
+local list edits. The five-second screen polling rereads the local repository;
+background household synchronization retrieves server changes. Opening the list
+also requests external/Home Assistant synchronization without blocking display.
+Other devices and external integrations see confirmed server state, so they wait
+for upload when this device is offline. Concurrent whole-list revision conflicts
+require explicit review; they are not silently merged.
 
 Initial downloads and online-only operations still need the backend. These
 include authentication/account administration, AI imports/variations/images,
