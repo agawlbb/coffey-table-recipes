@@ -8,6 +8,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter_cache_manager/flutter_cache_manager.dart';
 
 import 'api.dart';
+import 'local_data.dart';
 import 'recipe_menu.dart';
 import 'cooking_mode.dart';
 import 'offline_recipes.dart';
@@ -157,6 +158,7 @@ class _RecipeBrowserState extends State<RecipeBrowser>
     if (!kIsWeb && defaultTargetPlatform == TargetPlatform.iOS) {
       WidgetsBinding.instance.addObserver(this);
     }
+    localDataChanges.addListener(_localChanged);
     _wasOffline = offlineStatus.value;
     if (mobileOfflineEnabled) offlineStatus.addListener(_connectionChanged);
     _load(useCached: true);
@@ -165,9 +167,21 @@ class _RecipeBrowserState extends State<RecipeBrowser>
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    localDataChanges.removeListener(_localChanged);
     offlineStatus.removeListener(_connectionChanged);
     _search.dispose();
     super.dispose();
+  }
+
+  void _localChanged() {
+    if (mounted &&
+        (localDataChanges.value.startsWith('/me#') ||
+            localDataChanges.value.startsWith(
+              '/households/${widget.householdId}/recipes',
+            ))) {
+      _browseCache.clear();
+      _load();
+    }
   }
 
   void _connectionChanged() {
@@ -1199,9 +1213,20 @@ class _RecipeDetailState extends State<RecipeDetail> {
   @override
   void initState() {
     super.initState();
+    localDataChanges.addListener(_localChanged);
     _wasOffline = offlineStatus.value;
     if (mobileOfflineEnabled) offlineStatus.addListener(_connectionChanged);
     _load();
+  }
+
+  void _localChanged() {
+    if (mounted &&
+        (localDataChanges.value.startsWith('/me#') ||
+            localDataChanges.value.startsWith(
+              '/households/${widget.householdId}/recipes',
+            ))) {
+      _load();
+    }
   }
 
   void _connectionChanged() {
@@ -1212,6 +1237,7 @@ class _RecipeDetailState extends State<RecipeDetail> {
 
   @override
   void dispose() {
+    localDataChanges.removeListener(_localChanged);
     offlineStatus.removeListener(_connectionChanged);
     super.dispose();
   }

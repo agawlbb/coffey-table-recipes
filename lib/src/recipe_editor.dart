@@ -681,7 +681,7 @@ class _RecipeEditorState extends State<RecipeEditor> {
   }
 
   Future<void> _save() async {
-    if (_saving || _picking || _checkingRecipeName || offlineStatus.value) {
+    if (_saving || _picking || _checkingRecipeName) {
       return;
     }
     FocusScope.of(context).unfocus();
@@ -1947,9 +1947,7 @@ class _RecipeEditorState extends State<RecipeEditor> {
           Padding(
             padding: const EdgeInsets.only(right: 12),
             child: FilledButton.icon(
-              onPressed: _saving || _picking || offlineStatus.value
-                  ? null
-                  : _save,
+              onPressed: _saving || _picking ? null : _save,
               icon: _saving
                   ? const SizedBox(
                       width: 16,
@@ -2107,7 +2105,9 @@ class _RecipeEditorState extends State<RecipeEditor> {
                     if (offlineStatus.value)
                       const Padding(
                         padding: EdgeInsets.only(bottom: 16),
-                        child: Text('Reconnect to save recipe changes.'),
+                        child: Text(
+                          'Changes are saved on this device and will sync when connected.',
+                        ),
                       ),
                     if (_draft['import_warnings'] is List)
                       for (final warning in _draft['import_warnings'] as List)
