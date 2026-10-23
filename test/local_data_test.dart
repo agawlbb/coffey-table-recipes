@@ -4,6 +4,7 @@ import 'dart:convert';
 import 'package:coffey_table_recipes/src/api.dart';
 import 'package:coffey_table_recipes/src/local_data.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:flutter/material.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -250,20 +251,124 @@ void main() {
     },
   );
 
-  test('uncertain recipe creation is not automatically replayed', () async {
-    var sends = 0;
-    final data = store(
+  test(
+    'lost creation response retries the same receipt without review',
+    () async {
+      final ids = <String>[];
+      final data = store(
+        send: (_, body) async {
+          ids.add(body['client_save_id'] as String);
+          if (ids.length == 1) throw TimeoutException('lost response');
+          return {
+            'recipe': {'id': '99', 'revision': '2', 'title': 'Local soup'},
+          };
+        },
+      );
+      final local = await data.save('/households/1/recipes', {
+        'title': 'Local soup',
+      });
+      await settle(data);
+      await data.synchronize();
+      expect(ids.length, 2);
+      expect(ids.toSet(), hasLength(1));
+      expect(data.pending, 0);
+      expect(data.conflicts, isEmpty);
+      expect(
+        (await data.cached(
+          '/households/1/recipes/${local['recipe']['id']}',
+        ))!['recipe']['id'],
+        '99',
+      );
+    },
+  );
+
+  test('receipt-backed upload resumes after app closes during send', () async {
+    final never = Completer<Map<String, dynamic>>();
+    final first = store(send: (_, body) => never.future);
+    final local = await first.save('/households/1/recipes', {'title': 'Soup'});
+    await Future<void>.delayed(Duration.zero);
+    final queued = jsonDecode(disk.values.single)['queue'][0];
+    expect(queued['sending'], true);
+    first.dispose();
+    stores.remove(first);
+    final second = store(
       send: (_, body) async {
-        sends++;
-        throw TimeoutException('lost response');
+        expect(body['client_save_id'], queued['body']['client_save_id']);
+        return {
+          'recipe': {'id': '81', 'revision': '2', 'title': 'Soup'},
+        };
       },
     );
-    await data.save('/households/1/recipes', {'title': 'Local soup'});
-    await settle(data);
-    await data.synchronize();
-    expect(sends, 1);
-    expect(data.conflicts.single['problem'], contains('response was lost'));
+    await second.synchronize();
+    expect(second.conflicts, isEmpty);
+    expect(second.pending, 0);
+    expect(
+      (await second.cached(
+        '/households/1/recipes/${local['recipe']['id']}',
+      ))!['recipe']['id'],
+      '81',
+    );
   });
+
+  testWidgets(
+    'one-minute reminder survives restart and clears on confirmation',
+    (tester) async {
+      var clock = DateTime.utc(2026, 10, 23);
+      var online = false;
+      final reminders = <List<Map<String, dynamic>>>[];
+      LocalData instance() {
+        final data = LocalData(
+          key: 'reminder-account',
+          fetch: (_) async => {},
+          send: (_, body) async => {
+            'recipe': {'id': '90', 'revision': '2', 'title': body['title']},
+          },
+          now: () => clock,
+          online: () => online,
+          readStore: (key) async => disk[key],
+          writeStore: (key, value) async {
+            disk[key] = value;
+          },
+          onPendingChanged: (scope, changes) async {
+            reminders.add(changes);
+          },
+        );
+        stores.add(data);
+        return data;
+      }
+
+      final first = instance();
+      await first.save('/households/1/recipes', {'title': 'Offline soup'});
+      await tester.pump();
+      final deadline = reminders.last.single['deadline'];
+      expect(deadline, clock.millisecondsSinceEpoch + 60000);
+      clock = clock.add(const Duration(seconds: 59));
+      await tester.pump(const Duration(seconds: 59));
+      expect(first.overdue, 0);
+      first.dispose();
+      stores.remove(first);
+      final second = instance();
+      await second.cached('/households/1/recipes');
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(body: LocalSyncStatus(data: second)),
+        ),
+      );
+      expect(reminders.last.single['deadline'], deadline);
+      clock = clock.add(const Duration(seconds: 1));
+      await tester.pump(const Duration(seconds: 1));
+      await tester.pump();
+      expect(second.overdue, 1);
+      expect(find.textContaining('after one minute'), findsOneWidget);
+      online = true;
+      await second.synchronize();
+      await tester.pump();
+      expect(second.pending, 0);
+      expect(reminders.last, isEmpty);
+      expect(find.textContaining('after one minute'), findsNothing);
+      await tester.pumpWidget(const SizedBox());
+    },
+  );
 
   test(
     'full plan snapshot serves different ranges without a network wait',

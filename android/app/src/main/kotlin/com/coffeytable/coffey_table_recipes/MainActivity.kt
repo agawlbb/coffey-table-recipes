@@ -12,6 +12,7 @@ class MainActivity : FlutterActivity() {
     }
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
+        PendingSaveNotifications.register(this, MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "coffey_table_recipes/pending_saves"))
         RecipeTimers.register(this, MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "coffey_table_recipes/timers"))
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "coffey_table_recipes/share_link")
             .setMethodCallHandler { call, result ->
