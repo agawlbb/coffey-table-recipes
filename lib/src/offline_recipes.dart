@@ -198,12 +198,11 @@ class OfflineRecipes with WidgetsBindingObserver {
           .where(
             (row) =>
                 _responses['/households/$household/recipes/${row['id']}'] !=
-                    null &&
-                (pending == null ||
-                    (pending['downloaded'] as List).contains(row['id'])),
+                null,
           )
           .length;
-      if (pending != null) complete = false;
+      // A background revalidation does not remove already persisted text.
+      // Pending download bookkeeping tracks freshness, not local availability.
     }
     progress.value = RecipeSyncProgress(
       saved: saved,
@@ -927,9 +926,9 @@ class OfflineIndicator extends StatelessWidget {
     valueListenable: offlineStatus,
     builder: (context, offline, _) => offline
         ? Tooltip(
-            message: 'Offline · showing saved recipes',
+            message: 'Sync paused. Showing saved recipes; the recipe service may be temporarily unavailable.',
             child: Semantics(
-              label: 'Offline. Showing saved recipes.',
+              label: 'Sync paused. Showing saved recipes.',
               child: Material(
                 color: Colors.transparent,
                 child: Container(
@@ -948,7 +947,7 @@ class OfflineIndicator extends StatelessWidget {
                     children: [
                       Icon(Icons.cloud_off_outlined, size: 14),
                       SizedBox(width: 4),
-                      Text('Offline', style: TextStyle(fontSize: 11)),
+                      Text('Sync paused', style: TextStyle(fontSize: 11)),
                     ],
                   ),
                 ),

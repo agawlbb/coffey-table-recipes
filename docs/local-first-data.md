@@ -104,3 +104,14 @@ Both builds succeeded. Android emitted existing toolchain/plugin compatibility
 warnings. No device installation test, release tag or hosted publication was
 performed. Generated assets and private build configuration remain excluded
 from Git. This build record is a subsequent documentation-only commit.
+
+Android sync-status follow-up (2026-10-23): periodic full-text revalidation
+previously counted only recipes refreshed in that pass as locally available.
+This repeatedly showed first-download preparation despite an existing mirror.
+Progress now counts all persisted recipe text; missing initial downloads still
+show preparation and failed synchronization still exposes its error. The status
+badge says "Sync paused" because its triggers include API timeouts and temporary
+HTTP failures, not just a disconnected device. The hosted API health endpoint
+returned HTTP 200 in 0.18 seconds from the development machine; this does not
+establish the cause of a device-specific request failure. All 47 offline-recipe
+regression tests passed. No replacement APK or hosted app was built/published.
