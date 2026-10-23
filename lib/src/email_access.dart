@@ -200,7 +200,9 @@ class _EmailAccessState extends State<EmailAccess> {
             const SizedBox(height: 12),
             TextFormField(
               controller: _password,
+              onTapOutside: kIsWeb ? (_) {} : null,
               enabled: !_busy,
+              keyboardType: TextInputType.visiblePassword,
               obscureText: true,
               textInputAction: registration
                   ? TextInputAction.next
@@ -230,7 +232,10 @@ class _EmailAccessState extends State<EmailAccess> {
               const SizedBox(height: 12),
               TextFormField(
                 controller: _confirmation,
+                onTapOutside: kIsWeb ? (_) {} : null,
                 enabled: !_busy,
+                keyboardType: TextInputType.visiblePassword,
+                textInputAction: TextInputAction.done,
                 obscureText: true,
                 autocorrect: false,
                 enableSuggestions: false,
