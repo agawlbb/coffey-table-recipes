@@ -161,3 +161,8 @@ An optional privileged hosted-data probe was rejected by automatic approval
 review (temporary PHP/cron and household-data access); it was not executed.
 Authenticated on-device download remains unverified. Builds contain the actual
 complete-database implementation, rather than just the earlier status correction.
+
+Normal signed-in local web verification also passed after publication: parent
+and leaf categories, repeated return visits to the same leaf, and complete recipe
+ingredients/instructions displayed successfully through the app's normal session.
+No hosting credentials or privileged probe were used for this web check.
