@@ -5,7 +5,7 @@ import 'package:coffey_table_recipes/src/offline_recipes.dart';
 
 void main() {
   testWidgets(
-    'Add recipe sits below search, invokes import and disables offline',
+    'Add recipe sits below search and remains available for local recipes offline',
     (tester) async {
       var calls = 0;
       addTearDown(() => offlineStatus.value = false);
@@ -34,8 +34,10 @@ void main() {
         tester
             .widget<TextButton>(find.widgetWithText(TextButton, 'Add recipe'))
             .onPressed,
-        isNull,
+        isNotNull,
       );
+      await tester.tap(find.text('Add recipe'));
+      expect(calls, 2);
       await tester.pumpWidget(const SizedBox());
     },
   );

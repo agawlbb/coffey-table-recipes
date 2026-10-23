@@ -197,6 +197,7 @@ class _HouseholdPanelState extends State<HouseholdPanel> {
   final _api = RecipeApi(baseUrl: apiBaseUrl);
   OfflineRecipes? _offline;
   LocalData? _local;
+  Timer? _mirrorTimer;
   void _localChanged() {
     if (mounted && localDataChanges.value.startsWith('/me#')) {
       unawaited(_load(reviewInvitations: false));
@@ -391,6 +392,16 @@ class _HouseholdPanelState extends State<HouseholdPanel> {
             _offline!.rememberSavedRecipe(path, data),
       )..start();
       localDataChanges.addListener(_localChanged);
+      _mirrorTimer = Timer.periodic(const Duration(minutes: 1), (_) {
+        if (mounted &&
+            !offlineStatus.value &&
+            WidgetsBinding.instance.lifecycleState ==
+                AppLifecycleState.resumed) {
+          unawaited(
+            _syncLibrary(_households.map((h) => h['id'] as String).toList()),
+          );
+        }
+      });
     }
     _load();
   }
@@ -398,6 +409,7 @@ class _HouseholdPanelState extends State<HouseholdPanel> {
   @override
   void dispose() {
     sharedRecipeInbox.removeListener(_sharedRecipeChanged);
+    _mirrorTimer?.cancel();
     localDataChanges.removeListener(_localChanged);
     _local?.dispose();
     _offline?.close();
@@ -483,6 +495,9 @@ class _HouseholdPanelState extends State<HouseholdPanel> {
       return data;
     }
     await _offline?.rememberSavedRecipe(path, data);
+    if (_local != null && !_local!.canSave(path)) {
+      await _local!.acceptServerRecipe(path, data);
+    }
     if (_offline != null) {
       unawaited(
         _syncLibrary(_households.map((h) => h['id'] as String).toList()),
@@ -592,7 +607,7 @@ class _HouseholdPanelState extends State<HouseholdPanel> {
   Future<void> _syncLibrary(List<String> households) =>
       _librarySync ??= () async {
         try {
-          await _offline!.sync(households);
+          await _offline!.sync(households, refreshDetails: true);
           if (!mounted || _local == null) return;
           for (final household in households) {
             _local!.inventoryUpdated(household);
@@ -691,6 +706,13 @@ class _HouseholdPanelState extends State<HouseholdPanel> {
           unawaited(
             _local!
                 .request('/households/${household['id']}/shopping-list')
+                .catchError((Object _) => <String, dynamic>{}),
+          );
+          unawaited(
+            _local!
+                .request(
+                  '/households/${household['id']}/meal-plan?from=2000-01-01&to=2199-12-31',
+                )
                 .catchError((Object _) => <String, dynamic>{}),
           );
         }

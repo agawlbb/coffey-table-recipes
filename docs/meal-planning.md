@@ -35,10 +35,11 @@ today and timezone, initially America/New_York, rather than deriving shared date
 from a traveling member's device timezone. Changing that default for an existing
 household is a deliberate data change, not an automatic timezone guess.
 
-Each operation compares the household revision. Conflicting edits refresh the
-screen and ask the user to review/retry, without silently replaying the write.
-The planner refreshes on return/resume and every 30 seconds while active. Writes
-require a connection; no offline mutation queue is introduced.
+Each operation compares the household revision. Calendar data is mirrored in
+persistent local storage and ordinary operations commit to a durable local outbox.
+Conflicts preserve the local edit for explicit review; no remote revision is
+silently overwritten. Return/resume and the active planner's periodic refresh
+read local data immediately while synchronization runs separately.
 
 Planner readiness is discarded on an HTTP 401 (authentication interruption),
 404 household_not_found (missing membership/household), or 403 account_disabled.
@@ -151,9 +152,25 @@ Customary ingredient totals round upward to the next standard eighth/quarter/hal
 
 Dragging near the top/bottom of the date list uses a continuous 30 ms timer and a wider edge zone with speed increasing near the edge. Pointer updates no longer restart the timer. Moving into the center pauses scrolling; release/cancel stops it. This applies to held plan tiles and the wide-screen recipe browser's drag callbacks.
 
-Add recipe moved out of the household drawer to directly below the normal recipe browser search bar. It reuses the existing import flow, household identity, offline restriction and saved-recipe cache handling. Meal-plan selection browsers hide the action.
+Add recipe moved out of the household drawer to directly below the normal recipe browser search bar. It reuses the existing import flow and household identity. The subsequent local-first update allows blank recipes offline after the initial catalog download; AI imports still require a connection. Meal-plan selection browsers hide the action.
 
 Validation: flutter analyze --no-pub clean; full Flutter suite passed (405 tests). New regressions cover continuous high-frequency drag updates, upward/downward scrolling and stopping, cocoa powder and other rounded customary quantities with unchanged metric values, Add recipe placement/callback/offline disabling and picker hiding.
+
+## Local-first planner (2026-10-23)
+
+The planner now shares the persistent local-data repository and durable outbox
+with recipes and shopping lists. It mirrors the complete supported calendar,
+reads date ranges locally, preserves a loaded view during synchronization, and
+derives paired dishes/ingredients from household recipe data. Offline operations
+survive restart; revision conflicts and server-required history confirmations are
+retained for explicit review. Blank recipe creation remains available offline
+after its initial catalog download. See [local-first-data.md](local-first-data.md).
+
+Validation: full suite passed (433 tests); final affected suites passed (94 tests),
+including a persisted planner displayed while the network never returns,
+calendar add/move/remove across restart, household-filtered pairings, ingredient
+collection, local/canonical recipe IDs, access-loss races and ingredient-only
+remote changes. Static analysis clean. No app build or hosted deployment.
 
 
 ### Android cooking-measures and scrolling test APK (2026-10-23)

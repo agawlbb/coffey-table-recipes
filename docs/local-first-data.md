@@ -14,6 +14,13 @@ Account startup also mirrors shopping lists, people, favorite membership and the
 blank-recipe editor catalog. Browsing and recipe details observe local updates.
 Background refresh is coalesced, throttled and limited to the latest watched
 views, rather than polling every search the user has ever entered.
+Foreground library synchronization also checks the complete inventory every
+minute, so changes outside the current view are mirrored. Active shopping-list
+reads retain their five-second refresh interval.
+The current API inventory omits recipe revisions. Consequently the periodic pass
+also rechecks complete details/categories; it cannot infer unchanged ingredients
+or instructions from unchanged browse rows. A future revision/delta endpoint can
+reduce that traffic without changing the local-first UI contract.
 
 ## Writes and synchronization
 
@@ -67,3 +74,26 @@ Future screens must use local repository reads and local-change notifications.
 Do not bypass this layer with a network-first load or clear a populated view
 while synchronizing. Keep authoritative access checks and conflict handling when
 adding new kinds of queued operations.
+
+## Meal-planning branch integration
+
+The feature branch mirrors the full supported calendar (2000-01-01 through
+2199-12-31) once, then serves visible ranges from it. A range change never needs
+a new download to display already mirrored meals. Add/move/remove update the
+local calendar immediately, persist their ordered revisions and survive restart.
+The planner observes repository changes; refresh does not hide a loaded calendar,
+including a confirmed empty plan. Pairings and shopping ingredients are derived
+from mirrored recipe/meal data, including pending local calendar edits.
+
+Past-date confirmation and shared-recipe confirmation remain explicit. If the
+server requires confirmation during synchronization, the local draft stays in
+Review and can only be reapplied after the user reviews that request. Household
+access rejection clears action readiness; late authorized responses cannot
+restore revoked data. Existing drag scrolling, trash drops, dated recipe picker,
+variation confirmation, unscheduled meals and ingredient selection are retained.
+
+Feature validation on 2026-10-23: full suite passed (433 tests). After the final
+whole-library refresh and household-filtered pairing changes, all 94 affected
+local-data, offline-library, planner/access and Add recipe tests passed. Analysis
+is clean. Backend source/schema and the experiment branch remain unchanged; no
+app build or deployment was requested or performed.

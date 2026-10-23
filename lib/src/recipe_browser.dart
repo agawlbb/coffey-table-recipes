@@ -625,7 +625,7 @@ class _RecipeBrowserState extends State<RecipeBrowser>
                 child: ValueListenableBuilder<bool>(
                   valueListenable: offlineStatus,
                   builder: (context, offline, _) => TextButton.icon(
-                    onPressed: offline ? null : widget.onAddRecipe,
+                    onPressed: widget.onAddRecipe,
                     icon: const Icon(Icons.add_circle_outline),
                     label: const Text('Add recipe'),
                   ),

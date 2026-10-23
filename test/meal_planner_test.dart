@@ -1,3 +1,6 @@
+import 'dart:async';
+
+import 'package:coffey_table_recipes/src/local_data.dart';
 import 'package:coffey_table_recipes/src/api.dart';
 import 'package:coffey_table_recipes/src/meal_planner.dart';
 import 'package:coffey_table_recipes/src/meal_plan_ingredients.dart';
@@ -128,6 +131,49 @@ class PlanFixture {
 }
 
 void main() {
+  testWidgets('persisted plan paints while the network never returns', (
+    tester,
+  ) async {
+    final disk = <String, String>{};
+    final fixture = PlanFixture();
+    LocalData data(Future<Map<String, dynamic>> Function(String) fetch) =>
+        LocalData(
+          key: 'plan-persistence-test',
+          fetch: fetch,
+          send: (path, body) => fixture.save(path, body),
+          readStore: (key) async => disk[key],
+          writeStore: (key, text) async {
+            disk[key] = text;
+          },
+        );
+    final first = data(fixture.request);
+    await first.request(
+      '/households/1/meal-plan?from=2000-01-01&to=2199-12-31',
+    );
+    await tester.runAsync(() => Future<void>.delayed(Duration.zero));
+    first.dispose();
+    final never = Completer<Map<String, dynamic>>();
+    final second = data((_) => never.future);
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: MealPlanner(
+            householdId: '1',
+            householdName: 'Table',
+            now: () => DateTime(2026, 10, 22),
+            request: second.request,
+            save: second.save,
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('Today soup'), findsOneWidget);
+    expect(find.byType(CircularProgressIndicator), findsNothing);
+    await tester.pumpWidget(const SizedBox());
+    second.dispose();
+  });
+
   testWidgets(
     'held tile scrolls both ways during continuous pointer movement and stops in center',
     (tester) async {

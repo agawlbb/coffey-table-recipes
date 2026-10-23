@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/gestures.dart';
 
 import 'api.dart';
+import 'local_data.dart';
 import 'meal_plan_actions.dart';
 import 'meal_plan_ingredients.dart';
 import 'recipe_browser.dart';
@@ -58,7 +59,9 @@ class _MealPlannerState extends State<MealPlanner> with WidgetsBindingObserver {
     if (error is! ApiException ||
         !(error.status == 401 ||
             (error.status == 404 && error.code == 'household_not_found') ||
-            (error.status == 403 && error.code == 'account_disabled'))) {
+            (error.status == 403 &&
+                (error.code == 'account_disabled' ||
+                    error.code == 'household_access_removed')))) {
       return false;
     }
     if (!mounted) return true;
@@ -84,6 +87,7 @@ class _MealPlannerState extends State<MealPlanner> with WidgetsBindingObserver {
     _today = DateTime(now.year, now.month, now.day);
     WidgetsBinding.instance.addObserver(this);
     GestureBinding.instance.pointerRouter.addGlobalRoute(_trackPointer);
+    localDataChanges.addListener(_localChanged);
     _scroll.addListener(_extend);
     _load();
     _refresh = Timer.periodic(const Duration(seconds: 30), (_) {
@@ -122,10 +126,20 @@ class _MealPlannerState extends State<MealPlanner> with WidgetsBindingObserver {
     _generation++;
     WidgetsBinding.instance.removeObserver(this);
     GestureBinding.instance.pointerRouter.removeGlobalRoute(_trackPointer);
+    localDataChanges.removeListener(_localChanged);
     _refresh?.cancel();
     _stopDragScroll();
     _scroll.dispose();
     super.dispose();
+  }
+
+  void _localChanged() {
+    if (mounted &&
+        !_saving &&
+        (localDataChanges.value.startsWith(_path) ||
+            localDataChanges.value.startsWith('/me#'))) {
+      _load(quiet: true);
+    }
   }
 
   DateTime _day(int offset) =>
@@ -135,7 +149,7 @@ class _MealPlannerState extends State<MealPlanner> with WidgetsBindingObserver {
   Future<bool> _load({bool quiet = false}) async {
     final generation = ++_generation;
     _fetching = true;
-    if (!quiet && mounted) setState(() => _loading = true);
+    if (!quiet && !_ready && mounted) setState(() => _loading = true);
     try {
       final data = await widget.request('$_path?${_range()}');
       if (!mounted || generation != _generation) return false;
