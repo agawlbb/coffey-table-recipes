@@ -30,3 +30,8 @@ regression uses5000 categories and200 recipes with a five-second bound. The test
 also cover restart, complete-download validation and pending local edits. No
 backend changes are necessary; existing downloaded databases remain valid and
 must not be cleared to apply this fix.
+
+Feature verification: all443 tests passed, with clean changed-source analysis.
+The deliberate local-error regression also opens the actual Scaffold hamburger
+menu and then edits the search field, verifying the error boundary does not trap
+navigation or input. No phone was connected for Android ANR/log capture.
