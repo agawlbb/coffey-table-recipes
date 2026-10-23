@@ -9,6 +9,8 @@ Complete and verify project work, commit it, and push it to the existing GitHub 
 
 ## Ownership and offline work
 
+- The experimental branch `codex/meal-planning-no-unscheduled` is owned by **Plan CTR meal planning v2** chat (`01a165dd-0324-7e10-8ffc-03bb397420bc`). It branches from `codex/meal-planning-v2` at `1fc86e003a2e54ebf6f0f5121a4f1409f7c1f312`. The CTR owner granted a fresh handoff on 2026-10-23. Scope is planning an alternative without Unscheduled meals; do not implement until the user requests implementation. Preserve the parent feature branch as the fallback. Branch creation does not authorize builds, deployment, database changes or merges. See `docs/meal-planning-no-unscheduled.md`.
+
 - Version 2 meal-planning development is owned by **Plan CTR meal planning v2** chat (`01a165dd-0324-7e10-8ffc-03bb397420bc`) on `codex/meal-planning-v2`, based on client commit `ab9013e7afa4384c048fc13ce425aede2c5a6b67`. The coordinating chat granted a read-only handoff on 2026-10-22 and remains quiescent during this work. Coordinate with the feature-owner chat before writing or switching branches in the canonical checkout. Keep feature development on this branch until ready for a reviewed merge to `main` for version 2; branch creation does not authorize builds, deployment, or release. Backend feature work will be scoped separately.
 
 - While the laptop is connected, the designated owner is the existing **Reconcile project with GitHub** chat (`01a15fd0-827e-77c3-a0a3-737af531ea3f`). It owns coordination for the Flutter client and PHP backend. Use this canonical Flutter folder: `C:\Users\mailb\StudioProjects\coffey_table_recipes`.
