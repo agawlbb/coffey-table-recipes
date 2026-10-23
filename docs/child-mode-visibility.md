@@ -74,3 +74,11 @@ Validation: all 22 tests passed in
 formatting and analysis of the two changed implementation files and two test
 files passed. PHP syntax, child-mode policy, household snapshot and new household
 child-status fixtures passed. This follow-up does not build the Flutter app.
+
+Backend `10dcf641dd2369f4330fca2a8b1451948ac6e70f` deployed successfully via
+[run 40036698869](https://github.com/agawlbb/coffey-table-recipes-server/actions/runs/40036698869).
+The public backend-version receipt matches that commit; health returns HTTP 200,
+and unauthenticated people/snapshot requests return HTTP 401. Live signed-in
+household badge display was not exercised; UI and membership behavior are covered
+by the focused fixtures above. Existing local/installed Flutter builds still need
+an explicitly requested rebuild to display these new menu/icon changes.
