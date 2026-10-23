@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/gestures.dart';
 
 import 'api.dart';
+import 'local_data.dart';
 import 'shopping_item_id.dart';
 import 'shopping_list_cache.dart';
 
@@ -34,6 +35,7 @@ class ShoppingListScreen extends StatefulWidget {
     this.embedded = false,
     this.active = true,
     this.cache,
+    this.localFirst = false,
     this.requestSynchronization,
   });
   final String householdId;
@@ -42,6 +44,7 @@ class ShoppingListScreen extends StatefulWidget {
   final bool embedded;
   final bool active;
   final ShoppingListCache? cache;
+  final bool localFirst;
   final Future<void> Function()? requestSynchronization;
 
   @override
@@ -123,6 +126,7 @@ class _ShoppingListScreenState extends State<ShoppingListScreen>
     super.initState();
     _editFocus.addListener(_editFocusChanged);
     WidgetsBinding.instance.addObserver(this);
+    if (widget.localFirst) localDataChanges.addListener(_localChanged);
     _restoreCache();
     if (widget.active) _load();
     _poll = Timer.periodic(const Duration(seconds: 5), (_) {
@@ -177,6 +181,14 @@ class _ShoppingListScreenState extends State<ShoppingListScreen>
         .map((item) => Map<String, dynamic>.from(item as Map))
         .toList();
     _confirmedItems = _items;
+  }
+
+  void _localChanged() {
+    if (mounted &&
+        (localDataChanges.value.startsWith(_path) ||
+            localDataChanges.value.startsWith('/me#'))) {
+      _load();
+    }
   }
 
   Future<void> _restoreCache() async {
@@ -288,7 +300,10 @@ class _ShoppingListScreenState extends State<ShoppingListScreen>
           generation == _saveGeneration) {
         final changed =
             firstResponse || _loading || data['revision'] != _revision;
-        if (changed || _disconnected || _accessDenied || _error != null) {
+        if (changed ||
+            (_disconnected && !widget.localFirst) ||
+            _accessDenied ||
+            _error != null) {
           setState(() {
             if (changed) _accept(data);
             _disconnected = false;
@@ -329,7 +344,9 @@ class _ShoppingListScreenState extends State<ShoppingListScreen>
   }
 
   Future<bool> _save(List<Map<String, dynamic>> items) {
-    if (_disconnected || _accessDenied) return Future.value(false);
+    if ((_disconnected && !widget.localFirst) || _accessDenied) {
+      return Future.value(false);
+    }
     _saveGeneration++;
     final done = Completer<bool>();
     final start = !_saving;
@@ -474,6 +491,7 @@ class _ShoppingListScreenState extends State<ShoppingListScreen>
       entry.value.complete(false);
     }
     _retryWaiters.clear();
+    localDataChanges.removeListener(_localChanged);
     _poll?.cancel();
     _autoScroll?.cancel();
     _listController.dispose();
@@ -512,7 +530,7 @@ class _ShoppingListScreenState extends State<ShoppingListScreen>
   void _pressItem(PointerDownEvent event, String id, BuildContext rowContext) {
     if (_editingId == id ||
         _loading ||
-        _disconnected ||
+        (_disconnected && !widget.localFirst) ||
         _accessDenied ||
         event.buttons != kPrimaryButton ||
         _holdPointer != null) {
@@ -609,7 +627,7 @@ class _ShoppingListScreenState extends State<ShoppingListScreen>
     if (!_dropMoved ||
         original == null ||
         target == id ||
-        _disconnected ||
+        (_disconnected && !widget.localFirst) ||
         _accessDenied) {
       return;
     }
@@ -755,7 +773,7 @@ class _ShoppingListScreenState extends State<ShoppingListScreen>
               hitTestBehavior: HitTestBehavior.opaque,
               onWillAcceptWithDetails: (details) =>
                   !_loading &&
-                  !_disconnected &&
+                  (!_disconnected || widget.localFirst) &&
                   !_accessDenied &&
                   _items.any(
                     (i) => i['id'] == details.data && i['checked'] != true,
@@ -797,7 +815,7 @@ class _ShoppingListScreenState extends State<ShoppingListScreen>
               hitTestBehavior: HitTestBehavior.opaque,
               onWillAcceptWithDetails: (details) =>
                   !_loading &&
-                  !_disconnected &&
+                  (!_disconnected || widget.localFirst) &&
                   !_accessDenied &&
                   details.data != item['id'] &&
                   _items.any(
@@ -836,7 +854,7 @@ class _ShoppingListScreenState extends State<ShoppingListScreen>
                   maxSimultaneousDrags:
                       _editingId == item['id'] ||
                           _loading ||
-                          _disconnected ||
+                          (_disconnected && !widget.localFirst) ||
                           _accessDenied
                       ? 0
                       : 1,
@@ -875,7 +893,11 @@ class _ShoppingListScreenState extends State<ShoppingListScreen>
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
-    final busy = _loading || _saving || _disconnected || _accessDenied;
+    final busy =
+        _loading ||
+        _saving ||
+        (_disconnected && !widget.localFirst) ||
+        _accessDenied;
     return Scaffold(
       appBar: widget.embedded
           ? null
