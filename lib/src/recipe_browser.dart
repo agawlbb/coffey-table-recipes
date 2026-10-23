@@ -395,6 +395,7 @@ class _RecipeBrowserState extends State<RecipeBrowser>
   }
 
   void _enterCategory(Map<String, dynamic> category) {
+    mealPlanNotices.dismiss();
     setState(() {
       _trail.add(category);
       _search.clear();
@@ -408,6 +409,7 @@ class _RecipeBrowserState extends State<RecipeBrowser>
   }
 
   void _returnToLevel(int depth) {
+    mealPlanNotices.dismiss();
     FocusScope.of(context).unfocus();
     setState(() {
       _trail.removeRange(depth, _trail.length);
@@ -484,58 +486,10 @@ class _RecipeBrowserState extends State<RecipeBrowser>
         );
         if (!mounted) return;
         final full = Map<String, dynamic>.from(data['recipe'] as Map);
-        final choices = <Map<String, dynamic>>[
+        final result = await confirmMealRecipe(
+          context,
           full,
-          ...recipeRows(full['variation_family'] ?? full['related']).where(
-            (row) =>
-                '${row['id']}' != '${full['id']}' &&
-                row['in_household'] != false,
-          ),
-        ];
-        var selected = full;
-        final result = await showDialog<Map<String, dynamic>>(
-          context: context,
-          builder: (context) => StatefulBuilder(
-            builder: (context, update) => AlertDialog(
-              title: Text(
-                choices.length == 1
-                    ? 'Add to ${widget.mealPlanDestination ?? 'meal plan'}?'
-                    : 'Choose recipe to add',
-              ),
-              content: choices.length == 1
-                  ? Text('${full['title']}')
-                  : SizedBox(
-                      width: 360,
-                      child: SingleChildScrollView(
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            for (final choice in choices)
-                              ListTile(
-                                title: Text('${choice['title']}'),
-                                leading: Icon(
-                                  '${selected['id']}' == '${choice['id']}'
-                                      ? Icons.radio_button_checked
-                                      : Icons.radio_button_unchecked,
-                                ),
-                                onTap: () => update(() => selected = choice),
-                              ),
-                          ],
-                        ),
-                      ),
-                    ),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.pop(context),
-                  child: const Text('Cancel'),
-                ),
-                FilledButton(
-                  onPressed: () => Navigator.pop(context, selected),
-                  child: const Text('Add'),
-                ),
-              ],
-            ),
-          ),
+          destination: widget.mealPlanDestination ?? 'meal plan',
         );
         if (mounted && result != null) widget.onSelect!(result);
       } catch (error) {
@@ -721,7 +675,8 @@ class _RecipeBrowserState extends State<RecipeBrowser>
                 alignment: Alignment.centerLeft,
                 child: Text(
                   'Add to ${widget.mealPlanDestination}',
-                  style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                    fontWeight: FontWeight.bold,
                     color: Theme.of(context).colorScheme.secondary,
                   ),
                 ),

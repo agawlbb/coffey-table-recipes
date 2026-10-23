@@ -1,3 +1,4 @@
+import 'meal_plan_actions.dart';
 import 'account_menu.dart';
 
 import 'dart:async';
@@ -763,12 +764,14 @@ class _HouseholdPanelState extends State<HouseholdPanel> {
   }
 
   void _leaveMenu() {
+    mealPlanNotices.dismiss();
     final navigator = Navigator.of(context);
     navigator.pop(); // Close the current route's drawer first.
     navigator.popUntil((route) => route.isFirst);
   }
 
   void _openMealPlan() {
+    mealPlanNotices.dismiss();
     Navigator.of(context).popUntil((route) => route.isFirst);
     setState(() {
       _settings = false;
@@ -1104,6 +1107,7 @@ class _HouseholdPanelState extends State<HouseholdPanel> {
               if (value == 'logout') _logOut();
               if (value == 'household') {
                 setState(() {
+                  mealPlanNotices.dismiss();
                   _settings = true;
                   _planning = false;
                   _shopping = false;

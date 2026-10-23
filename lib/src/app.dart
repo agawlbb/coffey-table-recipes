@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import 'account_panel.dart';
+import 'meal_plan_actions.dart';
 import 'shared_recipe_link.dart';
 import 'administration.dart';
 import 'touch_capability.dart';
@@ -22,6 +23,7 @@ class CoffeyTableApp extends StatelessWidget {
   Widget build(BuildContext context) => MaterialApp(
     title: 'Coffey Table Recipes',
     navigatorKey: _appNavigatorKey,
+    navigatorObservers: [mealPlanNotices],
     onGenerateRoute: (settings) {
       final id = recipeIdFromLink(settings.name ?? '');
       return id == null

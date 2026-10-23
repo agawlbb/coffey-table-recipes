@@ -128,6 +128,40 @@ class PlanFixture {
 }
 
 void main() {
+  testWidgets('trash is leftmost and accepts drops outside the visible icon', (
+    tester,
+  ) async {
+    final fixture = PlanFixture();
+    await tester.pumpWidget(fixture.app());
+    await tester.pumpAndSettle();
+    final target = find.byKey(const ValueKey('meal-trash'));
+    final bounds = tester.getRect(target);
+    expect(bounds.width, greaterThanOrEqualTo(100));
+    expect(bounds.height, greaterThanOrEqualTo(80));
+    expect(
+      bounds.left,
+      lessThan(tester.getTopLeft(find.text('Today').first).dx),
+    );
+    final gesture = await tester.startGesture(
+      tester.getCenter(find.text('Today soup')),
+    );
+    await tester.pump(const Duration(milliseconds: 600));
+    await gesture.moveTo(bounds.bottomRight - const Offset(8, 8));
+    await tester.pump();
+    final container = tester.widget<Container>(
+      find.descendant(of: target, matching: find.byType(Container)).first,
+    );
+    expect(
+      (container.decoration as BoxDecoration).color,
+      isNot(Colors.transparent),
+    );
+    await gesture.up();
+    await tester.pumpAndSettle();
+    expect(fixture.writes.single['operation'], 'remove');
+    expect(fixture.writes.single['id'], 'today');
+    await tester.pumpWidget(const SizedBox());
+  });
+
   testWidgets('picker confirms variation selection and cancel adds nothing', (
     tester,
   ) async {
@@ -170,6 +204,9 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
+    final label = tester.widget<Text>(find.text('Add to Friday, October 23'));
+    expect(label.style?.fontWeight, FontWeight.bold);
+    expect(label.style?.fontSize, greaterThanOrEqualTo(20));
     await tester.tap(find.text('Pasta'));
     await tester.pumpAndSettle();
     expect(find.text('Removed pasta'), findsNothing);
@@ -233,6 +270,9 @@ void main() {
     await tester.longPress(find.text('Picker pasta'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Add to meal plan'));
+    await tester.pumpAndSettle();
+    expect(fixture.writes, isEmpty);
+    await tester.tap(find.text('Add'));
     await tester.pumpAndSettle();
     expect(fixture.writes.single['date'], isNull);
     expect(fixture.writes.single['recipe_id'], '5');

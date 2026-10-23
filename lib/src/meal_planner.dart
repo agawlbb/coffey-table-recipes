@@ -663,6 +663,31 @@ class _MealPlannerState extends State<MealPlanner> with WidgetsBindingObserver {
             crossAxisAlignment: WrapCrossAlignment.center,
             spacing: 8,
             children: [
+              DragTarget<Map<String, dynamic>>(
+                key: const ValueKey('meal-trash'),
+                onWillAcceptWithDetails: (details) =>
+                    !_saving && details.data['entry'] is Map<String, dynamic>,
+                onAcceptWithDetails: (details) {
+                  _dragScroll?.cancel();
+                  _remove(details.data['entry'] as Map<String, dynamic>);
+                },
+                builder: (context, candidates, rejected) => Tooltip(
+                  message: 'Drag a meal here to delete',
+                  child: Container(
+                    width: 104,
+                    height: 80,
+                    alignment: Alignment.centerLeft,
+                    padding: const EdgeInsets.only(left: 12),
+                    decoration: BoxDecoration(
+                      color: candidates.isEmpty
+                          ? Colors.transparent
+                          : Theme.of(context).colorScheme.errorContainer,
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: const Icon(Icons.delete_outline),
+                  ),
+                ),
+              ),
               TextButton(
                 onPressed: () => _scroll.hasClients
                     ? _scroll.animateTo(
@@ -677,28 +702,6 @@ class _MealPlannerState extends State<MealPlanner> with WidgetsBindingObserver {
                 onPressed: _saving ? null : _ingredients,
                 icon: const Icon(Icons.add_shopping_cart),
                 label: const Text('Ingredients'),
-              ),
-              DragTarget<Map<String, dynamic>>(
-                key: const ValueKey('meal-trash'),
-                onWillAcceptWithDetails: (details) =>
-                    !_saving && details.data['entry'] is Map<String, dynamic>,
-                onAcceptWithDetails: (details) {
-                  _dragScroll?.cancel();
-                  _remove(details.data['entry'] as Map<String, dynamic>);
-                },
-                builder: (context, candidates, rejected) => Tooltip(
-                  message: 'Drag a meal here to delete',
-                  child: Container(
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: candidates.isEmpty
-                          ? Colors.transparent
-                          : Theme.of(context).colorScheme.errorContainer,
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: const Icon(Icons.delete_outline),
-                  ),
-                ),
               ),
               IconButton(
                 tooltip: 'Refresh meal plan',

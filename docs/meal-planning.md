@@ -121,3 +121,11 @@ Validation: flutter analyze --no-pub clean; full flutter test --no-pub suite pas
 
 ### Updated Android debug build (2026-10-23)
 Built source `1595dc13e5cb85556bab4438d5eac6513fe24175` with `flutter build apk --debug --dart-define-from-file=config/firebase.local.json`. Saved `G:/My Drive/recipe app/CoffeyTableRecipes-meal-planning-v2-test-1595dc1.apk` (199,763,398 bytes). Source and delivered copy SHA-256: `8c687d2774db9d9764fad2674e9804bbb5ff5fe17ee3975ec6d0125050e96358`. APK v2 signature verifies with the existing Android Debug certificate (`f8de933f14b9bb4b3191a94aedc8637972c5ab224565f6abd7808f8038d12097`). Package `com.coffeytable.coffey_table_recipes`, version 1.8.5/build 29, debuggable, minimum SDK 24/target 36. No device installation, release tagging, main merge, or hosted Flutter deployment performed. Existing packages retained.
+
+
+## Confirmation and feedback refinement (2026-10-23)
+Recipe-view Add to meal plan uses the same confirmation/household-variation chooser as the dated picker, retaining Unscheduled as its destination. The picker destination label is larger and bold. The toolbar trash target is leftmost with a 104 by 80 logical-pixel hit area and full-area hover highlight. Dropping outside the visible icon still deletes; past dates retain confirmation.
+
+Addition feedback and View plan expire after five seconds (including accessibility navigation mode), and are dismissed when navigating to another route or drawer section. A write finishing after navigation does not show stale success feedback. No backend changes are required.
+
+Validation: full Flutter suite passed (397 tests); flutter analyze --no-pub clean. Regression coverage includes normal recipe confirmation/variation choice, enlarged off-icon trash drops, picker label styling, five-second expiry with accessibility navigation enabled, route push/pop and section cleanup, and late save completion after navigation.
