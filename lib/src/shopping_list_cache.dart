@@ -42,6 +42,9 @@ class ShoppingListCache {
             item['name'] is! String ||
             (item['name'] as String).trim().isEmpty ||
             (item['name'] as String).length > 200 ||
+            (item.containsKey('note') &&
+                (item['note'] is! String ||
+                    (item['note'] as String).length > 500)) ||
             item['checked'] is! bool ||
             item['department'] is! String ||
             (item['department'] != '' &&

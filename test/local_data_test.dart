@@ -75,6 +75,36 @@ void main() {
   });
 
   test(
+    'shopping notes survive offline restart and upload with the entry',
+    () async {
+      final first = store();
+      await first.request(list);
+      final noted = {...item('Deodorant'), 'note': 'For Joe · 3 bottles'};
+      await first.save(list, {
+        'revision': 1,
+        'items': [noted],
+      });
+      await settle(first);
+      first.dispose();
+      stores.remove(first);
+      var uploaded = false;
+      final restarted = store(
+        send: (path, body) async {
+          uploaded = true;
+          expect(body['items'][0]['note'], 'For Joe · 3 bottles');
+          return {'revision': 2, 'items': body['items'], 'departments': []};
+        },
+      );
+      expect(
+        (await restarted.cached(list))!['items'][0]['note'],
+        'For Joe · 3 bottles',
+      );
+      await settle(restarted);
+      expect(uploaded, isTrue);
+    },
+  );
+
+  test(
     'optimistic meal persists selected cover before server acknowledgement',
     () async {
       const plan = '/households/1/meal-plan';

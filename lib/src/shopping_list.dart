@@ -59,10 +59,17 @@ class _ShoppingListScreenState extends State<ShoppingListScreen>
   final _focus = FocusNode();
   final _editName = TextEditingController();
   final _editFocus = FocusNode();
+  final _editNote = TextEditingController();
+  final _noteFocus = FocusNode();
+  final _editGroup = Object();
   String? _editingId;
 
   void _editFocusChanged() {
-    if (!_editFocus.hasFocus) _finishEditing();
+    scheduleMicrotask(() {
+      if (mounted && !_editFocus.hasFocus && !_noteFocus.hasFocus) {
+        _finishEditing();
+      }
+    });
   }
 
   void _startEditing(Map<String, dynamic> item) {
@@ -70,6 +77,7 @@ class _ShoppingListScreenState extends State<ShoppingListScreen>
     if (_heldItemId == item['id']) return;
     _finishEditing();
     _editName.text = item['name'] as String;
+    _editNote.text = item['note'] as String? ?? '';
     _editName.selection = TextSelection(
       baseOffset: 0,
       extentOffset: _editName.text.length,
@@ -82,12 +90,25 @@ class _ShoppingListScreenState extends State<ShoppingListScreen>
     final id = _editingId;
     if (id == null) return;
     final name = _editName.text.trim();
+    final note = _editNote.text.trim();
     setState(() => _editingId = null);
     _editFocus.unfocus();
+    _noteFocus.unfocus();
     final item = _items.where((i) => i['id'] == id).firstOrNull;
-    if (item == null || name.isEmpty || name == item['name']) return;
+    if (item == null ||
+        name.isEmpty ||
+        (name == item['name'] && note == (item['note'] ?? ''))) {
+      return;
+    }
     _save([
-      for (final i in _items) i['id'] == id ? {...i, 'name': name} : i,
+      for (final i in _items)
+        i['id'] == id
+            ? {
+                ...i,
+                'name': name,
+                if (note.isNotEmpty || i.containsKey('note')) 'note': note,
+              }
+            : i,
     ]);
   }
 
@@ -128,6 +149,7 @@ class _ShoppingListScreenState extends State<ShoppingListScreen>
   void initState() {
     super.initState();
     _editFocus.addListener(_editFocusChanged);
+    _noteFocus.addListener(_editFocusChanged);
     WidgetsBinding.instance.addObserver(this);
     if (widget.localFirst) localDataChanges.addListener(_localChanged);
     _restoreCache();
@@ -263,6 +285,7 @@ class _ShoppingListScreenState extends State<ShoppingListScreen>
                   final wanted = expected[i], saved = actual[i];
                   return wanted['id'] == saved['id'] &&
                       wanted['name'] == saved['name'] &&
+                      (wanted['note'] ?? '') == (saved['note'] ?? '') &&
                       wanted['checked'] == saved['checked'] &&
                       (wanted['department'] == saved['department'] ||
                           (!knownIds.contains(wanted['id']) &&
@@ -504,6 +527,9 @@ class _ShoppingListScreenState extends State<ShoppingListScreen>
     _editFocus.removeListener(_editFocusChanged);
     _editFocus.dispose();
     _editName.dispose();
+    _noteFocus.removeListener(_editFocusChanged);
+    _noteFocus.dispose();
+    _editNote.dispose();
     _name.dispose();
     _focus.dispose();
     super.dispose();
@@ -684,16 +710,58 @@ class _ShoppingListScreenState extends State<ShoppingListScreen>
                     horizontal: 16,
                     vertical: 4,
                   ),
-                  child: TextField(
-                    key: ValueKey('edit-${item['id']}'),
-                    controller: _editName,
-                    focusNode: _editFocus,
-                    autofocus: true,
-                    textCapitalization: TextCapitalization.sentences,
-                    textInputAction: TextInputAction.done,
-                    decoration: const InputDecoration(border: InputBorder.none),
-                    onSubmitted: (_) => _finishEditing(),
+                  child: TextFieldTapRegion(
+                    groupId: _editGroup,
                     onTapOutside: (_) => _finishEditing(),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        TextField(
+                          groupId: _editGroup,
+                          key: ValueKey('edit-${item['id']}'),
+                          controller: _editName,
+                          focusNode: _editFocus,
+                          autofocus: true,
+                          maxLength: 200,
+                          textCapitalization: TextCapitalization.sentences,
+                          textInputAction: TextInputAction.next,
+                          decoration: const InputDecoration(
+                            labelText: 'Item',
+                            counterText: '',
+                          ),
+                          onSubmitted: (_) => _noteFocus.requestFocus(),
+                        ),
+                        Row(
+                          crossAxisAlignment: CrossAxisAlignment.end,
+                          children: [
+                            Expanded(
+                              child: TextField(
+                                groupId: _editGroup,
+                                key: ValueKey('note-${item['id']}'),
+                                controller: _editNote,
+                                focusNode: _noteFocus,
+                                maxLength: 500,
+                                minLines: 1,
+                                maxLines: 3,
+                                textCapitalization:
+                                    TextCapitalization.sentences,
+                                textInputAction: TextInputAction.done,
+                                decoration: const InputDecoration(
+                                  labelText: 'Note',
+                                  counterText: '',
+                                ),
+                                onSubmitted: (_) => _finishEditing(),
+                              ),
+                            ),
+                            IconButton(
+                              tooltip: 'Save item',
+                              onPressed: _finishEditing,
+                              icon: const Icon(Icons.check),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
                   ),
                 )
               : InkWell(
@@ -716,16 +784,31 @@ class _ShoppingListScreenState extends State<ShoppingListScreen>
                     ),
                     child: Align(
                       alignment: Alignment.centerLeft,
-                      child: Text(
-                        item['name'] as String,
-                        style: TextStyle(
-                          decoration: checked
-                              ? TextDecoration.lineThrough
-                              : TextDecoration.none,
-                          color: checked
-                              ? colors.onSurfaceVariant
-                              : colors.onSurface,
-                        ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            item['name'] as String,
+                            style: TextStyle(
+                              decoration: checked
+                                  ? TextDecoration.lineThrough
+                                  : TextDecoration.none,
+                              color: checked
+                                  ? colors.onSurfaceVariant
+                                  : colors.onSurface,
+                            ),
+                          ),
+                          if ((item['note'] as String? ?? '').isNotEmpty)
+                            Padding(
+                              padding: const EdgeInsets.only(top: 3),
+                              child: Text(
+                                item['note'] as String,
+                                style: Theme.of(context).textTheme.bodySmall
+                                    ?.copyWith(color: colors.onSurfaceVariant),
+                              ),
+                            ),
+                        ],
                       ),
                     ),
                   ),

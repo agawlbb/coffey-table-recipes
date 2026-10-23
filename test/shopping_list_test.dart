@@ -43,7 +43,7 @@ void main() {
     expect(tester.testTextInput.isVisible, isTrue);
     expect(writes, 0);
     await tester.enterText(field, 'Whole milk');
-    await tester.testTextInput.receiveAction(TextInputAction.done);
+    await tester.tap(find.byTooltip('Save item'));
     await tester.pumpAndSettle();
     expect(items.single, {
       'id': 'milk',
@@ -54,7 +54,7 @@ void main() {
     expect(writes, 1);
     await edit();
     await tester.enterText(field, '   ');
-    await tester.testTextInput.receiveAction(TextInputAction.done);
+    await tester.tap(find.byTooltip('Save item'));
     await tester.pumpAndSettle();
     expect(items.single['name'], 'Whole milk');
     expect(writes, 1);
@@ -63,6 +63,25 @@ void main() {
     await tester.tap(find.byTooltip('Add item'));
     await tester.pumpAndSettle();
     expect(items.single['name'], 'Oat milk');
+    await edit();
+    await tester.testTextInput.receiveAction(TextInputAction.next);
+    await tester.pumpAndSettle();
+    final note = find.byKey(const ValueKey('note-milk'));
+    expect(tester.widget<TextField>(note).focusNode!.hasFocus, isTrue);
+    await tester.enterText(note, 'For Joe · 3 bottles');
+    await tester.testTextInput.receiveAction(TextInputAction.done);
+    await tester.pumpAndSettle();
+    expect(items.single['name'], 'Oat milk');
+    expect(items.single['department'], 'Dairy');
+    expect(items.single['note'], 'For Joe · 3 bottles');
+    expect(find.text('For Joe · 3 bottles'), findsOneWidget);
+    await edit();
+    await tester.enterText(note, '');
+    await tester.tap(find.byTooltip('Save item'));
+    await tester.pumpAndSettle();
+    expect(items.single['note'], '');
+    expect(find.text('For Joe · 3 bottles'), findsNothing);
+
     await tester.pumpWidget(const SizedBox());
   });
 

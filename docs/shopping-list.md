@@ -494,3 +494,19 @@ cooldown, cached opening refresh/recovery, persistent neutral status, and stoppi
 background downloads. No app build or hosted deployment was requested.
 
 Validation result: 93 API, offline recipe and shopping-list checks pass.
+
+
+Entry notes (2026-10-23): double tap expands the item into Item and optional
+Note inputs with a save checkmark. Next moves from name to note; Done, the
+checkmark or leaving the editor saves. Notes display as smaller muted text below
+the name and remain part of the tap/hold target. They are shared household entry
+metadata, limited to 500 characters, preserved by local caching/outbox and
+revision-aware save reconciliation. Clearing sends an explicit empty string.
+Removing an entry removes its note; name-only department associations do not
+inherit notes. Older clients omitting the field preserve a same-ID entry's note.
+No schema migration is required.
+
+Focused validation: shopping list editor, retry, cache, drag lifecycle/sharing
+and local-data outbox tests; affected-file Dart analysis; PHP shopping_lists.php
+fixtures cover household sharing, legacy omission, clearing, validation and
+re-adding the name without its former note. Local web rebuild explicitly requested.
