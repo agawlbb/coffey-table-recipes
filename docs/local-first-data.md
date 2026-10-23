@@ -7,19 +7,28 @@ whether previously downloaded content is visible. Only a first download, a new
 device, deliberately cleared storage, or confirmed access removal can lack local
 content. A confirmed empty dataset is an empty state, not an endless spinner.
 
-`LocalData` is scoped by API origin and Firebase account. It sits between the UI
-and the API; `OfflineRecipes` supplies the full paginated recipe inventory,
-details and category/search indexes. Web now downloads that inventory too.
-Account startup also mirrors shopping lists, people, favorite membership and the
-blank-recipe editor catalog. Browsing and recipe details observe local updates.
-Background refresh is coalesced, throttled and limited to the latest watched
-views, rather than polling every search the user has ever entered.
-Foreground library synchronization checks complete recipe text/categories every
-minute, including ingredient-only and instruction-only changes. The current API
-inventory omits recipe revisions, so unchanged browse rows cannot prove unchanged
-recipe content. Active shopping-list reads retain their five-second refresh
-interval. A future revision/delta endpoint can reduce background traffic without
-changing the local-first UI contract.
+`LocalData` is the single account/server-scoped persistent database used by production
+screens. First use of this implementation and every newly joined household must
+complete the blocking Downloading database screen. It displays received KB,
+transfer fraction when Content-Length is available, and the saving stage. A missing,
+invalid or interrupted response cannot mark the household ready. Retry downloads
+the complete household snapshot; an already completed household remains usable.
+
+The authenticated household snapshot endpoint returns recipe text and metadata,
+category assignments/catalog, favorites, people, shopping list and editor catalog.
+The feature backend also includes the complete calendar and history. Image bytes
+are excluded. Database queries are batched by table rather than repeated per recipe.
+A content hash covers instructions and ingredients as well as browse fields; unchanged
+snapshots return only a version acknowledgment. A changed snapshot is validated,
+written atomically, then published to screens, preserving dirty local resources.
+
+After setup, recipe lists/categories/search/favorites and details are computed from
+that same database. They never combine server pages and partially downloaded local
+indexes. Screen reads do not initiate refreshes. Startup and one-minute foreground
+synchronization update the database in the background; the outbox drains separately.
+The first download is intentionally repeated for installations with only the old
+partial cache. No completed-snapshot marker means setup is required, including for
+an empty household (whose valid empty snapshot completes immediately).
 
 ## Writes and synchronization
 
@@ -115,3 +124,12 @@ HTTP failures, not just a disconnected device. The hosted API health endpoint
 returned HTTP 200 in 0.18 seconds from the development machine; this does not
 establish the cause of a device-specific request failure. All 47 offline-recipe
 regression tests passed. No replacement APK or hosted app was built/published.
+
+## Complete-database implementation validation (2026-10-23)
+
+Main's full Flutter suite passed (402 tests); after final persistence validation,
+all 28 affected snapshot/local-data/overlay tests passed. Snapshot tests cover
+restart, repeated category reads with zero HTTP requests, replacement, failed
+persistence, rejecting partial initial data and preserving pending shopping edits.
+The former offline-cache download is disabled in production. Completed versions
+are stored in LocalData; older caches never satisfy the initial setup gate.

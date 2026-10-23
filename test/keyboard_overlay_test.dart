@@ -21,10 +21,10 @@ void main() {
     offlineStatus.value = true;
     await tester.pumpWidget(const CoffeyTableApp());
     await tester.pumpAndSettle();
-    expect(find.text('Offline'), findsOneWidget);
+    expect(find.text('Sync paused'), findsOneWidget);
     expect(tester.takeException(), isNull);
     offlineStatus.value = false;
     await tester.pumpAndSettle();
-    expect(find.text('Offline'), findsNothing);
+    expect(find.text('Sync paused'), findsNothing);
   }, variant: TargetPlatformVariant.only(TargetPlatform.android));
 }

@@ -84,11 +84,13 @@ class LocalData extends ChangeNotifier {
     this.fallback,
     this.onRecipeSaved,
     this.online,
+    this.snapshotOnly = false,
     this.readStore = readOfflineStore,
     this.writeStore = writeOfflineStore,
   });
 
   final String key;
+  final bool snapshotOnly;
   final LocalRead fetch;
   final LocalRead? readServer;
   final LocalWrite send;
@@ -110,6 +112,7 @@ class LocalData extends ChangeNotifier {
   int _epoch = 0;
   int _accessEpoch = 0;
   String? error;
+  int get snapshotEpoch => _epoch;
   int get pending => _queue.length;
   List<Map<String, dynamic>> get conflicts =>
       _queue.where((q) => q['problem'] != null).map(_copy).toList();
@@ -118,7 +121,7 @@ class LocalData extends ChangeNotifier {
   Future<Map<String, dynamic>?> cachedView(String path) async {
     _watch(path);
     final saved = await cached(path);
-    if (saved != null && !_dirty(path)) {
+    if (!snapshotOnly && saved != null && !_dirty(path)) {
       unawaited(refresh(path).catchError((Object _) => saved));
     }
     return saved;
@@ -251,9 +254,9 @@ class LocalData extends ChangeNotifier {
     }
   }();
 
-  Future<void> _persist() {
+  Future<void> _persist({Map<String, dynamic>? data}) {
     final value = jsonEncode({
-      'data': _data,
+      'data': data ?? _data,
       'queue': _queue,
       'archive': _archive,
       'aliases': _aliases,
@@ -325,11 +328,36 @@ class LocalData extends ChangeNotifier {
     await _load();
     final path = _path(input), uri = Uri.parse(_path(input));
     if (_blocked.keys.any((prefix) => _under(path, prefix))) return null;
+    if (uri.path.endsWith('/meal-plan/history') && _data[uri.path] is Map) {
+      final result = _copy(_data[uri.path] as Map);
+      final from = uri.queryParameters['from'], to = uri.queryParameters['to'];
+      for (final field in ['planned_history', 'recorded_history']) {
+        result[field] = (result[field] as List? ?? []).where((entry) {
+          final day = '${entry['cooked_date'] ?? entry['cooked_at']}'.substring(
+            0,
+            10,
+          );
+          return (from == null || day.compareTo(from) >= 0) &&
+              (to == null || day.compareTo(to) <= 0);
+        }).toList();
+      }
+      return result;
+    }
+    final browse = _snapshotBrowse(uri);
+    if (browse != null) return browse;
     final direct = _data[path];
     if (direct is Map &&
         !uri.path.contains('/meal-plan/ingredients') &&
         !uri.path.contains('/meal-plan/pairings/')) {
-      return _overlayRecipes(path, _copy(direct));
+      final result = _copy(direct);
+      final options =
+          _data['snapshot-options:${uri.pathSegments.length > 1 ? uri.pathSegments[1] : ''}'];
+      if (result['recipe'] is Map &&
+          options is Map &&
+          !uri.path.endsWith('/recipe-blank')) {
+        (result['recipe'] as Map)['edit_options'] = _copy(options);
+      }
+      return _overlayRecipes(path, result);
     }
     final parts = uri.pathSegments;
     if (parts.length == 5 &&
@@ -474,6 +502,130 @@ class LocalData extends ChangeNotifier {
     return null;
   }
 
+  Map<String, dynamic>? _snapshotBrowse(Uri uri) {
+    final parts = uri.pathSegments;
+    if (parts.length != 3 ||
+        parts[2] != 'recipes' ||
+        _data['snapshot-version:${parts[1]}'] == null) {
+      return null;
+    }
+    final categories = _data['snapshot-categories:${parts[1]}'] as List;
+    final root = uri.path;
+    var rows = <Map<String, dynamic>>[
+      for (final entry in _data.entries)
+        if (entry.key.startsWith('$root/') &&
+            Uri.parse(entry.key).pathSegments.length == 4 &&
+            entry.value is Map &&
+            entry.value['recipe'] is Map)
+          _copy(entry.value['recipe'] as Map),
+    ];
+    final known = rows.map((r) => '${r['id']}').toSet();
+    String representative(Map row) {
+      final id =
+          '${row['family_representative_id'] ?? row['parent_recipe_id'] ?? row['id']}';
+      return known.contains(id) ? id : '${row['id']}';
+    }
+
+    bool inCategory(Map row, String category) {
+      final descendants = {
+        category,
+        ...categories
+            .where((c) => c['parent_id'] == category)
+            .map((c) => '${c['id']}'),
+      };
+      return (row['category_assignments'] as List? ?? []).any(
+        (c) => descendants.contains('${c['category_id']}'),
+      );
+    }
+
+    final q = (uri.queryParameters['q'] ?? '').toLowerCase();
+    final scope = uri.queryParameters['scope'] ?? '';
+    final favorites = uri.queryParameters['favorite_people'];
+    final blank = uri.queryParameters['blank'] == '1';
+    final families =
+        uri.queryParameters['families'] == '1' && favorites == null && !blank;
+    if (uri.queryParameters['tree'] == '1' &&
+        q.isEmpty &&
+        favorites == null &&
+        !blank &&
+        (scope.isEmpty ||
+            categories.any(
+              (c) => c['id'] == scope && c['parent_id'] == null,
+            ))) {
+      return {
+        'view': 'categories',
+        'recipes': [],
+        'next_offset': null,
+        'category_nodes': [
+          for (final category in categories)
+            if ((category['parent_id'] ?? '') == scope &&
+                (scope.isEmpty ||
+                    rows.any((r) => inCategory(r, '${category['id']}'))))
+              {
+                ...category as Map,
+                'needs_ai_image': false,
+                'recipe_count': families
+                    ? rows
+                          .where((r) => inCategory(r, '${category['id']}'))
+                          .map(representative)
+                          .toSet()
+                          .length
+                    : rows
+                          .where((r) => inCategory(r, '${category['id']}'))
+                          .length,
+              },
+        ],
+      };
+    }
+    rows = rows.where((row) {
+      if (scope.isNotEmpty && !inCategory(row, scope)) return false;
+      if (blank && row['source_type'] != 'blank') return false;
+      if (favorites != null) {
+        final people =
+            (_data['$root/${row['id']}/favorites'] as Map?)?['people']
+                as List? ??
+            [];
+        if (!favorites
+            .split(',')
+            .every(
+              (id) => people.any(
+                (p) => '${p['id']}' == id && p['favorite'] == true,
+              ),
+            )) {
+          return false;
+        }
+      }
+      return [
+        row['title'],
+        row['description'],
+        for (final i in row['ingredients'] as List? ?? []) i['ingredient_name'],
+        for (final t in row['tags'] as List? ?? []) t['label'],
+        for (final c in categories)
+          if (inCategory(row, '${c['id']}')) c['label'],
+      ].join(' ').toLowerCase().contains(q);
+    }).toList();
+    if (families) {
+      final ids = rows.map(representative).toSet();
+      rows = [
+        for (final id in ids)
+          _copy((_data['$root/$id'] as Map)['recipe'] as Map),
+      ];
+    }
+    rows.sort((a, b) {
+      final title = '${a['title']}'.toLowerCase().compareTo(
+        '${b['title']}'.toLowerCase(),
+      );
+      return title != 0 ? title : '${a['id']}'.compareTo('${b['id']}');
+    });
+    final offset = int.tryParse(uri.queryParameters['offset'] ?? '0') ?? 0;
+    return {
+      'view': 'recipes',
+      'recipes': rows.skip(offset).take(30).toList(),
+      'category_nodes': [],
+      'next_offset': offset + 30 < rows.length ? offset + 30 : null,
+    };
+  }
+
   Map<String, dynamic> _filterPlan(Map state, Uri uri) {
     final result = _copy(state);
     final from = uri.queryParameters['from'], to = uri.queryParameters['to'];
@@ -533,6 +685,82 @@ class LocalData extends ChangeNotifier {
     return result;
   }
 
+  Future<String?> snapshotVersion(String household) async {
+    await _load();
+    return _data['snapshot-version:$household'] as String?;
+  }
+
+  Future<void> installSnapshot(Map<String, dynamic> snapshot) => _serial(
+    () async {
+      await _load();
+      if (snapshot['schema'] != 1 ||
+          snapshot['household_id'] is! String ||
+          snapshot['version'] is! String ||
+          snapshot['recipes'] is! List ||
+          snapshot['categories'] is! List ||
+          snapshot['responses'] is! Map ||
+          snapshot['edit_options'] is! Map) {
+        throw const FormatException('Incomplete household snapshot');
+      }
+      final household = snapshot['household_id'] as String;
+      final accessEpoch = _accessEpoch;
+      if (_blocked.keys.any(
+        (prefix) => _under('/households/$household/', prefix),
+      )) {
+        throw ApiException(403, 'Household access was removed.');
+      }
+      final supplied = snapshot['responses'] as Map;
+      for (final row in snapshot['recipes'] as List) {
+        if (supplied['/households/$household/recipes/${row['id']}']?['recipe']
+                is! Map ||
+            supplied['/households/$household/recipes/${row['id']}/favorites']
+                is! Map) {
+          throw const FormatException('Incomplete recipe snapshot');
+        }
+      }
+      for (final resource in ['people', 'shopping-list', 'recipe-blank']) {
+        if (supplied['/households/$household/$resource'] is! Map) {
+          throw const FormatException('Incomplete household resources');
+        }
+      }
+      final prefix = '/households/$household/';
+      final responses = Map<String, dynamic>.from(snapshot['responses'] as Map);
+      final options = snapshot['edit_options'] as Map;
+      final next = Map<String, dynamic>.from(_data);
+      next.removeWhere(
+        (path, _) =>
+            path.startsWith(prefix) &&
+            !_dirty(path) &&
+            !_aliases.values.any((id) => path == '${prefix}recipes/$id'),
+      );
+      for (final entry in responses.entries) {
+        if (!_dirty(entry.key)) next[entry.key] = _copy(entry.value as Map);
+      }
+      next['snapshot-version:$household'] = snapshot['version'];
+      next['snapshot-categories:$household'] = _copy({
+        'rows': snapshot['categories'],
+      })['rows'];
+      next['snapshot-options:$household'] = _copy(options);
+      await _persist(data: next);
+      if (accessEpoch != _accessEpoch) {
+        throw ApiException(
+          403,
+          'Household access changed during synchronization.',
+        );
+      }
+      _data = next;
+      _bump(prefix);
+      for (final resource in [
+        'recipes',
+        'shopping-list',
+        'meal-plan',
+        'people',
+      ]) {
+        _changed('$prefix$resource');
+      }
+    },
+  );
+
   Future<Map<String, dynamic>> request(String input) async {
     await _load();
     final path = _path(input);
@@ -543,7 +771,14 @@ class LocalData extends ChangeNotifier {
         code: 'household_access_removed',
       );
     }
-    if (!mirrors(path)) return fetch(path);
+    if (!mirrors(path) || Uri.parse(path).path.endsWith('/recipes/deleted')) {
+      return fetch(path);
+    }
+    if (snapshotOnly) {
+      final saved = await cached(path);
+      if (saved != null) return saved;
+      throw StateError('Local database is incomplete for $path');
+    }
     if (Uri.parse(path).pathSegments.any((part) => part.startsWith('local-'))) {
       final local = await cached(path);
       if (local != null) return local;
@@ -1139,6 +1374,7 @@ class LocalData extends ChangeNotifier {
         return;
       }
       unawaited(synchronize().catchError((Object _) {}));
+      if (snapshotOnly) return;
       for (final path in _watched.values.toList()) {
         if (!_dirty(path)) {
           unawaited(

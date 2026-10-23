@@ -72,10 +72,12 @@ class RecipeApi {
     String token, {
     Map<String, dynamic>? body,
     Duration timeout = const Duration(seconds: 20),
+    void Function(int received, int? total)? onProgress,
   }) async {
     if (body == null) {
       return retryCommunication(
-        () => _requestOnce(path, token, timeout: timeout),
+        () =>
+            _requestOnce(path, token, timeout: timeout, onProgress: onProgress),
         active: () => !_closed,
       );
     }
@@ -90,6 +92,7 @@ class RecipeApi {
     String token, {
     Map<String, dynamic>? body,
     required Duration timeout,
+    void Function(int received, int? total)? onProgress,
   }) async {
     final remaining = _limitedUntil?.difference(DateTime.now());
     if (remaining != null && remaining > Duration.zero) {
@@ -104,11 +107,32 @@ class RecipeApi {
       if (token.isNotEmpty) 'Authorization': 'Bearer $token',
       'Content-Type': 'application/json',
     };
-    final response =
-        await (body == null
-                ? _client.get(uri, headers: headers)
-                : _client.post(uri, headers: headers, body: jsonEncode(body)))
-            .timeout(timeout);
+    final http.Response response;
+    if (onProgress != null && body == null) {
+      response = await (() async {
+        final request = http.Request('GET', uri)..headers.addAll(headers);
+        final stream = await _client.send(request);
+        var received = 0;
+        return http.Response.fromStream(
+          http.StreamedResponse(
+            stream.stream.map((bytes) {
+              received += bytes.length;
+              onProgress(received, stream.contentLength);
+              return bytes;
+            }),
+            stream.statusCode,
+            headers: stream.headers,
+            reasonPhrase: stream.reasonPhrase,
+          ),
+        );
+      })().timeout(timeout);
+    } else {
+      response =
+          await (body == null
+                  ? _client.get(uri, headers: headers)
+                  : _client.post(uri, headers: headers, body: jsonEncode(body)))
+              .timeout(timeout);
+    }
     Duration? retryAfter;
     if (response.statusCode == 429) {
       retryAfter = rateLimitDelay(response.headers['retry-after']);
