@@ -96,3 +96,19 @@ SHA-256 matches for served main.dart.js, flutter_bootstrap.js, version.json and
 assets/FontManifest.json. Apache serves http://localhost/CoffeyTableRecipes/app/.
 The existing 1.8.5+29 version label was retained; this is a feature-branch preview,
 not a version 2 release. No hosted frontend, main branch or release tag changed.
+
+## Android test APK — 2026-10-23
+
+At the user's explicit test-build request, built exact feature source
+`8009bf69ce3e9610e364544ac07a5c03258a275e` with `flutter build apk --debug`
+and the existing ignored Firebase configuration, using the hosted backend.
+Main's subsequent Kotlin and cache changes were not implicitly merged.
+
+Saved `G:\My Drive\recipe app\CoffeyTableRecipes-meal-planning-v2-test-8009bf6.apk`
+(174,693,850 bytes), retaining the separate existing release APK. Verified APK
+Signature Scheme v2 with the Android Debug certificate, debuggable flag, package
+`com.coffeytable.coffey_table_recipes`, version 1.8.5/code 29, minimum SDK 24,
+target SDK 36 and arm64-v8a/armeabi-v7a/x86_64 architectures. Source and destination
+SHA-256 both equal `a24c477548ba9045b5374dcbcb44cf88881270230ce9edffd733e7b87ef328f1`.
+Generated APK/configuration remain excluded from Git. No device installation,
+release, tag, hosted frontend/backend deployment or dependency change occurred.
