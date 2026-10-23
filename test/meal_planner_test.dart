@@ -143,6 +143,42 @@ class PlanFixture {
 }
 
 void main() {
+  for (final screenWidth in [320.0, 900.0]) {
+    testWidgets('dish pictures and captions fit a $screenWidth wide planner', (
+      tester,
+    ) async {
+      await tester.binding.setSurfaceSize(Size(screenWidth, 900));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+      final fixture = PlanFixture();
+      fixture.entries.add({
+        ...fixture.entries.firstWhere((entry) => entry['id'] == 'today'),
+        'id': 'second-dish',
+        'title': 'A second dish with a longer name',
+      });
+      await tester.pumpWidget(fixture.app());
+      await tester.pumpAndSettle();
+      final section = find.byKey(const ValueKey('meal-day-2026-10-22'));
+      final pictures = find.descendant(
+        of: section,
+        matching: find.byType(RecipePhoto),
+      );
+      expect(pictures, findsNWidgets(2));
+      final first = tester.getRect(pictures.at(0));
+      final second = tester.getRect(pictures.at(1));
+      final bounds = tester.getRect(section);
+      expect(first.top, second.top);
+      expect(first.right, lessThan(second.left));
+      expect(second.right, lessThan(bounds.right));
+      for (final title in ['Today soup', 'A second dish with a longer name']) {
+        final caption = tester.getRect(find.text(title));
+        expect(caption.top, greaterThanOrEqualTo(first.bottom));
+        expect(caption.bottom, lessThan(bounds.bottom));
+      }
+      expect(tester.takeException(), isNull);
+      await tester.pumpWidget(const SizedBox());
+    });
+  }
+
   testWidgets('opens at today with past dates above and Today returns to top', (
     tester,
   ) async {
@@ -352,7 +388,7 @@ void main() {
   });
 
   testWidgets(
-    'today has a white background and scheduled meals cannot drop into unscheduled',
+    'today uses the app surface and scheduled meals cannot drop into unscheduled',
     (tester) async {
       final fixture = PlanFixture();
       await tester.pumpWidget(fixture.app());
@@ -360,7 +396,10 @@ void main() {
       final today = tester.widget<Container>(
         find.byKey(const ValueKey('meal-day-2026-10-22')),
       );
-      expect((today.decoration as BoxDecoration).color, Colors.white);
+      expect(
+        (today.decoration as BoxDecoration).color,
+        Theme.of(tester.element(find.byType(MealPlanner))).colorScheme.surface,
+      );
       expect((today.decoration as BoxDecoration).border, isNotNull);
       expect(find.byIcon(Icons.more_horiz), findsNothing);
       expect(find.text('Unscheduled'), findsNothing);

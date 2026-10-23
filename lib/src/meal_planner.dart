@@ -658,13 +658,14 @@ class _MealPlannerState extends State<MealPlanner> with WidgetsBindingObserver {
     });
   }
 
-  Widget _tile(Map<String, dynamic> entry) {
+  Widget _tile(Map<String, dynamic> entry, double width) {
     final card = SizedBox(
-      width: 145,
+      width: width,
       child: Card(
         color: Colors.transparent,
         surfaceTintColor: Colors.transparent,
         elevation: 0,
+        shape: const RoundedRectangleBorder(),
         clipBehavior: Clip.antiAlias,
         margin: EdgeInsets.zero,
         child: Column(
@@ -694,27 +695,32 @@ class _MealPlannerState extends State<MealPlanner> with WidgetsBindingObserver {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  SizedBox(
-                    height: 84,
-                    child: entry['kind'] == 'recipe'
-                        ? RecipePhoto(url: entry['photo_url'] as String?)
-                        : ColoredBox(
-                            color: Theme.of(context)
-                                .colorScheme
-                                .surfaceContainerHighest,
-                            child: Icon(
-                              entry['kind'] == 'leftovers'
-                                  ? Icons.kitchen_outlined
-                                  : Icons.restaurant_outlined,
-                              size: 32,
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(12),
+                    child: AspectRatio(
+                      aspectRatio: 1.28,
+                      child: entry['kind'] == 'recipe'
+                          ? RecipePhoto(url: entry['photo_url'] as String?)
+                          : ColoredBox(
+                              color: Theme.of(context)
+                                  .colorScheme
+                                  .surfaceContainerHighest,
+                              child: Icon(
+                                entry['kind'] == 'leftovers'
+                                    ? Icons.kitchen_outlined
+                                    : Icons.restaurant_outlined,
+                                size: 32,
+                              ),
                             ),
-                          ),
+                    ),
                   ),
                   Padding(
-                    padding: const EdgeInsets.fromLTRB(10, 8, 10, 0),
+                    padding: const EdgeInsets.fromLTRB(4, 6, 4, 0),
                     child: Text(
                       '${entry['title']}',
                       textAlign: TextAlign.center,
+                      style: Theme.of(context).textTheme.titleSmall
+                          ?.copyWith(fontWeight: FontWeight.w600),
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
                     ),
@@ -764,12 +770,27 @@ class _MealPlannerState extends State<MealPlanner> with WidgetsBindingObserver {
               ? colors.primaryContainer
               : past
               ? colors.onSurface.withValues(alpha: .12)
-              : Colors.white,
-          border: today
-              ? Border(left: BorderSide(color: colors.primary, width: 3))
-              : null,
+              : colors.surface,
+          border: Border.all(color: const Color(0xffdfd1bb)),
           borderRadius: BorderRadius.circular(20),
+          boxShadow: today
+              ? [
+                  BoxShadow(
+                    color: colors.onSurface.withValues(alpha: .10),
+                    blurRadius: 8,
+                    offset: const Offset(0, 2),
+                  ),
+                ]
+              : null,
         ),
+        foregroundDecoration: today
+            ? BoxDecoration(
+                border: Border(
+                  left: BorderSide(color: colors.primary, width: 3),
+                ),
+                borderRadius: BorderRadius.circular(20),
+              )
+            : null,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
@@ -782,11 +803,15 @@ class _MealPlannerState extends State<MealPlanner> with WidgetsBindingObserver {
                     children: [
                       Text(
                         label,
-                        style: Theme.of(context).textTheme.titleSmall
-                            ?.copyWith(color: today ? colors.primary : null),
+                        style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                          fontSize: 20,
+                          fontWeight: FontWeight.w700,
+                        ),
                       ),
                       if (today)
                         Chip(
+                          side: BorderSide.none,
+                          visualDensity: VisualDensity.compact,
                           label: Text(
                             'Today',
                             style: TextStyle(color: colors.onPrimary),
@@ -805,10 +830,23 @@ class _MealPlannerState extends State<MealPlanner> with WidgetsBindingObserver {
               ],
             ),
             if (entries.isNotEmpty)
-              Wrap(
-                spacing: 10,
-                runSpacing: 10,
-                children: entries.map(_tile).toList(),
+              LayoutBuilder(
+                builder: (context, constraints) {
+                  final width = ((constraints.maxWidth - 10) / 2).clamp(
+                    0.0,
+                    200.0,
+                  );
+                  return Padding(
+                    padding: const EdgeInsets.only(top: 6),
+                    child: Wrap(
+                      spacing: 10,
+                      runSpacing: 12,
+                      children: entries
+                          .map((entry) => _tile(entry, width))
+                          .toList(),
+                    ),
+                  );
+                },
               )
             else
               const SizedBox(height: 24),
