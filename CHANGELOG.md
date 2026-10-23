@@ -2,6 +2,19 @@
 
 Release dates and changes are reconstructed from annotated Git tags, commit history, and project release records. Versions before 1.0 are demonstration releases; 1.0 marks the first usable release. Android retains the existing signing identity; iOS delivery and signing are recorded for each release.
 
+## 2.0.0 — 2026-10-23
+
+Build 30; tag `v2.0.0`. Releases the accepted meal planner and local-first household data after 1.8.5.
+
+- Add a shared dated meal planner with recipe variations, leftovers, restaurant outings, drag-to-move, and confirmed changes to past cooking history. Every new addition or move requires a date.
+- Offer frequently paired recipes when adding a meal, preserve recipe identity/title history, and retain recipe covers across navigation, restart and synchronization.
+- Review ingredients for all future planned meals or a chosen date range; combine compatible quantities and add selected ingredients to the household shopping list with duplicate checks.
+- Manage a shared household restaurant list, retaining the selected restaurant name in saved outings.
+- Download a complete household database before browsing and use persistent local recipes, categories, favorites, people, shopping and planner data, with background synchronization and a durable edit queue.
+- Preserve pending edits and drafts through interruptions; make recipe-save retries safe against duplicate submissions and require explicit review for conflicts.
+- Warn after one minute when a local change lacks server confirmation, including native device reminders when notification permission allows.
+- Restore the last main section, improve cached recipe/public-link browsing and cooking quantities, and keep drag scrolling and navigation responsive.
+- Update Android Kotlin build tooling and retain signed iOS export-compliance and native recipe-link verification.
 ## 1.8.5 — 2026-10-22
 
 Build 29; tag `v1.8.5`. First three-platform release after delivered 1.8.3; 1.8.4 only validated deployment tooling.
