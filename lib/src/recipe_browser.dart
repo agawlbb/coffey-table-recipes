@@ -121,6 +121,7 @@ class RecipeBrowser extends StatefulWidget {
     this.onSelect,
     this.mealPlanDestination,
     this.onViewMealPlan,
+    this.onAddRecipe,
     this.dragRecipes = false,
     this.onRecipeDragUpdate,
     this.onRecipeDragEnd,
@@ -135,6 +136,7 @@ class RecipeBrowser extends StatefulWidget {
   final ValueChanged<Map<String, dynamic>>? onSelect;
   final String? mealPlanDestination;
   final VoidCallback? onViewMealPlan;
+  final VoidCallback? onAddRecipe;
   final bool dragRecipes;
   final ValueChanged<DragUpdateDetails>? onRecipeDragUpdate;
   final VoidCallback? onRecipeDragEnd;
@@ -599,6 +601,23 @@ class _RecipeBrowserState extends State<RecipeBrowser>
               ),
             ),
           ),
+          if (widget.onAddRecipe != null &&
+              widget.onSelect == null &&
+              widget.mealPlanDestination == null)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: ValueListenableBuilder<bool>(
+                  valueListenable: offlineStatus,
+                  builder: (context, offline, _) => TextButton.icon(
+                    onPressed: offline ? null : widget.onAddRecipe,
+                    icon: const Icon(Icons.add_circle_outline),
+                    label: const Text('Add recipe'),
+                  ),
+                ),
+              ),
+            ),
           if (_filterCount > 0)
             Padding(
               padding: const EdgeInsets.fromLTRB(20, 0, 20, 8),

@@ -763,6 +763,40 @@ class _HouseholdPanelState extends State<HouseholdPanel> {
     });
   }
 
+  Future<void> _addRecipe() async {
+    if (_selected == null || offlineStatus.value) return;
+    mealPlanNotices.dismiss();
+    final householdId = _selected!;
+    final saved = await Navigator.push<Map<String, dynamic>>(
+      context,
+      MaterialPageRoute(
+        builder: (_) => RecipeImport(
+          householdId: householdId,
+          request: (path, body) async {
+            final data = await _request(path, body: body);
+            if (data['recipe'] is Map &&
+                (data['recipe'] as Map)['id'] != null) {
+              final id = (data['recipe'] as Map)['id'];
+              await _offline?.rememberSavedRecipe(
+                '/households/$householdId/recipes/$id',
+                data,
+              );
+            }
+            return data;
+          },
+        ),
+      ),
+    );
+    if (saved != null && mounted) {
+      setState(() {
+        _settings = false;
+        _shopping = false;
+        _planning = false;
+        _recipeRefresh++;
+      });
+    }
+  }
+
   void _leaveMenu() {
     mealPlanNotices.dismiss();
     final navigator = Navigator.of(context);
@@ -810,51 +844,6 @@ class _HouseholdPanelState extends State<HouseholdPanel> {
                         _planning = false;
                       });
                     },
-                  ),
-                  ListTile(
-                    leading: const Icon(Icons.add_circle_outline),
-                    title: const Text('Add recipe'),
-                    enabled: selected != null && !offlineStatus.value,
-                    onTap: selected == null
-                        ? null
-                        : () async {
-                            _leaveMenu();
-                            final householdId = _selected!;
-                            final saved =
-                                await Navigator.push<Map<String, dynamic>>(
-                                  context,
-                                  MaterialPageRoute(
-                                    builder: (_) => RecipeImport(
-                                      householdId: householdId,
-                                      request: (path, body) async {
-                                        final data = await _request(
-                                          path,
-                                          body: body,
-                                        );
-                                        if (data['recipe'] is Map &&
-                                            (data['recipe'] as Map)['id'] !=
-                                                null) {
-                                          final id =
-                                              (data['recipe'] as Map)['id'];
-                                          await _offline?.rememberSavedRecipe(
-                                            '/households/$householdId/recipes/$id',
-                                            data,
-                                          );
-                                        }
-                                        return data;
-                                      },
-                                    ),
-                                  ),
-                                );
-                            if (saved != null && mounted) {
-                              setState(() {
-                                _settings = false;
-                                _shopping = false;
-                                _planning = false;
-                                _recipeRefresh++;
-                              });
-                            }
-                          },
                   ),
                   ListTile(
                     leading: const Icon(Icons.calendar_month_outlined),
@@ -1171,6 +1160,7 @@ class _HouseholdPanelState extends State<HouseholdPanel> {
                         cachedRequest: _offline?.cachedBrowse,
                         save: _saveRecipe,
                         onViewMealPlan: _openMealPlan,
+                        onAddRecipe: _addRecipe,
                       ),
                 Center(
                   child: ConstrainedBox(

@@ -144,3 +144,13 @@ Validation: flutter analyze --no-pub clean; full flutter test --no-pub suite pas
 
 ### Android ingredient-review test APK (2026-10-23)
 Built source `83f6d8b3cd62db1d999216f15992c5264076e6db` with `flutter build apk --debug --dart-define-from-file=config/firebase.local.json`. Delivered `G:/My Drive/recipe app/CoffeyTableRecipes-meal-planning-v2-test-83f6d8b.apk` (199,773,366 bytes). Source and delivered SHA-256 match: `5ca1c4871363a9d7910399f2adc97583429a314e16bfaa4a28a07a29ecff7a74`. APK v2 signature verifies with the existing Android Debug certificate (`f8de933f14b9bb4b3191a94aedc8637972c5ab224565f6abd7808f8038d12097`); package `com.coffeytable.coffey_table_recipes`, version 1.8.5/build29, debuggable. No device installation, release/tag, main merge or hosted Flutter deployment. Backend and experiment branch unchanged; earlier packages retained.
+
+
+## Cooking fractions, drag scrolling and recipe creation (2026-10-23)
+Customary ingredient totals round upward to the next standard eighth/quarter/half or third measure (1/8, 1/4, 1/3, 3/8, 1/2, 5/8, 2/3, 3/4, 7/8, whole), with a small tolerance for stored decimal noise. For example, 1.0833333 cup becomes 1 1/8 cup. Totals are combined before rounding; metric decimals remain unchanged.
+
+Dragging near the top/bottom of the date list uses a continuous 30 ms timer and a wider edge zone with speed increasing near the edge. Pointer updates no longer restart the timer. Moving into the center pauses scrolling; release/cancel stops it. This applies to held plan tiles and the wide-screen recipe browser's drag callbacks.
+
+Add recipe moved out of the household drawer to directly below the normal recipe browser search bar. It reuses the existing import flow, household identity, offline restriction and saved-recipe cache handling. Meal-plan selection browsers hide the action.
+
+Validation: flutter analyze --no-pub clean; full Flutter suite passed (405 tests). New regressions cover continuous high-frequency drag updates, upward/downward scrolling and stopping, cocoa powder and other rounded customary quantities with unchanged metric values, Add recipe placement/callback/offline disabling and picker hiding.

@@ -8,6 +8,58 @@ import 'package:coffey_table_recipes/src/shopping_ingredient.dart';
 import 'meal_planner_test.dart' show PlanFixture;
 
 void main() {
+  test('customary amounts round upward to standard cooking measures', () {
+    for (final pair in [
+      ('1.0833333', '1 1/8 cup'),
+      ('0.2', '1/4 cup'),
+      ('0.26', '1/3 cup'),
+      ('0.4', '1/2 cup'),
+      ('0.6', '5/8 cup'),
+      ('0.64', '2/3 cup'),
+      ('0.8', '7/8 cup'),
+      ('1.9', '2 cup'),
+      ('1.3333333', '1 1/3 cup'),
+      ('0', '0 cup'),
+      ('0.001', '1/8 cup'),
+    ]) {
+      expect(
+        mealPlanIngredients([
+          {
+            'ingredient_name': 'Cocoa',
+            'original_unit': 'cup',
+            'quantity_decimal': pair.$1,
+          },
+        ]).single.details,
+        pair.$2,
+      );
+    }
+    expect(
+      mealPlanIngredients([
+        {
+          'ingredient_name': 'Cocoa',
+          'original_unit': 'g',
+          'quantity_decimal': '1.0833333',
+        },
+      ]).single.details,
+      '1.0833333 g',
+    );
+    expect(
+      mealPlanIngredients([
+        {
+          'ingredient_name': 'Cocoa',
+          'original_unit': 'cup',
+          'quantity_decimal': '0.54',
+        },
+        {
+          'ingredient_name': 'Cocoa',
+          'original_unit': 'cup',
+          'quantity_decimal': '0.54',
+        },
+      ]).single.details,
+      '1 1/8 cup',
+    );
+  });
+
   test(
     'quantities use customary fractions and trim decimals including totals',
     () {

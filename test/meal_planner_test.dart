@@ -128,6 +128,47 @@ class PlanFixture {
 }
 
 void main() {
+  testWidgets(
+    'held tile scrolls both ways during continuous pointer movement and stops in center',
+    (tester) async {
+      await tester.binding.setSurfaceSize(const Size(390, 900));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+      final fixture = PlanFixture();
+      await tester.pumpWidget(fixture.app());
+      await tester.pumpAndSettle();
+      final list = find.byType(CustomScrollView);
+      final controller = tester.widget<CustomScrollView>(list).controller!;
+      final bounds = tester.getRect(list);
+      final initial = controller.offset;
+      final gesture = await tester.startGesture(
+        tester.getCenter(find.text('Today soup')),
+      );
+      await tester.pump(const Duration(milliseconds: 600));
+      for (var i = 0; i < 30; i++) {
+        await gesture.moveTo(
+          Offset(bounds.center.dx + i % 2, bounds.bottom - 15),
+        );
+        await tester.pump(const Duration(milliseconds: 20));
+      }
+      expect(controller.offset, greaterThan(initial + 100));
+      await gesture.moveTo(bounds.center);
+      await tester.pump(const Duration(milliseconds: 60));
+      final middle = controller.offset;
+      await tester.pump(const Duration(milliseconds: 180));
+      expect(controller.offset, middle);
+      await gesture.moveTo(Offset(bounds.center.dx, bounds.top + 15));
+      await tester.pump(const Duration(milliseconds: 240));
+      expect(controller.offset, lessThan(middle));
+      await gesture.cancel();
+      await tester.pump(const Duration(milliseconds: 100));
+      final ended = controller.offset;
+      await tester.pump(const Duration(milliseconds: 180));
+      expect(controller.offset, ended);
+      expect(fixture.writes, isEmpty);
+      await tester.pumpWidget(const SizedBox());
+    },
+  );
+
   testWidgets('trash is leftmost and accepts drops outside the visible icon', (
     tester,
   ) async {

@@ -136,14 +136,28 @@ ShoppingIngredient _displayIngredient(Map<String, dynamic> row) {
 
 String _quantity(num value, bool customary) {
   if (customary && value >= 0 && value <= 1000000) {
-    for (final denominator in [1, 2, 3, 4, 8, 16]) {
-      final numerator = (value * denominator).round();
-      if ((numerator / denominator - value).abs() > .00005) continue;
-      final whole = numerator ~/ denominator,
-          remainder = numerator % denominator;
-      return remainder == 0
-          ? '$whole'
-          : '${whole == 0 ? '' : '$whole '}$remainder/$denominator';
+    final whole = value.floor();
+    final remainder = value - whole;
+    // Round upward to standard cooking measures, tolerating stored decimal noise.
+    for (final fraction in [
+      (0, 1),
+      (1, 8),
+      (1, 4),
+      (1, 3),
+      (3, 8),
+      (1, 2),
+      (5, 8),
+      (2, 3),
+      (3, 4),
+      (7, 8),
+      (1, 1),
+    ]) {
+      final amount = fraction.$1 / fraction.$2;
+      if (amount == 0 && value > 0 && whole == 0) continue;
+      if (remainder > amount + .00005) continue;
+      if (fraction.$1 == 0) return '$whole';
+      if (fraction.$1 == fraction.$2) return '${whole + 1}';
+      return '${whole == 0 ? '' : '$whole '}${fraction.$1}/${fraction.$2}';
     }
   }
   return value.toStringAsFixed(8).replaceFirst(RegExp(r'\.?0+$'), '');

@@ -42,6 +42,7 @@ class _MealPlannerState extends State<MealPlanner> with WidgetsBindingObserver {
   int _accessEpoch = 0;
   String? _error;
   Timer? _refresh, _dragScroll;
+  Offset? _dragPosition;
   String get _path => '/households/${widget.householdId}/meal-plan';
 
   // A missing route/recipe is not evidence that household membership was lost.
@@ -65,7 +66,7 @@ class _MealPlannerState extends State<MealPlanner> with WidgetsBindingObserver {
       _loading = false;
       _error = error.message;
     });
-    _dragScroll?.cancel();
+    _stopDragScroll();
     return true;
   }
 
@@ -101,7 +102,7 @@ class _MealPlannerState extends State<MealPlanner> with WidgetsBindingObserver {
     _generation++;
     WidgetsBinding.instance.removeObserver(this);
     _refresh?.cancel();
-    _dragScroll?.cancel();
+    _stopDragScroll();
     _scroll.dispose();
     super.dispose();
   }
@@ -471,33 +472,42 @@ class _MealPlannerState extends State<MealPlanner> with WidgetsBindingObserver {
     }
   }
 
-  void _autoScroll(DragUpdateDetails details) {
-    final box = _scrollArea.currentContext?.findRenderObject() as RenderBox?;
-    if (box == null || !_scroll.hasClients) return;
-    final point = box.globalToLocal(details.globalPosition);
-    if (point.dx < 0 || point.dx > box.size.width) {
-      _dragScroll?.cancel();
-      return;
-    }
-    final y = point.dy;
-    final direction = y < 65
-        ? -1
-        : y > box.size.height - 65
-        ? 1
-        : 0;
+  void _stopDragScroll() {
     _dragScroll?.cancel();
-    if (direction != 0) {
-      _dragScroll = Timer.periodic(const Duration(milliseconds: 50), (_) {
-        if (_scroll.hasClients) {
-          _scroll.jumpTo(
-            (_scroll.offset + direction * 18).clamp(
-              _scroll.position.minScrollExtent,
-              _scroll.position.maxScrollExtent,
-            ),
-          );
-        }
-      });
-    }
+    _dragScroll = null;
+    _dragPosition = null;
+  }
+
+  void _autoScroll(DragUpdateDetails details) {
+    _dragPosition = details.globalPosition;
+    _dragScroll ??= Timer.periodic(const Duration(milliseconds: 30), (_) {
+      final box = _scrollArea.currentContext?.findRenderObject() as RenderBox?;
+      final position = _dragPosition;
+      if (box == null || position == null || !_scroll.hasClients || !_ready) {
+        return;
+      }
+      final point = box.globalToLocal(position);
+      if (point.dx < 0 ||
+          point.dx > box.size.width ||
+          point.dy < -24 ||
+          point.dy > box.size.height + 24) {
+        return;
+      }
+      final edge = (box.size.height / 3).clamp(40.0, 120.0);
+      final direction = point.dy < edge
+          ? -1
+          : point.dy > box.size.height - edge
+          ? 1
+          : 0;
+      if (direction == 0) return;
+      final distance = direction < 0 ? point.dy : box.size.height - point.dy;
+      final speed = 6 + 18 * (1 - distance.clamp(0, edge) / edge);
+      final next = (_scroll.offset + direction * speed).clamp(
+        _scroll.position.minScrollExtent,
+        _scroll.position.maxScrollExtent,
+      );
+      _scroll.jumpTo(next);
+    });
   }
 
   Widget _tile(Map<String, dynamic> entry) {
@@ -568,7 +578,7 @@ class _MealPlannerState extends State<MealPlanner> with WidgetsBindingObserver {
       data: {'entry': entry},
       maxSimultaneousDrags: _saving ? 0 : 1,
       onDragUpdate: _autoScroll,
-      onDragEnd: (_) => _dragScroll?.cancel(),
+      onDragEnd: (_) => _stopDragScroll(),
       feedback: Material(color: Colors.transparent, child: card),
       childWhenDragging: Opacity(opacity: .35, child: card),
       child: card,
@@ -692,7 +702,7 @@ class _MealPlannerState extends State<MealPlanner> with WidgetsBindingObserver {
                 onWillAcceptWithDetails: (details) =>
                     !_saving && details.data['entry'] is Map<String, dynamic>,
                 onAcceptWithDetails: (details) {
-                  _dragScroll?.cancel();
+                  _stopDragScroll();
                   _remove(details.data['entry'] as Map<String, dynamic>);
                 },
                 builder: (context, candidates, rejected) => Tooltip(
@@ -793,7 +803,7 @@ class _MealPlannerState extends State<MealPlanner> with WidgetsBindingObserver {
                     embedded: true,
                     dragRecipes: true,
                     onRecipeDragUpdate: _autoScroll,
-                    onRecipeDragEnd: () => _dragScroll?.cancel(),
+                    onRecipeDragEnd: _stopDragScroll,
                     mealPlanDestination: 'Unscheduled',
                     onSelect: (recipe) => _add(recipe, null),
                   ),
