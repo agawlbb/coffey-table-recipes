@@ -85,10 +85,15 @@ class LocalData extends ChangeNotifier {
     this.onRecipeSaved,
     this.online,
     this.snapshotOnly = false,
+    this.onPendingChanged,
+    this.now = DateTime.now,
     this.readStore = readOfflineStore,
     this.writeStore = writeOfflineStore,
   });
 
+  final Future<void> Function(String scope, List<Map<String, dynamic>> changes)?
+  onPendingChanged;
+  final DateTime Function() now;
   final String key;
   final bool snapshotOnly;
   final LocalRead fetch;
@@ -107,7 +112,16 @@ class LocalData extends ChangeNotifier {
   final _versions = <String, int>{};
   Future<void>? _ready, _draining;
   Future<void> _disk = Future.value(), _edits = Future.value();
-  Timer? _timer;
+  Timer? _timer, _reminderTimer;
+  Future<void> _reminders = Future.value();
+  String? reminderError;
+  int get overdue => _queue
+      .where(
+        (q) =>
+            now().millisecondsSinceEpoch >=
+            (q['saved_at'] as int? ?? now().millisecondsSinceEpoch) + 60000,
+      )
+      .length;
   bool _closed = false;
   int _epoch = 0;
   int _accessEpoch = 0;
@@ -242,10 +256,13 @@ class LocalData extends ChangeNotifier {
           .map((q) => _copy(q as Map))
           .toList();
       for (final q in _queue) {
-        if (q['sending'] == true) {
+        q['saved_at'] ??= now().millisecondsSinceEpoch;
+        if (q['sending'] == true &&
+            (q['body'] as Map)['client_save_id'] == null) {
           q['problem'] = 'The app closed during synchronization. Review the server copy before retrying.';
         }
       }
+      _updateReminders();
     } catch (_) {
       // Preserve the damaged source instead of silently overwriting edits.
       throw const FormatException(
@@ -262,9 +279,58 @@ class LocalData extends ChangeNotifier {
       'aliases': _aliases,
       'blocked': _blocked,
     });
-    final task = _disk.then((_) => writeStore('local-first-v1-$key', value));
+    final task = _disk.then((_) async {
+      await writeStore('local-first-v1-$key', value);
+      _updateReminders();
+    });
     _disk = task.catchError((Object _) {});
     return task;
+  }
+
+  void _updateReminders() {
+    if (_closed) return;
+    _reminderTimer?.cancel();
+    final changes = [
+      for (final q in _queue)
+        {
+          'id': q['id'],
+          'deadline':
+              (q['saved_at'] as int? ?? now().millisecondsSinceEpoch) + 60000,
+        },
+    ];
+    final future =
+        changes
+            .map((q) => q['deadline'] as int)
+            .where((t) => t > now().millisecondsSinceEpoch)
+            .toList()
+          ..sort();
+    if (future.isNotEmpty) {
+      _reminderTimer = Timer(
+        Duration(
+          milliseconds: (future.first - now().millisecondsSinceEpoch).clamp(
+            0,
+            60000,
+          ),
+        ),
+        () {
+          if (_closed) return;
+          notifyListeners();
+          _updateReminders();
+        },
+      );
+    }
+    final callback = onPendingChanged;
+    if (callback != null) {
+      _reminders = _reminders
+          .then((_) => callback(key, changes))
+          .then((_) {
+            reminderError = null;
+          })
+          .catchError((Object _) {
+            reminderError = 'Device notifications are unavailable. Pending changes remain visible here.';
+            if (!_closed) notifyListeners();
+          });
+    }
   }
 
   void _changed(String path) {
@@ -992,7 +1058,15 @@ class LocalData extends ChangeNotifier {
       );
     }
     final id = newShoppingItemId();
-    final q = <String, dynamic>{'id': id, 'path': resource, 'body': value};
+    final q = <String, dynamic>{
+      'id': id,
+      'path': resource,
+      'body': value,
+      'saved_at': now().millisecondsSinceEpoch,
+    };
+    if (resource.contains('/recipes') && !resource.endsWith('/favorites')) {
+      value['client_save_id'] = id;
+    }
     Map<String, dynamic> response;
     if (path.endsWith('/favorites')) {
       final old = await cached(path);
@@ -1250,10 +1324,11 @@ class LocalData extends ChangeNotifier {
             _deny(path, failure.status);
             _changed(path);
           }
-          // Revision-checked writes can be retried safely; creates cannot, because
-          // a lost success response could otherwise create a duplicate recipe.
+          // Receipt-backed recipe saves can replay after lost responses/crashes.
+          // Legacy creates without a receipt identifier still require review.
           if (delivered ||
-              q['creating'] == true ||
+              q['creating'] == true &&
+                  (q['body'] as Map)['client_save_id'] == null ||
               failure is ApiException &&
                   !isTemporaryCommunicationFailure(failure)) {
             q['problem'] = failure is ApiException ? failure.message : 'The save response was lost. Review the server before retrying this new recipe.';
@@ -1368,10 +1443,13 @@ class LocalData extends ChangeNotifier {
         }
       } else {
         _queue.removeWhere((q) => related.contains(q));
+        final saveId = newShoppingItemId();
+        if (body.containsKey('client_save_id')) body['client_save_id'] = saveId;
         _queue.insert(0, {
-          'id': newShoppingItemId(),
+          'id': saveId,
           'path': first['path'],
           'body': body,
+          'saved_at': now().millisecondsSinceEpoch,
         });
       }
       await _persist();
@@ -1408,6 +1486,7 @@ class LocalData extends ChangeNotifier {
   void dispose() {
     _closed = true;
     _timer?.cancel();
+    _reminderTimer?.cancel();
     super.dispose();
   }
 }
@@ -1427,7 +1506,11 @@ class LocalSyncStatus extends StatelessWidget {
               children: [
                 Expanded(
                   child: Text(
-                    data.error ??
+                    (data.overdue > 0
+                            ? '${data.overdue} change(s) have not reached the server after one minute. Saved on this device; check synchronization details.'
+                            : null) ??
+                        data.reminderError ??
+                        data.error ??
                         (data.pending == 0
                             ? 'Local drafts retained'
                             : '${data.pending} change(s) saved locally · syncing'),

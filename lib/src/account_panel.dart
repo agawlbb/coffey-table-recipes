@@ -1,3 +1,4 @@
+import 'sync_notifications.dart';
 import 'account_menu.dart';
 
 import 'dart:async';
@@ -390,6 +391,7 @@ class _HouseholdPanelState extends State<HouseholdPanel> {
         send: (path, body) => _onlineRequest(path, body: body),
         online: () => !offlineStatus.value,
         snapshotOnly: true,
+        onPendingChanged: SyncNotifications.update,
       )..start();
       localDataChanges.addListener(_localChanged);
       _mirrorTimer = Timer.periodic(const Duration(minutes: 1), (_) {

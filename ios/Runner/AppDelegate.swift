@@ -16,6 +16,7 @@ import UserNotifications
     if notification.request.content.userInfo["kind"] as? String == "recipe_timer" {
       RecipeTimers.receivePush(notification.request.content.userInfo) { _ in completionHandler([.banner]) }
     }
+    else if notification.request.content.userInfo["pendingSave"] as? Bool == true { completionHandler([.banner, .sound]) }
     else if notification.request.content.userInfo["recipeTimer"] as? Bool == true { completionHandler([.banner, .sound]) }
     else { super.userNotificationCenter(center, willPresent: notification, withCompletionHandler: completionHandler) }
   }
@@ -38,6 +39,50 @@ import UserNotifications
 
   func didInitializeImplicitFlutterEngine(_ engineBridge: FlutterImplicitEngineBridge) {
     GeneratedPluginRegistrant.register(with: engineBridge.pluginRegistry)
+    if let registrar = engineBridge.pluginRegistry.registrar(forPlugin: "PendingSaves") {
+      let channel = FlutterMethodChannel(name: "coffey_table_recipes/pending_saves", binaryMessenger: registrar.messenger())
+      channel.setMethodCallHandler { call, result in
+        guard call.method == "update" else { result(FlutterMethodNotImplemented); return }
+        guard let args = call.arguments as? [String: Any], let scope = args["scope"] as? String,
+              let changes = args["changes"] as? [[String: Any]] else {
+          result(FlutterError(code: "pending_save", message: "Missing pending changes.", details: nil)); return
+        }
+        Task { @MainActor in
+          do {
+            let center = UNUserNotificationCenter.current()
+            // Account identifiers remain in private preferences, not notification text.
+            let stateKey = "pendingSaveReminders:" + scope
+            let previous = UserDefaults.standard.dictionary(forKey: stateKey) as? [String: String] ?? [:]
+            var next: [String: String] = [:]
+            let due = changes.compactMap { $0["deadline"] as? NSNumber }.map { $0.doubleValue }.min()
+            // One account reminder avoids the OS limit on pending notifications.
+            if let due = due {
+              let version = String(due)
+              if let existing = previous[version] { next[version] = existing }
+              else {
+                guard try await center.requestAuthorization(options: [.alert, .sound]) else {
+                  throw NSError(domain: "PendingSaves", code: 1, userInfo: [NSLocalizedDescriptionKey: "Allow notifications in device settings."])
+                }
+                let id = "pending-save-" + UUID().uuidString
+                let content = UNMutableNotificationContent()
+                content.title = "Changes waiting to sync"
+                content.body = "Saved on this device, but the server has not confirmed a change after one minute. Open Coffey Table Recipes to check synchronization."
+                content.sound = .default
+                content.userInfo = ["pendingSave": true]
+                let delay = max(1, due / 1000 - Date().timeIntervalSince1970)
+                try await center.add(UNNotificationRequest(identifier: id, content: content, trigger: UNTimeIntervalNotificationTrigger(timeInterval: delay, repeats: false)))
+                next[version] = id
+              }
+            }
+            let removed = previous.filter { next[$0.key] == nil }.map { $0.value }
+            center.removePendingNotificationRequests(withIdentifiers: removed)
+            center.removeDeliveredNotifications(withIdentifiers: removed)
+            UserDefaults.standard.set(next, forKey: stateKey)
+            result(nil)
+          } catch { result(FlutterError(code: "pending_save", message: error.localizedDescription, details: nil)) }
+        }
+      }
+    }
     if let registrar = engineBridge.pluginRegistry.registrar(forPlugin: "RecipeTimers") {
       RecipeTimers.register(registrar.messenger())
     }
