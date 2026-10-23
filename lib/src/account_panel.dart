@@ -93,8 +93,10 @@ class _AccountPanelState extends State<AccountPanel> {
 
     return StreamBuilder<User?>(
       stream: _authChanges,
+      initialData: FirebaseAuth.instance.currentUser,
       builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
+        if (snapshot.connectionState == ConnectionState.waiting &&
+            snapshot.data == null) {
           return const Center(child: CircularProgressIndicator());
         }
         final user = snapshot.data;
@@ -182,6 +184,7 @@ class HouseholdPanel extends StatefulWidget {
     required this.user,
     this.request,
     this.signOut,
+    this.cachedRequest,
   });
   final Future<void> Function()? signOut;
   final Future<Map<String, dynamic>> Function(
@@ -190,6 +193,7 @@ class HouseholdPanel extends StatefulWidget {
   })?
   request;
   final User user;
+  final Future<Map<String, dynamic>?> Function(String path)? cachedRequest;
   @override
   State<HouseholdPanel> createState() => _HouseholdPanelState();
 }
@@ -206,6 +210,7 @@ class _HouseholdPanelState extends State<HouseholdPanel> {
   }
 
   Future<Map<String, dynamic>?> _cachedRead(String path) =>
+      widget.cachedRequest?.call(path) ??
       _local?.cachedView(path) ??
       _offline?.cachedRead(path) ??
       Future.value(null);
@@ -723,7 +728,8 @@ class _HouseholdPanelState extends State<HouseholdPanel> {
     final browseKey = 'browse-households|$apiBaseUrl|${widget.user.uid}';
     if (_households.isEmpty && widget.request == null) {
       try {
-        final cached = await readOfflineStore(browseKey);
+        final cached = await readOfflineStore(browseKey)
+            .timeout(const Duration(seconds: 2));
         if (cached != null && mounted) {
           final households = List<Map<String, dynamic>>.from(
             jsonDecode(cached) as List,

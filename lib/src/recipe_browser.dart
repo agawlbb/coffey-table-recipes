@@ -549,6 +549,7 @@ class _RecipeBrowserState extends State<RecipeBrowser>
           recipeId: recipe['id'] as String,
           title: recipe['title'] as String,
           request: widget.request,
+          cachedRequest: widget.cachedRequest,
           save: widget.save,
           menuBuilder: widget.menuBuilder,
           onViewMealPlan: widget.onViewMealPlan,
@@ -970,6 +971,7 @@ class RecipeDetail extends StatefulWidget {
     required this.recipeId,
     required this.title,
     required this.request,
+    this.cachedRequest,
     this.save,
     this.onChanged,
     this.menuBuilder,
@@ -979,6 +981,7 @@ class RecipeDetail extends StatefulWidget {
   final String recipeId;
   final String title;
   final RecipeRequest request;
+  final Future<Map<String, dynamic>?> Function(String path)? cachedRequest;
   final RecipeSave? save;
   final VoidCallback? onChanged;
   final WidgetBuilder? menuBuilder;
@@ -1296,6 +1299,7 @@ class _RecipeDetailState extends State<RecipeDetail> {
   int _imagePrefetchGeneration = 0;
   String? _error;
   bool _wasOffline = false;
+  int _loadGeneration = 0;
   @override
   void initState() {
     super.initState();
@@ -1329,23 +1333,43 @@ class _RecipeDetailState extends State<RecipeDetail> {
   }
 
   Future<void> _load() async {
+    final generation = ++_loadGeneration;
+    bool current() => mounted && generation == _loadGeneration;
     setState(() {
       _error = null;
     });
-    try {
-      final data = await widget.request(
-        '/households/${widget.householdId}/recipes/${widget.recipeId}',
+    final path = '/households/${widget.householdId}/recipes/${widget.recipeId}';
+    void display(Map<String, dynamic> data) {
+      if (!current() || data['recipe'] is! Map) return;
+      setState(
+        () => _recipe = Map<String, dynamic>.from(data['recipe'] as Map),
       );
-      if (mounted) {
-        setState(() {
-          _recipe = Map<String, dynamic>.from(data['recipe'] as Map);
-        });
+    }
+
+    try {
+      final cached = await widget.cachedRequest
+          ?.call(path)
+          .timeout(const Duration(seconds: 2));
+      if (!current()) return;
+      if (cached != null) display(cached);
+    } catch (_) {
+      // A failed cache read must not block the online request.
+    }
+    try {
+      if (!current()) return;
+      final data = await widget
+          .request(path)
+          .timeout(const Duration(seconds: 30));
+      if (current()) {
+        display(data);
         _prefetchImages(_recipe!);
         _loadFavorites();
       }
     } catch (error) {
-      if (mounted) {
-        if (_recipe != null && isTemporaryCommunicationFailure(error)) {
+      if (mounted && generation == _loadGeneration) {
+        final denied =
+            error is ApiException && [401, 403, 404].contains(error.status);
+        if (_recipe != null && !denied) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               content: const Text(
@@ -1357,6 +1381,7 @@ class _RecipeDetailState extends State<RecipeDetail> {
           return;
         }
         setState(() {
+          if (denied) _recipe = null;
           _error = error is ApiException
               ? error.message
               : 'Recipe data could not be read on this device.';
@@ -1523,6 +1548,7 @@ class _RecipeDetailState extends State<RecipeDetail> {
             recipeId: row['id'] as String,
             title: row['title'] as String,
             request: widget.request,
+            cachedRequest: widget.cachedRequest,
             save: widget.save,
             menuBuilder: widget.menuBuilder,
             onChanged: widget.onChanged,
