@@ -133,3 +133,31 @@ restart, repeated category reads with zero HTTP requests, replacement, failed
 persistence, rejecting partial initial data and preserving pending shopping edits.
 The former offline-cache download is disabled in production. Completed versions
 are stored in LocalData; older caches never satisfy the initial setup gate.
+
+## Complete-database test builds (2026-10-23)
+
+Built main runtime `d5d04a88c97fe81178b30a1dd0fe61ce7038533f` (1.8.5+29).
+Web build and Android debug build succeeded with the private Firebase define file.
+Web assets were prepared with tool/prepare-web.py and copied only to ignored
+local XAMPP app/. Served version.json confirms the runtime commit. main.dart.js
+SHA-256 is d3c33a9c00f04b132fd41a48ed224f9d4efcb55a053f0969783432c1d4ca4479;
+the delivered local web copy matches.
+
+APK: G:/My Drive/recipe app/CoffeyTableRecipes-main-local-database-test-d5d04a8.apk,
+199838785 bytes. Source/delivered SHA-256 both
+9ae605f32d1d58cb239ece0d8434b20b2c2a686f86e52558ed08b64159ce5ffc.
+APK signature verification passed with the existing Android Debug certificate
+(f8de933f14b9bb4b3191a94aedc8637972c5ab224565f6abd7808f8038d12097).
+No device installation test, release tag or hosted Flutter publication occurred.
+Feature runtime 92a9442 has the same LocalData/API/snapshot tests; its planner
+integration additionally requires calendar/history and disables its older downloader.
+Its full suite passed 440 tests; final affected checks and source analysis passed.
+
+Hosted backend e2bc05982ab3a29a2fce9692a507b2818dbab51d was published through
+successful Actions run39991103386 while preserving planner routes. Its receipt
+matches; the snapshot HTTP endpoint returns401 authentication_required without a
+token. Backend snapshot/SQL fixtures and118 mocked deployment checks passed.
+An optional privileged hosted-data probe was rejected by automatic approval
+review (temporary PHP/cron and household-data access); it was not executed.
+Authenticated on-device download remains unverified. Builds contain the actual
+complete-database implementation, rather than just the earlier status correction.
