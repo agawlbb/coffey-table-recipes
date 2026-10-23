@@ -1,3 +1,4 @@
+import 'sync_notifications.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
@@ -22,6 +23,7 @@ class CoffeyTableApp extends StatelessWidget {
   Widget build(BuildContext context) => MaterialApp(
     title: 'Coffey Table Recipes',
     navigatorKey: _appNavigatorKey,
+    scaffoldMessengerKey: syncMessengerKey,
     onGenerateRoute: (settings) {
       final id = recipeIdFromLink(settings.name ?? '');
       return id == null
