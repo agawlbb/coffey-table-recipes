@@ -1,3 +1,5 @@
+import 'child_mode.dart';
+
 import 'dart:convert';
 import 'dart:async';
 
@@ -642,7 +644,15 @@ class _RecipeImportState extends State<RecipeImport> {
   }
 
   @override
-  Widget build(BuildContext context) => PopScope(
+  Widget build(BuildContext context) => childModeOf(context)
+      ? const Scaffold(
+          body: SafeArea(
+            child: Center(child: Text('Unavailable in child mode.')),
+          ),
+        )
+      : _buildAdultScreen(context);
+
+  Widget _buildAdultScreen(BuildContext context) => PopScope(
     canPop: _leaving,
     onPopInvokedWithResult: (didPop, _) {
       if (!didPop) _close();

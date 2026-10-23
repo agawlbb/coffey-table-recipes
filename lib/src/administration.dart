@@ -1,3 +1,5 @@
+import 'child_mode.dart';
+
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
@@ -68,6 +70,47 @@ class _AdministrationPageState extends State<AdministrationPage> {
           _error = _message(error);
         });
       }
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  Future<void> _resetChildMode(Map<String, dynamic> user) async {
+    final accepted = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Disable child mode?'),
+        content: Text(
+          'Child mode will be disabled when ${user['email'] ?? user['display_name']} next logs in.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Confirm'),
+          ),
+        ],
+      ),
+    );
+    if (accepted != true || !mounted) return;
+    setState(() => _busy = true);
+    try {
+      await widget.request(
+        '/admin/users/${user['id']}/reset-child-mode',
+        body: {'confirm': true},
+      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Child mode will be disabled at the next login.'),
+          ),
+        );
+      }
+    } catch (error) {
+      if (mounted) setState(() => _error = _message(error));
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -168,7 +211,16 @@ class _AdministrationPageState extends State<AdministrationPage> {
   }
 
   @override
-  Widget build(BuildContext context) => Scaffold(
+  Widget build(BuildContext context) => childModeOf(context)
+      ? Scaffold(
+          appBar: AppBar(title: const Text('Child mode')),
+          body: const Center(
+            child: Text('Administration is unavailable in child mode.'),
+          ),
+        )
+      : _buildAdultScreen(context);
+
+  Widget _buildAdultScreen(BuildContext context) => Scaffold(
     appBar: AppBar(
       title: const Text('Administration'),
       actions: [
@@ -204,6 +256,22 @@ class _AdministrationPageState extends State<AdministrationPage> {
               child: ListView(
                 children: [
                   if (!_deletedSelf) ...[
+                    ExpansionTile(
+                      title: const Text('Disable child mode'),
+                      children: [
+                        for (final user in _users.where(
+                          (u) => u['firebase_only'] != true,
+                        ))
+                          ListTile(
+                            title: Text(
+                              '${user['display_name'] ?? user['email']}',
+                            ),
+                            subtitle: Text('${user['email'] ?? ''}'),
+                            enabled: !_busy && !childMode.value,
+                            onTap: () => _resetChildMode(user),
+                          ),
+                      ],
+                    ),
                     ListTile(
                       leading: const Icon(Icons.category_outlined),
                       title: const Text('Manage parent categories'),

@@ -1,3 +1,5 @@
+import 'child_mode.dart';
+
 import 'package:flutter/material.dart';
 
 import 'recipe_browser.dart';
@@ -35,6 +37,7 @@ class BlankRecipeDetail extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    childModeOf(context);
     final theme = Theme.of(context);
     final colors = theme.colorScheme;
     return Align(
@@ -98,7 +101,7 @@ class BlankRecipeDetail extends StatelessWidget {
                     const SizedBox(height: 6),
                     if (onPicture != null)
                       TextButton(
-                        onPressed: onPicture,
+                        onPressed: childMode.value ? null : onPicture,
                         child: const Text('Add picture'),
                       )
                     else
@@ -120,7 +123,7 @@ class BlankRecipeDetail extends StatelessWidget {
                         Align(
                           alignment: Alignment.centerRight,
                           child: TextButton.icon(
-                            onPressed: onPicture,
+                            onPressed: childMode.value ? null : onPicture,
                             icon: const Icon(Icons.edit_outlined, size: 18),
                             label: const Text('Edit picture'),
                           ),
@@ -131,14 +134,14 @@ class BlankRecipeDetail extends StatelessWidget {
               ),
             if (onMealPlan != null)
               TextButton.icon(
-                onPressed: onMealPlan,
+                onPressed: childMode.value ? null : onMealPlan,
                 icon: const Icon(Icons.calendar_month_outlined),
                 label: const Text('Add to meal plan'),
               ),
             if (onAttach != null) ...[
               const SizedBox(height: 20),
               FilledButton.icon(
-                onPressed: onAttach,
+                onPressed: childMode.value ? null : onAttach,
                 icon: const Icon(Icons.add),
                 label: const Text('Add to my household'),
               ),
@@ -162,7 +165,7 @@ class BlankRecipeDetail extends StatelessWidget {
                       const SizedBox(height: 16),
                       RecipeImportChoices(
                         actionButtons: true,
-                        enabled: !offline,
+                        enabled: !offline && !childMode.value,
                         onSelected: onImport!,
                       ),
                       if (offline) ...[

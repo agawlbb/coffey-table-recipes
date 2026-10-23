@@ -1,3 +1,5 @@
+import 'child_mode.dart';
+
 import 'dart:async';
 
 import 'package:flutter/foundation.dart';
@@ -659,11 +661,13 @@ class _RecipeBrowserState extends State<RecipeBrowser>
               child: Wrap(
                 spacing: 12,
                 children: [
-                  if (widget.onAddRecipe != null)
+                  if (widget.onAddRecipe != null && !childModeOf(context))
                     ValueListenableBuilder<bool>(
                       valueListenable: offlineStatus,
                       builder: (context, offline, _) => TextButton.icon(
-                        onPressed: widget.onAddRecipe,
+                        onPressed: childModeOf(context)
+                            ? null
+                            : widget.onAddRecipe,
                         icon: const Icon(Icons.add_circle_outline),
                         label: const Text('Add recipe'),
                       ),
@@ -888,10 +892,11 @@ class _RecipeBrowserState extends State<RecipeBrowser>
                   clipBehavior: Clip.antiAlias,
                   child: InkWell(
                     onTap: () => _open(recipe),
-                    onLongPress:
-                        widget.save == null ||
-                            widget.onSelect != null ||
-                            widget.dragRecipes
+                    onLongPress: childModeOf(context)
+                        ? null
+                        : widget.save == null ||
+                              widget.onSelect != null ||
+                              widget.dragRecipes
                         ? null
                         : () => _planRecipe(recipe),
                     child: Padding(
@@ -929,7 +934,7 @@ class _RecipeBrowserState extends State<RecipeBrowser>
                     ),
                   ),
                 );
-                return widget.dragRecipes
+                return widget.dragRecipes && !childModeOf(context)
                     ? LongPressDraggable<Map<String, dynamic>>(
                         data: {'recipe': recipe},
                         onDragUpdate: widget.onRecipeDragUpdate,
@@ -956,6 +961,7 @@ class RecipePhoto extends StatelessWidget {
   final String? url;
   @override
   Widget build(BuildContext context) {
+    childModeOf(context);
     final uri = Uri.tryParse(url ?? '');
     final placeholder = ColoredBox(
       color: Theme.of(context).colorScheme.surfaceContainerHighest,
@@ -1094,6 +1100,7 @@ class _RecipeDetailState extends State<RecipeDetail> {
   bool _openingRelated = false;
 
   Future<void> _delete() async {
+    if (childModeOf(context)) return;
     if (offlineStatus.value) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -1190,6 +1197,7 @@ class _RecipeDetailState extends State<RecipeDetail> {
   }
 
   Future<void> _explainTimer(Map<String, dynamic> recipe) async {
+    if (childMode.value) return;
     final open = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
@@ -1441,6 +1449,7 @@ class _RecipeDetailState extends State<RecipeDetail> {
     child: Text(text, style: Theme.of(context).textTheme.headlineSmall),
   );
   Future<void> _attach() async {
+    if (childModeOf(context)) return;
     try {
       final data = await widget.save!(
         '/households/${widget.householdId}/recipes/${widget.recipeId}/attach',
@@ -1465,6 +1474,7 @@ class _RecipeDetailState extends State<RecipeDetail> {
   }
 
   Future<void> _edit() async {
+    if (childModeOf(context)) return;
     try {
       final metadata = await widget.request(
         '/households/${widget.householdId}/recipes/${widget.recipeId}/edit-options',
@@ -1523,6 +1533,7 @@ class _RecipeDetailState extends State<RecipeDetail> {
   }
 
   Future<void> _requestVariation() async {
+    if (childModeOf(context)) return;
     if (_variationOpen || _deleting || widget.save == null) return;
     if (offlineStatus.value) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -1600,12 +1611,12 @@ class _RecipeDetailState extends State<RecipeDetail> {
             _recipe?['in_household'] != false) ...[
           IconButton(
             tooltip: 'Edit name, category or picture',
-            onPressed: _deleting ? null : _edit,
+            onPressed: _deleting || childModeOf(context) ? null : _edit,
             icon: const Icon(Icons.edit_outlined),
           ),
           IconButton(
             tooltip: 'Delete recipe',
-            onPressed: _deleting ? null : _delete,
+            onPressed: _deleting || childModeOf(context) ? null : _delete,
             icon: const Icon(Icons.delete_outline),
           ),
         ],
@@ -1685,7 +1696,7 @@ class _RecipeDetailState extends State<RecipeDetail> {
               children: [
                 if (widget.save != null && _recipe?['in_household'] == false)
                   TextButton.icon(
-                    onPressed: _attach,
+                    onPressed: childModeOf(context) ? null : _attach,
                     icon: const Icon(Icons.add),
                     label: const Text('Add to my household'),
                   ),
@@ -1695,7 +1706,9 @@ class _RecipeDetailState extends State<RecipeDetail> {
                         _recipe?['in_household'] != false)
                       IconButton(
                         tooltip: 'Edit recipe',
-                        onPressed: _deleting ? null : _edit,
+                        onPressed: _deleting || childModeOf(context)
+                            ? null
+                            : _edit,
                         icon: const Icon(Icons.edit_outlined),
                       ),
                     Builder(
@@ -1709,7 +1722,9 @@ class _RecipeDetailState extends State<RecipeDetail> {
                         _recipe?['in_household'] != false)
                       IconButton(
                         tooltip: 'Delete recipe',
-                        onPressed: _deleting ? null : _delete,
+                        onPressed: _deleting || childModeOf(context)
+                            ? null
+                            : _delete,
                         icon: const Icon(Icons.delete_outline),
                       ),
                     if (widget.save != null && recipe['in_household'] != false)
@@ -1804,7 +1819,7 @@ class _RecipeDetailState extends State<RecipeDetail> {
             ),
             const SizedBox(height: 16),
             FilledButton.icon(
-              onPressed: steps.isEmpty
+              onPressed: childModeOf(context) || steps.isEmpty
                   ? null
                   : () => Navigator.of(context).push(
                       MaterialPageRoute<void>(
@@ -1825,7 +1840,7 @@ class _RecipeDetailState extends State<RecipeDetail> {
                   children: [
                     Expanded(
                       child: OutlinedButton(
-                        onPressed: _deleting
+                        onPressed: _deleting || childModeOf(context)
                             ? null
                             : () => addDatedMeal(
                                 context,
@@ -1845,7 +1860,8 @@ class _RecipeDetailState extends State<RecipeDetail> {
                     const SizedBox(width: 12),
                     Expanded(
                       child: OutlinedButton(
-                        onPressed: _deleting || _variationOpen
+                        onPressed:
+                            childModeOf(context) || _deleting || _variationOpen
                             ? null
                             : _requestVariation,
                         child: const Text(
@@ -1905,7 +1921,7 @@ class _RecipeDetailState extends State<RecipeDetail> {
                   ),
                   if (widget.save != null && widget.householdId.isNotEmpty)
                     TextButton.icon(
-                      onPressed: ingredients.isEmpty
+                      onPressed: childModeOf(context) || ingredients.isEmpty
                           ? null
                           : () => _shoppingIngredients(ingredients),
                       icon: const Icon(Icons.add_shopping_cart),
@@ -1971,9 +1987,12 @@ class _RecipeDetailState extends State<RecipeDetail> {
                         padding: const EdgeInsets.only(top: 8),
                         child: InputChip(
                           onPressed:
-                              (num.tryParse('${action['duration_seconds']}') ??
-                                      0) >
-                                  0
+                              !childModeOf(context) &&
+                                  (num.tryParse(
+                                            '${action['duration_seconds']}',
+                                          ) ??
+                                          0) >
+                                      0
                               ? () => _explainTimer(recipe)
                               : null,
                           avatar: Icon(
@@ -2135,6 +2154,7 @@ class _RecipePhotoGalleryState extends State<RecipePhotoGallery> {
 
   @override
   Widget build(BuildContext context) {
+    childModeOf(context);
     final photo = widget.photos[_index];
     final height = (MediaQuery.sizeOf(context).height * .3).clamp(100.0, 240.0);
     return Column(

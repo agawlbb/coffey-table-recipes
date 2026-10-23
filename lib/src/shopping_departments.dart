@@ -1,3 +1,5 @@
+import 'child_mode.dart';
+
 import 'package:flutter/material.dart';
 
 import 'api.dart';
@@ -141,7 +143,15 @@ class _ShoppingDepartmentsScreenState extends State<ShoppingDepartmentsScreen> {
   }
 
   @override
-  Widget build(BuildContext context) => Scaffold(
+  Widget build(BuildContext context) => childModeOf(context)
+      ? const Scaffold(
+          body: SafeArea(
+            child: Center(child: Text('Unavailable in child mode.')),
+          ),
+        )
+      : _buildAdultScreen(context);
+
+  Widget _buildAdultScreen(BuildContext context) => Scaffold(
     drawer: widget.menuBuilder?.call(context),
     appBar: AppBar(
       title: const Text('Shopping list departments'),

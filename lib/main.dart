@@ -1,3 +1,8 @@
+import 'package:firebase_auth/firebase_auth.dart';
+
+import 'src/child_mode.dart';
+import 'src/offline_store.dart';
+
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 
@@ -20,6 +25,17 @@ Future<void> main() async {
     }
   }
   if (options != null && initializationError == null) {
+    final account = FirebaseAuth.instance.currentUser;
+    if (account != null) {
+      try {
+        childMode.value =
+            await readOfflineStore('ctr-child-mode:${account.uid}')
+                .timeout(const Duration(seconds: 2)) ==
+            'true';
+      } catch (_) {
+        childMode.value = true;
+      }
+    }
     // Sharing failures must never prevent the app or local timers from starting.
     try {
       await timerSync.start();

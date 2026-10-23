@@ -1,3 +1,5 @@
+import 'child_mode.dart';
+
 import 'dart:convert';
 import 'dart:async';
 
@@ -74,6 +76,7 @@ class RecipeApi {
     Duration timeout = const Duration(seconds: 20),
     void Function(int received, int? total)? onProgress,
   }) async {
+    if (body != null) requireChildModeWrite(path);
     if (body == null) {
       return retryCommunication(
         () =>

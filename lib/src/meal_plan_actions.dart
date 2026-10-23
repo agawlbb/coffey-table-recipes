@@ -1,3 +1,5 @@
+import 'child_mode.dart';
+
 import 'dart:async';
 
 import 'package:flutter/material.dart';
@@ -19,6 +21,7 @@ Future<void> addDatedMeal(
   VoidCallback? viewPlan,
   bool exactRecipe = false,
 }) async {
+  if (childMode.value) return;
   final startingEpoch = mealPlanNotices.epoch;
   try {
     final path = '/households/$householdId/meal-plan';

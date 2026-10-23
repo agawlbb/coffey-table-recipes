@@ -1,3 +1,5 @@
+import 'child_mode.dart';
+
 import 'dart:async';
 
 import 'package:flutter/material.dart';
@@ -87,6 +89,7 @@ class _ActiveTimerHostState extends State<ActiveTimerHost>
 
   @override
   Widget build(BuildContext context) {
+    if (childModeOf(context)) return widget.child;
     final timers = [...NativeTimers.active.value]
       ..sort((a, b) => (a['deadline'] as num).compareTo(b['deadline'] as num));
     if (!NativeTimers.supported || timers.isEmpty) return widget.child;

@@ -1,3 +1,5 @@
+import 'child_mode.dart';
+
 import 'package:flutter/material.dart';
 
 import 'shopping_ingredient.dart';
@@ -9,9 +11,11 @@ class RecipeShoppingSelector extends StatefulWidget {
     required this.onAdd,
     this.loadExisting,
     this.onChooseDates,
+    this.blankRecipeTitles,
   });
 
   final List<ShoppingIngredient> ingredients;
+  final List<String> Function()? blankRecipeTitles;
   final Future<List<ShoppingIngredient>?> Function(BuildContext)? onChooseDates;
   final Future<void> Function(List<String>) onAdd;
   final Future<List<String>> Function()? loadExisting;
@@ -88,6 +92,7 @@ class _RecipeShoppingSelectorState extends State<RecipeShoppingSelector> {
   }
 
   Future<void> _add() async {
+    if (childMode.value) return;
     setState(() {
       _saving = true;
       _error = null;
@@ -120,7 +125,9 @@ class _RecipeShoppingSelectorState extends State<RecipeShoppingSelector> {
             if (widget.onChooseDates != null)
               IconButton(
                 tooltip: 'Choose meal dates',
-                onPressed: _saving || _changingDates ? null : _chooseDates,
+                onPressed: childMode.value || _saving || _changingDates
+                    ? null
+                    : _chooseDates,
                 icon: const Icon(Icons.calendar_month_outlined),
               ),
           ],
@@ -136,6 +143,22 @@ class _RecipeShoppingSelectorState extends State<RecipeShoppingSelector> {
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
+          if (widget.blankRecipeTitles?.call().isNotEmpty ?? false)
+            Card(
+              child: Padding(
+                padding: const EdgeInsets.all(12),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Blank recipes are included. Ingredients they require are not shown in this list.',
+                    ),
+                    for (final title in widget.blankRecipeTitles!())
+                      Text(title),
+                  ],
+                ),
+              ),
+            ),
           for (var i = 0; i < _ingredients.length; i++)
             Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -156,7 +179,7 @@ class _RecipeShoppingSelectorState extends State<RecipeShoppingSelector> {
                                 ? Icons.check_circle
                                 : Icons.radio_button_unchecked,
                           ),
-                          onTap: _saving || _changingDates
+                          onTap: childMode.value || _saving || _changingDates
                               ? null
                               : () => setState(() {
                                   if (!_selected.add(i)) _selected.remove(i);
@@ -197,7 +220,12 @@ class _RecipeShoppingSelectorState extends State<RecipeShoppingSelector> {
       bottomNavigationBar: SafeArea(
         minimum: const EdgeInsets.all(16),
         child: FilledButton(
-          onPressed: _saving || _changingDates || _loading || _selected.isEmpty
+          onPressed:
+              childModeOf(context) ||
+                  _saving ||
+                  _changingDates ||
+                  _loading ||
+                  _selected.isEmpty
               ? null
               : _add,
           child: _saving

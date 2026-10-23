@@ -1,3 +1,4 @@
+import 'child_mode.dart';
 import 'sync_notifications.dart';
 
 import 'package:flutter/foundation.dart';
@@ -42,37 +43,39 @@ class CoffeyTableApp extends StatelessWidget {
     },
     debugShowCheckedModeBanner: false,
     scrollBehavior: const AppScrollBehavior(),
-    builder: (context, child) => MouseRegion(
-      cursor: SystemMouseCursors.basic,
-      // These controls are siblings of Navigator, so they need their own
-      // overlay for tooltips (including the keyboard and offline controls).
-      child: Overlay.wrap(
-        child: Stack(
-          children: [
-            ActiveTimerHost(navigatorKey: _appNavigatorKey, child: child!),
-            if (MediaQuery.viewInsetsOf(context).bottom > 0)
-              Positioned(
-                right: 12,
-                bottom: MediaQuery.viewInsetsOf(context).bottom + 8,
-                child: Material(
-                  borderRadius: BorderRadius.circular(24),
-                  child: IconButton(
-                    tooltip: 'Dismiss keyboard',
-                    icon: const Icon(Icons.keyboard_hide),
-                    onPressed: () =>
-                        FocusManager.instance.primaryFocus?.unfocus(),
+    builder: (context, child) => ChildModeScope(
+      child: MouseRegion(
+        cursor: SystemMouseCursors.basic,
+        // These controls are siblings of Navigator, so they need their own
+        // overlay for tooltips (including the keyboard and offline controls).
+        child: Overlay.wrap(
+          child: Stack(
+            children: [
+              ActiveTimerHost(navigatorKey: _appNavigatorKey, child: child!),
+              if (MediaQuery.viewInsetsOf(context).bottom > 0)
+                Positioned(
+                  right: 12,
+                  bottom: MediaQuery.viewInsetsOf(context).bottom + 8,
+                  child: Material(
+                    borderRadius: BorderRadius.circular(24),
+                    child: IconButton(
+                      tooltip: 'Dismiss keyboard',
+                      icon: const Icon(Icons.keyboard_hide),
+                      onPressed: () =>
+                          FocusManager.instance.primaryFocus?.unfocus(),
+                    ),
                   ),
                 ),
-              ),
-            if (mobileOfflineEnabled)
-              Positioned(
-                right: 12,
-                bottom: 12,
-                child: SafeArea(
-                  child: const IgnorePointer(child: OfflineIndicator()),
+              if (mobileOfflineEnabled)
+                Positioned(
+                  right: 12,
+                  bottom: 12,
+                  child: SafeArea(
+                    child: const IgnorePointer(child: OfflineIndicator()),
+                  ),
                 ),
-              ),
-          ],
+            ],
+          ),
         ),
       ),
     ),

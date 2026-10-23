@@ -1,3 +1,5 @@
+import 'child_mode.dart';
+
 import 'dart:async';
 
 import 'package:flutter/material.dart';
@@ -220,7 +222,7 @@ class _MealPlannerState extends State<MealPlanner> with WidgetsBindingObserver {
     String? oldDate,
     bool confirmed = false,
   }) async {
-    if (_saving || !_ready) return false;
+    if (_saving || !_ready || childMode.value) return false;
     final epoch = _accessEpoch;
     final expectedRevision = operation['_revision'] ?? _revision;
     final past = _past(oldDate) || _past(operation['date'] as String?);
@@ -478,7 +480,7 @@ class _MealPlannerState extends State<MealPlanner> with WidgetsBindingObserver {
   }
 
   Future<void> _remove(Map<String, dynamic> entry) async {
-    if (!_ready || _saving) return;
+    if (!_ready || _saving || childMode.value) return;
     await _change({
       'operation': 'remove',
       'id': entry['id'],
@@ -489,6 +491,7 @@ class _MealPlannerState extends State<MealPlanner> with WidgetsBindingObserver {
   Future<void> _ingredients() async {
     if (!_ready) return;
     final epoch = _accessEpoch;
+    var blankTitles = <String>[];
     Future<List<ShoppingIngredient>> load(DateTime start, DateTime end) async {
       try {
         final result = await loadMealPlanIngredients(
@@ -496,6 +499,7 @@ class _MealPlannerState extends State<MealPlanner> with WidgetsBindingObserver {
           _path,
           start,
           end,
+          onBlankRecipes: (titles) => blankTitles = titles,
         );
         if (!_usable(epoch)) throw StateError('Meal plan access changed.');
         return result;
@@ -515,6 +519,7 @@ class _MealPlannerState extends State<MealPlanner> with WidgetsBindingObserver {
         request: widget.request,
         save: widget.save,
         ingredients: ingredients,
+        blankRecipeTitles: () => blankTitles,
         onChooseDates: (sheetContext) async {
           final selected = await showDateRangePicker(
             context: sheetContext,
@@ -717,9 +722,10 @@ class _MealPlannerState extends State<MealPlanner> with WidgetsBindingObserver {
         ),
       ),
     );
+    if (childMode.value) return card;
     return LongPressDraggable<Map<String, dynamic>>(
       data: {'entry': entry},
-      maxSimultaneousDrags: _saving ? 0 : 1,
+      maxSimultaneousDrags: _saving || childMode.value ? 0 : 1,
       onDragUpdate: _autoScroll,
       onDragEnd: (_) => _stopDragScroll(),
       feedback: Material(color: Colors.transparent, child: card),
@@ -736,7 +742,7 @@ class _MealPlannerState extends State<MealPlanner> with WidgetsBindingObserver {
     final label = MaterialLocalizations.of(context)
         .formatMediumDate(DateTime.parse(date));
     return DragTarget<Map<String, dynamic>>(
-      onWillAcceptWithDetails: (_) => !_saving,
+      onWillAcceptWithDetails: (_) => !_saving && !childMode.value,
       onAcceptWithDetails: (details) {
         final entry = details.data['entry'];
         if (entry is Map<String, dynamic>) {
@@ -787,7 +793,9 @@ class _MealPlannerState extends State<MealPlanner> with WidgetsBindingObserver {
                   ),
                 ),
                 TextButton(
-                  onPressed: _saving ? null : () => _pick(date),
+                  onPressed: _saving || childMode.value
+                      ? null
+                      : () => _pick(date),
                   child: const Text('+ Add'),
                 ),
               ],
@@ -808,6 +816,7 @@ class _MealPlannerState extends State<MealPlanner> with WidgetsBindingObserver {
 
   @override
   Widget build(BuildContext context) {
+    childModeOf(context);
     if (!_ready) {
       return Column(
         children: [
@@ -840,7 +849,9 @@ class _MealPlannerState extends State<MealPlanner> with WidgetsBindingObserver {
                 child: DragTarget<Map<String, dynamic>>(
                   key: const ValueKey('meal-trash'),
                   onWillAcceptWithDetails: (details) =>
-                      !_saving && details.data['entry'] is Map<String, dynamic>,
+                      !childMode.value &&
+                      !_saving &&
+                      details.data['entry'] is Map<String, dynamic>,
                   onAcceptWithDetails: (details) {
                     _stopDragScroll();
                     _remove(details.data['entry'] as Map<String, dynamic>);
@@ -945,12 +956,14 @@ class _MealPlannerState extends State<MealPlanner> with WidgetsBindingObserver {
                     householdName: widget.householdName,
                     request: widget.request,
                     embedded: true,
-                    dragRecipes: true,
+                    dragRecipes: !childMode.value,
                     onRecipeDragUpdate: _autoScroll,
                     onRecipeDragEnd: _stopDragScroll,
                     mealPlanToday: _today,
-                    onSelect: (recipe) =>
-                        _add(recipe, recipe['_meal_date'] as String),
+                    onSelect: childMode.value
+                        ? null
+                        : (recipe) =>
+                              _add(recipe, recipe['_meal_date'] as String),
                   ),
                 ),
               ],

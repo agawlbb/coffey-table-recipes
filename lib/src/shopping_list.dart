@@ -1,3 +1,5 @@
+import 'child_mode.dart';
+
 import 'dart:async';
 
 import 'package:flutter/material.dart';
@@ -64,6 +66,7 @@ class _ShoppingListScreenState extends State<ShoppingListScreen>
   }
 
   void _startEditing(Map<String, dynamic> item) {
+    if (childMode.value) return;
     if (_heldItemId == item['id']) return;
     _finishEditing();
     _editName.text = item['name'] as String;
@@ -344,6 +347,7 @@ class _ShoppingListScreenState extends State<ShoppingListScreen>
   }
 
   Future<bool> _save(List<Map<String, dynamic>> items) {
+    if (childMode.value) return Future.value(false);
     if ((_disconnected && !widget.localFirst) || _accessDenied) {
       return Future.value(false);
     }
@@ -460,6 +464,7 @@ class _ShoppingListScreenState extends State<ShoppingListScreen>
   }
 
   Future<void> _add() async {
+    if (childMode.value) return;
     final name = _name.text.trim();
     if (name.isEmpty) {
       _focus.requestFocus();
@@ -852,7 +857,8 @@ class _ShoppingListScreenState extends State<ShoppingListScreen>
                   touch: touch,
                   data: item['id'] as String,
                   maxSimultaneousDrags:
-                      _editingId == item['id'] ||
+                      childMode.value ||
+                          _editingId == item['id'] ||
                           _loading ||
                           (_disconnected && !widget.localFirst) ||
                           _accessDenied
@@ -892,8 +898,10 @@ class _ShoppingListScreenState extends State<ShoppingListScreen>
 
   @override
   Widget build(BuildContext context) {
+    childModeOf(context);
     final colors = Theme.of(context).colorScheme;
     final busy =
+        childMode.value ||
         _loading ||
         _saving ||
         (_disconnected && !widget.localFirst) ||

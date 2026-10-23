@@ -1,3 +1,5 @@
+import 'child_mode.dart';
+
 import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
@@ -1923,7 +1925,15 @@ class _RecipeEditorState extends State<RecipeEditor> {
     initiallyExpanded: true,
   );
   @override
-  Widget build(BuildContext context) => PopScope(
+  Widget build(BuildContext context) => childModeOf(context)
+      ? const Scaffold(
+          body: SafeArea(
+            child: Center(child: Text('Unavailable in child mode.')),
+          ),
+        )
+      : _buildAdultScreen(context);
+
+  Widget _buildAdultScreen(BuildContext context) => PopScope(
     canPop: _leaving || (!_dirty && !_saving && !_picking),
     onPopInvokedWithResult: (didPop, result) {
       if (!didPop) _close();

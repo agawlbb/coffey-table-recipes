@@ -1,3 +1,5 @@
+import 'child_mode.dart';
+
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
@@ -25,6 +27,7 @@ class AccountMenu extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    childModeOf(context);
     final theme = Theme.of(context);
     final colors = theme.colorScheme;
     final width = math.min(320.0, MediaQuery.sizeOf(context).width - 24);
@@ -116,17 +119,27 @@ class AccountMenu extends StatelessWidget {
           ),
         ),
         const PopupMenuDivider(),
-        action('name', 'Account display name', Icons.person_outline),
+        action(
+          'childMode',
+          childMode.value ? 'Child mode: On' : 'Child mode: Off',
+          Icons.lock_outline,
+        ),
+        action(
+          'name',
+          'Account display name',
+          Icons.person_outline,
+          enabled: !childMode.value,
+        ),
         action(
           'tableName',
           'Name at the table',
           Icons.badge_outlined,
-          enabled: canEditTableName,
+          enabled: canEditTableName && !childMode.value,
         ),
         action('household', 'Household & people', Icons.people_outline),
-        if (showTimers)
+        if (showTimers && !childMode.value)
           action('timers', 'Timer settings', Icons.alarm_outlined),
-        if (administrator)
+        if (administrator && !childMode.value)
           action(
             'administration',
             'Administration',

@@ -1,3 +1,5 @@
+import 'child_mode.dart';
+
 import 'dart:async';
 
 import 'package:flutter/material.dart';
@@ -292,6 +294,14 @@ class _CookingModeState extends State<CookingMode> with WidgetsBindingObserver {
 
   @override
   Widget build(BuildContext context) {
+    childModeOf(context);
+    if (childMode.value) {
+      return const Scaffold(
+        body: SafeArea(
+          child: Center(child: Text('Unavailable in child mode.')),
+        ),
+      );
+    }
     final steps = _rows('steps');
     final actions = _rows('actions');
     return Scaffold(

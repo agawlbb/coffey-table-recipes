@@ -177,8 +177,9 @@ Future<List<ShoppingIngredient>> loadMealPlanIngredients(
   Future<Map<String, dynamic>> Function(String) request,
   String path,
   DateTime start,
-  DateTime end,
-) async {
+  DateTime end, {
+  void Function(List<String>)? onBlankRecipes,
+}) async {
   final from = mealPlanDate(start), to = mealPlanDate(end);
   final plan = await request('$path?from=$from&to=$to');
   final dates = <String>{
@@ -190,6 +191,7 @@ Future<List<ShoppingIngredient>> loadMealPlanIngredients(
         entry['plan_date'] as String,
   }.toList()..sort();
   final rows = <Map<String, dynamic>>[];
+  final blanks = <String, String>{};
   for (var index = 0; index < dates.length;) {
     final first = dates[index];
     final limit = DateTime.parse('${first}T00:00:00Z')
@@ -200,11 +202,15 @@ Future<List<ShoppingIngredient>> loadMealPlanIngredients(
       last = dates[index++];
     }
     final data = await request('$path/ingredients?from=$first&to=$last');
+    for (final recipe in data['blank_recipes'] as List? ?? []) {
+      blanks['${recipe['id']}'] = '${recipe['title']}';
+    }
     rows.addAll(
       (data['ingredients'] as List? ?? []).map(
         (row) => Map<String, dynamic>.from(row as Map),
       ),
     );
   }
+  onBlankRecipes?.call(blanks.values.toList());
   return mealPlanIngredients(rows);
 }

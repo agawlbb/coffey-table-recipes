@@ -1,3 +1,5 @@
+import 'child_mode.dart';
+
 import 'package:flutter/material.dart';
 
 import 'recipe_browser.dart';
@@ -149,7 +151,15 @@ class _RestaurantManagerState extends State<RestaurantManager> {
   }
 
   @override
-  Widget build(BuildContext context) => Scaffold(
+  Widget build(BuildContext context) => childModeOf(context)
+      ? const Scaffold(
+          body: SafeArea(
+            child: Center(child: Text('Unavailable in child mode.')),
+          ),
+        )
+      : _buildAdultScreen(context);
+
+  Widget _buildAdultScreen(BuildContext context) => Scaffold(
     appBar: AppBar(title: const Text('Manage restaurants')),
     body: Column(
       children: [

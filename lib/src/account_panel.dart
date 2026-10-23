@@ -1,3 +1,4 @@
+import 'child_mode.dart';
 import 'meal_plan_actions.dart';
 import 'restaurant_manager.dart';
 import 'sync_notifications.dart';
@@ -77,6 +78,7 @@ class _AccountPanelState extends State<AccountPanel> {
 
   @override
   Widget build(BuildContext context) {
+    childModeOf(context);
     if (!widget.configured) {
       return Scaffold(
         appBar: AppBar(title: const Text('Coffey Table')),
@@ -255,6 +257,7 @@ class _HouseholdPanelState extends State<HouseholdPanel> {
       : _people.where((person) => person['user_id'] == _userId).firstOrNull;
 
   Future<void> _changeTableName() async {
+    if (childMode.value) return;
     final person = _ownPerson;
     final householdId = _selected;
     if (person == null || householdId == null) return;
@@ -298,6 +301,7 @@ class _HouseholdPanelState extends State<HouseholdPanel> {
   }
 
   Future<void> _changeDisplayName() async {
+    if (childMode.value) return;
     final name = await showDialog<String>(
       context: context,
       builder: (_) => _NameDialog(
@@ -408,6 +412,7 @@ class _HouseholdPanelState extends State<HouseholdPanel> {
             !offlineStatus.value &&
             WidgetsBinding.instance.lifecycleState ==
                 AppLifecycleState.resumed) {
+          unawaited(_refreshChildPolicy());
           unawaited(
             _syncLibrary(_households.map((h) => h['id'] as String).toList()),
           );
@@ -522,6 +527,7 @@ class _HouseholdPanelState extends State<HouseholdPanel> {
     String path, {
     Map<String, dynamic>? body,
   }) async {
+    if (body != null) requireChildModeWrite(path);
     if (widget.request != null) return widget.request!(path, body: body);
     if (_local != null) {
       if (path.endsWith('/recipe-blank')) return _local!.blank(path);
@@ -785,6 +791,11 @@ class _HouseholdPanelState extends State<HouseholdPanel> {
               if (saved != null) return saved;
               throw error;
             });
+      if (widget.request != null) {
+        childMode.value = (data['user'] as Map?)?['child_mode'] == true;
+      } else {
+        await _refreshChildPolicy();
+      }
       _userId = (data['user'] as Map?)?['id'] as String?;
       _administrator =
           (data['user'] as Map?)?['account_role'] == 'administrator';
@@ -850,7 +861,7 @@ class _HouseholdPanelState extends State<HouseholdPanel> {
   }
 
   Future<void> _reviewInvitations() async {
-    if (_reviewingInvitations) return;
+    if (_reviewingInvitations || childMode.value) return;
     _reviewingInvitations = true;
     try {
       if (_invitationVerificationRequired) {
@@ -891,6 +902,7 @@ class _HouseholdPanelState extends State<HouseholdPanel> {
   }
 
   Future<void> _invitePerson(Map<String, dynamic> person) async {
+    if (childMode.value) return;
     final sent = await showDialog<bool>(
       context: context,
       builder: (_) => InvitePersonDialog(
@@ -924,6 +936,7 @@ class _HouseholdPanelState extends State<HouseholdPanel> {
   }
 
   Future<void> _create() async {
+    if (childMode.value) return;
     if (_householdName.text.trim().isEmpty || _personName.text.trim().isEmpty) {
       setState(() {
         _error = 'Enter a household name and your name.';
@@ -952,6 +965,7 @@ class _HouseholdPanelState extends State<HouseholdPanel> {
   }
 
   Future<void> _editName({required bool rename}) async {
+    if (childMode.value) return;
     final household = _households.firstWhere((h) => h['id'] == _selected);
     final name = await showDialog<String>(
       context: context,
@@ -995,6 +1009,22 @@ class _HouseholdPanelState extends State<HouseholdPanel> {
     if (mounted) setState(() => _recipeRefresh++);
   }
 
+  Future<void> _refreshChildPolicy() async {
+    try {
+      final policy = await _onlineRequest('/me/child-mode');
+      if (!mounted) return;
+      childMode.value = policy['enabled'] == true;
+      try {
+        await writeOfflineStore(
+          'ctr-child-mode:${widget.user.uid}',
+          '${childMode.value}',
+        );
+      } catch (_) {}
+    } catch (_) {
+      /* Retain this device's last confirmed policy offline. */
+    }
+  }
+
   String get _sectionKey =>
       'ctr-last-section-v1:$apiBaseUrl|${widget.user.uid}';
   Future<void> _restoreSectionAndLoad() async {
@@ -1016,6 +1046,16 @@ class _HouseholdPanelState extends State<HouseholdPanel> {
     } catch (_) {
       /* Device preference failure must not block startup. */
     }
+    if (widget.request == null) {
+      try {
+        childMode.value =
+            await readOfflineStore('ctr-child-mode:${widget.user.uid}')
+                .timeout(const Duration(seconds: 2)) ==
+            'true';
+      } catch (_) {
+        childMode.value = true;
+      }
+    }
     if (mounted) await _load();
   }
 
@@ -1035,6 +1075,7 @@ class _HouseholdPanelState extends State<HouseholdPanel> {
   }
 
   Future<void> _addRecipe() async {
+    if (childMode.value) return;
     if (_selected == null || offlineStatus.value) return;
     mealPlanNotices.dismiss();
     final householdId = _selected!;
@@ -1161,6 +1202,7 @@ class _HouseholdPanelState extends State<HouseholdPanel> {
 
   @override
   Widget build(BuildContext context) {
+    childModeOf(context);
     if (_local != null &&
         (_databaseChecking ||
             _households.any((h) => !_readyHouseholds.contains(h['id'])))) {
@@ -1199,7 +1241,9 @@ class _HouseholdPanelState extends State<HouseholdPanel> {
     }
     final selected = _households.where((h) => h['id'] == _selected).firstOrNull;
     final canAdd =
-        selected != null && ['owner', 'admin'].contains(selected['role']);
+        !childMode.value &&
+        selected != null &&
+        ['owner', 'admin'].contains(selected['role']);
     final settings = Card(
       child: Padding(
         padding: const EdgeInsets.all(24),
@@ -1240,7 +1284,7 @@ class _HouseholdPanelState extends State<HouseholdPanel> {
                 ),
               ),
               FilledButton(
-                onPressed: _create,
+                onPressed: childMode.value ? null : _create,
                 child: const Text('Create household'),
               ),
             ],
@@ -1257,24 +1301,12 @@ class _HouseholdPanelState extends State<HouseholdPanel> {
                   if (canAdd)
                     IconButton(
                       tooltip: 'Edit household name',
-                      onPressed: _busy ? null : () => _editName(rename: true),
+                      onPressed: _busy || childMode.value
+                          ? null
+                          : () => _editName(rename: true),
                       icon: const Icon(Icons.edit_outlined),
                     ),
                 ],
-              ),
-              TextButton.icon(
-                onPressed: () => Navigator.push<void>(
-                  context,
-                  MaterialPageRoute(
-                    builder: (_) => RestaurantManager(
-                      householdId: _selected!,
-                      request: (path) => _request(path),
-                      save: _saveRecipe,
-                    ),
-                  ),
-                ),
-                icon: const Icon(Icons.restaurant_outlined),
-                label: const Text('Manage restaurants'),
               ),
               const SizedBox(height: 20),
               Text(
@@ -1306,7 +1338,7 @@ class _HouseholdPanelState extends State<HouseholdPanel> {
                   trailing: person == _ownPerson
                       ? IconButton(
                           tooltip: 'Change name at the table',
-                          onPressed: _busy || _accountBusy
+                          onPressed: _busy || _accountBusy || childMode.value
                               ? null
                               : _changeTableName,
                           icon: const Icon(Icons.edit_outlined),
@@ -1318,7 +1350,9 @@ class _HouseholdPanelState extends State<HouseholdPanel> {
               if (canAdd) ...[
                 const SizedBox(height: 16),
                 OutlinedButton.icon(
-                  onPressed: _busy ? null : () => _editName(rename: false),
+                  onPressed: _busy || childMode.value
+                      ? null
+                      : () => _editName(rename: false),
                   icon: const Icon(Icons.person_add_outlined),
                   label: const Text('Add household member'),
                 ),
@@ -1330,8 +1364,8 @@ class _HouseholdPanelState extends State<HouseholdPanel> {
                 leading: const Icon(Icons.category_outlined),
                 title: const Text('Shopping list departments'),
                 trailing: const Icon(Icons.chevron_right),
-                enabled: selected != null && !_busy,
-                onTap: selected == null || _busy
+                enabled: selected != null && !_busy && !childMode.value,
+                onTap: selected == null || _busy || childMode.value
                     ? null
                     : () async {
                         final householdId = _selected!;
@@ -1348,6 +1382,25 @@ class _HouseholdPanelState extends State<HouseholdPanel> {
                         );
                         if (mounted) setState(() => _shoppingRefresh++);
                       },
+              ),
+              ListTile(
+                contentPadding: EdgeInsets.zero,
+                leading: const Icon(Icons.restaurant_outlined),
+                title: const Text('Manage restaurants'),
+                trailing: const Icon(Icons.chevron_right),
+                enabled: selected != null && !_busy && !childMode.value,
+                onTap: selected == null || _busy || childMode.value
+                    ? null
+                    : () => Navigator.push<void>(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => RestaurantManager(
+                            householdId: _selected!,
+                            request: (path) => _request(path),
+                            save: _saveRecipe,
+                          ),
+                        ),
+                      ),
               ),
             ],
           ],
@@ -1386,6 +1439,28 @@ class _HouseholdPanelState extends State<HouseholdPanel> {
             showTimers: NativeTimers.supported,
             administrator: _administrator,
             onSelected: (value) {
+              if (value == 'childMode') {
+                changeChildMode(context, (body) async {
+                  final result = await _onlineRequest(
+                    '/me/child-mode',
+                    body: body,
+                  );
+                  childMode.value = result['enabled'] == true;
+                  if (widget.request == null) {
+                    try {
+                      await writeOfflineStore(
+                        'ctr-child-mode:${widget.user.uid}',
+                        '${childMode.value}',
+                      );
+                    } catch (_) {}
+                  }
+                  try {
+                    await _local?.refresh('/me', force: true);
+                  } catch (_) {}
+                  if (mounted) setState(() {});
+                  return result;
+                });
+              }
               if (value == 'timers') {
                 Navigator.of(context).push(
                   MaterialPageRoute<void>(
@@ -1459,8 +1534,10 @@ class _HouseholdPanelState extends State<HouseholdPanel> {
                         cachedRequest: _cachedRead,
                         save: _saveRecipe,
                         onViewMealPlan: _openMealPlan,
-                        onAddRecipe: _addRecipe,
-                        onRecentlyDeleted: _openRecentlyDeleted,
+                        onAddRecipe: childMode.value ? null : _addRecipe,
+                        onRecentlyDeleted: childMode.value
+                            ? null
+                            : _openRecentlyDeleted,
                       ),
                 Center(
                   child: ConstrainedBox(

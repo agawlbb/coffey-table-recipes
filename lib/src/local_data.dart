@@ -1,3 +1,5 @@
+import 'child_mode.dart';
+
 import 'dart:async';
 import 'dart:convert';
 
@@ -495,6 +497,7 @@ class LocalData extends ChangeNotifier {
       final plan = _data['/households/${parts[1]}/meal-plan'] as Map?;
       if (plan != null) {
         final rows = <Map<String, dynamic>>[];
+        final blanks = <String, Map<String, dynamic>>{};
         final range = _filterPlan(plan, uri);
         for (final meal in range['entries'] as List) {
           if (meal['kind'] != 'recipe' || meal['plan_date'] == null) continue;
@@ -510,6 +513,12 @@ class LocalData extends ChangeNotifier {
                   ))?['recipe']
                   as Map?;
           if (recipe == null) return null;
+          if (recipe['source_type'] == 'blank') {
+            blanks['${recipe['id']}'] = {
+              'id': recipe['id'],
+              'title': recipe['title'],
+            };
+          }
           for (final ingredient in recipe['ingredients'] as List? ?? []) {
             rows.add({
               ...Map<String, dynamic>.from(ingredient as Map),
@@ -519,7 +528,7 @@ class LocalData extends ChangeNotifier {
             });
           }
         }
-        return {'ingredients': rows};
+        return {'ingredients': rows, 'blank_recipes': blanks.values.toList()};
       }
     }
     if (parts.length == 3 &&
@@ -1056,6 +1065,7 @@ class LocalData extends ChangeNotifier {
   ).hasMatch(path);
 
   Future<Map<String, dynamic>> save(String input, Map<String, dynamic> body) {
+    requireChildModeWrite(input);
     return _serial(() => _save(input, body));
   }
 
