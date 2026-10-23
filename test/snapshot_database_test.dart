@@ -43,6 +43,39 @@ Map<String, dynamic> snapshot(String title, {String household = '1'}) {
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
+  test('household AI image permission reaches local edit options and updates with the snapshot', () async {
+    final data = LocalData(
+      key: 'permissions',
+      snapshotOnly: true,
+      fetch: (_) async => throw StateError('Unexpected network'),
+      send: (_, _) async => throw StateError('Unexpected write'),
+      readStore: (_) async => null,
+      writeStore: (_, _) async {},
+    );
+    for (final enabled in [true, false, true]) {
+      final source = snapshot('Soup-$enabled');
+      source['edit_options'] = <String, dynamic>{
+        ...source['edit_options'] as Map,
+        'ai_images_enabled': enabled,
+      };
+      ((source['responses'] as Map)['/households/1/recipes/1']['recipe']
+          as Map)['edit_options'] = {
+        'ai_images_enabled': enabled,
+      };
+      await data.installSnapshot(source);
+      final options = await data.request(
+        '/households/1/recipes/1/edit-options',
+      );
+      expect(options['edit_options']['ai_images_enabled'], enabled);
+      expect(
+        data.readView(
+          '/households/1/recipes/1',
+        )['recipe']['edit_options']['ai_images_enabled'],
+        enabled,
+      );
+    }
+    data.dispose();
+  });
   test(
     'complete snapshot survives restart; category reads never use network',
     () async {
