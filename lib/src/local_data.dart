@@ -355,7 +355,17 @@ class LocalData extends ChangeNotifier {
       if (result['recipe'] is Map &&
           options is Map &&
           !uri.path.endsWith('/recipe-blank')) {
-        (result['recipe'] as Map)['edit_options'] = _copy(options);
+        final recipe = result['recipe'] as Map;
+        final editOptions = _copy(options);
+        final choices = <String, dynamic>{
+          for (final choice in editOptions['recipes'] as List? ?? [])
+            '${choice['id']}': choice,
+          for (final field in ['related', 'pairings', 'variation_family'])
+            for (final choice in recipe[field] as List? ?? [])
+              '${choice['id']}': {'id': choice['id'], 'title': choice['title']},
+        }..remove('${recipe['id']}');
+        editOptions['recipes'] = choices.values.toList();
+        recipe['edit_options'] = editOptions;
       }
       return _overlayRecipes(path, result);
     }
