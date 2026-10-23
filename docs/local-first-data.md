@@ -86,3 +86,21 @@ analysis clean, and `git diff --check` clean. This includes the final shared
 store, whole-library refresh, account integration and new synchronization-race
 regressions. No app build, release tag, backend deployment or hosted Flutter
 publication was performed.
+
+Local test builds requested on 2026-10-23 were built from main source
+`7c2225cbca171ddbb247807ced69ed023f47cd60`, version 1.8.5+29:
+
+- Web: `flutter build web --no-pub --base-href=/CoffeyTableRecipes/app/ --dart-define-from-file=config/firebase.local.json`, followed by `tool/prepare-web.py`.
+  Published only to ignored local XAMPP `app/`; localhost `version.json`
+  returns the source commit above. Copied main.dart.js SHA-256 matches the build.
+- Android: `flutter build apk --debug --no-pub --dart-define-from-file=config/firebase.local.json`.
+  APK signature verification passed (Android Debug certificate SHA-256
+  `f8de933f14b9bb4b3191a94aedc8637972c5ab224565f6abd7808f8038d12097`).
+  Delivered `G:/My Drive/recipe app/CoffeyTableRecipes-main-local-first-test-7c2225c.apk`
+  (174724489 bytes); source and delivered SHA-256 both
+  `9fd5cf26116c9c35be023a615da0c7092eb686dabb103f6034f801afb81f105c`.
+
+Both builds succeeded. Android emitted existing toolchain/plugin compatibility
+warnings. No device installation test, release tag or hosted publication was
+performed. Generated assets and private build configuration remain excluded
+from Git. This build record is a subsequent documentation-only commit.
