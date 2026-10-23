@@ -209,7 +209,7 @@ void main() {
       await gesture.moveTo(
         Offset(toolbar.right + toolbar.width / 2, toolbar.center.dy),
       );
-      await tester.pump(const Duration(milliseconds: 240));
+      await tester.pump(const Duration(milliseconds: 780));
       expect(controller.offset, lessThan(middle));
       await gesture.cancel();
       await tester.pump(const Duration(milliseconds: 100));

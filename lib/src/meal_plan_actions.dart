@@ -17,6 +17,7 @@ Future<void> addDatedMeal(
   required RecipeRequest request,
   required RecipeSave save,
   VoidCallback? viewPlan,
+  bool exactRecipe = false,
 }) async {
   final startingEpoch = mealPlanNotices.epoch;
   try {
@@ -26,14 +27,21 @@ Future<void> addDatedMeal(
     if (!context.mounted || startingEpoch != mealPlanNotices.epoch) return;
     final today = DateTime.tryParse('${state['today']}') ?? DateTime.now();
     var full = recipe;
-    if (!full.containsKey('variation_family') && !full.containsKey('related')) {
+    if (!exactRecipe &&
+        !full.containsKey('variation_family') &&
+        !full.containsKey('related')) {
       final response = await request(
         '/households/$householdId/recipes/${recipe['id']}',
       );
       full = Map<String, dynamic>.from(response['recipe'] as Map);
     }
     if (!context.mounted || startingEpoch != mealPlanNotices.epoch) return;
-    final selected = await chooseDatedMealRecipe(context, full, today: today);
+    final selected = exactRecipe
+        ? await selectMealDate(
+            context,
+            today,
+          ).then((date) => date == null ? null : {...full, '_meal_date': date})
+        : await chooseDatedMealRecipe(context, full, today: today);
     if (selected == null || !context.mounted) return;
     final date = selected['_meal_date'] as String;
     final past = date.compareTo(mealPlanDate(today)) < 0;

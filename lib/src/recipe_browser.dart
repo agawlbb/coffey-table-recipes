@@ -126,6 +126,7 @@ class RecipeBrowser extends StatefulWidget {
     this.mealPlanToday,
     this.onViewMealPlan,
     this.onAddRecipe,
+    this.onRecentlyDeleted,
     this.dragRecipes = false,
     this.onRecipeDragUpdate,
     this.onRecipeDragEnd,
@@ -142,6 +143,7 @@ class RecipeBrowser extends StatefulWidget {
   final DateTime? mealPlanToday;
   final VoidCallback? onViewMealPlan;
   final VoidCallback? onAddRecipe;
+  final VoidCallback? onRecentlyDeleted;
   final bool dragRecipes;
   final ValueChanged<DragUpdateDetails>? onRecipeDragUpdate;
   final VoidCallback? onRecipeDragEnd;
@@ -649,21 +651,30 @@ class _RecipeBrowserState extends State<RecipeBrowser>
               ),
             ),
           ),
-          if (widget.onAddRecipe != null &&
-              widget.onSelect == null &&
-              widget.mealPlanDestination == null)
+          if (widget.onSelect == null &&
+              widget.mealPlanDestination == null &&
+              (widget.onAddRecipe != null || widget.onRecentlyDeleted != null))
             Padding(
               padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
-              child: Align(
-                alignment: Alignment.centerLeft,
-                child: ValueListenableBuilder<bool>(
-                  valueListenable: offlineStatus,
-                  builder: (context, offline, _) => TextButton.icon(
-                    onPressed: widget.onAddRecipe,
-                    icon: const Icon(Icons.add_circle_outline),
-                    label: const Text('Add recipe'),
-                  ),
-                ),
+              child: Wrap(
+                spacing: 12,
+                children: [
+                  if (widget.onAddRecipe != null)
+                    ValueListenableBuilder<bool>(
+                      valueListenable: offlineStatus,
+                      builder: (context, offline, _) => TextButton.icon(
+                        onPressed: widget.onAddRecipe,
+                        icon: const Icon(Icons.add_circle_outline),
+                        label: const Text('Add recipe'),
+                      ),
+                    ),
+                  if (widget.onRecentlyDeleted != null)
+                    TextButton.icon(
+                      onPressed: widget.onRecentlyDeleted,
+                      icon: const Icon(Icons.delete_outline),
+                      label: const Text('Recently deleted'),
+                    ),
+                ],
               ),
             ),
           if (_filterCount > 0)
@@ -1643,6 +1654,7 @@ class _RecipeDetailState extends State<RecipeDetail> {
                 request: widget.request,
                 save: widget.save!,
                 viewPlan: widget.onViewMealPlan,
+                exactRecipe: true,
               )
             : null,
         onImport: editable ? _importBlank : null,
@@ -1822,6 +1834,7 @@ class _RecipeDetailState extends State<RecipeDetail> {
                                 request: widget.request,
                                 save: widget.save!,
                                 viewPlan: widget.onViewMealPlan,
+                                exactRecipe: true,
                               ),
                         child: const Text(
                           'Add to meal plan',

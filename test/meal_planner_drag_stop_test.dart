@@ -64,7 +64,16 @@ void main() {
         await gesture.moveTo(
           Offset(trash.right + trash.width / 2, trash.center.dy),
         );
-        await tester.pump(const Duration(milliseconds: 180));
+        await tester.pump(const Duration(milliseconds: 300));
+        expect(controller.offset, beforeTrash);
+        await gesture.moveTo(trash.center);
+        await tester.pump(const Duration(milliseconds: 100));
+        await gesture.moveTo(
+          Offset(trash.right + trash.width / 2, trash.center.dy),
+        );
+        await tester.pump(const Duration(milliseconds: 300));
+        expect(controller.offset, beforeTrash);
+        await tester.pump(const Duration(milliseconds: 480));
         expect(controller.offset, lessThan(beforeTrash));
         switch (ending) {
           case 'release':

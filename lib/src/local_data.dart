@@ -7,6 +7,23 @@ import 'api.dart';
 import 'offline_store.dart';
 import 'shopping_item_id.dart';
 
+String? localRecipeCover(Map recipe) {
+  final photos = [
+    for (final row in (recipe['photos'] as List? ?? []))
+      Map<String, dynamic>.from(row as Map),
+  ];
+  photos.sort(
+    (a, b) =>
+        ((b['is_cover'] == true || '${b['is_cover']}' == '1') ? 1 : 0) -
+        ((a['is_cover'] == true || '${a['is_cover']}' == '1') ? 1 : 0),
+  );
+  for (final photo in photos) {
+    final url = photo['source_url'] ?? photo['photo_url'];
+    if (url is String && url.isNotEmpty) return url;
+  }
+  return recipe['photo_url'] as String?;
+}
+
 typedef LocalRead = Future<Map<String, dynamic>> Function(String path);
 typedef LocalWrite = Future<Map<String, dynamic>> Function(
   String path,
@@ -345,7 +362,7 @@ class LocalData extends ChangeNotifier {
   bool mirrors(String path) =>
       path == '/me' ||
       RegExp(
-        r'^/households/[^/]+/(recipes|people|shopping-list|meal-plan)(/[^?]+)?(\?.*)?$',
+        r'^/households/[^/]+/(recipes|people|shopping-list|restaurants|meal-plan)(/[^?]+)?(\?.*)?$',
       ).hasMatch(path);
 
   bool _under(String path, String prefix) {
@@ -713,6 +730,17 @@ class LocalData extends ChangeNotifier {
 
   Map<String, dynamic> _filterPlan(Map state, Uri uri) {
     final result = _copy(state);
+    for (final entry in (result['entries'] as List? ?? [])) {
+      if (entry['kind'] == 'recipe') {
+        final recipe =
+            (_data['/households/${uri.pathSegments[1]}/recipes/${entry['recipe_id']}']
+                    as Map?)?['recipe']
+                as Map?;
+        if (recipe != null) {
+          entry['photo_url'] = localRecipeCover(recipe) ?? entry['photo_url'];
+        }
+      }
+    }
     final from = uri.queryParameters['from'], to = uri.queryParameters['to'];
     result['entries'] = (result['entries'] as List? ?? []).where((e) {
       final date = e['plan_date'] as String?;
@@ -838,6 +866,7 @@ class LocalData extends ChangeNotifier {
       for (final resource in [
         'recipes',
         'shopping-list',
+        'restaurants',
         'meal-plan',
         'people',
       ]) {
@@ -1023,7 +1052,7 @@ class LocalData extends ChangeNotifier {
   }
 
   bool canSave(String path) => RegExp(
-    r'^/households/[^/]+/(shopping-list|meal-plan|recipes(?:/(?:[1-9][0-9]*|local-[a-zA-Z0-9_-]+)(?:/favorites)?)?)$',
+    r'^/households/[^/]+/(shopping-list|restaurants|meal-plan|recipes(?:/(?:[1-9][0-9]*|local-[a-zA-Z0-9_-]+)(?:/favorites)?)?)$',
   ).hasMatch(path);
 
   Future<Map<String, dynamic>> save(String input, Map<String, dynamic> body) {
@@ -1099,6 +1128,16 @@ class LocalData extends ChangeNotifier {
       for (final row in people) {
         if (row['id'] == person) row['favorite'] = body['favorite'];
       }
+    } else if (path.endsWith('/restaurants')) {
+      final old = await cached(path);
+      if (old == null) {
+        throw ApiException(503, 'Download the restaurant list before editing.');
+      }
+      response = {
+        ...old,
+        'revision': body['revision'] + 1,
+        'items': value['items'],
+      };
     } else if (path.endsWith('/shopping-list')) {
       final old = await cached(path);
       if (old == null) {
@@ -1136,7 +1175,25 @@ class LocalData extends ChangeNotifier {
             'Download this recipe before adding it to the local meal plan.',
           );
         }
+        Map? restaurant;
+        if (value['kind'] == 'restaurant' && value['restaurant_id'] != null) {
+          final list = await cached(
+            path.replaceFirst('/meal-plan', '/restaurants'),
+          );
+          for (final item in (list?['items'] as List? ?? [])) {
+            if (item['id'] == value['restaurant_id']) restaurant = item as Map;
+          }
+          if (restaurant == null) {
+            throw ApiException(
+              422,
+              'Choose an available household restaurant.',
+            );
+          }
+        }
         entries.add({
+          'photo_url': recipe == null ? null : localRecipeCover(recipe),
+          'restaurant_id': restaurant?['id'],
+          'restaurant_logo_reference': restaurant?['logo_reference'],
           'id': entryId,
           'kind': value['kind'],
           'plan_date': value['date'],
@@ -1146,7 +1203,7 @@ class LocalData extends ChangeNotifier {
               recipe?['title'] ??
               (value['kind'] == 'leftovers'
                   ? 'Leftovers'
-                  : 'Restaurant outing'),
+                  : restaurant?['name'] ?? 'Restaurant'),
           'available': recipe != null,
           'recipe_revision': recipe?['revision'],
         });
@@ -1311,6 +1368,7 @@ class LocalData extends ChangeNotifier {
                 _data[path] = _copy(result);
               }
             } else if (path.endsWith('/shopping-list') ||
+                path.endsWith('/restaurants') ||
                 path.endsWith('/favorites')) {
               _data[path] = _copy(result);
             } else if (path.endsWith('/meal-plan')) {

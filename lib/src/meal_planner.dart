@@ -50,6 +50,7 @@ class _MealPlannerState extends State<MealPlanner> with WidgetsBindingObserver {
   String? _error;
   Timer? _refresh, _dragScroll;
   Offset? _dragPosition;
+  int _upHoverMs = 0;
   String get _path => '/households/${widget.householdId}/meal-plan';
 
   // A missing route/recipe is not evidence that household membership was lost.
@@ -389,7 +390,60 @@ class _MealPlannerState extends State<MealPlanner> with WidgetsBindingObserver {
     );
     if (!mounted || !_usable(epoch) || selection == null) return;
     if (selection != 'recipe') {
+      String? restaurantId;
+      if (selection == 'restaurant') {
+        try {
+          final data = await widget.request(
+            '/households/${widget.householdId}/restaurants',
+          );
+          if (!_usable(epoch) || !mounted) return;
+          final items = recipeRows(data['items']);
+          var selectedId = '';
+          final accepted = await showDialog<bool>(
+            context: context,
+            builder: (context) => StatefulBuilder(
+              builder: (context, update) => AlertDialog(
+                title: const Text('Restaurant outing'),
+                content: DropdownButtonFormField<String>(
+                  initialValue: '',
+                  isExpanded: true,
+                  items: [
+                    for (final item in items)
+                      DropdownMenuItem(
+                        value: '${item['id']}',
+                        child: Text('${item['name']}'),
+                      ),
+                    const DropdownMenuItem(
+                      value: '',
+                      child: Text('Restaurant'),
+                    ),
+                  ],
+                  onChanged: (value) => update(() => selectedId = value ?? ''),
+                ),
+                actions: [
+                  TextButton(
+                    onPressed: () => Navigator.pop(context, false),
+                    child: const Text('Cancel'),
+                  ),
+                  FilledButton(
+                    onPressed: () => Navigator.pop(context, true),
+                    child: const Text('Add'),
+                  ),
+                ],
+              ),
+            ),
+          );
+          if (accepted != true || !_usable(epoch)) return;
+          restaurantId = selectedId.isEmpty ? null : selectedId;
+        } catch (error) {
+          if (!_invalidateAccess(error) && mounted) {
+            _message('Could not load restaurants.');
+          }
+          return;
+        }
+      }
       await _change({
+        if (selection == 'restaurant') 'restaurant_id': restaurantId,
         'operation': 'add',
         'id': newShoppingItemId(),
         'kind': selection,
@@ -500,11 +554,27 @@ class _MealPlannerState extends State<MealPlanner> with WidgetsBindingObserver {
   void _trackPointer(PointerEvent event) {
     if (event is PointerDownEvent) _pressedPointers.add(event.pointer);
     if (event is PointerMoveEvent && event.pointer == _dragPointer) {
-      _dragPosition = event.position;
+      _updateDragPosition(event.position);
     }
     if (event is PointerUpEvent || event is PointerCancelEvent) {
       _pressedPointers.remove(event.pointer);
       if (event.pointer == _dragPointer) _stopDragScroll();
+    }
+  }
+
+  void _updateDragPosition(Offset position) {
+    _dragPosition = position;
+    final bar = _toolbar.currentContext?.findRenderObject() as RenderBox?;
+    if (bar == null) {
+      _upHoverMs = 0;
+      return;
+    }
+    final point = bar.globalToLocal(position);
+    if (point.dy > bar.size.height ||
+        point.dx < bar.size.width / 3 ||
+        point.dx > bar.size.width ||
+        position.dy < 0) {
+      _upHoverMs = 0;
     }
   }
 
@@ -513,6 +583,7 @@ class _MealPlannerState extends State<MealPlanner> with WidgetsBindingObserver {
     _dragScroll = null;
     _dragPosition = null;
     _dragPointer = null;
+    _upHoverMs = 0;
   }
 
   void _autoScroll(DragUpdateDetails details) {
@@ -523,7 +594,7 @@ class _MealPlannerState extends State<MealPlanner> with WidgetsBindingObserver {
       return;
     }
     _dragPointer ??= _pressedPointers.last;
-    _dragPosition = details.globalPosition;
+    _updateDragPosition(details.globalPosition);
     _dragScroll ??= Timer.periodic(const Duration(milliseconds: 30), (_) {
       if (!mounted ||
           !widget.active ||
@@ -549,12 +620,19 @@ class _MealPlannerState extends State<MealPlanner> with WidgetsBindingObserver {
           point.dx > box.size.width ||
           position.dy < 0 ||
           point.dy > box.size.height + 24) {
+        _upHoverMs = 0;
         return;
       }
       final up =
           barPoint.dy <= toolbar.size.height &&
           barPoint.dx >= toolbar.size.width / 3 &&
           barPoint.dx <= toolbar.size.width;
+      if (up) {
+        _upHoverMs += 30;
+        if (_upHoverMs < 500) return;
+      } else {
+        _upHoverMs = 0;
+      }
       final edge = (box.size.height / 3).clamp(40.0, 120.0);
       final down = point.dy > box.size.height - edge;
       final direction = up

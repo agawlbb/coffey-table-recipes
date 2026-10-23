@@ -1,4 +1,5 @@
 import 'meal_plan_actions.dart';
+import 'restaurant_manager.dart';
 import 'sync_notifications.dart';
 import 'account_menu.dart';
 
@@ -185,7 +186,11 @@ class HouseholdPanel extends StatefulWidget {
     this.request,
     this.signOut,
     this.cachedRequest,
+    this.readPreference,
+    this.writePreference,
   });
+  final Future<String?> Function(String)? readPreference;
+  final Future<void> Function(String, String)? writePreference;
   final Future<void> Function()? signOut;
   final Future<Map<String, dynamic>> Function(
     String path, {
@@ -409,7 +414,7 @@ class _HouseholdPanelState extends State<HouseholdPanel> {
         }
       });
     }
-    _load();
+    unawaited(_restoreSectionAndLoad());
   }
 
   @override
@@ -497,7 +502,8 @@ class _HouseholdPanelState extends State<HouseholdPanel> {
     // Generation returns an unsaved draft, not a replacement for its parent.
     if (path.endsWith('/variation') ||
         path.contains('/meal-plan') ||
-        path.contains('/shopping-list')) {
+        path.contains('/shopping-list') ||
+        path.contains('/restaurants')) {
       return data;
     }
     await _offline?.rememberSavedRecipe(path, data);
@@ -973,6 +979,61 @@ class _HouseholdPanelState extends State<HouseholdPanel> {
     });
   }
 
+  Future<void> _openRecentlyDeleted() async {
+    if (_selected == null) return;
+    mealPlanNotices.dismiss();
+    await Navigator.push<void>(
+      context,
+      MaterialPageRoute(
+        builder: (_) => RecipeTrash(
+          householdId: _selected!,
+          request: (path) => _request(path),
+          save: _saveRecipe,
+        ),
+      ),
+    );
+    if (mounted) setState(() => _recipeRefresh++);
+  }
+
+  String get _sectionKey =>
+      'ctr-last-section-v1:$apiBaseUrl|${widget.user.uid}';
+  Future<void> _restoreSectionAndLoad() async {
+    try {
+      final reader =
+          widget.readPreference ??
+          (widget.request == null
+              ? readOfflineStore
+              : (String _) async => null);
+      final section = await reader(_sectionKey)
+          .timeout(const Duration(seconds: 2));
+      if (!mounted) return;
+      setState(() {
+        _planning = section == 'planner';
+        _plannerOpened = _planning;
+        _shopping = section == 'shopping';
+        _shoppingOpened = _shopping;
+      });
+    } catch (_) {
+      /* Device preference failure must not block startup. */
+    }
+    if (mounted) await _load();
+  }
+
+  Future<void> _sectionWrite = Future<void>.value();
+  void _rememberSection(String section) {
+    if (widget.request != null && widget.writePreference == null) return;
+    _sectionWrite = _sectionWrite.then((_) async {
+      try {
+        await (widget.writePreference ?? writeOfflineStore)(
+          _sectionKey,
+          section,
+        );
+      } catch (_) {
+        /* Preference writes never block navigation. */
+      }
+    });
+  }
+
   Future<void> _addRecipe() async {
     if (_selected == null || offlineStatus.value) return;
     mealPlanNotices.dismiss();
@@ -998,6 +1059,7 @@ class _HouseholdPanelState extends State<HouseholdPanel> {
       ),
     );
     if (saved != null && mounted) {
+      _rememberSection('recipes');
       setState(() {
         _settings = false;
         _shopping = false;
@@ -1015,6 +1077,7 @@ class _HouseholdPanelState extends State<HouseholdPanel> {
   }
 
   void _openMealPlan() {
+    _rememberSection('planner');
     mealPlanNotices.dismiss();
     Navigator.of(context).popUntil((route) => route.isFirst);
     setState(() {
@@ -1052,6 +1115,7 @@ class _HouseholdPanelState extends State<HouseholdPanel> {
                         _shopping = false;
                         _recipeRefresh++;
                         _planning = false;
+                        _rememberSection('recipes');
                       });
                     },
                   ),
@@ -1077,33 +1141,12 @@ class _HouseholdPanelState extends State<HouseholdPanel> {
                         : () {
                             _leaveMenu();
                             setState(() {
+                              _rememberSection('shopping');
                               _shopping = true;
                               _planning = false;
                               _shoppingOpened = true;
                               _settings = false;
                             });
-                          },
-                  ),
-                  ListTile(
-                    leading: const Icon(Icons.delete_outline),
-                    title: const Text('Recently Deleted'),
-                    enabled: selected != null,
-                    onTap: selected == null
-                        ? null
-                        : () async {
-                            final householdId = _selected!;
-                            _leaveMenu();
-                            await Navigator.push<void>(
-                              context,
-                              MaterialPageRoute(
-                                builder: (_) => RecipeTrash(
-                                  householdId: householdId,
-                                  request: (path) => _request(path),
-                                  save: _saveRecipe,
-                                ),
-                              ),
-                            );
-                            if (mounted) setState(() => _recipeRefresh++);
                           },
                   ),
                 ],
@@ -1218,6 +1261,20 @@ class _HouseholdPanelState extends State<HouseholdPanel> {
                       icon: const Icon(Icons.edit_outlined),
                     ),
                 ],
+              ),
+              TextButton.icon(
+                onPressed: () => Navigator.push<void>(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => RestaurantManager(
+                      householdId: _selected!,
+                      request: (path) => _request(path),
+                      save: _saveRecipe,
+                    ),
+                  ),
+                ),
+                icon: const Icon(Icons.restaurant_outlined),
+                label: const Text('Manage restaurants'),
               ),
               const SizedBox(height: 20),
               Text(
@@ -1403,6 +1460,7 @@ class _HouseholdPanelState extends State<HouseholdPanel> {
                         save: _saveRecipe,
                         onViewMealPlan: _openMealPlan,
                         onAddRecipe: _addRecipe,
+                        onRecentlyDeleted: _openRecentlyDeleted,
                       ),
                 Center(
                   child: ConstrainedBox(

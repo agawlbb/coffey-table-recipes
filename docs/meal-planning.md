@@ -197,3 +197,12 @@ Built clean source `27dc7320f50fe3e5213516f764e2763438a12f46` with `flutter buil
 
 ## Accepted required-date planner (2026-10-23)
 The user accepted and merged the no-Unscheduled experiment into this feature. The Unscheduled section and undated add routes are removed. Normal browser, regular/blank viewer and wide planner browser taps choose a variation if applicable, then a date; direct dated Add/drag retain the selected date. All new add/move operations require valid dates before durable queuing. No legacy migration was requested because no existing unscheduled meals need handling. Historical experiment/build records are in `meal-planning-no-unscheduled.md`; its separate branch was retired after accepted history was preserved and synchronized. No rebuild or deployment accompanied acceptance.
+
+## Planner refinements and restaurants (2026-10-23)
+Recipe tiles use the locally stored cover immediately when a meal is added, after following View plan, after restart and after synchronization. Upward drag scrolling begins only after a continuous 500 ms hover over the toolbar's right two-thirds (or above); entering the trash zone cancels the delay. Existing release/cancel/navigation/background stops remain in force.
+
+Recently deleted is beside Add recipe below browser search, with both hidden during meal selection. Startup restores the last Recipes, Shopping list or Meal planner section for this device/account; Recipes opens at All Recipes. Section writes are ordered and preference failures never prevent navigation. Browser additions retain variation selection; recipe-view additions use the exact version currently open, followed by the date selector.
+
+Household & people now contains Manage restaurants. Members can add, rename, remove and reorder their shared restaurant list. Restaurant outing selection lists configured restaurants followed by generic Restaurant. Saved outings retain the name selected at creation. Nullable logo references are reserved in configuration and saved entries; logo upload is future work. Changes use the existing local durable queue and household snapshot synchronization.
+
+Validation: all 470 Flutter tests passed; static analysis and whitespace checks clean. New regressions cover immediate/restarted cover images, restaurant queue/name retention, restored sections, exact viewed version, restaurant selection/management, offline Add recipe and delayed scroll cancellation over trash.

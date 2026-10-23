@@ -53,14 +53,10 @@ void main() {
       expect(writes, isEmpty);
       await tester.tap(find.text('Add to meal plan'));
       await tester.pumpAndSettle();
-      if (variations) {
-        await tester.tap(find.text('Spicy pasta'));
-        await tester.tap(find.text('Next'));
-        await tester.pumpAndSettle();
-      }
+      expect(find.text('Spicy pasta'), findsNothing);
       await tester.tap(find.byKey(const ValueKey('choose-meal-2026-10-22')));
       await tester.pumpAndSettle();
-      expect(writes.single['recipe_id'], variations ? '6' : '5');
+      expect(writes.single['recipe_id'], '5');
       expect(writes.single['date'], '2026-10-22');
       mealPlanNotices.dismiss();
       await tester.pumpAndSettle();

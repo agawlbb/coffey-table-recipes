@@ -21,9 +21,7 @@ class TestUser implements User {
 }
 
 void main() {
-  testWidgets('Recently Deleted is reached through the left menu', (
-    tester,
-  ) async {
+  testWidgets('Recently deleted is reached beside Add recipe', (tester) async {
     final fetched = <String>[];
     await tester.pumpWidget(
       MaterialApp(
@@ -46,16 +44,14 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
-    expect(find.text('Recently Deleted'), findsNothing);
-    await tester.tap(find.byTooltip('Open navigation menu'));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('Recently Deleted'));
+    expect(find.text('Recently deleted'), findsOneWidget);
+    await tester.tap(find.text('Recently deleted'));
     await tester.pumpAndSettle();
     expect(fetched, contains('/households/2/recipes/deleted?offset=0'));
     expect(find.text('No recently deleted recipes.'), findsOneWidget);
     await tester.pageBack();
     await tester.pumpAndSettle();
-    expect(find.text('Recently Deleted'), findsNothing);
+    expect(find.text('Recently deleted'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 
