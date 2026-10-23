@@ -1,5 +1,16 @@
 # Repository workflow
 
+## Proportionate validation and coding speed
+
+- Default to focused validation, not `flutter test` over the entire repository. Before editing, identify the changed behavior and the smallest relevant test files; include callers and shared dependencies when affected. Run them together in one Flutter invocation, for example `flutter test --no-pub test/recipe_filter_dialog_test.dart test/blank_recipe_detail_layout_test.dart` when dependencies are already resolved.
+- Run the complete Flutter suite once for a release, an explicit full-suite request, or a cross-cutting change whose affected areas cannot reasonably be bounded (such as shared persistence, authentication, sync, routing, or dependency/SDK changes). A commit or push alone does not require the full suite. If coverage uncertainty warrants broadening checks, state the reason.
+- Iterate with the failing or affected tests. After checks pass, do not repeat them unless subsequent edits affect their behavior or invalidate the result. Documentation-only follow-ups do not invalidate a passing code check. Record the commands and scope actually verified; never imply unrun tests passed.
+- Documentation-only changes need diff/link review, not Flutter analysis or tests. For Dart changes, format changed files and analyze the affected files; broaden analysis when shared interfaces or dependencies change. Do not rerun dependency resolution unless dependency inputs changed or packages are missing.
+- Add tests for meaningful behavior, regressions, boundary conditions, and failure paths. Do not add tests for trivial cosmetic changes, assertions that mirror implementation, or duplicate scenarios already covered. Prefer extending an existing relevant test. Retain distinct responsive breakpoints and accessibility coverage; avoid multiple near-identical viewport sizes without a specific regression reason.
+- Keep release/signing/deployment tooling tests out of ordinary app validation unless those tools changed. Device/integration runs must add device-specific coverage; do not wrap existing mocked widget suites solely to run them again on a device. Builds still require explicit build/release authorization.
+- Batch independent read-only inspections and relevant tests; avoid repeatedly scanning the entire repository, polling unchanged jobs, or running simultaneous Flutter commands against the same checkout. Use existing verification evidence when it matches the current source and scope. Do not introduce automatic builds or full-suite pre-commit/push hooks.
+
+
 Complete and verify project work, commit it, and push it to the existing GitHub origin. Before declaring completion, verify a clean working tree and matching local/GitHub branch heads. Respect an explicit instruction to keep work local or avoid deployment; report any synchronization blocker instead of claiming completion.
 
 - Commit completed changes after appropriate verification. Include documentation and meaningful validation in the commit where applicable.

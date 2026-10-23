@@ -25,6 +25,7 @@ for cross-device behavior and the limits of physical-device validation.
 
 The regression suite covers narrow account menus, sound selection and save
 failures, one-second preview cleanup, timer navigation, cancellation and stale
-state recovery. Retain these tests when changing the controls. Run `flutter test`
-for source validation; builds, device installation and distribution require
+state recovery. Retain these tests when changing the controls. Run the affected
+timer test files for source validation, following the focused-validation rules
+in `AGENTS.md`; builds, device installation and distribution require
 separate explicit authorization.

@@ -11,11 +11,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'support/recipe_ui_preview.dart';
 
 void main() {
-  for (final size in [
-    const Size(373, 700),
-    const Size(960, 820),
-    const Size(320, 700),
-  ]) {
+  for (final size in [const Size(960, 820), const Size(320, 700)]) {
     testWidgets(
       'blank display has one title and aligned controls at ${size.width}',
       (tester) async {

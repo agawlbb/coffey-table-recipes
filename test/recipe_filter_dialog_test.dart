@@ -156,11 +156,7 @@ void main() {
     expect(find.byType(AlertDialog), findsNothing);
   });
 
-  for (final size in [
-    const Size(373, 700),
-    const Size(960, 820),
-    const Size(320, 700),
-  ]) {
+  for (final size in [const Size(960, 820), const Size(320, 700)]) {
     testWidgets('filter controls align and remain usable at ${size.width}', (
       tester,
     ) async {
