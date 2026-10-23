@@ -1018,40 +1018,6 @@ class _HouseholdPanelState extends State<HouseholdPanel> {
   }
 
   Widget _buildMenu(BuildContext menuContext) {
-    if (_local != null &&
-        (_databaseChecking ||
-            (_selected != null && !_readyHouseholds.contains(_selected)))) {
-      return Scaffold(
-        appBar: AppBar(title: const Text('Downloading database')),
-        body: Center(
-          child: Padding(
-            padding: const EdgeInsets.all(24),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Text('Saving your household data on this device'),
-                const SizedBox(height: 20),
-                LinearProgressIndicator(value: _databaseFraction),
-                const SizedBox(height: 12),
-                Text(_databaseProgress),
-                if (_databaseError != null) ...[
-                  const SizedBox(height: 16),
-                  Text(_databaseError!),
-                  TextButton(
-                    onPressed: () => unawaited(
-                      _syncLibrary(
-                        _households.map((h) => h['id'] as String).toList(),
-                      ),
-                    ),
-                    child: const Text('Retry download'),
-                  ),
-                ],
-              ],
-            ),
-          ),
-        ),
-      );
-    }
     final selected = _households.where((h) => h['id'] == _selected).firstOrNull;
     return Drawer(
       child: SafeArea(
@@ -1146,7 +1112,7 @@ class _HouseholdPanelState extends State<HouseholdPanel> {
   Widget build(BuildContext context) {
     if (_local != null &&
         (_databaseChecking ||
-            (_selected != null && !_readyHouseholds.contains(_selected)))) {
+            _households.any((h) => !_readyHouseholds.contains(h['id'])))) {
       return Scaffold(
         appBar: AppBar(title: const Text('Downloading database')),
         body: Center(
@@ -1163,15 +1129,17 @@ class _HouseholdPanelState extends State<HouseholdPanel> {
                 if (_databaseError != null) ...[
                   const SizedBox(height: 16),
                   Text(_databaseError!),
-                  TextButton(
-                    onPressed: () => unawaited(
-                      _syncLibrary(
-                        _households.map((h) => h['id'] as String).toList(),
-                      ),
-                    ),
-                    child: const Text('Retry download'),
-                  ),
                 ],
+                TextButton(
+                  onPressed: _librarySync != null
+                      ? null
+                      : () => unawaited(
+                          _syncLibrary(
+                            _households.map((h) => h['id'] as String).toList(),
+                          ),
+                        ),
+                  child: const Text('Retry download'),
+                ),
               ],
             ),
           ),
