@@ -37,8 +37,9 @@ final recipePhotoCache = CacheManager(
 
 typedef RecipeRequest = Future<Map<String, dynamic>> Function(String path);
 
-List<Map<String, dynamic>> recipeRows(Object? value) =>
-    List<Map<String, dynamic>>.from(value as List? ?? []);
+List<Map<String, dynamic>> recipeRows(Object? value) => (value as List? ?? [])
+    .map((row) => Map<String, dynamic>.from(row as Map))
+    .toList();
 
 String recipeSourceLabel(Object? source) => switch (source) {
   'blank' => 'Blank recipe',
@@ -116,6 +117,7 @@ class RecipeBrowser extends StatefulWidget {
     required this.householdName,
     required this.request,
     this.embedded = false,
+    this.localOnly = false,
     this.cachedRequest,
     this.menuBuilder,
     this.save,
@@ -127,6 +129,7 @@ class RecipeBrowser extends StatefulWidget {
   final Future<Map<String, dynamic>?> Function(String path)? cachedRequest;
   final RecipeSave? save;
   final bool embedded;
+  final bool localOnly;
   @override
   State<RecipeBrowser> createState() => _RecipeBrowserState();
 }
@@ -160,7 +163,9 @@ class _RecipeBrowserState extends State<RecipeBrowser>
     }
     localDataChanges.addListener(_localChanged);
     _wasOffline = offlineStatus.value;
-    if (mobileOfflineEnabled) offlineStatus.addListener(_connectionChanged);
+    if (mobileOfflineEnabled && !widget.localOnly) {
+      offlineStatus.addListener(_connectionChanged);
+    }
     _load(useCached: true);
   }
 
@@ -289,6 +294,18 @@ class _RecipeBrowserState extends State<RecipeBrowser>
       _busy = _recipes.isEmpty && _nodes.isEmpty;
     });
     try {
+      if (widget.localOnly) {
+        final data = await widget.request(path);
+        if (!current()) return;
+        final nodes = nodesFor(data);
+        if (!more && _query.isEmpty && data['view'] == 'categories') {
+          final recipes = await widget.request(recipePath());
+          display(recipes, nodes);
+        } else {
+          display(data, nodes);
+        }
+        return;
+      }
       if (!more) {
         final cached = await _cachedBrowse(path);
         if (!current()) return;
@@ -336,7 +353,12 @@ class _RecipeBrowserState extends State<RecipeBrowser>
       }
       if (!mounted || generation != _generation) return;
       if (!more) unawaited(_loadCategoryImages(nodes, generation));
-    } catch (error) {
+    } catch (error, stack) {
+      if (widget.localOnly && error is! ApiException) {
+        debugPrint(
+          'Local recipe read failed: ${error.runtimeType}: $error\n$stack',
+        );
+      }
       if (mounted && generation == _generation) {
         setState(() {
           if (error is ApiException && [401, 403, 404].contains(error.status)) {
@@ -347,7 +369,9 @@ class _RecipeBrowserState extends State<RecipeBrowser>
           }
           _error = error is ApiException
               ? error.message
-              : 'Could not load recipes. Check your connection and retry.';
+              : widget.localOnly
+              ? 'The local recipe database could not be read.'
+              : 'Recipe data could not be read.';
         });
       }
     } finally {
@@ -479,11 +503,12 @@ class _RecipeBrowserState extends State<RecipeBrowser>
           appBar: AppBar(
             title: Text('${widget.householdName} recipes'),
             actions: [
-              IconButton(
-                onPressed: _busy ? null : () => _load(),
-                tooltip: 'Refresh recipes',
-                icon: const Icon(Icons.refresh),
-              ),
+              if (!widget.localOnly)
+                IconButton(
+                  onPressed: _busy ? null : () => _load(),
+                  tooltip: 'Refresh recipes',
+                  icon: const Icon(Icons.refresh),
+                ),
             ],
           ),
           body: _content(context),
@@ -628,7 +653,9 @@ class _RecipeBrowserState extends State<RecipeBrowser>
                   Text(_error!),
                   TextButton(
                     onPressed: () => _load(more: _recipes.isNotEmpty),
-                    child: const Text('Retry'),
+                    child: Text(
+                      widget.localOnly ? 'Read local data again' : 'Retry',
+                    ),
                   ),
                 ],
               ),
@@ -1250,8 +1277,10 @@ class _RecipeDetailState extends State<RecipeDetail> {
     });
     final path = '/households/${widget.householdId}/recipes/${widget.recipeId}';
     void display(Map<String, dynamic> data) {
-      if (!current() || data['recipe'] is! Map<String, dynamic>) return;
-      setState(() => _recipe = data['recipe'] as Map<String, dynamic>);
+      if (!current() || data['recipe'] is! Map) return;
+      setState(
+        () => _recipe = Map<String, dynamic>.from(data['recipe'] as Map),
+      );
     }
 
     try {
@@ -1281,7 +1310,7 @@ class _RecipeDetailState extends State<RecipeDetail> {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               content: const Text(
-                'Could not refresh this recipe. Showing the last loaded version.',
+                'The saved recipe is still available. An updated copy could not be read.',
               ),
               action: SnackBarAction(label: 'Retry', onPressed: _load),
             ),
@@ -1292,7 +1321,7 @@ class _RecipeDetailState extends State<RecipeDetail> {
           if (denied) _recipe = null;
           _error = error is ApiException
               ? error.message
-              : 'Could not load this recipe. Check your connection and retry.';
+              : 'Recipe data could not be read on this device.';
         });
       }
     }

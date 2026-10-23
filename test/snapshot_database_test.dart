@@ -1,6 +1,8 @@
 import 'dart:convert';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:flutter/material.dart';
+import 'package:coffey_table_recipes/src/recipe_browser.dart';
 import 'package:coffey_table_recipes/src/local_data.dart';
 
 Map<String, dynamic> snapshot(String title, {String household = '1'}) {
@@ -67,6 +69,13 @@ void main() {
       store = local();
       expect(await store.snapshotVersion('1'), 'Soup');
       expect(await store.snapshotVersion('2'), isNull);
+      final tree = await store.request(
+        '/households/1/recipes?tree=1&families=1',
+      );
+      expect(
+        (tree['category_nodes'] as List).first,
+        isA<Map<String, dynamic>>(),
+      );
       for (var i = 0; i < 3; i++) {
         final rows = await store.request('/households/1/recipes?scope=11');
         expect((rows['recipes'] as List).single['title'], 'Soup');
@@ -161,4 +170,128 @@ void main() {
     expect(await data.snapshotVersion('1'), isNull);
     data.dispose();
   });
+  testWidgets(
+    'Android local browser paints root categories and stays responsive',
+    (tester) async {
+      var network = 0;
+      final data = LocalData(
+        key: 'android',
+        snapshotOnly: true,
+        fetch: (_) async {
+          network++;
+          throw StateError('network must not run');
+        },
+        send: (p, b) async => {},
+        readStore: (_) async => null,
+        writeStore: (k, v) async {},
+      );
+      await data.installSnapshot(snapshot('Soup'));
+      await tester.pumpWidget(
+        MaterialApp(
+          home: RecipeBrowser(
+            householdId: '1',
+            householdName: 'Table',
+            localOnly: true,
+            request: data.request,
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('Meals'), findsOneWidget);
+      expect(find.text('Soup'), findsOneWidget);
+      expect(find.textContaining('connection'), findsNothing);
+      expect(find.byTooltip('Refresh recipes'), findsNothing);
+      expect(tester.takeException(), isNull);
+      await tester.tap(find.text('Meals'));
+      await tester.pumpAndSettle();
+      expect(find.text('Soups'), findsOneWidget);
+      await tester.tap(find.text('Soups'));
+      await tester.pumpAndSettle();
+      expect(find.text('Soup'), findsOneWidget);
+      await tester.tap(find.byKey(const ValueKey('recipe-breadcrumb-0')));
+      await tester.pumpAndSettle();
+      expect(find.text('Meals'), findsOneWidget);
+      await tester.enterText(find.byType(TextField), 'Soup');
+      await tester.pumpAndSettle();
+      expect(find.text('Soup'), findsWidgets);
+      expect(network, 0);
+      expect(tester.takeException(), isNull);
+      await tester.pumpWidget(const SizedBox());
+      data.dispose();
+    },
+    variant: TargetPlatformVariant.only(TargetPlatform.android),
+  );
+
+  test('large local catalog does not perform category-squared scans for empty search', () async {
+    final data = LocalData(
+      key: 'catalog',
+      snapshotOnly: true,
+      fetch: (_) async => throw StateError('network'),
+      send: (p, b) async => {},
+      readStore: (_) async => null,
+      writeStore: (k, v) async {},
+    );
+    final large = snapshot('Large');
+    large['categories'] = [
+      {'id': '10', 'parent_id': null, 'label': 'Meals'},
+      for (var c = 0; c < 5000; c++)
+        {'id': '${100 + c}', 'parent_id': '10', 'label': 'Category $c'},
+    ];
+    large['recipes'] = [
+      for (var r = 1; r <= 200; r++) {'id': '$r', 'title': 'Recipe $r'},
+    ];
+    final responses = large['responses'] as Map;
+    for (var r = 1; r <= 200; r++) {
+      responses['/households/1/recipes/$r'] = {
+        'recipe': {
+          'id': '$r',
+          'title': 'Recipe $r',
+          'category_assignments': [
+            {'category_id': '${99 + r}'},
+          ],
+        },
+      };
+      responses['/households/1/recipes/$r/favorites'] = {'people': []};
+    }
+    await data.installSnapshot(large);
+    final timer = Stopwatch()..start();
+    final page = await data.request('/households/1/recipes?tree=0&families=1');
+    timer.stop();
+    expect((page['recipes'] as List).length, 30);
+    expect(timer.elapsed, lessThan(const Duration(seconds: 5)));
+    data.dispose();
+  });
+  testWidgets(
+    'a local read exception does not turn into a connection error or lock input',
+    (tester) async {
+      var reads = 0;
+      await tester.pumpWidget(
+        MaterialApp(
+          home: RecipeBrowser(
+            householdId: '1',
+            householdName: 'Table',
+            localOnly: true,
+            request: (_) async {
+              reads++;
+              throw StateError('Local test failure');
+            },
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(
+        find.text('The local recipe database could not be read.'),
+        findsOneWidget,
+      );
+      expect(find.textContaining('connection'), findsNothing);
+      expect(find.byType(LinearProgressIndicator), findsNothing);
+      await tester.tap(find.byType(TextField));
+      await tester.enterText(find.byType(TextField), 'Soup');
+      await tester.pumpAndSettle();
+      expect(reads, 2);
+      expect(find.text('Soup'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    },
+    variant: TargetPlatformVariant.only(TargetPlatform.android),
+  );
 }
