@@ -921,7 +921,6 @@ class _MealPlannerState extends State<MealPlanner> with WidgetsBindingObserver {
                   key: _scrollArea,
                   controller: _scroll,
                   center: _center,
-                  anchor: .30,
                   slivers: [
                     SliverList(
                       delegate: SliverChildBuilderDelegate(

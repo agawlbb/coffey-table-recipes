@@ -10,6 +10,18 @@ import 'package:flutter_test/flutter_test.dart';
 
 Future<void> trashMeal(WidgetTester tester, String title) async {
   final tile = find.text(title);
+  if (tile.evaluate().isEmpty) {
+    await tester.scrollUntilVisible(
+      tile,
+      -200,
+      scrollable: find
+          .descendant(
+            of: find.byType(CustomScrollView),
+            matching: find.byType(Scrollable),
+          )
+          .first,
+    );
+  }
   await tester.ensureVisible(tile);
   await tester.pumpAndSettle();
   final gesture = await tester.startGesture(tester.getCenter(tile));
@@ -131,6 +143,30 @@ class PlanFixture {
 }
 
 void main() {
+  testWidgets('opens at today with past dates above and Today returns to top', (
+    tester,
+  ) async {
+    await tester.binding.setSurfaceSize(const Size(390, 900));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    await tester.pumpWidget(PlanFixture().app());
+    await tester.pumpAndSettle();
+    final list = find.byType(CustomScrollView);
+    final today = find.byKey(const ValueKey('meal-day-2026-10-22'));
+    final viewportTop = tester.getTopLeft(list).dy;
+    expect(tester.getTopLeft(today).dy, closeTo(viewportTop, 4));
+    expect(find.text('Yesterday soup').hitTestable(), findsNothing);
+
+    await tester.drag(list, const Offset(0, 260));
+    await tester.pumpAndSettle();
+    expect(find.text('Yesterday soup').hitTestable(), findsOneWidget);
+
+    await tester.tap(find.widgetWithText(TextButton, 'Today'));
+    await tester.pumpAndSettle();
+    expect(tester.getTopLeft(today).dy, closeTo(viewportTop, 4));
+    expect(find.text('Yesterday soup').hitTestable(), findsNothing);
+    await tester.pumpWidget(const SizedBox());
+  });
+
   testWidgets('persisted plan paints while the network never returns', (
     tester,
   ) async {
