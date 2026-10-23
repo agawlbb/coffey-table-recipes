@@ -35,3 +35,20 @@ Feature verification: all443 tests passed, with clean changed-source analysis.
 The deliberate local-error regression also opens the actual Scaffold hamburger
 menu and then edits the search field, verifying the error boundary does not trap
 navigation or input. No phone was connected for Android ANR/log capture.
+
+## Corrected main test builds
+
+Built main runtime bc11ee6e8d80929ad9a225c767f5b2e20800dc52, version1.8.5+29,
+after the native/read responsiveness fixes. Web and Android debug builds passed.
+The local XAMPP version.json identifies that commit; delivered main.dart.js matches
+SHA-2563646368a84ef7a4c70a62b8c197b3caf96db1c672ffd28f74ee19a816a686ee3.
+
+Replacement APK:
+G:/My Drive/recipe app/CoffeyTableRecipes-main-native-local-fix-bc11ee6.apk
+(199839032 bytes). Build/delivery SHA-256 both
+c498783335a6468136cec82297c7ad90b8edccd158009dab6ab4cd1e644e0db6.
+Android debug signature verification passed with the existing certificate
+f8de933f14b9bb4b3191a94aedc8637972c5ab224565f6abd7808f8038d12097.
+This supersedes the earlier d5d04a8 test package. Install over the existing app;
+retain device data. No native installation/ANR log capture, backend change,
+hosted Flutter publication or release tag was performed for this correction.
