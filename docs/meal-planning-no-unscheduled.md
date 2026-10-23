@@ -1,6 +1,6 @@
 # Meal planning without Unscheduled: experiment
 
-Status: planning only, 2026-10-23. No application changes have been made.
+Status: planning only, 2026-10-23. No experimental application changes have been made.
 
 Owner: Plan CTR meal planning v2 chat (`01a165dd-0324-7e10-8ffc-03bb397420bc`).
 Branch: `codex/meal-planning-no-unscheduled`.
@@ -21,3 +21,9 @@ Existing dated-meal behavior remains the baseline: drag between dates, trash dro
 ## Setup validation
 
 The canonical checkout was clean, parent local and GitHub heads matched the base, and the coordinating owner confirmed no active writers or builds. Workflow inspection found only manual workflow_dispatch triggers. This commit changes ownership/planning documentation only; no app tests or builds are needed for setup.
+
+
+## Updated baseline (2026-10-23)
+Merged all updates from `codex/meal-planning-v2` through `f3b9ec894a4817cc706a2969b1286ec385e8f811`, including current main integration, local database/sync changes and planner fixes. Original branch creation base above is retained as historical context. Unscheduled remains implemented until the alternative is planned and the user requests implementation.
+
+Merge validation: no conflicts; application/platform sources, dependencies and tests exactly match the incoming feature branch, whose last full validation passed 458 Flutter tests with clean analysis. Only experiment ownership/planning documentation differs. No repeat test run, app build, backend change or deployment was needed for this identical application tree. The canonical checkout remains on this experiment branch.

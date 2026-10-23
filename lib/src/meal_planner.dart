@@ -1,14 +1,17 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/gestures.dart';
 
 import 'api.dart';
+import 'local_data.dart';
 import 'meal_plan_actions.dart';
 import 'meal_plan_ingredients.dart';
 import 'recipe_browser.dart';
 import 'recipe_editor.dart';
 import 'recipe_shopping.dart';
 import 'shopping_item_id.dart';
+import 'shopping_ingredient.dart';
 
 class MealPlanner extends StatefulWidget {
   const MealPlanner({
@@ -33,6 +36,11 @@ class _MealPlannerState extends State<MealPlanner> with WidgetsBindingObserver {
   final _scroll = ScrollController();
   final _scrollArea = GlobalKey();
   final _center = GlobalKey();
+  final _toolbar = GlobalKey();
+  final _pressedPointers = <int>{};
+  int? _dragPointer;
+  ModalRoute<dynamic>? _route;
+  bool _background = false;
   List<Map<String, dynamic>> _entries = [];
   late DateTime _today;
   int _revision = 0, _pastDays = 30, _futureDays = 45, _generation = 0;
@@ -41,6 +49,7 @@ class _MealPlannerState extends State<MealPlanner> with WidgetsBindingObserver {
   int _accessEpoch = 0;
   String? _error;
   Timer? _refresh, _dragScroll;
+  Offset? _dragPosition;
   String get _path => '/households/${widget.householdId}/meal-plan';
 
   // A missing route/recipe is not evidence that household membership was lost.
@@ -50,7 +59,9 @@ class _MealPlannerState extends State<MealPlanner> with WidgetsBindingObserver {
     if (error is! ApiException ||
         !(error.status == 401 ||
             (error.status == 404 && error.code == 'household_not_found') ||
-            (error.status == 403 && error.code == 'account_disabled'))) {
+            (error.status == 403 &&
+                (error.code == 'account_disabled' ||
+                    error.code == 'household_access_removed')))) {
       return false;
     }
     if (!mounted) return true;
@@ -64,7 +75,7 @@ class _MealPlannerState extends State<MealPlanner> with WidgetsBindingObserver {
       _loading = false;
       _error = error.message;
     });
-    _dragScroll?.cancel();
+    _stopDragScroll();
     return true;
   }
 
@@ -75,6 +86,8 @@ class _MealPlannerState extends State<MealPlanner> with WidgetsBindingObserver {
     final now = widget.now?.call() ?? DateTime.now();
     _today = DateTime(now.year, now.month, now.day);
     WidgetsBinding.instance.addObserver(this);
+    GestureBinding.instance.pointerRouter.addGlobalRoute(_trackPointer);
+    localDataChanges.addListener(_localChanged);
     _scroll.addListener(_extend);
     _load();
     _refresh = Timer.periodic(const Duration(seconds: 30), (_) {
@@ -87,11 +100,24 @@ class _MealPlannerState extends State<MealPlanner> with WidgetsBindingObserver {
   @override
   void didUpdateWidget(MealPlanner old) {
     super.didUpdateWidget(old);
+    if (!widget.active && old.active) _stopDragScroll();
     if (widget.active && !old.active) _load(quiet: true);
   }
 
   @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _route = ModalRoute.of(context);
+    if (!(_route?.isCurrent ?? true)) _stopDragScroll();
+  }
+
+  @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
+    _background = state != AppLifecycleState.resumed;
+    if (_background) {
+      _stopDragScroll();
+      _pressedPointers.clear();
+    }
     if (state == AppLifecycleState.resumed && widget.active) _load(quiet: true);
   }
 
@@ -99,10 +125,21 @@ class _MealPlannerState extends State<MealPlanner> with WidgetsBindingObserver {
   void dispose() {
     _generation++;
     WidgetsBinding.instance.removeObserver(this);
+    GestureBinding.instance.pointerRouter.removeGlobalRoute(_trackPointer);
+    localDataChanges.removeListener(_localChanged);
     _refresh?.cancel();
-    _dragScroll?.cancel();
+    _stopDragScroll();
     _scroll.dispose();
     super.dispose();
+  }
+
+  void _localChanged() {
+    if (mounted &&
+        !_saving &&
+        (localDataChanges.value.startsWith(_path) ||
+            localDataChanges.value.startsWith('/me#'))) {
+      _load(quiet: true);
+    }
   }
 
   DateTime _day(int offset) =>
@@ -112,7 +149,7 @@ class _MealPlannerState extends State<MealPlanner> with WidgetsBindingObserver {
   Future<bool> _load({bool quiet = false}) async {
     final generation = ++_generation;
     _fetching = true;
-    if (!quiet && mounted) setState(() => _loading = true);
+    if (!quiet && !_ready && mounted) setState(() => _loading = true);
     try {
       final data = await widget.request('$_path?${_range()}');
       if (!mounted || generation != _generation) return false;
@@ -408,72 +445,144 @@ class _MealPlannerState extends State<MealPlanner> with WidgetsBindingObserver {
   Future<void> _ingredients() async {
     if (!_ready) return;
     final epoch = _accessEpoch;
-    final range = await showDateRangePicker(
-      context: context,
-      firstDate: _today,
-      lastDate: DateTime(_today.year + 2),
-      initialDateRange: DateTimeRange(start: _today, end: _day(6)),
-      helpText: 'Meal ingredients',
-      saveText: 'Ingredients',
-    );
-    if (range == null || !_usable(epoch)) return;
-    try {
-      final data = await widget.request(
-        '$_path/ingredients?from=${mealPlanDate(range.start)}&to=${mealPlanDate(range.end)}',
-      );
-      if (!mounted || !_usable(epoch)) return;
-      final ingredients = mealPlanIngredients(recipeRows(data['ingredients']));
-      if (ingredients.isEmpty) {
-        _message('No ingredients for these dates.');
-        return;
+    Future<List<ShoppingIngredient>> load(DateTime start, DateTime end) async {
+      try {
+        final result = await loadMealPlanIngredients(
+          widget.request,
+          _path,
+          start,
+          end,
+        );
+        if (!_usable(epoch)) throw StateError('Meal plan access changed.');
+        return result;
+      } catch (error) {
+        _invalidateAccess(error);
+        rethrow;
       }
+    }
+
+    try {
+      var range = DateTimeRange(start: _today, end: DateTime(2199, 12, 31));
+      final ingredients = await load(range.start, range.end);
+      if (!mounted || !_usable(epoch)) return;
       await showRecipeShopping(
         context,
         householdId: widget.householdId,
         request: widget.request,
         save: widget.save,
         ingredients: ingredients,
+        onChooseDates: (sheetContext) async {
+          final selected = await showDateRangePicker(
+            context: sheetContext,
+            firstDate: _today,
+            lastDate: DateTime(2199, 12, 31),
+            initialDateRange: DateTimeRange(
+              start: range.start,
+              end: range.end.year == 2199 ? _day(6) : range.end,
+            ),
+            helpText: 'Meal ingredients',
+            saveText: 'Apply',
+          );
+          if (selected == null) return null;
+          if (!_usable(epoch)) return null;
+          try {
+            final result = await load(selected.start, selected.end);
+            range = selected;
+            return result;
+          } catch (_) {
+            if (!_usable(epoch) && sheetContext.mounted) {
+              Navigator.of(sheetContext).pop();
+            }
+            rethrow;
+          }
+        },
       );
     } catch (error) {
-      if (!mounted || !_usable(epoch)) return;
-      if (_invalidateAccess(error)) return;
-      if (mounted) {
-        _message(
-          error is ApiException
-              ? error.message
-              : 'Could not load meal ingredients.',
-        );
-      }
+      if (!_usable(epoch)) return;
+      _message(
+        error is ApiException
+            ? error.message
+            : 'Could not load meal ingredients.',
+      );
     }
   }
 
+  void _trackPointer(PointerEvent event) {
+    if (event is PointerDownEvent) _pressedPointers.add(event.pointer);
+    if (event is PointerMoveEvent && event.pointer == _dragPointer) {
+      _dragPosition = event.position;
+    }
+    if (event is PointerUpEvent || event is PointerCancelEvent) {
+      _pressedPointers.remove(event.pointer);
+      if (event.pointer == _dragPointer) _stopDragScroll();
+    }
+  }
+
+  void _stopDragScroll() {
+    _dragScroll?.cancel();
+    _dragScroll = null;
+    _dragPosition = null;
+    _dragPointer = null;
+  }
+
   void _autoScroll(DragUpdateDetails details) {
-    final box = _scrollArea.currentContext?.findRenderObject() as RenderBox?;
-    if (box == null || !_scroll.hasClients) return;
-    final point = box.globalToLocal(details.globalPosition);
-    if (point.dx < 0 || point.dx > box.size.width) {
-      _dragScroll?.cancel();
+    if (!widget.active ||
+        _background ||
+        _pressedPointers.isEmpty ||
+        !(_route?.isCurrent ?? true)) {
       return;
     }
-    final y = point.dy;
-    final direction = y < 65
-        ? -1
-        : y > box.size.height - 65
-        ? 1
-        : 0;
-    _dragScroll?.cancel();
-    if (direction != 0) {
-      _dragScroll = Timer.periodic(const Duration(milliseconds: 50), (_) {
-        if (_scroll.hasClients) {
-          _scroll.jumpTo(
-            (_scroll.offset + direction * 18).clamp(
-              _scroll.position.minScrollExtent,
-              _scroll.position.maxScrollExtent,
-            ),
-          );
-        }
-      });
-    }
+    _dragPointer ??= _pressedPointers.last;
+    _dragPosition = details.globalPosition;
+    _dragScroll ??= Timer.periodic(const Duration(milliseconds: 30), (_) {
+      if (!mounted ||
+          !widget.active ||
+          _background ||
+          !_ready ||
+          !(_route?.isCurrent ?? true) ||
+          !_pressedPointers.contains(_dragPointer)) {
+        _stopDragScroll();
+        return;
+      }
+      final box = _scrollArea.currentContext?.findRenderObject() as RenderBox?;
+      final toolbar = _toolbar.currentContext?.findRenderObject() as RenderBox?;
+      final position = _dragPosition;
+      if (box == null ||
+          toolbar == null ||
+          position == null ||
+          !_scroll.hasClients) {
+        return;
+      }
+      final point = box.globalToLocal(position);
+      final barPoint = toolbar.globalToLocal(position);
+      if (point.dx < 0 ||
+          point.dx > box.size.width ||
+          position.dy < 0 ||
+          point.dy > box.size.height + 24) {
+        return;
+      }
+      final up =
+          barPoint.dy <= toolbar.size.height &&
+          barPoint.dx >= toolbar.size.width / 3 &&
+          barPoint.dx <= toolbar.size.width;
+      final edge = (box.size.height / 3).clamp(40.0, 120.0);
+      final down = point.dy > box.size.height - edge;
+      final direction = up
+          ? -1
+          : down
+          ? 1
+          : 0;
+      if (direction == 0) return;
+      final speed = up
+          ? 18.0
+          : 6 + 18 * (1 - (box.size.height - point.dy).clamp(0, edge) / edge);
+      _scroll.jumpTo(
+        (_scroll.offset + direction * speed).clamp(
+          _scroll.position.minScrollExtent,
+          _scroll.position.maxScrollExtent,
+        ),
+      );
+    });
   }
 
   Widget _tile(Map<String, dynamic> entry) {
@@ -544,7 +653,7 @@ class _MealPlannerState extends State<MealPlanner> with WidgetsBindingObserver {
       data: {'entry': entry},
       maxSimultaneousDrags: _saving ? 0 : 1,
       onDragUpdate: _autoScroll,
-      onDragEnd: (_) => _dragScroll?.cancel(),
+      onDragEnd: (_) => _stopDragScroll(),
       feedback: Material(color: Colors.transparent, child: card),
       childWhenDragging: Opacity(opacity: .35, child: card),
       child: card,
@@ -656,54 +765,60 @@ class _MealPlannerState extends State<MealPlanner> with WidgetsBindingObserver {
     }
     final list = Column(
       children: [
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-          child: Wrap(
-            alignment: WrapAlignment.spaceBetween,
-            crossAxisAlignment: WrapCrossAlignment.center,
-            spacing: 8,
+        SizedBox(
+          key: _toolbar,
+          height: 80,
+          child: Row(
             children: [
-              TextButton(
-                onPressed: () => _scroll.hasClients
-                    ? _scroll.animateTo(
-                        0,
-                        duration: const Duration(milliseconds: 250),
-                        curve: Curves.easeOut,
-                      )
-                    : null,
-                child: const Text('Today'),
-              ),
-              TextButton.icon(
-                onPressed: _saving ? null : _ingredients,
-                icon: const Icon(Icons.add_shopping_cart),
-                label: const Text('Ingredients'),
-              ),
-              DragTarget<Map<String, dynamic>>(
-                key: const ValueKey('meal-trash'),
-                onWillAcceptWithDetails: (details) =>
-                    !_saving && details.data['entry'] is Map<String, dynamic>,
-                onAcceptWithDetails: (details) {
-                  _dragScroll?.cancel();
-                  _remove(details.data['entry'] as Map<String, dynamic>);
-                },
-                builder: (context, candidates, rejected) => Tooltip(
-                  message: 'Drag a meal here to delete',
-                  child: Container(
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: candidates.isEmpty
-                          ? Colors.transparent
-                          : Theme.of(context).colorScheme.errorContainer,
-                      borderRadius: BorderRadius.circular(12),
+              Expanded(
+                child: DragTarget<Map<String, dynamic>>(
+                  key: const ValueKey('meal-trash'),
+                  onWillAcceptWithDetails: (details) =>
+                      !_saving && details.data['entry'] is Map<String, dynamic>,
+                  onAcceptWithDetails: (details) {
+                    _stopDragScroll();
+                    _remove(details.data['entry'] as Map<String, dynamic>);
+                  },
+                  builder: (context, candidates, rejected) => Tooltip(
+                    message: 'Drag a meal here to delete',
+                    child: Container(
+                      height: 80,
+                      alignment: Alignment.centerLeft,
+                      padding: const EdgeInsets.only(left: 28),
+                      decoration: BoxDecoration(
+                        color: candidates.isEmpty
+                            ? Colors.transparent
+                            : Theme.of(context).colorScheme.errorContainer,
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: const Icon(Icons.delete_outline),
                     ),
-                    child: const Icon(Icons.delete_outline),
                   ),
                 ),
               ),
-              IconButton(
-                tooltip: 'Refresh meal plan',
-                onPressed: _saving ? null : () => _load(quiet: true),
-                icon: const Icon(Icons.refresh),
+              Expanded(
+                flex: 2,
+                child: Wrap(
+                  alignment: WrapAlignment.spaceEvenly,
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  children: [
+                    TextButton(
+                      onPressed: () => _scroll.hasClients
+                          ? _scroll.animateTo(
+                              0,
+                              duration: const Duration(milliseconds: 250),
+                              curve: Curves.easeOut,
+                            )
+                          : null,
+                      child: const Text('Today'),
+                    ),
+                    TextButton.icon(
+                      onPressed: _saving ? null : _ingredients,
+                      icon: const Icon(Icons.add_shopping_cart),
+                      label: const Text('Ingredients'),
+                    ),
+                  ],
+                ),
               ),
             ],
           ),
@@ -771,7 +886,7 @@ class _MealPlannerState extends State<MealPlanner> with WidgetsBindingObserver {
                     embedded: true,
                     dragRecipes: true,
                     onRecipeDragUpdate: _autoScroll,
-                    onRecipeDragEnd: () => _dragScroll?.cancel(),
+                    onRecipeDragEnd: _stopDragScroll,
                     mealPlanDestination: 'Unscheduled',
                     onSelect: (recipe) => _add(recipe, null),
                   ),

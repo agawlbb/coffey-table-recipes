@@ -1,3 +1,6 @@
+import 'dart:async';
+
+import 'package:coffey_table_recipes/src/local_data.dart';
 import 'package:coffey_table_recipes/src/api.dart';
 import 'package:coffey_table_recipes/src/meal_planner.dart';
 import 'package:coffey_table_recipes/src/meal_plan_ingredients.dart';
@@ -120,7 +123,7 @@ class PlanFixture {
         householdName: 'Table',
         request: request,
         save: save,
-        active: false,
+        active: true,
         now: () => DateTime(2026, 10, 22),
       ),
     ),
@@ -128,6 +131,130 @@ class PlanFixture {
 }
 
 void main() {
+  testWidgets('persisted plan paints while the network never returns', (
+    tester,
+  ) async {
+    final disk = <String, String>{};
+    final fixture = PlanFixture();
+    LocalData data(Future<Map<String, dynamic>> Function(String) fetch) =>
+        LocalData(
+          key: 'plan-persistence-test',
+          fetch: fetch,
+          send: (path, body) => fixture.save(path, body),
+          readStore: (key) async => disk[key],
+          writeStore: (key, text) async {
+            disk[key] = text;
+          },
+        );
+    final first = data(fixture.request);
+    await first.request(
+      '/households/1/meal-plan?from=2000-01-01&to=2199-12-31',
+    );
+    await tester.runAsync(() => Future<void>.delayed(Duration.zero));
+    first.dispose();
+    final never = Completer<Map<String, dynamic>>();
+    final second = data((_) => never.future);
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: MealPlanner(
+            householdId: '1',
+            householdName: 'Table',
+            now: () => DateTime(2026, 10, 22),
+            request: second.request,
+            save: second.save,
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('Today soup'), findsOneWidget);
+    expect(find.byType(CircularProgressIndicator), findsNothing);
+    await tester.pumpWidget(const SizedBox());
+    second.dispose();
+  });
+
+  testWidgets(
+    'held tile scrolls both ways during continuous pointer movement and stops in center',
+    (tester) async {
+      await tester.binding.setSurfaceSize(const Size(390, 900));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+      final fixture = PlanFixture();
+      await tester.pumpWidget(fixture.app());
+      await tester.pumpAndSettle();
+      final list = find.byType(CustomScrollView);
+      final controller = tester.widget<CustomScrollView>(list).controller!;
+      final bounds = tester.getRect(list);
+      final initial = controller.offset;
+      final gesture = await tester.startGesture(
+        tester.getCenter(find.text('Today soup')),
+      );
+      await tester.pump(const Duration(milliseconds: 600));
+      for (var i = 0; i < 30; i++) {
+        await gesture.moveTo(
+          Offset(bounds.center.dx + i % 2, bounds.bottom - 15),
+        );
+        await tester.pump(const Duration(milliseconds: 20));
+      }
+      expect(controller.offset, greaterThan(initial + 100));
+      await gesture.moveTo(bounds.center);
+      await tester.pump(const Duration(milliseconds: 60));
+      final middle = controller.offset;
+      await tester.pump(const Duration(milliseconds: 180));
+      expect(controller.offset, middle);
+      await gesture.moveTo(Offset(bounds.center.dx, bounds.top + 15));
+      await tester.pump(const Duration(milliseconds: 240));
+      expect(controller.offset, middle);
+      final toolbar = tester.getRect(find.byKey(const ValueKey('meal-trash')));
+      await gesture.moveTo(
+        Offset(toolbar.right + toolbar.width / 2, toolbar.center.dy),
+      );
+      await tester.pump(const Duration(milliseconds: 240));
+      expect(controller.offset, lessThan(middle));
+      await gesture.cancel();
+      await tester.pump(const Duration(milliseconds: 100));
+      final ended = controller.offset;
+      await tester.pump(const Duration(milliseconds: 180));
+      expect(controller.offset, ended);
+      expect(fixture.writes, isEmpty);
+      await tester.pumpWidget(const SizedBox());
+    },
+  );
+
+  testWidgets('trash is leftmost and accepts drops outside the visible icon', (
+    tester,
+  ) async {
+    final fixture = PlanFixture();
+    await tester.pumpWidget(fixture.app());
+    await tester.pumpAndSettle();
+    final target = find.byKey(const ValueKey('meal-trash'));
+    final bounds = tester.getRect(target);
+    expect(bounds.width, greaterThanOrEqualTo(100));
+    expect(bounds.height, greaterThanOrEqualTo(80));
+    expect(
+      bounds.left,
+      lessThan(tester.getTopLeft(find.text('Today').first).dx),
+    );
+    final gesture = await tester.startGesture(
+      tester.getCenter(find.text('Today soup')),
+    );
+    await tester.pump(const Duration(milliseconds: 600));
+    await gesture.moveTo(bounds.bottomRight - const Offset(8, 8));
+    await tester.pump();
+    final container = tester.widget<Container>(
+      find.descendant(of: target, matching: find.byType(Container)).first,
+    );
+    expect(
+      (container.decoration as BoxDecoration).color,
+      isNot(Colors.transparent),
+    );
+    await gesture.up();
+    await tester.pumpAndSettle();
+    expect(fixture.writes.single['operation'], 'remove');
+    expect(fixture.writes.single['id'], 'today');
+    await tester.pumpWidget(const SizedBox());
+  });
+
   testWidgets('picker confirms variation selection and cancel adds nothing', (
     tester,
   ) async {
@@ -170,6 +297,9 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
+    final label = tester.widget<Text>(find.text('Add to Friday, October 23'));
+    expect(label.style?.fontWeight, FontWeight.bold);
+    expect(label.style?.fontSize, greaterThanOrEqualTo(20));
     await tester.tap(find.text('Pasta'));
     await tester.pumpAndSettle();
     expect(find.text('Removed pasta'), findsNothing);
@@ -234,6 +364,9 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.text('Add to meal plan'));
     await tester.pumpAndSettle();
+    expect(fixture.writes, isEmpty);
+    await tester.tap(find.text('Add'));
+    await tester.pumpAndSettle();
     expect(fixture.writes.single['date'], isNull);
     expect(fixture.writes.single['recipe_id'], '5');
     expect(fixture.reads.where((p) => p.contains('/pairings/')), isEmpty);
@@ -295,7 +428,7 @@ void main() {
       ]);
       expect(result.length, 6);
       expect(result[0].name, 'Flour');
-      expect(result[0].details, '1.5 cup');
+      expect(result[0].details, '1 1/2 cup');
       expect(result[1].details, '100 g');
       expect(result[2].details, 'to taste');
       expect(result[3].details, 'a pinch');

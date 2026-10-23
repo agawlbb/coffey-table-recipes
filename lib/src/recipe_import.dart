@@ -72,10 +72,7 @@ class RecipeImportChoices extends StatelessWidget {
             avatar: Icon(option.$3, size: 18),
             label: Text(option.$2),
             selected: option.$1 == selectedKind,
-            onSelected:
-                !enabled || (option.$1 == 'blank' && offlineStatus.value)
-                ? null
-                : (_) => onSelected(option.$1),
+            onSelected: !enabled ? null : (_) => onSelected(option.$1),
           ),
     ],
   );

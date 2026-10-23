@@ -14,6 +14,7 @@ Future<void> showRecipeShopping(
   required RecipeRequest request,
   required RecipeSave save,
   required List<ShoppingIngredient> ingredients,
+  Future<List<ShoppingIngredient>?> Function(BuildContext)? onChooseDates,
 }) => showModalBottomSheet<void>(
   context: context,
   isScrollControlled: true,
@@ -26,6 +27,7 @@ Future<void> showRecipeShopping(
   builder: (_) => SizedBox(
     height: MediaQuery.sizeOf(context).height * .8,
     child: RecipeShoppingSelector(
+      onChooseDates: onChooseDates,
       ingredients: ingredients.where((i) => i.name.isNotEmpty).toList(),
       loadExisting: () async => [
         for (final item in recipeRows(

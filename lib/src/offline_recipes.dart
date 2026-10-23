@@ -40,11 +40,13 @@ class OfflineRecipes with WidgetsBindingObserver {
     required this.fetch,
     this.read = readOfflineStore,
     this.write = writeOfflineStore,
+    this.downloadLibrary = true,
   });
   final String key;
   final OfflineRequest fetch;
   final Future<String?> Function(String) read;
   final Future<void> Function(String, String) write;
+  final bool downloadLibrary;
   Map<String, dynamic> _responses = {};
   Map<String, dynamic> _libraries = {};
   Map<String, dynamic> _pending = {};
@@ -196,12 +198,11 @@ class OfflineRecipes with WidgetsBindingObserver {
           .where(
             (row) =>
                 _responses['/households/$household/recipes/${row['id']}'] !=
-                    null &&
-                (pending == null ||
-                    (pending['downloaded'] as List).contains(row['id'])),
+                null,
           )
           .length;
-      if (pending != null) complete = false;
+      // A background revalidation does not remove already persisted text.
+      // Pending download bookkeeping tracks freshness, not local availability.
     }
     progress.value = RecipeSyncProgress(
       saved: saved,
@@ -214,6 +215,7 @@ class OfflineRecipes with WidgetsBindingObserver {
 
   bool _cacheable(String path) =>
       path == '/me' ||
+      RegExp(r'^/recipes/[1-9][0-9]*$').hasMatch(path) ||
       (!Uri.parse(path).path.endsWith('/recipes/deleted') &&
           RegExp(r'^/households/[^/]+/(people|recipes)(/[^/?]+)?(\?.*)?$')
               .hasMatch(path));
@@ -354,6 +356,15 @@ class OfflineRecipes with WidgetsBindingObserver {
   }
 
   /// Read saved browse text without waiting for a network timeout.
+  /// Also accepts individual recipe reads so every recipe page can paint first.
+  Future<Map<String, dynamic>?> cachedRead(String path) async {
+    await _load();
+    if (_closed || !_cacheable(path)) return null;
+    final parts = Uri.parse(path).pathSegments;
+    if (parts.length == 3 && parts[2] == 'recipes') return cachedBrowse(path);
+    return _cached(path);
+  }
+
   Future<Map<String, dynamic>?> cachedBrowse(String path) async {
     await _load();
     final parts = Uri.parse(path).pathSegments;
@@ -472,14 +483,42 @@ class OfflineRecipes with WidgetsBindingObserver {
   Map<String, dynamic>? _cached(String path) {
     final uri = Uri.parse(path);
     // Favorite membership is server-owned; never synthesize unfiltered results.
-    if (uri.queryParameters.containsKey('favorite_people')) return null;
+    if (uri.queryParameters.containsKey('favorite_people')) {
+      final exact = _responses[path];
+      return exact == null ? null : Map<String, dynamic>.from(exact as Map);
+    }
     final segments = uri.pathSegments;
     if (segments.length == 3 && segments[2] == 'recipes') {
       final pending = _pending[segments[1]] as Map?;
+      final hasIndex = _libraries[segments[1]] != null || pending != null;
+      if (!hasIndex && _responses[path] is Map) {
+        return Map<String, dynamic>.from(_responses[path] as Map);
+      }
+      final prefix = '/households/${segments[1]}/recipes/';
+      final savedRecipes = hasIndex
+          ? <Map>[]
+          : [
+              for (final entry in _responses.entries)
+                if (entry.key.startsWith(prefix) &&
+                    RegExp(r'^[1-9][0-9]*$')
+                        .hasMatch(entry.key.substring(prefix.length)) &&
+                    entry.value['recipe'] is Map)
+                  entry.value['recipe'] as Map,
+            ];
       final library =
           _libraries[segments[1]] as Map? ??
           (pending == null
-              ? null
+              ? savedRecipes.isEmpty
+                    ? null
+                    : {
+                        'rows': savedRecipes,
+                        'ids': {
+                          '': savedRecipes
+                              .map((row) => row['id'].toString())
+                              .toList(),
+                        },
+                        'scopes': <String, dynamic>{},
+                      }
               : {
                   'rows': (pending['rows'] as List)
                       .where(
@@ -515,7 +554,9 @@ class OfflineRecipes with WidgetsBindingObserver {
         final ids = (library['ids'] as Map)[scope] as List?;
         if (ids != null) {
           var rows = (library['rows'] as List).where((row) {
-            if (!ids.contains(row['id'])) return false;
+            if (!ids.any((id) => id.toString() == row['id'].toString())) {
+              return false;
+            }
             final detail =
                 _responses['/households/${segments[1]}/recipes/${row['id']}'];
             final recipe = detail?['recipe'] as Map?;
@@ -562,8 +603,13 @@ class OfflineRecipes with WidgetsBindingObserver {
     return data == null ? null : Map<String, dynamic>.from(data as Map);
   }
 
-  Future<void> sync(List<String> households) =>
-      _sync ??= _synchronize(households).whenComplete(() => _sync = null);
+  Future<void> sync(List<String> households, {bool refreshDetails = false}) =>
+      downloadLibrary
+      ? _sync ??= _synchronize(
+          households,
+          refreshDetails: refreshDetails,
+        ).whenComplete(() => _sync = null)
+      : Future<void>.value();
 
   Future<void> retry() async {
     if (offlineStatus.value) await _probe();
@@ -572,7 +618,10 @@ class OfflineRecipes with WidgetsBindingObserver {
     }
   }
 
-  Future<void> _synchronize(List<String> households) async {
+  Future<void> _synchronize(
+    List<String> households, {
+    bool refreshDetails = false,
+  }) async {
     await _load();
     if (_closed) return;
     _pruneHouseholds(households);
@@ -606,6 +655,7 @@ class OfflineRecipes with WidgetsBindingObserver {
         final previous = _libraries[household] as Map?;
         final lastSync = DateTime.tryParse('${previous?['synced_at']}');
         var fresh =
+            !refreshDetails &&
             lastSync != null &&
             DateTime.now().difference(lastSync) < const Duration(hours: 24);
         // Always check the inventory: a recent snapshot may lack newly added recipes.
@@ -876,9 +926,9 @@ class OfflineIndicator extends StatelessWidget {
     valueListenable: offlineStatus,
     builder: (context, offline, _) => offline
         ? Tooltip(
-            message: 'Offline · showing saved recipes',
+            message: 'Sync paused. Showing saved recipes; the recipe service may be temporarily unavailable.',
             child: Semantics(
-              label: 'Offline. Showing saved recipes.',
+              label: 'Sync paused. Showing saved recipes.',
               child: Material(
                 color: Colors.transparent,
                 child: Container(
@@ -897,7 +947,7 @@ class OfflineIndicator extends StatelessWidget {
                     children: [
                       Icon(Icons.cloud_off_outlined, size: 14),
                       SizedBox(width: 4),
-                      Text('Offline', style: TextStyle(fontSize: 11)),
+                      Text('Sync paused', style: TextStyle(fontSize: 11)),
                     ],
                   ),
                 ),

@@ -35,10 +35,11 @@ today and timezone, initially America/New_York, rather than deriving shared date
 from a traveling member's device timezone. Changing that default for an existing
 household is a deliberate data change, not an automatic timezone guess.
 
-Each operation compares the household revision. Conflicting edits refresh the
-screen and ask the user to review/retry, without silently replaying the write.
-The planner refreshes on return/resume and every 30 seconds while active. Writes
-require a connection; no offline mutation queue is introduced.
+Each operation compares the household revision. Calendar data is mirrored in
+persistent local storage and ordinary operations commit to a durable local outbox.
+Conflicts preserve the local edit for explicit review; no remote revision is
+silently overwritten. Return/resume and the active planner's periodic refresh
+read local data immediately while synchronization runs separately.
 
 Planner readiness is discarded on an HTTP 401 (authentication interruption),
 404 household_not_found (missing membership/household), or 403 account_disabled.
@@ -65,7 +66,7 @@ can consume this API; recommendation screens are outside this implementation.
 
 ## Ingredients and shopping
 
-Ingredients opens a date-range picker for today/upcoming meals, then reuses
+Ingredients opens today and all future planned meals directly, then reuses
 RecipeShoppingSelector and the same shopping-list write helper as recipe detail.
 Each scheduled occurrence contributes once. Explicit amounts with the same
 ingredient name, compatible unit spelling, preparation and optional status are
@@ -121,3 +122,76 @@ Validation: flutter analyze --no-pub clean; full flutter test --no-pub suite pas
 
 ### Updated Android debug build (2026-10-23)
 Built source `1595dc13e5cb85556bab4438d5eac6513fe24175` with `flutter build apk --debug --dart-define-from-file=config/firebase.local.json`. Saved `G:/My Drive/recipe app/CoffeyTableRecipes-meal-planning-v2-test-1595dc1.apk` (199,763,398 bytes). Source and delivered copy SHA-256: `8c687d2774db9d9764fad2674e9804bbb5ff5fe17ee3975ec6d0125050e96358`. APK v2 signature verifies with the existing Android Debug certificate (`f8de933f14b9bb4b3191a94aedc8637972c5ab224565f6abd7808f8038d12097`). Package `com.coffeytable.coffey_table_recipes`, version 1.8.5/build 29, debuggable, minimum SDK 24/target 36. No device installation, release tagging, main merge, or hosted Flutter deployment performed. Existing packages retained.
+
+
+## Confirmation and feedback refinement (2026-10-23)
+Recipe-view Add to meal plan uses the same confirmation/household-variation chooser as the dated picker, retaining Unscheduled as its destination. The picker destination label is larger and bold. The toolbar trash target is leftmost with a 104 by 80 logical-pixel hit area and full-area hover highlight. Dropping outside the visible icon still deletes; past dates retain confirmation.
+
+Addition feedback and View plan expire after five seconds (including accessibility navigation mode), and are dismissed when navigating to another route or drawer section. A write finishing after navigation does not show stale success feedback. No backend changes are required.
+
+Validation: full Flutter suite passed (397 tests); flutter analyze --no-pub clean. Regression coverage includes normal recipe confirmation/variation choice, enlarged off-icon trash drops, picker label styling, five-second expiry with accessibility navigation enabled, route push/pop and section cleanup, and late save completion after navigation.
+
+### Android test APK after confirmation and feedback changes
+Built source 1e77b0676de5638d63740f40823f259d1fdfb05a using flutter build apk --debug --dart-define-from-file=config/firebase.local.json. Saved G:/My Drive/recipe app/CoffeyTableRecipes-meal-planning-v2-test-1e77b06.apk (199,766,529 bytes). Source and delivered copy SHA-256: c3cd85f9961f1619e2554a3450bb6a0b1d7bf89853d6b65b5f50db83ec829b8c. APK v2 signature verifies using the existing Android Debug certificate f8de933f14b9bb4b3191a94aedc8637972c5ab224565f6abd7808f8038d12097; package com.coffeytable.coffey_table_recipes, version 1.8.5/build29, debuggable. No installation, release, main merge, backend or hosted Flutter deployment. Earlier test packages and the experiment branch were preserved.
+
+
+## Ingredient review update (2026-10-23)
+Removed the manual planner refresh icon; automatic refresh remains. Ingredients opens the existing shopping selector directly for today through all supported future planned dates (2199-12-31). Its title has a calendar button for an optional custom today/future range. Cancel preserves the list and checked ingredients; applying a range replaces the list and clears prior selections. Empty ranges still show the calendar action.
+
+A broad plan read discovers all scheduled recipe dates, including dates outside the visible scrolling window. Ingredient requests group occupied dates into nonoverlapping spans of at most 366 days to respect the existing API limit. No backend change or database mutation is required. Amounts trim trailing zeroes; customary quantities use common mixed fractions with the existing recipe-import tolerance, while metric amounts retain decimals. Compatible quantities are summed before formatting; descriptive quantities, optional ingredients and incompatible units remain separate.
+
+Validation: flutter analyze --no-pub clean; full flutter test --no-pub suite passed (401 tests). Coverage includes direct all-future opening, distant planned meals within API bounds, calendar cancellation, custom-list replacement and selection reset, customary fractions and trimmed metric amounts. Access regressions now use automatic resume refresh instead of the removed button.
+
+
+### Android ingredient-review test APK (2026-10-23)
+Built source `83f6d8b3cd62db1d999216f15992c5264076e6db` with `flutter build apk --debug --dart-define-from-file=config/firebase.local.json`. Delivered `G:/My Drive/recipe app/CoffeyTableRecipes-meal-planning-v2-test-83f6d8b.apk` (199,773,366 bytes). Source and delivered SHA-256 match: `5ca1c4871363a9d7910399f2adc97583429a314e16bfaa4a28a07a29ecff7a74`. APK v2 signature verifies with the existing Android Debug certificate (`f8de933f14b9bb4b3191a94aedc8637972c5ab224565f6abd7808f8038d12097`); package `com.coffeytable.coffey_table_recipes`, version 1.8.5/build29, debuggable. No device installation, release/tag, main merge or hosted Flutter deployment. Backend and experiment branch unchanged; earlier packages retained.
+
+
+## Cooking fractions, drag scrolling and recipe creation (2026-10-23)
+Customary ingredient totals round upward to the next standard eighth/quarter/half or third measure (1/8, 1/4, 1/3, 3/8, 1/2, 5/8, 2/3, 3/4, 7/8, whole), with a small tolerance for stored decimal noise. For example, 1.0833333 cup becomes 1 1/8 cup. Totals are combined before rounding; metric decimals remain unchanged.
+
+Dragging near the top/bottom of the date list uses a continuous 30 ms timer and a wider edge zone with speed increasing near the edge. Pointer updates no longer restart the timer. Moving into the center pauses scrolling; release/cancel stops it. This applies to held plan tiles and the wide-screen recipe browser's drag callbacks.
+
+Add recipe moved out of the household drawer to directly below the normal recipe browser search bar. It reuses the existing import flow and household identity. The subsequent local-first update allows blank recipes offline after the initial catalog download; AI imports still require a connection. Meal-plan selection browsers hide the action.
+
+Validation: flutter analyze --no-pub clean; full Flutter suite passed (405 tests). New regressions cover continuous high-frequency drag updates, upward/downward scrolling and stopping, cocoa powder and other rounded customary quantities with unchanged metric values, Add recipe placement/callback/offline disabling and picker hiding.
+
+## Local-first planner (2026-10-23)
+
+The planner now shares the persistent local-data repository and durable outbox
+with recipes and shopping lists. It mirrors the complete supported calendar,
+reads date ranges locally, preserves a loaded view during synchronization, and
+derives paired dishes/ingredients from household recipe data. Offline operations
+survive restart; revision conflicts and server-required history confirmations are
+retained for explicit review. Blank recipe creation remains available offline
+after its initial catalog download. See [local-first-data.md](local-first-data.md).
+
+Validation: full suite passed (433 tests); final affected suites passed (94 tests),
+including a persisted planner displayed while the network never returns,
+calendar add/move/remove across restart, household-filtered pairings, ingredient
+collection, local/canonical recipe IDs, access-loss races and ingredient-only
+remote changes. Static analysis clean. No app build or hosted deployment.
+
+
+### Android cooking-measures and scrolling test APK (2026-10-23)
+Built source `9f15da09a52a21f497a2e64e17dbc7c43dd603e6` using `flutter build apk --debug --dart-define-from-file=config/firebase.local.json`. Delivered `G:/My Drive/recipe app/CoffeyTableRecipes-meal-planning-v2-test-9f15da0.apk` (199,774,032 bytes). Source/delivery SHA-256 match: `cfe621826f7b86f914d3e004b549347776815509dfb2e83189287026473a588e`. APK v2 signing verifies with existing Android Debug certificate SHA-256 `f8de933f14b9bb4b3191a94aedc8637972c5ab224565f6abd7808f8038d12097`; package `com.coffeytable.coffey_table_recipes`, version 1.8.5/build29, debuggable. No device installation, release/tag, main merge, backend change or hosted Flutter deployment. Earlier packages and the separate experiment are preserved.
+
+
+## Drag stop safety and toolbar zones (2026-10-23, no rebuild)
+Meal-plan ingredient rows display the ingredient name and amount/unit only, omitting preparation, parenthetical/comma notes and optional-detail labels. Recipe-view shopping behavior remains unchanged.
+
+The toolbar's entire left third is the trash target. Its right two-thirds trigger upward scrolling when the dragged tile reaches the toolbar or above; the date list itself no longer triggers upward scrolling. The bottom edge still scrolls toward future dates. Trash hover never scrolls.
+
+The planner tracks the active drag pointer independently of the source tile. Pointer release/cancellation stops the timer even after the source leaves the viewport. App backgrounding, route changes, hiding the planner, access loss and disposal also stop scrolling; stale drag updates cannot restart it on an inactive screen. No app rebuild is part of this change; existing APKs do not include it.
+
+Validation: flutter analyze --no-pub clean; full Flutter suite passed (411 tests). Regression coverage includes quantity-only details, exact toolbar trash-third sizing, no upward scrolling inside the date list, trash hover without scrolling, pointer release/cancellation after the source leaves the viewport, background/navigation/hide stops, and stale drag updates on inactive screens. No rebuild was performed.
+
+
+## Main synchronization audit (2026-10-23)
+Merged Flutter main `66cbb11e83743ebf8500fa6ffb58eea29b56cb08` into the feature branch, rather than relying on earlier individually copied changes. Restored all remaining main updates, including Kotlin 2.4.21 tooling/security notes, complete cached-first detail/public-link handling, account cached-request support, offline progress fixes and the previously missing communication/offline regressions. Shared LocalData, API and save-notification code/tests match main; retained the complete local planner, its first-use calendar requirement, all feature controls and the separate experiment branch.
+
+Resolved overlap by preserving planner-specific navigation/readiness and adding main's shared cache behavior. Full Flutter suite passed (458 tests), static analysis clean, diff whitespace checks clean. Backend main `0dad2b1ef28682881bf206c493178064e3248124` was independently merged and verified on its feature branch. Both main heads are included as merge ancestors. No builds, schema changes or hosted deployments were requested or performed.
+
+
+### Updated feature Android test APK after main integration (2026-10-23)
+Built clean source `27dc7320f50fe3e5213516f764e2763438a12f46` with `flutter build apk --debug --no-pub --dart-define-from-file=config/firebase.local.json`. Delivered `G:/My Drive/recipe app/CoffeyTableRecipes-meal-planning-v2-test-27dc732.apk` (199,898,038 bytes). Source and delivered SHA-256 match: `ae6d3b511892b813e9efcf006637ac29e78a2f6cc8606367f35f8c336e47222f`. APK v2 signature verifies with existing Android Debug certificate SHA-256 `f8de933f14b9bb4b3191a94aedc8637972c5ab224565f6abd7808f8038d12097`. Package `com.coffeytable.coffey_table_recipes`, version 1.8.5/build29, debuggable, minimum SDK24/target36. Build succeeded with existing plugin compatibility warnings; last merged-source verification was 458 passing Flutter tests and clean analysis. No device installation, release/tag, web build, backend change or hosted deployment. Existing packages retained. This subsequent commit only records build verification.

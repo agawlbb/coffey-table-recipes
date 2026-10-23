@@ -1,3 +1,5 @@
+import 'meal_plan_actions.dart';
+import 'sync_notifications.dart';
 import 'account_menu.dart';
 
 import 'dart:async';
@@ -24,6 +26,7 @@ import 'meal_planner.dart';
 import 'recipe_trash.dart';
 import 'shopping_list.dart';
 import 'shopping_list_cache.dart';
+import 'local_data.dart';
 import 'shopping_departments.dart';
 import 'recipe_import.dart';
 import 'shared_recipe_import.dart';
@@ -90,8 +93,10 @@ class _AccountPanelState extends State<AccountPanel> {
 
     return StreamBuilder<User?>(
       stream: _authChanges,
+      initialData: FirebaseAuth.instance.currentUser,
       builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
+        if (snapshot.connectionState == ConnectionState.waiting &&
+            snapshot.data == null) {
           return const Center(child: CircularProgressIndicator());
         }
         final user = snapshot.data;
@@ -179,6 +184,7 @@ class HouseholdPanel extends StatefulWidget {
     required this.user,
     this.request,
     this.signOut,
+    this.cachedRequest,
   });
   final Future<void> Function()? signOut;
   final Future<Map<String, dynamic>> Function(
@@ -187,6 +193,7 @@ class HouseholdPanel extends StatefulWidget {
   })?
   request;
   final User user;
+  final Future<Map<String, dynamic>?> Function(String path)? cachedRequest;
   @override
   State<HouseholdPanel> createState() => _HouseholdPanelState();
 }
@@ -194,6 +201,19 @@ class HouseholdPanel extends StatefulWidget {
 class _HouseholdPanelState extends State<HouseholdPanel> {
   final _api = RecipeApi(baseUrl: apiBaseUrl);
   OfflineRecipes? _offline;
+  LocalData? _local;
+  Timer? _mirrorTimer;
+  void _localChanged() {
+    if (mounted && localDataChanges.value.startsWith('/me#')) {
+      unawaited(_load(reviewInvitations: false));
+    }
+  }
+
+  Future<Map<String, dynamic>?> _cachedRead(String path) =>
+      widget.cachedRequest?.call(path) ??
+      _local?.cachedView(path) ??
+      _offline?.cachedRead(path) ??
+      Future.value(null);
   final _householdName = TextEditingController();
   final _personName = TextEditingController();
   List<Map<String, dynamic>> _households = [];
@@ -347,14 +367,47 @@ class _HouseholdPanelState extends State<HouseholdPanel> {
     super.initState();
     sharedRecipeInbox.addListener(_sharedRecipeChanged);
     _personName.text = widget.user.displayName ?? '';
-    if (mobileOfflineEnabled && widget.request == null) {
+    if (widget.request == null) {
       _offline =
           OfflineRecipes(
             key: '$apiBaseUrl|${widget.user.uid}',
-            fetch: (path) => _onlineRequest(path),
+            fetch: (path) async {
+              if (path == '/me') {
+                if (kIsWeb && Uri.base.queryParameters['account'] == 'signin') {
+                  await widget.user.reload().timeout(
+                    const Duration(seconds: 8),
+                  );
+                }
+                await _idToken(true);
+              }
+              return _onlineRequest(path);
+            },
+            downloadLibrary: false,
           )..start(() {
             if (mounted) unawaited(_load(reviewInvitations: false));
           });
+    }
+    if (widget.request == null) {
+      _local = LocalData(
+        key: '$apiBaseUrl|${widget.user.uid}',
+        fetch: (path) => _offline!.request(path),
+        readServer: (path) => _onlineRequest(path),
+        send: (path, body) => _onlineRequest(path, body: body),
+        online: () => !offlineStatus.value,
+        snapshotOnly: true,
+        onPendingChanged: SyncNotifications.update,
+      )..start();
+      localDataChanges.addListener(_localChanged);
+      _mirrorTimer = Timer.periodic(const Duration(minutes: 1), (_) {
+        if (mounted &&
+            !offlineStatus.value &&
+            WidgetsBinding.instance.lifecycleState ==
+                AppLifecycleState.resumed) {
+          unawaited(
+            _syncLibrary(_households.map((h) => h['id'] as String).toList()),
+          );
+        }
+      });
     }
     _load();
   }
@@ -362,6 +415,9 @@ class _HouseholdPanelState extends State<HouseholdPanel> {
   @override
   void dispose() {
     sharedRecipeInbox.removeListener(_sharedRecipeChanged);
+    _mirrorTimer?.cancel();
+    localDataChanges.removeListener(_localChanged);
+    _local?.dispose();
     _offline?.close();
     _api.close();
     _householdName.dispose();
@@ -445,9 +501,12 @@ class _HouseholdPanelState extends State<HouseholdPanel> {
       return data;
     }
     await _offline?.rememberSavedRecipe(path, data);
+    if (_local != null && !_local!.canSave(path)) {
+      await _local!.acceptServerRecipe(path, data);
+    }
     if (_offline != null) {
       unawaited(
-        _offline!.sync(_households.map((h) => h['id'] as String).toList()),
+        _syncLibrary(_households.map((h) => h['id'] as String).toList()),
       );
     }
     return data;
@@ -458,16 +517,11 @@ class _HouseholdPanelState extends State<HouseholdPanel> {
     Map<String, dynamic>? body,
   }) async {
     if (widget.request != null) return widget.request!(path, body: body);
-    if (body != null &&
-        _offline != null &&
-        offlineStatus.value &&
-        !path.endsWith('/recipe-import')) {
-      throw ApiException(
-        503,
-        'Changes require an internet connection. Reconnect and try again.',
-      );
+    if (_local != null) {
+      if (path.endsWith('/recipe-blank')) return _local!.blank(path);
+      if (body == null) return _local!.request(path);
+      if (_local!.canSave(path)) return _local!.save(path, body);
     }
-    if (body == null && _offline != null) return _offline!.request(path);
     return _onlineRequest(path, body: body);
   }
 
@@ -476,7 +530,7 @@ class _HouseholdPanelState extends State<HouseholdPanel> {
     Map<String, dynamic>? body,
   }) async {
     if (body == null && isPublicRecipeRead(path)) {
-      return _api.request(path, '');
+      return _api.request(path, '', timeout: const Duration(seconds: 8));
     }
     final token = await _idToken();
     if (token == null) throw ApiException(401, 'Please sign in again.');
@@ -528,7 +582,7 @@ class _HouseholdPanelState extends State<HouseholdPanel> {
 
   Future<String?> _idToken([bool refresh = false]) {
     final token = widget.user.getIdToken(refresh);
-    return _offline == null ? token : token.timeout(const Duration(seconds: 8));
+    return token.timeout(const Duration(seconds: 8));
   }
 
   Future<void> _perform(Future<void> Function() action) async {
@@ -555,13 +609,127 @@ class _HouseholdPanelState extends State<HouseholdPanel> {
     }
   }
 
+  final _readyHouseholds = <String>{};
+  bool _databaseChecking = true;
+  String? _databaseError;
+  String _databaseProgress = 'Checking local database';
+  double? _databaseFraction;
+  Future<void>? _librarySync;
+  Future<void> _syncLibrary(List<String> households) async {
+    final active = _librarySync;
+    if (active != null) {
+      await active;
+      final missing = households
+          .where((id) => !_readyHouseholds.contains(id))
+          .toList();
+      if (mounted && missing.isNotEmpty) await _syncLibrary(missing);
+      return;
+    }
+    final task = _downloadLibraries(households);
+    _librarySync = task;
+    try {
+      await task;
+    } finally {
+      _librarySync = null;
+    }
+  }
+
+  Future<void> _downloadLibraries(List<String> households) async {
+    for (var index = 0; index < households.length; index++) {
+      final household = households[index];
+      if (!mounted) return;
+      setState(() {
+        _databaseError = null;
+        _databaseProgress =
+            'Downloading household ${index + 1} of ${households.length}';
+        _databaseFraction = index / households.length;
+      });
+      try {
+        final epoch = _local!.snapshotEpoch;
+        final version = await _local!.snapshotVersion(household);
+        final token = await _idToken();
+        if (token == null) throw ApiException(401, 'Please sign in again.');
+        final snapshot = await _api.request(
+          '/households/$household/snapshot${version == null ? '' : '?version=$version'}',
+          token,
+          timeout: const Duration(seconds: 90),
+          onProgress: (received, total) {
+            if (!mounted || _readyHouseholds.contains(household)) return;
+            setState(() {
+              _databaseProgress =
+                  'Downloaded ${(received / 1024).round()} KB${total == null ? '' : ' of ${(total / 1024).round()} KB'}';
+              _databaseFraction = total == null || total == 0
+                  ? null
+                  : (index + 0.8 * received / total) / households.length;
+            });
+          },
+        );
+        if (!mounted) return;
+        if (_local!.snapshotEpoch != epoch) {
+          if (!_readyHouseholds.contains(household)) index--;
+          continue;
+        }
+        if (snapshot['unchanged'] != true) {
+          if (snapshot['schema'] != 1 ||
+              snapshot['household_id'] != household ||
+              snapshot['version'] is! String ||
+              snapshot['recipes'] is! List ||
+              snapshot['categories'] is! List ||
+              snapshot['responses'] is! Map ||
+              snapshot['edit_options'] is! Map) {
+            throw const FormatException('Incomplete database response');
+          }
+          final responses = snapshot['responses'] as Map;
+          for (final row in snapshot['recipes'] as List) {
+            if (responses['/households/$household/recipes/${row['id']}']?['recipe']
+                    is! Map ||
+                responses['/households/$household/recipes/${row['id']}/favorites']
+                    is! Map) {
+              throw const FormatException('Missing recipe data');
+            }
+          }
+          for (final resource in [
+            'people',
+            'shopping-list',
+            'recipe-blank',
+            'meal-plan',
+            'meal-plan/history',
+          ]) {
+            if (responses['/households/$household/$resource'] is! Map) {
+              throw const FormatException('Missing household data');
+            }
+          }
+          setState(() {
+            _databaseProgress =
+                'Saving ${(snapshot['recipes'] as List).length} recipes on this device';
+            _databaseFraction = (index + 0.8) / households.length;
+          });
+          await _local!.installSnapshot(snapshot);
+        }
+        if (await _local!.snapshotVersion(household) != null && mounted) {
+          setState(() {
+            _readyHouseholds.add(household);
+            _databaseFraction = (index + 1) / households.length;
+          });
+        }
+      } catch (error) {
+        if (mounted) {
+          setState(() {
+            _databaseError = error is ApiException ? error.message : 'Database download could not finish. Your existing local data is safe. Retry to finish setup.';
+          });
+        }
+      }
+    }
+  }
+
   Future<void> _load({bool reviewInvitations = true}) async {
     // This cache chooses public browsing only. It never authorizes a mutation,
     // exposes account data, or substitutes for authenticated /me responses.
     final browseKey = 'browse-households|$apiBaseUrl|${widget.user.uid}';
     if (_households.isEmpty && widget.request == null) {
       try {
-        final cached = await readOfflineStore(browseKey);
+        final cached = await readOfflineStore(browseKey)
+            .timeout(const Duration(seconds: 2));
         if (cached != null && mounted) {
           final households = List<Map<String, dynamic>>.from(
             jsonDecode(cached) as List,
@@ -575,18 +743,42 @@ class _HouseholdPanelState extends State<HouseholdPanel> {
         /* A missing or corrupt browsing preference needs no error. */
       }
     }
-    await _perform(() async {
-      if (widget.request == null && !offlineStatus.value) {
-        if (_entryReturnedFromVerification) await widget.user.reload();
-        // Refresh verification claims before querying invitations.
-        try {
-          await _idToken(true);
-        } catch (error) {
-          if (_offline == null || !isOfflineFailure(error)) rethrow;
-          offlineStatus.value = true;
+    if (_households.isEmpty) {
+      try {
+        final cached = await _cachedRead('/me')
+            .timeout(const Duration(seconds: 2));
+        final households = recipeRows(cached?['households']);
+        if (mounted && households.isNotEmpty) {
+          setState(() {
+            // Browsing context only; roles/invitations still require /me.
+            _households = households;
+            _selected = households.first['id'].toString();
+          });
+        }
+      } catch (_) {
+        // A cache failure cannot block online startup.
+      }
+    }
+    if (_local != null) {
+      for (final h in _households) {
+        final id = h['id'] as String;
+        if (await _local!.snapshotVersion(id) != null &&
+            await _local!.cached('/households/$id/meal-plan') != null) {
+          _readyHouseholds.add(id);
         }
       }
-      final data = await _request('/me');
+      if (mounted) setState(() => _databaseChecking = false);
+    }
+    await _perform(() async {
+      final data = _local == null
+          ? await _request('/me')
+          : await _local!.refresh('/me', force: true).catchError((
+              Object error,
+            ) async {
+              final saved = await _local!.cached('/me');
+              if (saved != null) return saved;
+              throw error;
+            });
       _userId = (data['user'] as Map?)?['id'] as String?;
       _administrator =
           (data['user'] as Map?)?['account_role'] == 'administrator';
@@ -621,8 +813,24 @@ class _HouseholdPanelState extends State<HouseholdPanel> {
       }
       if (_offline != null && !offlineStatus.value) {
         unawaited(
-          _offline!.sync(households.map((h) => h['id'] as String).toList()),
+          _syncLibrary(households.map((h) => h['id'] as String).toList()),
         );
+      }
+      if (_local != null) {
+        for (final household in households) {
+          unawaited(
+            _local!
+                .request('/households/${household['id']}/shopping-list')
+                .catchError((Object _) => <String, dynamic>{}),
+          );
+          unawaited(
+            _local!
+                .request(
+                  '/households/${household['id']}/meal-plan?from=2000-01-01&to=2199-12-31',
+                )
+                .catchError((Object _) => <String, dynamic>{}),
+          );
+        }
       }
       await _loadPeople();
     });
@@ -634,9 +842,6 @@ class _HouseholdPanelState extends State<HouseholdPanel> {
       await _reviewInvitations();
     }
   }
-
-  bool get _entryReturnedFromVerification =>
-      kIsWeb && Uri.base.queryParameters['account'] == 'signin';
 
   Future<void> _reviewInvitations() async {
     if (_reviewingInvitations) return;
@@ -701,7 +906,8 @@ class _HouseholdPanelState extends State<HouseholdPanel> {
   }
 
   Future<void> _loadPeople() async {
-    if (_selected == null) {
+    if (_selected == null ||
+        (_local != null && !_readyHouseholds.contains(_selected))) {
       _people = [];
       return;
     }
@@ -730,6 +936,11 @@ class _HouseholdPanelState extends State<HouseholdPanel> {
       final household = Map<String, dynamic>.from(data['household'] as Map);
       _households.add(household);
       _selected = household['id'] as String;
+      if (_local != null) {
+        unawaited(
+          _syncLibrary(_households.map((h) => h['id'] as String).toList()),
+        );
+      }
       await _loadPeople();
     });
   }
@@ -762,13 +973,49 @@ class _HouseholdPanelState extends State<HouseholdPanel> {
     });
   }
 
+  Future<void> _addRecipe() async {
+    if (_selected == null || offlineStatus.value) return;
+    mealPlanNotices.dismiss();
+    final householdId = _selected!;
+    final saved = await Navigator.push<Map<String, dynamic>>(
+      context,
+      MaterialPageRoute(
+        builder: (_) => RecipeImport(
+          householdId: householdId,
+          request: (path, body) async {
+            final data = await _request(path, body: body);
+            if (data['recipe'] is Map &&
+                (data['recipe'] as Map)['id'] != null) {
+              final id = (data['recipe'] as Map)['id'];
+              await _offline?.rememberSavedRecipe(
+                '/households/$householdId/recipes/$id',
+                data,
+              );
+            }
+            return data;
+          },
+        ),
+      ),
+    );
+    if (saved != null && mounted) {
+      setState(() {
+        _settings = false;
+        _shopping = false;
+        _planning = false;
+        _recipeRefresh++;
+      });
+    }
+  }
+
   void _leaveMenu() {
+    mealPlanNotices.dismiss();
     final navigator = Navigator.of(context);
     navigator.pop(); // Close the current route's drawer first.
     navigator.popUntil((route) => route.isFirst);
   }
 
   void _openMealPlan() {
+    mealPlanNotices.dismiss();
     Navigator.of(context).popUntil((route) => route.isFirst);
     setState(() {
       _settings = false;
@@ -807,51 +1054,6 @@ class _HouseholdPanelState extends State<HouseholdPanel> {
                         _planning = false;
                       });
                     },
-                  ),
-                  ListTile(
-                    leading: const Icon(Icons.add_circle_outline),
-                    title: const Text('Add recipe'),
-                    enabled: selected != null && !offlineStatus.value,
-                    onTap: selected == null
-                        ? null
-                        : () async {
-                            _leaveMenu();
-                            final householdId = _selected!;
-                            final saved =
-                                await Navigator.push<Map<String, dynamic>>(
-                                  context,
-                                  MaterialPageRoute(
-                                    builder: (_) => RecipeImport(
-                                      householdId: householdId,
-                                      request: (path, body) async {
-                                        final data = await _request(
-                                          path,
-                                          body: body,
-                                        );
-                                        if (data['recipe'] is Map &&
-                                            (data['recipe'] as Map)['id'] !=
-                                                null) {
-                                          final id =
-                                              (data['recipe'] as Map)['id'];
-                                          await _offline?.rememberSavedRecipe(
-                                            '/households/$householdId/recipes/$id',
-                                            data,
-                                          );
-                                        }
-                                        return data;
-                                      },
-                                    ),
-                                  ),
-                                );
-                            if (saved != null && mounted) {
-                              setState(() {
-                                _settings = false;
-                                _shopping = false;
-                                _planning = false;
-                                _recipeRefresh++;
-                              });
-                            }
-                          },
                   ),
                   ListTile(
                     leading: const Icon(Icons.calendar_month_outlined),
@@ -916,6 +1118,42 @@ class _HouseholdPanelState extends State<HouseholdPanel> {
 
   @override
   Widget build(BuildContext context) {
+    if (_local != null &&
+        (_databaseChecking ||
+            _households.any((h) => !_readyHouseholds.contains(h['id'])))) {
+      return Scaffold(
+        appBar: AppBar(title: const Text('Downloading database')),
+        body: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Text('Saving your household data on this device'),
+                const SizedBox(height: 20),
+                LinearProgressIndicator(value: _databaseFraction),
+                const SizedBox(height: 12),
+                Text(_databaseProgress),
+                if (_databaseError != null) ...[
+                  const SizedBox(height: 16),
+                  Text(_databaseError!),
+                ],
+                TextButton(
+                  onPressed: _librarySync != null
+                      ? null
+                      : () => unawaited(
+                          _syncLibrary(
+                            _households.map((h) => h['id'] as String).toList(),
+                          ),
+                        ),
+                  child: const Text('Retry download'),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
     final selected = _households.where((h) => h['id'] == _selected).firstOrNull;
     final canAdd =
         selected != null && ['owner', 'admin'].contains(selected['role']);
@@ -1104,6 +1342,7 @@ class _HouseholdPanelState extends State<HouseholdPanel> {
               if (value == 'logout') _logOut();
               if (value == 'household') {
                 setState(() {
+                  mealPlanNotices.dismiss();
                   _settings = true;
                   _planning = false;
                   _shopping = false;
@@ -1117,11 +1356,6 @@ class _HouseholdPanelState extends State<HouseholdPanel> {
       drawer: _buildMenu(context),
       body: Column(
         children: [
-          if (_offline != null && _households.isNotEmpty)
-            RecipeSyncStatus(
-              progress: _offline!.progress,
-              retry: () => unawaited(_offline!.retry()),
-            ),
           Expanded(
             child: IndexedStack(
               index: _planning
@@ -1158,15 +1392,17 @@ class _HouseholdPanelState extends State<HouseholdPanel> {
                         ),
                       )
                     : RecipeBrowser(
+                        localOnly: _local != null,
                         key: ValueKey('$_selected|$_recipeRefresh'),
                         embedded: true,
                         householdId: _selected!,
                         householdName: selected['name'] as String,
                         request: (path) => _request(path),
                         menuBuilder: _buildMenu,
-                        cachedRequest: _offline?.cachedBrowse,
+                        cachedRequest: _cachedRead,
                         save: _saveRecipe,
                         onViewMealPlan: _openMealPlan,
+                        onAddRecipe: _addRecipe,
                       ),
                 Center(
                   child: ConstrainedBox(
@@ -1182,6 +1418,7 @@ class _HouseholdPanelState extends State<HouseholdPanel> {
                     key: ValueKey('shopping-$_selected-$_shoppingRefresh'),
                     embedded: true,
                     active: _shopping,
+                    localFirst: _local != null,
                     cache: ShoppingListCache(
                       account: widget.user.uid,
                       household: _selected!,

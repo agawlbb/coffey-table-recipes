@@ -8,6 +8,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter_cache_manager/flutter_cache_manager.dart';
 
 import 'api.dart';
+import 'local_data.dart';
 import 'recipe_menu.dart';
 import 'cooking_mode.dart';
 import 'offline_recipes.dart';
@@ -36,8 +37,9 @@ final recipePhotoCache = CacheManager(
 
 typedef RecipeRequest = Future<Map<String, dynamic>> Function(String path);
 
-List<Map<String, dynamic>> recipeRows(Object? value) =>
-    List<Map<String, dynamic>>.from(value as List? ?? []);
+List<Map<String, dynamic>> recipeRows(Object? value) => (value as List? ?? [])
+    .map((row) => Map<String, dynamic>.from(row as Map))
+    .toList();
 
 String recipeSourceLabel(Object? source) => switch (source) {
   'blank' => 'Blank recipe',
@@ -115,12 +117,14 @@ class RecipeBrowser extends StatefulWidget {
     required this.householdName,
     required this.request,
     this.embedded = false,
+    this.localOnly = false,
     this.cachedRequest,
     this.menuBuilder,
     this.save,
     this.onSelect,
     this.mealPlanDestination,
     this.onViewMealPlan,
+    this.onAddRecipe,
     this.dragRecipes = false,
     this.onRecipeDragUpdate,
     this.onRecipeDragEnd,
@@ -135,9 +139,11 @@ class RecipeBrowser extends StatefulWidget {
   final ValueChanged<Map<String, dynamic>>? onSelect;
   final String? mealPlanDestination;
   final VoidCallback? onViewMealPlan;
+  final VoidCallback? onAddRecipe;
   final bool dragRecipes;
   final ValueChanged<DragUpdateDetails>? onRecipeDragUpdate;
   final VoidCallback? onRecipeDragEnd;
+  final bool localOnly;
   @override
   State<RecipeBrowser> createState() => _RecipeBrowserState();
 }
@@ -169,17 +175,32 @@ class _RecipeBrowserState extends State<RecipeBrowser>
     if (!kIsWeb && defaultTargetPlatform == TargetPlatform.iOS) {
       WidgetsBinding.instance.addObserver(this);
     }
+    localDataChanges.addListener(_localChanged);
     _wasOffline = offlineStatus.value;
-    if (mobileOfflineEnabled) offlineStatus.addListener(_connectionChanged);
+    if (mobileOfflineEnabled && !widget.localOnly) {
+      offlineStatus.addListener(_connectionChanged);
+    }
     _load(useCached: true);
   }
 
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    localDataChanges.removeListener(_localChanged);
     offlineStatus.removeListener(_connectionChanged);
     _search.dispose();
     super.dispose();
+  }
+
+  void _localChanged() {
+    if (mounted &&
+        (localDataChanges.value.startsWith('/me#') ||
+            localDataChanges.value.startsWith(
+              '/households/${widget.householdId}/recipes',
+            ))) {
+      _browseCache.clear();
+      _load();
+    }
   }
 
   void _connectionChanged() {
@@ -287,6 +308,18 @@ class _RecipeBrowserState extends State<RecipeBrowser>
       _busy = _recipes.isEmpty && _nodes.isEmpty;
     });
     try {
+      if (widget.localOnly) {
+        final data = await widget.request(path);
+        if (!current()) return;
+        final nodes = nodesFor(data);
+        if (!more && _query.isEmpty && data['view'] == 'categories') {
+          final recipes = await widget.request(recipePath());
+          display(recipes, nodes);
+        } else {
+          display(data, nodes);
+        }
+        return;
+      }
       if (!more) {
         final cached = await _cachedBrowse(path);
         if (!current()) return;
@@ -334,7 +367,12 @@ class _RecipeBrowserState extends State<RecipeBrowser>
       }
       if (!mounted || generation != _generation) return;
       if (!more) unawaited(_loadCategoryImages(nodes, generation));
-    } catch (error) {
+    } catch (error, stack) {
+      if (widget.localOnly && error is! ApiException) {
+        debugPrint(
+          'Local recipe read failed: ${error.runtimeType}: $error\n$stack',
+        );
+      }
       if (mounted && generation == _generation) {
         setState(() {
           if (error is ApiException && [401, 403, 404].contains(error.status)) {
@@ -345,7 +383,9 @@ class _RecipeBrowserState extends State<RecipeBrowser>
           }
           _error = error is ApiException
               ? error.message
-              : 'Could not load recipes. Check your connection and retry.';
+              : widget.localOnly
+              ? 'The local recipe database could not be read.'
+              : 'Recipe data could not be read.';
         });
       }
     } finally {
@@ -395,6 +435,7 @@ class _RecipeBrowserState extends State<RecipeBrowser>
   }
 
   void _enterCategory(Map<String, dynamic> category) {
+    mealPlanNotices.dismiss();
     setState(() {
       _trail.add(category);
       _search.clear();
@@ -408,6 +449,7 @@ class _RecipeBrowserState extends State<RecipeBrowser>
   }
 
   void _returnToLevel(int depth) {
+    mealPlanNotices.dismiss();
     FocusScope.of(context).unfocus();
     setState(() {
       _trail.removeRange(depth, _trail.length);
@@ -484,58 +526,10 @@ class _RecipeBrowserState extends State<RecipeBrowser>
         );
         if (!mounted) return;
         final full = Map<String, dynamic>.from(data['recipe'] as Map);
-        final choices = <Map<String, dynamic>>[
+        final result = await confirmMealRecipe(
+          context,
           full,
-          ...recipeRows(full['variation_family'] ?? full['related']).where(
-            (row) =>
-                '${row['id']}' != '${full['id']}' &&
-                row['in_household'] != false,
-          ),
-        ];
-        var selected = full;
-        final result = await showDialog<Map<String, dynamic>>(
-          context: context,
-          builder: (context) => StatefulBuilder(
-            builder: (context, update) => AlertDialog(
-              title: Text(
-                choices.length == 1
-                    ? 'Add to ${widget.mealPlanDestination ?? 'meal plan'}?'
-                    : 'Choose recipe to add',
-              ),
-              content: choices.length == 1
-                  ? Text('${full['title']}')
-                  : SizedBox(
-                      width: 360,
-                      child: SingleChildScrollView(
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            for (final choice in choices)
-                              ListTile(
-                                title: Text('${choice['title']}'),
-                                leading: Icon(
-                                  '${selected['id']}' == '${choice['id']}'
-                                      ? Icons.radio_button_checked
-                                      : Icons.radio_button_unchecked,
-                                ),
-                                onTap: () => update(() => selected = choice),
-                              ),
-                          ],
-                        ),
-                      ),
-                    ),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.pop(context),
-                  child: const Text('Cancel'),
-                ),
-                FilledButton(
-                  onPressed: () => Navigator.pop(context, selected),
-                  child: const Text('Add'),
-                ),
-              ],
-            ),
-          ),
+          destination: widget.mealPlanDestination ?? 'meal plan',
         );
         if (mounted && result != null) widget.onSelect!(result);
       } catch (error) {
@@ -555,6 +549,7 @@ class _RecipeBrowserState extends State<RecipeBrowser>
           recipeId: recipe['id'] as String,
           title: recipe['title'] as String,
           request: widget.request,
+          cachedRequest: widget.cachedRequest,
           save: widget.save,
           menuBuilder: widget.menuBuilder,
           onViewMealPlan: widget.onViewMealPlan,
@@ -574,11 +569,12 @@ class _RecipeBrowserState extends State<RecipeBrowser>
           appBar: AppBar(
             title: Text('${widget.householdName} recipes'),
             actions: [
-              IconButton(
-                onPressed: _busy ? null : () => _load(),
-                tooltip: 'Refresh recipes',
-                icon: const Icon(Icons.refresh),
-              ),
+              if (!widget.localOnly)
+                IconButton(
+                  onPressed: _busy ? null : () => _load(),
+                  tooltip: 'Refresh recipes',
+                  icon: const Icon(Icons.refresh),
+                ),
             ],
           ),
           body: _content(context),
@@ -645,6 +641,23 @@ class _RecipeBrowserState extends State<RecipeBrowser>
               ),
             ),
           ),
+          if (widget.onAddRecipe != null &&
+              widget.onSelect == null &&
+              widget.mealPlanDestination == null)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: ValueListenableBuilder<bool>(
+                  valueListenable: offlineStatus,
+                  builder: (context, offline, _) => TextButton.icon(
+                    onPressed: widget.onAddRecipe,
+                    icon: const Icon(Icons.add_circle_outline),
+                    label: const Text('Add recipe'),
+                  ),
+                ),
+              ),
+            ),
           if (_filterCount > 0)
             Padding(
               padding: const EdgeInsets.fromLTRB(20, 0, 20, 8),
@@ -721,7 +734,8 @@ class _RecipeBrowserState extends State<RecipeBrowser>
                 alignment: Alignment.centerLeft,
                 child: Text(
                   'Add to ${widget.mealPlanDestination}',
-                  style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                    fontWeight: FontWeight.bold,
                     color: Theme.of(context).colorScheme.secondary,
                   ),
                 ),
@@ -736,7 +750,9 @@ class _RecipeBrowserState extends State<RecipeBrowser>
                   Text(_error!),
                   TextButton(
                     onPressed: () => _load(more: _recipes.isNotEmpty),
-                    child: const Text('Retry'),
+                    child: Text(
+                      widget.localOnly ? 'Read local data again' : 'Retry',
+                    ),
                   ),
                 ],
               ),
@@ -955,6 +971,7 @@ class RecipeDetail extends StatefulWidget {
     required this.recipeId,
     required this.title,
     required this.request,
+    this.cachedRequest,
     this.save,
     this.onChanged,
     this.menuBuilder,
@@ -964,6 +981,7 @@ class RecipeDetail extends StatefulWidget {
   final String recipeId;
   final String title;
   final RecipeRequest request;
+  final Future<Map<String, dynamic>?> Function(String path)? cachedRequest;
   final RecipeSave? save;
   final VoidCallback? onChanged;
   final WidgetBuilder? menuBuilder;
@@ -1281,12 +1299,24 @@ class _RecipeDetailState extends State<RecipeDetail> {
   int _imagePrefetchGeneration = 0;
   String? _error;
   bool _wasOffline = false;
+  int _loadGeneration = 0;
   @override
   void initState() {
     super.initState();
+    localDataChanges.addListener(_localChanged);
     _wasOffline = offlineStatus.value;
     if (mobileOfflineEnabled) offlineStatus.addListener(_connectionChanged);
     _load();
+  }
+
+  void _localChanged() {
+    if (mounted &&
+        (localDataChanges.value.startsWith('/me#') ||
+            localDataChanges.value.startsWith(
+              '/households/${widget.householdId}/recipes',
+            ))) {
+      _load();
+    }
   }
 
   void _connectionChanged() {
@@ -1297,32 +1327,53 @@ class _RecipeDetailState extends State<RecipeDetail> {
 
   @override
   void dispose() {
+    localDataChanges.removeListener(_localChanged);
     offlineStatus.removeListener(_connectionChanged);
     super.dispose();
   }
 
   Future<void> _load() async {
+    final generation = ++_loadGeneration;
+    bool current() => mounted && generation == _loadGeneration;
     setState(() {
       _error = null;
     });
-    try {
-      final data = await widget.request(
-        '/households/${widget.householdId}/recipes/${widget.recipeId}',
+    final path = '/households/${widget.householdId}/recipes/${widget.recipeId}';
+    void display(Map<String, dynamic> data) {
+      if (!current() || data['recipe'] is! Map) return;
+      setState(
+        () => _recipe = Map<String, dynamic>.from(data['recipe'] as Map),
       );
-      if (mounted) {
-        setState(() {
-          _recipe = data['recipe'] as Map<String, dynamic>;
-        });
+    }
+
+    try {
+      final cached = await widget.cachedRequest
+          ?.call(path)
+          .timeout(const Duration(seconds: 2));
+      if (!current()) return;
+      if (cached != null) display(cached);
+    } catch (_) {
+      // A failed cache read must not block the online request.
+    }
+    try {
+      if (!current()) return;
+      final data = await widget
+          .request(path)
+          .timeout(const Duration(seconds: 30));
+      if (current()) {
+        display(data);
         _prefetchImages(_recipe!);
         _loadFavorites();
       }
     } catch (error) {
-      if (mounted) {
-        if (_recipe != null && isTemporaryCommunicationFailure(error)) {
+      if (mounted && generation == _loadGeneration) {
+        final denied =
+            error is ApiException && [401, 403, 404].contains(error.status);
+        if (_recipe != null && !denied) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               content: const Text(
-                'Could not refresh this recipe. Showing the last loaded version.',
+                'The saved recipe is still available. An updated copy could not be read.',
               ),
               action: SnackBarAction(label: 'Retry', onPressed: _load),
             ),
@@ -1330,9 +1381,10 @@ class _RecipeDetailState extends State<RecipeDetail> {
           return;
         }
         setState(() {
+          if (denied) _recipe = null;
           _error = error is ApiException
               ? error.message
-              : 'Could not load this recipe. Check your connection and retry.';
+              : 'Recipe data could not be read on this device.';
         });
       }
     }
@@ -1496,6 +1548,7 @@ class _RecipeDetailState extends State<RecipeDetail> {
             recipeId: row['id'] as String,
             title: row['title'] as String,
             request: widget.request,
+            cachedRequest: widget.cachedRequest,
             save: widget.save,
             menuBuilder: widget.menuBuilder,
             onChanged: widget.onChanged,
