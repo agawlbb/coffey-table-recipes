@@ -35,3 +35,12 @@ User approved removing Unscheduled and explicitly stated there are no existing u
 Unscheduled section and its add controls are removed. LocalData rejects add/move operations lacking a valid supported calendar date before queuing or sending anything, including review/reapply operations. No migration or shared backend validation change is introduced, keeping the regular feature branch as a reversible comparison. User explicitly authorized local XAMPP web and Android debug APK builds from this experiment; no hosted Flutter publication is included.
 
 Implementation validation: full Flutter suite passed (463 tests), flutter analyze --no-pub clean. Coverage includes household week labels, cancellation, calendar/past-date confirmation, normal-browser pairing additions on the selected date, desktop selection, blank/regular viewers, retained dated picker/placeholder/drag flows, and rejection of missing/invalid dates before durable queue writes. No existing-data migration is required per the user.
+
+
+## Test builds (2026-10-23)
+Built clean experiment source `53aac95cf09bf84061d7594a61a7dbb5d3baab50` (1.8.5/build29) after 463 passing tests and clean analysis.
+
+- Web command: `flutter build web --no-pub --base-href=/CoffeyTableRecipes/app/ --dart-define-from-file=config/firebase.local.json`, then `tool/prepare-web.py`. Copied assets only into ignored local XAMPP app/. `http://localhost/CoffeyTableRecipes/app/` serves the exact source version metadata, bootstrap and font manifest. Served main.dart.js bytes match the build, SHA-256 `2fc959a5207fac846708144aee1cf6be0e27a79ed54f6a80d9b0eab8340605fe`.
+- Android command: `flutter build apk --debug --no-pub --dart-define-from-file=config/firebase.local.json`. Delivered `G:/My Drive/recipe app/CoffeyTableRecipes-no-unscheduled-test-53aac95.apk` (199,907,647 bytes). Source and delivered SHA-256 match: `d14a5ecad181653935933dcb55d42dd5ac0c50835fe8d2c1090cae26cf9c0012`. APK v2 signature verifies with existing Android Debug certificate SHA-256 `f8de933f14b9bb4b3191a94aedc8637972c5ab224565f6abd7808f8038d12097`; package `com.coffeytable.coffey_table_recipes`, version 1.8.5/build29, debuggable.
+
+Both builds succeeded; existing plugin compatibility warnings remain. No device installation, release/tag, backend source/data change or hosted Flutter publication performed. Parent feature/main and previous artifacts retained. The backend working tree remains clean; generated local app assets are ignored. This subsequent documentation commit records delivery without changing built source.
