@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 
 import 'api.dart';
 import 'recipe_browser.dart';
+import 'offline_recipes.dart';
 
 String? recipeIdFromLink(String value) {
   final uri = Uri.tryParse(value);
@@ -27,10 +28,16 @@ class SharedRecipeLink extends StatefulWidget {
 
 class _SharedRecipeLinkState extends State<SharedRecipeLink> {
   final _api = RecipeApi(baseUrl: apiBaseUrl);
+  late final _cache = OfflineRecipes(
+    key: '$apiBaseUrl|public-recipes',
+    fetch: (path) => _api.request(path, ''),
+    downloadLibrary: false,
+  );
   bool _adding = false;
   String? _message;
   @override
   void dispose() {
+    _cache.close();
     _api.close();
     super.dispose();
   }
@@ -151,7 +158,11 @@ class _SharedRecipeLinkState extends State<SharedRecipeLink> {
               title: 'Shared recipe',
               request: (path) {
                 final id = Uri.parse(path).path.split('/').last;
-                return _api.request('/recipes/$id', '');
+                return _cache.request('/recipes/$id');
+              },
+              cachedRequest: (path) {
+                final id = Uri.parse(path).path.split('/').last;
+                return _cache.cachedRead('/recipes/$id');
               },
             ),
           ),

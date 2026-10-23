@@ -89,8 +89,10 @@ class _AccountPanelState extends State<AccountPanel> {
 
     return StreamBuilder<User?>(
       stream: _authChanges,
+      initialData: FirebaseAuth.instance.currentUser,
       builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
+        if (snapshot.connectionState == ConnectionState.waiting &&
+            snapshot.data == null) {
           return const Center(child: CircularProgressIndicator());
         }
         final user = snapshot.data;
@@ -178,6 +180,7 @@ class HouseholdPanel extends StatefulWidget {
     required this.user,
     this.request,
     this.signOut,
+    this.cachedRequest,
   });
   final Future<void> Function()? signOut;
   final Future<Map<String, dynamic>> Function(
@@ -186,6 +189,7 @@ class HouseholdPanel extends StatefulWidget {
   })?
   request;
   final User user;
+  final Future<Map<String, dynamic>?> Function(String path)? cachedRequest;
   @override
   State<HouseholdPanel> createState() => _HouseholdPanelState();
 }
@@ -193,6 +197,10 @@ class HouseholdPanel extends StatefulWidget {
 class _HouseholdPanelState extends State<HouseholdPanel> {
   final _api = RecipeApi(baseUrl: apiBaseUrl);
   OfflineRecipes? _offline;
+  Future<Map<String, dynamic>?> _cachedRead(String path) =>
+      widget.cachedRequest?.call(path) ??
+      _offline?.cachedRead(path) ??
+      Future.value(null);
   final _householdName = TextEditingController();
   final _personName = TextEditingController();
   List<Map<String, dynamic>> _households = [];
@@ -344,11 +352,12 @@ class _HouseholdPanelState extends State<HouseholdPanel> {
     super.initState();
     sharedRecipeInbox.addListener(_sharedRecipeChanged);
     _personName.text = widget.user.displayName ?? '';
-    if (mobileOfflineEnabled && widget.request == null) {
+    if (widget.request == null) {
       _offline =
           OfflineRecipes(
             key: '$apiBaseUrl|${widget.user.uid}',
             fetch: (path) => _onlineRequest(path),
+            downloadLibrary: mobileOfflineEnabled,
           )..start(() {
             if (mounted) unawaited(_load(reviewInvitations: false));
           });
@@ -553,7 +562,8 @@ class _HouseholdPanelState extends State<HouseholdPanel> {
     final browseKey = 'browse-households|$apiBaseUrl|${widget.user.uid}';
     if (_households.isEmpty && widget.request == null) {
       try {
-        final cached = await readOfflineStore(browseKey);
+        final cached = await readOfflineStore(browseKey)
+            .timeout(const Duration(seconds: 2));
         if (cached != null && mounted) {
           final households = List<Map<String, dynamic>>.from(
             jsonDecode(cached) as List,
@@ -565,6 +575,22 @@ class _HouseholdPanelState extends State<HouseholdPanel> {
         }
       } catch (_) {
         /* A missing or corrupt browsing preference needs no error. */
+      }
+    }
+    if (_households.isEmpty) {
+      try {
+        final cached = await _cachedRead('/me')
+            .timeout(const Duration(seconds: 2));
+        final households = recipeRows(cached?['households']);
+        if (mounted && households.isNotEmpty) {
+          setState(() {
+            // Browsing context only; roles/invitations still require /me.
+            _households = households;
+            _selected = households.first['id'].toString();
+          });
+        }
+      } catch (_) {
+        // A cache failure cannot block online startup.
       }
     }
     await _perform(() async {
@@ -1081,7 +1107,9 @@ class _HouseholdPanelState extends State<HouseholdPanel> {
       drawer: _buildMenu(context),
       body: Column(
         children: [
-          if (_offline != null && _households.isNotEmpty)
+          if (mobileOfflineEnabled &&
+              _offline != null &&
+              _households.isNotEmpty)
             RecipeSyncStatus(
               progress: _offline!.progress,
               retry: () => unawaited(_offline!.retry()),
@@ -1126,7 +1154,7 @@ class _HouseholdPanelState extends State<HouseholdPanel> {
                         householdName: selected['name'] as String,
                         request: (path) => _request(path),
                         menuBuilder: _buildMenu,
-                        cachedRequest: _offline?.cachedBrowse,
+                        cachedRequest: _cachedRead,
                         save: _saveRecipe,
                       ),
                 Center(

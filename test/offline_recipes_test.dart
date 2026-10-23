@@ -102,6 +102,73 @@ void main() {
     offlineStatus.value = false;
   });
 
+  test(
+    'saved individual recipes remain browsable before any library index exists',
+    () async {
+      await cache().request('$root/1');
+      fetched.clear();
+      final c = cache();
+      final browse = await c.cachedRead('$root?tree=1&families=1');
+      expect((browse?['recipes'] as List).single['id'], '1');
+      expect(browse?['_cache_needs_refresh'], isTrue);
+      expect(await c.cachedRead('$root?tree=1&scope=99'), isNull);
+      expect(fetched, isEmpty);
+      c.close();
+    },
+  );
+
+  test(
+    'cached detail and household context read without any network request',
+    () async {
+      await cache().request('/me');
+      await cache().request('$root/1');
+      fetched.clear();
+      final c = cache();
+      expect((await c.cachedRead('$root/1'))?['recipe']['id'], '1');
+      expect((await c.cachedRead('/me'))?['households'], hasLength(1));
+      expect(await c.cachedRead('/admin/accounts'), isNull);
+      expect(fetched, isEmpty);
+      c.close();
+    },
+  );
+
+  test('viewed web and public recipe snapshots survive restart without full-library sync', () async {
+    OfflineRecipes viewed() => OfflineRecipes(
+      key: 'viewed',
+      fetch: server,
+      downloadLibrary: false,
+      read: (key) async => disk[key],
+      write: (key, data) async {
+        disk[key] = data;
+      },
+    );
+    final first = viewed();
+    await first.request('$root/1');
+    await first.request('/recipes/2');
+    first.close();
+    fetched.clear();
+    final reopened = viewed();
+    await reopened.sync(['1']);
+    expect((await reopened.cachedRead('$root/1'))?['recipe']['id'], '1');
+    expect((await reopened.cachedRead('/recipes/2'))?['recipe']['id'], '2');
+    expect(fetched, isEmpty);
+    reopened.close();
+  });
+
+  test(
+    'favorite filters reuse only their exact server-confirmed cached result',
+    () async {
+      const path = '$root?tree=0&favorite_people=2';
+      await cache().request(path);
+      fetched.clear();
+      final c = cache();
+      expect((await c.cachedRead(path))?['recipes'], hasLength(30));
+      expect(await c.cachedRead('$root?tree=0&favorite_people=3'), isNull);
+      expect(fetched, isEmpty);
+      c.close();
+    },
+  );
+
   test('persistent rate limiting stops the background download pass', () async {
     var details = 0;
     final c = cache(
