@@ -2,6 +2,14 @@
 
 Release dates and changes are reconstructed from annotated Git tags, commit history, and project release records. Versions before 1.0 are demonstration releases; 1.0 marks the first usable release. Android retains the existing signing identity; iOS delivery and signing are recorded for each release.
 
+## 2.1.1 — 2026-10-23
+
+Build 32; tag `v2.1.1`.
+
+- Fit three compact meal tiles per phone row with tighter spacing and smaller pictures, preserving readable captions and responsive bounds.
+- Show the planner's side-by-side recipe browser on portrait tablets, while retaining phone and child-mode behavior.
+- Improve dish captions with word-boundary wrapping and short titles on one line where space allows.
+- Use the same short 200 ms hold for browser and planned-meal dragging, allowing quick swipes to scroll without grabbing a dish.
 ## 2.1.0 — 2026-10-23
 
 Build 31; tag `v2.1.0`.
