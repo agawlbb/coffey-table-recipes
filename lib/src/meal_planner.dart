@@ -659,9 +659,9 @@ class _MealPlannerState extends State<MealPlanner> with WidgetsBindingObserver {
     });
   }
 
-  Widget _tile(Map<String, dynamic> entry, double width) {
+  Widget _tile(Map<String, dynamic> entry, double width, double captionWidth) {
     final card = SizedBox(
-      width: width + 28,
+      width: captionWidth,
       child: Card(
         color: Colors.transparent,
         surfaceTintColor: Colors.transparent,
@@ -731,6 +731,7 @@ class _MealPlannerState extends State<MealPlanner> with WidgetsBindingObserver {
     );
     if (childMode.value) return card;
     return LongPressDraggable<Map<String, dynamic>>(
+      delay: mealPlanDragDelay,
       data: {'entry': entry},
       maxSimultaneousDrags: _saving || childMode.value ? 0 : 1,
       onDragUpdate: _autoScroll,
@@ -761,7 +762,7 @@ class _MealPlannerState extends State<MealPlanner> with WidgetsBindingObserver {
       builder: (context, candidates, rejected) => Container(
         key: ValueKey('meal-day-$date'),
         margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-        padding: const EdgeInsets.all(12),
+        padding: const EdgeInsets.fromLTRB(12, 4, 12, 10),
         decoration: BoxDecoration(
           color: candidates.isNotEmpty
               ? colors.primaryContainer
@@ -831,13 +832,26 @@ class _MealPlannerState extends State<MealPlanner> with WidgetsBindingObserver {
                 builder: (context, constraints) {
                   final width =
                       ((constraints.maxWidth - 10) / 2).clamp(0.0, 200.0) / 2;
+                  final captionWidth = (width + 20).clamp(
+                    0.0,
+                    ((constraints.maxWidth - 8) / 3).clamp(
+                      0.0,
+                      double.infinity,
+                    ),
+                  );
                   return Padding(
-                    padding: const EdgeInsets.only(top: 6),
+                    padding: const EdgeInsets.only(top: 2),
                     child: Wrap(
-                      spacing: 10,
+                      spacing: 4,
                       runSpacing: 12,
                       children: entries
-                          .map((entry) => _tile(entry, width))
+                          .map(
+                            (entry) => _tile(
+                              entry,
+                              width.clamp(0.0, captionWidth),
+                              captionWidth,
+                            ),
+                          )
                           .toList(),
                     ),
                   );

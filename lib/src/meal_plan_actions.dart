@@ -9,6 +9,8 @@ import 'recipe_browser.dart';
 import 'recipe_editor.dart';
 import 'shopping_item_id.dart';
 
+const mealPlanDragDelay = Duration(milliseconds: 200);
+
 String mealPlanDate(DateTime value) =>
     '${value.year.toString().padLeft(4, '0')}-${value.month.toString().padLeft(2, '0')}-${value.day.toString().padLeft(2, '0')}';
 

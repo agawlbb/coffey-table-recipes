@@ -143,7 +143,92 @@ class PlanFixture {
 }
 
 void main() {
-  testWidgets('embedded browser drags to a date without a hold delay', (
+  testWidgets('quick swipe on a planned dish scrolls; short hold moves it', (
+    tester,
+  ) async {
+    await tester.binding.setSurfaceSize(const Size(390, 900));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    final fixture = PlanFixture();
+    await tester.pumpWidget(fixture.app());
+    await tester.pumpAndSettle();
+    final scroll = tester
+        .widget<CustomScrollView>(find.byType(CustomScrollView))
+        .controller!;
+    var gesture = await tester.startGesture(
+      tester.getCenter(find.byTooltip('Today soup')),
+    );
+    await tester.pump(const Duration(milliseconds: 50));
+    await gesture.moveBy(const Offset(0, -20));
+    await tester.pump(const Duration(milliseconds: 16));
+    await gesture.moveBy(const Offset(0, -100));
+    await tester.pump(const Duration(milliseconds: 50));
+    await gesture.up();
+    await tester.pumpAndSettle();
+    expect(scroll.offset, greaterThan(0));
+    expect(fixture.writes, isEmpty);
+    await tester.tap(find.widgetWithText(TextButton, 'Today'));
+    await tester.pumpAndSettle();
+    gesture = await tester.startGesture(
+      tester.getCenter(find.byTooltip('Today soup')),
+    );
+    await tester.pump(const Duration(milliseconds: 190));
+    expect(find.byTooltip('Today soup'), findsOneWidget);
+    await tester.pump(const Duration(milliseconds: 20));
+    expect(find.byTooltip('Today soup'), findsNWidgets(2));
+    await gesture.moveTo(
+      tester.getCenter(find.byKey(const ValueKey('meal-day-2026-10-23'))),
+    );
+    await gesture.up();
+    await tester.pumpAndSettle();
+    expect(fixture.writes.single['operation'], 'move');
+    await tester.pumpWidget(const SizedBox());
+  });
+
+  testWidgets(
+    'quick swipe on embedded recipes scrolls without starting a drag',
+    (tester) async {
+      var dragUpdates = 0;
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: RecipeBrowser(
+              householdId: '1',
+              householdName: 'Table',
+              embedded: true,
+              dragRecipes: true,
+              onRecipeDragUpdate: (_) => dragUpdates++,
+              request: (_) async => {
+                'recipes': List.generate(
+                  30,
+                  (index) => {'id': '$index', 'title': 'Recipe $index'},
+                ),
+              },
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      final source = find.text('Recipe 0');
+      await tester.ensureVisible(source);
+      final scrollable = tester.state<ScrollableState>(
+        find.ancestor(of: source, matching: find.byType(Scrollable)).first,
+      );
+      final before = scrollable.position.pixels;
+      final gesture = await tester.startGesture(tester.getCenter(source));
+      await tester.pump(const Duration(milliseconds: 50));
+      await gesture.moveBy(const Offset(0, -20));
+      await tester.pump(const Duration(milliseconds: 16));
+      await gesture.moveBy(const Offset(0, -120));
+      await tester.pump(const Duration(milliseconds: 50));
+      await gesture.up();
+      await tester.pumpAndSettle();
+      expect(scrollable.position.pixels, greaterThan(before));
+      expect(dragUpdates, 0);
+      await tester.pumpWidget(const SizedBox());
+    },
+  );
+
+  testWidgets('embedded browser drags to a date after a short hold', (
     tester,
   ) async {
     await tester.binding.setSurfaceSize(const Size(1024, 1000));
@@ -157,6 +242,7 @@ void main() {
     );
     await tester.ensureVisible(source);
     final gesture = await tester.startGesture(tester.getCenter(source));
+    await tester.pump(const Duration(milliseconds: 210));
     await gesture.moveBy(const Offset(-30, 0));
     await tester.pump(const Duration(milliseconds: 16));
     await gesture.moveTo(
@@ -195,7 +281,7 @@ void main() {
     });
   }
 
-  for (final screenWidth in [320.0, 900.0]) {
+  for (final screenWidth in [320.0, 390.0, 900.0]) {
     testWidgets('dish pictures and captions fit a $screenWidth wide planner', (
       tester,
     ) async {
@@ -207,6 +293,11 @@ void main() {
         'id': 'second-dish',
         'title': 'A second dish with a longer name',
       });
+      fixture.entries.add({
+        ...fixture.entries.firstWhere((entry) => entry['id'] == 'today'),
+        'id': 'third-dish',
+        'title': 'Third dish',
+      });
       await tester.pumpWidget(fixture.app());
       await tester.pumpAndSettle();
       final section = find.byKey(const ValueKey('meal-day-2026-10-22'));
@@ -214,13 +305,16 @@ void main() {
         of: section,
         matching: find.byType(RecipePhoto),
       );
-      expect(pictures, findsNWidgets(2));
+      expect(pictures, findsNWidgets(3));
       final first = tester.getRect(pictures.at(0));
       final second = tester.getRect(pictures.at(1));
+      final third = tester.getRect(pictures.at(2));
       final bounds = tester.getRect(section);
       expect(first.top, second.top);
+      expect(second.top, third.top);
       expect(first.right, lessThan(second.left));
-      expect(second.right, lessThan(bounds.right));
+      expect(second.right, lessThan(third.left));
+      expect(third.right, lessThan(bounds.right));
       expect(first.width, lessThanOrEqualTo(100));
       expect(first.height, lessThan(80));
       for (final title in ['Today soup', 'A second dish with a longer name']) {

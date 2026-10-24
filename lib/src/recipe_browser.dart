@@ -944,7 +944,8 @@ class _RecipeBrowserState extends State<RecipeBrowser>
                   ),
                 );
                 return widget.dragRecipes && !childModeOf(context)
-                    ? Draggable<Map<String, dynamic>>(
+                    ? LongPressDraggable<Map<String, dynamic>>(
+                        delay: mealPlanDragDelay,
                         data: {'recipe': recipe},
                         onDragUpdate: widget.onRecipeDragUpdate,
                         onDragEnd: (_) => widget.onRecipeDragEnd?.call(),
