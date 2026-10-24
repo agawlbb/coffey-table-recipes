@@ -338,8 +338,9 @@ void main() {
             }
           : Map<String, dynamic>.from(server[list] as Map),
       send: (_, body) async {
-        if (!authenticated)
+        if (!authenticated) {
           throw ApiException(401, 'Sign in again', code: 'invalid_token');
+        }
         return {
           'revision': 2,
           'items': body['items'],

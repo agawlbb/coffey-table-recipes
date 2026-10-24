@@ -85,11 +85,12 @@ void main() {
             householdName: 'Coffey',
             localFirst: true,
             request: (_, {body}) async {
-              if (body != null)
+              if (body != null) {
                 throw ApiException(
                   507,
                   'Could not save on this device. Free storage and retry.',
                 );
+              }
               return {
                 'revision': 1,
                 'departments': ['Dairy'],

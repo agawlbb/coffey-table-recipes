@@ -19,7 +19,7 @@ The existing household row lock commits items, per-field edit clocks, deletion t
 
 Old clients remain revision-guarded. A stale legacy retry is acknowledged only when its entire desired list already exactly matches the authoritative list (including order, notes and departments). A differing stale request still fails safely instead of overwriting the current household list.
 
-The backend emits `X-CTR-Time-Ms`, exposed for browser clients. RecipeApi samples that trusted response time; LocalData preserves its server-time offset and original edit timestamp. Receipt time/retry time never makes an older action newer. Edits more than five minutes ahead of server time are rejected with a clock/retry error. Before a device has a time sample, its wall clock is the fallback; exact physical ordering of independently offline, incorrectly clocked devices cannot be proven. Metadata/receipts are retained to preserve replay and deletion safety.
+The backend emits `X-CTR-Time-Ms`, exposed for browser clients. RecipeApi samples that trusted response time; LocalData preserves its server-time offset and original edit timestamp. Receipt time/retry time never makes an older action newer. Edits more than five minutes ahead of server time are rejected with a clock/retry error. Calibration carries network-delay uncertainty, and before a device has a time sample its wall clock is the fallback; exact physical ordering of nearly simultaneous edits or independently offline, incorrectly clocked devices cannot be proven. The stable tie-break makes convergence deterministic. Metadata/receipts are retained to preserve replay and deletion safety.
 
 ## Verification and rollout
 
