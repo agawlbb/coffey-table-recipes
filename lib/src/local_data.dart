@@ -999,6 +999,7 @@ class LocalData extends ChangeNotifier {
           );
         }
         if (_closed || _dirty(path)) return await cached(path) ?? result;
+        if (path == '/me') _prune(result);
         final changed = jsonEncode(_data[path]) != jsonEncode(result);
         _data[path] = _copy(result);
         error = null;
@@ -1008,7 +1009,6 @@ class LocalData extends ChangeNotifier {
             Uri.parse(path).queryParameters['to'] == '2199-12-31') {
           _data[Uri.parse(path).path] = _copy(result);
         }
-        if (path == '/me') _prune(result);
         unawaited(
           _persist().catchError((Object _) {
             error = 'Device storage could not be saved. Free space and retry.';
@@ -1018,11 +1018,9 @@ class LocalData extends ChangeNotifier {
         if (changed) _changed(path);
         return result;
       } catch (failure) {
-        if (failure is ApiException &&
-            [401, 403, 404].contains(failure.status)) {
-          final newlyBlocked = _deny(path, failure.status);
+        if (failure is ApiException && _denyFailure(path, failure)) {
           await _persist();
-          if (newlyBlocked) _changed(path);
+          _changed(path);
         } else {
           error = 'Sync paused. Showing local data; saved edits remain on this device.';
           if (!_closed) notifyListeners();
@@ -1037,13 +1035,25 @@ class LocalData extends ChangeNotifier {
   }
 
   void _prune(Map result) {
-    final households = (result['households'] as List? ?? [])
-        .map((h) => '${h['id']}')
-        .toSet();
-    _blocked.remove('/');
-    _blocked.remove('/me');
+    final rows = result['households'];
+    if (rows is! List ||
+        rows.any(
+          (row) => row is! Map ||
+              !RegExp(r'^[1-9][0-9]*$').hasMatch('${row['id']}'),
+        )) {
+      throw const FormatException('Invalid household membership response');
+    }
+    final households = rows.map((h) => '${h['id']}').toSet();
+    final accountBlocked = _blocked.remove('/') != null;
+    final meBlocked = _blocked.remove('/me') != null;
     for (final household in households) {
-      _blocked.remove('/households/$household/');
+      final restored = _blocked.remove('/households/$household/') != null;
+      final rootRestored = _blocked.remove('/households/$household') != null;
+      if (accountBlocked || meBlocked || restored || rootRestored) {
+        // An old false denial may have removed records but kept the version.
+        // Force a complete download instead of accepting an unchanged receipt.
+        _data.remove('snapshot-version:$household');
+      }
     }
     final removed = _data.keys
         .where(
@@ -1055,6 +1065,26 @@ class LocalData extends ChangeNotifier {
     for (final path in removed) {
       _deny(path);
     }
+  }
+
+  bool _denyFailure(String path, ApiException failure) {
+    // A denied action, expired token or proxy error is not membership removal.
+    // Only authoritative API codes may revoke the corresponding local scope.
+    if ([401, 403].contains(failure.status) &&
+        ['account_disabled', 'account_deleted'].contains(failure.code)) {
+      return _deny('/me', failure.status);
+    }
+    final parts = Uri.parse(path).pathSegments;
+    if (failure.status == 404 &&
+        failure.code == 'household_not_found' &&
+        parts.length >= 2 &&
+        parts[0] == 'households') {
+      return _deny('/households/${parts[1]}/');
+    }
+    if (failure.status == 404 && failure.code == 'recipe_not_found') {
+      return _deny(path, 404);
+    }
+    return false;
   }
 
   bool _deny(String path, [int status = 403]) {
@@ -1070,6 +1100,11 @@ class LocalData extends ChangeNotifier {
     if (newlyBlocked) _accessEpoch++;
     _blocked[prefix] = status;
     _data.removeWhere((p, _) => _under(p, prefix));
+    if (parts.length >= 2 && prefix == '/households/${parts[1]}/') {
+      for (final kind in ['version', 'categories', 'options']) {
+        _data.remove('snapshot-$kind:${parts[1]}');
+      }
+    }
     for (final q in _queue.where((q) => _under(q['path'] as String, prefix))) {
       _archive.add({
         ...q,
@@ -1425,8 +1460,7 @@ class LocalData extends ChangeNotifier {
         await _serial(() async {
           q.remove('sending');
           if (delivered && !_queue.contains(q)) _queue.insert(0, q);
-          if (failure is ApiException && [401, 403].contains(failure.status)) {
-            _deny(path, failure.status);
+          if (failure is ApiException && _denyFailure(path, failure)) {
             _changed(path);
           }
           // Receipt-backed recipe saves can replay after lost responses/crashes.
