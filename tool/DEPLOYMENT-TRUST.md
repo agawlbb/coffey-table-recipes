@@ -28,7 +28,9 @@ incorrect: https://github.com/certifi/python-certifi/commit/662df63 .
 
 Release v1.8.4 / build 28 preparation passed local Flutter 3.47.6 analysis and
 all 353 app tests, plus the four deployment-client tests on Python 3.14.8.
-The production-publish job retains pinned Flutter 3.47.7. Validation-only mode
+That release's production-publish job pinned Flutter 3.47.7. Current workflows
+pin Flutter 3.47.8 for the native HTTPS advisory; see docs/security-maintenance.md.
+Validation-only mode
 executes no app build and makes no hosting request. A successful validation-only
 run is not evidence that production has been deployed with the patched bundle.
 

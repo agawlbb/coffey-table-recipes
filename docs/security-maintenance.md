@@ -1,5 +1,50 @@
 # Workflow security maintenance
 
+## Native HTTPS SDK advisory (October 24, 2026)
+
+GHSA-frr6-h895-5pxp affects native `dart:io` HTTPS certificate verification
+on Android and Windows, and Linux with an unpatched trust store. Compromised
+eMudhra intermediate certificates could permit interception by an attacker on
+the network path. Web, iOS and macOS are outside this advisory's affected
+platforms. CTR's RecipeApi uses package:http's default native client against
+the hosted HTTPS API, so the Android path is relevant. No interception has
+been observed or established by this review.
+
+Require Dart >=3.13.7,<4.0.0 and Flutter >=3.47.8 in pubspec.yaml and the
+lockfile SDK requirements. All four CI Flutter clone sites now pin 3.47.8
+(web, iOS device/demo, iOS simulator and signed TestFlight). This is a stable
+hotfix within the existing Flutter 3.47/Dart 3.13 series, not a dependency or
+native-platform migration. Locked package versions, Firebase pins, app version,
+release tags, signing configuration and backend source are unchanged.
+
+The laptop SDK is shared at
+`C:\Users\mailb\flutter_windows_3.24.1-stable\flutter`; its existing
+bin/cache/flutter.version.json reports Flutter 3.47.6 and Dart 3.13.5 despite
+the older folder name. It was deliberately left untouched pending coordination
+with other SDK users. The new constraints reject that old SDK when dependency
+resolution is next run; do not bypass them with --no-pub on stale tooling.
+Upgrade the coordinated SDK before any future development/build commands.
+
+Validation for this change is static only: review workflow event definitions,
+parse the modified YAML/lockfile, check matching minimum SDK requirements and
+all four CI pins, confirm locked packages unchanged, and review the diff.
+The lockfile's SDK metadata was aligned without dependency resolution. No
+Flutter/Dart command, app test, compilation, app build, install, workflow
+dispatch, release or deployment was performed. All seven app workflows accept
+only workflow_dispatch; a source push cannot trigger their build jobs.
+
+Installed APKs, including 2.1.1/build 32, were not inspected or replaced and
+must not be described as remediated. A separately authorized rebuild with the
+patched SDK, validation and distribution is still required for native affected
+platforms. Existing SDK/test/build evidence below is historical and does not
+verify compatibility of this hotfix. Firebase remains unchanged under the
+owner's decision to wait for an official compatible update.
+
+Primary source:
+https://github.com/dart-lang/sdk/security/advisories/GHSA-frr6-h895-5pxp
+
+## Earlier workflow maintenance
+
 Reviewed October 13, 2026. All GitHub Actions in the web and iOS workflows are
 pinned to exact commits resolved from their existing major-version tags:
 

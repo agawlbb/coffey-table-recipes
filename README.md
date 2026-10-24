@@ -4,6 +4,14 @@ Flutter client for Android, iOS, and responsive web. The PHP API lives in `C:\xa
 
 ## Run locally
 
+Requires Flutter 3.47.8 or later with Dart 3.13.7 or later. These minimums
+include the native HTTPS certificate-validation fix in
+[GHSA-frr6-h895-5pxp](https://github.com/dart-lang/sdk/security/advisories/GHSA-frr6-h895-5pxp).
+The recorded laptop SDK (Flutter 3.47.6 / Dart 3.13.5) must be upgraded before
+further Flutter commands. Coordinate changes to a shared SDK with its other
+project owners. Updating source or an SDK does not patch installed apps;
+rebuilding and distributing them requires an explicit build/release request.
+
 The app defaults to https://coffeybean.com/CoffeyTableRecipes/api/v1 on every platform. The local PHP source remains available for development; the persistent database is hosted exclusively.
 
 ```powershell
