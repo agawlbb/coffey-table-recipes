@@ -47,7 +47,7 @@ void main() {
         final trash = tester.getRect(find.byKey(const ValueKey('meal-trash')));
         expect(trash.width, closeTo(bounds.width / 3, .01));
         final gesture = await tester.startGesture(
-          tester.getCenter(find.text('Today soup')),
+          tester.getCenter(find.byTooltip('Today soup')),
         );
         await tester.pump(const Duration(milliseconds: 600));
         await gesture.moveTo(Offset(bounds.center.dx, bounds.bottom - 10));
@@ -56,7 +56,7 @@ void main() {
         }
         expect(controller.offset, greaterThan(900));
         // Feedback remains, but the source tile has scrolled offscreen.
-        expect(find.text('Today soup'), findsOneWidget);
+        expect(find.byTooltip('Today soup'), findsOneWidget);
         final beforeTrash = controller.offset;
         await gesture.moveTo(trash.center);
         await tester.pump(const Duration(milliseconds: 180));

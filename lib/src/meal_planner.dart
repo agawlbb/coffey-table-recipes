@@ -8,6 +8,7 @@ import 'package:flutter/gestures.dart';
 import 'api.dart';
 import 'local_data.dart';
 import 'meal_plan_actions.dart';
+import 'meal_plan_dish_title.dart';
 import 'meal_plan_ingredients.dart';
 import 'recipe_browser.dart';
 import 'recipe_editor.dart';
@@ -660,7 +661,7 @@ class _MealPlannerState extends State<MealPlanner> with WidgetsBindingObserver {
 
   Widget _tile(Map<String, dynamic> entry, double width) {
     final card = SizedBox(
-      width: width,
+      width: width + 28,
       child: Card(
         color: Colors.transparent,
         surfaceTintColor: Colors.transparent,
@@ -695,35 +696,31 @@ class _MealPlannerState extends State<MealPlanner> with WidgetsBindingObserver {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(12),
-                    child: AspectRatio(
-                      aspectRatio: 1.28,
-                      child: entry['kind'] == 'recipe'
-                          ? RecipePhoto(url: entry['photo_url'] as String?)
-                          : ColoredBox(
-                              color: Theme.of(context)
-                                  .colorScheme
-                                  .surfaceContainerHighest,
-                              child: Icon(
-                                entry['kind'] == 'leftovers'
-                                    ? Icons.kitchen_outlined
-                                    : Icons.restaurant_outlined,
-                                size: 32,
+                  Center(
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(12),
+                      child: SizedBox(
+                        width: width,
+                        height: width / 1.28,
+                        child: entry['kind'] == 'recipe'
+                            ? RecipePhoto(url: entry['photo_url'] as String?)
+                            : ColoredBox(
+                                color: Theme.of(context)
+                                    .colorScheme
+                                    .surfaceContainerHighest,
+                                child: Icon(
+                                  entry['kind'] == 'leftovers'
+                                      ? Icons.kitchen_outlined
+                                      : Icons.restaurant_outlined,
+                                  size: 32,
+                                ),
                               ),
-                            ),
+                      ),
                     ),
                   ),
                   Padding(
-                    padding: const EdgeInsets.fromLTRB(4, 6, 4, 0),
-                    child: Text(
-                      '${entry['title']}',
-                      textAlign: TextAlign.center,
-                      style: Theme.of(context).textTheme.titleSmall
-                          ?.copyWith(fontWeight: FontWeight.w600),
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                    ),
+                    padding: const EdgeInsets.only(top: 6),
+                    child: MealPlanDishTitle(title: '${entry['title']}'),
                   ),
                 ],
               ),

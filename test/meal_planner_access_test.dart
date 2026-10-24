@@ -52,7 +52,7 @@ void main() {
       await tester.pumpAndSettle();
       pending.complete(await fixture.request('/snapshot'));
       await tester.pumpAndSettle();
-      expect(find.text('Today soup'), findsNothing);
+      expect(find.byTooltip('Today soup'), findsNothing);
       expect(find.text('Ingredients'), findsNothing);
       expect(find.text('Household not found.'), findsOneWidget);
       await tester.pumpWidget(const SizedBox());
@@ -86,7 +86,7 @@ void main() {
       await tester.pumpAndSettle();
       final reads = fixture.reads.length;
       await trashMeal(tester, 'Today soup');
-      expect(find.text('Today soup'), findsNothing);
+      expect(find.byTooltip('Today soup'), findsNothing);
       expect(find.text('Ingredients'), findsNothing);
       expect(find.text('Please sign in again.'), findsOneWidget);
       expect(fixture.reads.length, reads);
@@ -125,8 +125,8 @@ void main() {
           ),
         );
         await tester.pumpAndSettle();
-        expect(find.text('Today soup'), findsOneWidget);
-        expect(find.text('Bread plan'), findsOneWidget);
+        expect(find.byTooltip('Today soup'), findsOneWidget);
+        expect(find.byTooltip('Bread plan'), findsOneWidget);
         error = failure;
         tester.binding.handleAppLifecycleStateChanged(
           AppLifecycleState.inactive,
@@ -135,8 +135,8 @@ void main() {
           AppLifecycleState.resumed,
         );
         await tester.pumpAndSettle();
-        expect(find.text('Today soup'), findsNothing);
-        expect(find.text('Bread plan'), findsNothing);
+        expect(find.byTooltip('Today soup'), findsNothing);
+        expect(find.byTooltip('Bread plan'), findsNothing);
         expect(find.text('Unscheduled'), findsNothing);
         expect(find.byType(RecipeBrowser), findsNothing);
         expect(find.text('+ Add'), findsNothing);
@@ -146,14 +146,14 @@ void main() {
         error = ApiException(503, 'Temporarily unavailable.');
         await tester.tap(find.text('Retry'));
         await tester.pumpAndSettle();
-        expect(find.text('Today soup'), findsNothing);
+        expect(find.byTooltip('Today soup'), findsNothing);
         fixture.entries.clear();
         fixture.revision = 20;
         error = null;
         await tester.tap(find.text('Retry'));
         await tester.pumpAndSettle();
         expect(find.text('Ingredients'), findsOneWidget);
-        expect(find.text('Today soup'), findsNothing);
+        expect(find.byTooltip('Today soup'), findsNothing);
         final day = find.byKey(const ValueKey('meal-day-2026-10-22'));
         await tester.tap(
           find.descendant(of: day, matching: find.text('+ Add')),
@@ -200,8 +200,8 @@ void main() {
       tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
       tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
       await tester.pumpAndSettle();
-      expect(find.text('Today soup'), findsOneWidget);
-      expect(find.text('Bread plan'), findsOneWidget);
+      expect(find.byTooltip('Today soup'), findsOneWidget);
+      expect(find.byTooltip('Bread plan'), findsOneWidget);
       expect(find.text('Ingredients'), findsOneWidget);
       await tester.pumpWidget(const SizedBox());
     });
@@ -252,7 +252,7 @@ void main() {
       await tester.pumpAndSettle();
       update(() => active = true);
       await tester.pumpAndSettle();
-      expect(find.text('Today soup'), findsNothing);
+      expect(find.byTooltip('Today soup'), findsNothing);
       expect(find.text('+ Add'), findsNothing);
       expect(find.text('Household not found.'), findsOneWidget);
       await tester.pumpWidget(const SizedBox());

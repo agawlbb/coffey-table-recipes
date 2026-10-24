@@ -202,7 +202,7 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
-    expect(find.text('Today soup'), findsOneWidget);
+    expect(find.byTooltip('Today soup'), findsOneWidget);
     expect(find.byType(RecipeBrowser), findsNothing);
     expect(find.byType(LongPressDraggable<Map<String, dynamic>>), findsNothing);
     final buttons = tester.widgetList<TextButton>(

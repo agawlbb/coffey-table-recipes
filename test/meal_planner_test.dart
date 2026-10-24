@@ -9,7 +9,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 Future<void> trashMeal(WidgetTester tester, String title) async {
-  final tile = find.text(title);
+  final tile = find.byTooltip(title);
   if (tile.evaluate().isEmpty) {
     await tester.scrollUntilVisible(
       tile,
@@ -143,6 +143,34 @@ class PlanFixture {
 }
 
 void main() {
+  testWidgets('embedded browser drags to a date without a hold delay', (
+    tester,
+  ) async {
+    await tester.binding.setSurfaceSize(const Size(1024, 1000));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    final fixture = PlanFixture();
+    await tester.pumpWidget(fixture.app());
+    await tester.pumpAndSettle();
+    final source = find.descendant(
+      of: find.byType(RecipeBrowser),
+      matching: find.text('Picker pasta'),
+    );
+    await tester.ensureVisible(source);
+    final gesture = await tester.startGesture(tester.getCenter(source));
+    await gesture.moveBy(const Offset(-30, 0));
+    await tester.pump(const Duration(milliseconds: 16));
+    await gesture.moveTo(
+      tester.getCenter(find.byKey(const ValueKey('meal-day-2026-10-22'))),
+    );
+    await tester.pump(const Duration(milliseconds: 16));
+    await gesture.up();
+    await tester.pumpAndSettle();
+    expect(fixture.writes.first['operation'], 'add');
+    expect(fixture.writes.first['recipe_id'], '5');
+    expect(fixture.writes.first['date'], '2026-10-22');
+    await tester.pumpWidget(const SizedBox());
+  });
+
   for (final screenWidth in [390.0, 744.0, 1024.0]) {
     testWidgets('recipe browser follows tablet layout at $screenWidth', (
       tester,
@@ -196,7 +224,7 @@ void main() {
       expect(first.width, lessThanOrEqualTo(100));
       expect(first.height, lessThan(80));
       for (final title in ['Today soup', 'A second dish with a longer name']) {
-        final caption = tester.getRect(find.text(title));
+        final caption = tester.getRect(find.byTooltip(title));
         expect(caption.top, greaterThanOrEqualTo(first.bottom));
         expect(caption.bottom, lessThan(bounds.bottom));
       }
@@ -216,16 +244,16 @@ void main() {
     final today = find.byKey(const ValueKey('meal-day-2026-10-22'));
     final viewportTop = tester.getTopLeft(list).dy;
     expect(tester.getTopLeft(today).dy, closeTo(viewportTop, 4));
-    expect(find.text('Yesterday soup').hitTestable(), findsNothing);
+    expect(find.byTooltip('Yesterday soup').hitTestable(), findsNothing);
 
     await tester.drag(list, const Offset(0, 260));
     await tester.pumpAndSettle();
-    expect(find.text('Yesterday soup').hitTestable(), findsOneWidget);
+    expect(find.byTooltip('Yesterday soup').hitTestable(), findsOneWidget);
 
     await tester.tap(find.widgetWithText(TextButton, 'Today'));
     await tester.pumpAndSettle();
     expect(tester.getTopLeft(today).dy, closeTo(viewportTop, 4));
-    expect(find.text('Yesterday soup').hitTestable(), findsNothing);
+    expect(find.byTooltip('Yesterday soup').hitTestable(), findsNothing);
     await tester.pumpWidget(const SizedBox());
   });
 
@@ -266,7 +294,7 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
-    expect(find.text('Today soup'), findsOneWidget);
+    expect(find.byTooltip('Today soup'), findsOneWidget);
     expect(find.byType(CircularProgressIndicator), findsNothing);
     await tester.pumpWidget(const SizedBox());
     second.dispose();
@@ -285,7 +313,7 @@ void main() {
       final bounds = tester.getRect(list);
       final initial = controller.offset;
       final gesture = await tester.startGesture(
-        tester.getCenter(find.text('Today soup')),
+        tester.getCenter(find.byTooltip('Today soup')),
       );
       await tester.pump(const Duration(milliseconds: 600));
       for (var i = 0; i < 30; i++) {
@@ -334,7 +362,7 @@ void main() {
       lessThan(tester.getTopLeft(find.text('Today').first).dx),
     );
     final gesture = await tester.startGesture(
-      tester.getCenter(find.text('Today soup')),
+      tester.getCenter(find.byTooltip('Today soup')),
     );
     await tester.pump(const Duration(milliseconds: 600));
     await gesture.moveTo(bounds.bottomRight - const Offset(8, 8));
@@ -587,7 +615,7 @@ void main() {
     await tester.pumpWidget(fixture.app());
     await tester.pumpAndSettle();
     Future<void> drop(String label, String date) async {
-      final tile = find.text(label);
+      final tile = find.byTooltip(label);
       await tester.ensureVisible(tile);
       await tester.pumpAndSettle();
       final gesture = await tester.startGesture(tester.getCenter(tile));
