@@ -1537,7 +1537,7 @@ class LocalData extends ChangeNotifier {
           q['last_error'] = failure is ApiException
               ? failure.message
               : 'The server response was interrupted.';
-          if (failure is ApiException) q['last_status'] = failure.status;
+          q['last_status'] = failure is ApiException ? failure.status : null;
           if ((delivered && (q['body'] as Map)['client_change_id'] == null) ||
               q['creating'] == true &&
                   (q['body'] as Map)['client_save_id'] == null ||

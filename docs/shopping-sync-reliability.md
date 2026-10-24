@@ -27,4 +27,6 @@ Focused coverage includes a single user losing the server's delete response, dev
 
 Verified on 2026-10-24 with the isolated Flutter 3.47.8 / Dart 3.13.7 SDK: all 518 app tests passed in the single full-suite run; focused persistence/shopping/transport checks passed during iteration; final affected-file analysis is clean. PHP fixtures `shopping_lists.php`, `household_snapshot.php`, `shopping_sync_requests.php`, and `home_assistant_connections.php` passed using ephemeral SQLite data. No app packages were built for this source change.
 
+After that full run, a diagnostic-only correction clearing an obsolete HTTP status after a later transport failure passed all 43 `local_data_test.dart` tests and affected-file analysis. The full suite was not repeated for that bounded reporting change.
+
 Deploy the backward-compatible backend before distributing new clients. No live shopping data is edited as part of deployment. Native/web app builds require explicit build/release authorization separately from this source change. Physical Android reproduction of the original incident and its original HTTP response remain unverified; the one-minute notification alone does not identify the original transport/server failure.

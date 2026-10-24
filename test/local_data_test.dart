@@ -396,13 +396,13 @@ void main() {
   test(
     'shopping change is not discarded if server fails to acknowledge its ID',
     () async {
+      var disconnected = false;
       final data = LocalData(
         key: 'unacknowledged',
         fetch: (_) async => Map<String, dynamic>.from(server[list] as Map),
-        send: (_, _) async => {
-          'revision': 2,
-          'items': [],
-          'departments': <String>[],
+        send: (_, _) async {
+          if (disconnected) throw TimeoutException('connection interrupted');
+          return {'revision': 2, 'items': [], 'departments': <String>[]};
         },
         readStore: (key) async => disk[key],
         writeStore: (key, value) async {
@@ -417,6 +417,10 @@ void main() {
       expect(data.conflicts, isEmpty);
       expect((await data.cached(list))!['items'], isEmpty);
       expect(data.error, contains('saved on this device'));
+      expect(data.lastSyncFailure, contains('HTTP 503'));
+      disconnected = true;
+      await data.synchronize();
+      expect(data.lastSyncFailure, isNot(contains('HTTP 503')));
     },
   );
 
