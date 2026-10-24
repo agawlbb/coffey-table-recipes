@@ -25,6 +25,7 @@ void main() {
               now: () => DateTime(2026, 10, 22),
               save: fixture.save,
               request: (path) {
+                if (!path.contains('/meal-plan?')) return fixture.request(path);
                 calls++;
                 if (calls == 2) return pending.future;
                 if (calls == 3) {

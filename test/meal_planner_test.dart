@@ -143,6 +143,30 @@ class PlanFixture {
 }
 
 void main() {
+  for (final screenWidth in [390.0, 744.0, 1024.0]) {
+    testWidgets('recipe browser follows tablet layout at $screenWidth', (
+      tester,
+    ) async {
+      await tester.binding.setSurfaceSize(Size(screenWidth, 1100));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+      await tester.pumpWidget(PlanFixture().app());
+      await tester.pumpAndSettle();
+      final browser = find.byType(RecipeBrowser);
+      if (screenWidth < 720) {
+        expect(browser, findsNothing);
+      } else {
+        expect(browser, findsOneWidget);
+        final plan = tester.getRect(find.byType(CustomScrollView));
+        final recipes = tester.getRect(browser);
+        expect(recipes.left, greaterThanOrEqualTo(plan.right));
+        expect(recipes.height, greaterThan(900));
+        expect(tester.widget<RecipeBrowser>(browser).dragRecipes, isTrue);
+      }
+      expect(tester.takeException(), isNull);
+      await tester.pumpWidget(const SizedBox());
+    });
+  }
+
   for (final screenWidth in [320.0, 900.0]) {
     testWidgets('dish pictures and captions fit a $screenWidth wide planner', (
       tester,
@@ -169,6 +193,8 @@ void main() {
       expect(first.top, second.top);
       expect(first.right, lessThan(second.left));
       expect(second.right, lessThan(bounds.right));
+      expect(first.width, lessThanOrEqualTo(100));
+      expect(first.height, lessThan(80));
       for (final title in ['Today soup', 'A second dish with a longer name']) {
         final caption = tester.getRect(find.text(title));
         expect(caption.top, greaterThanOrEqualTo(first.bottom));

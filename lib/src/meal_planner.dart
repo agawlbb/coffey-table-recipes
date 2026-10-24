@@ -832,10 +832,8 @@ class _MealPlannerState extends State<MealPlanner> with WidgetsBindingObserver {
             if (entries.isNotEmpty)
               LayoutBuilder(
                 builder: (context, constraints) {
-                  final width = ((constraints.maxWidth - 10) / 2).clamp(
-                    0.0,
-                    200.0,
-                  );
+                  final width =
+                      ((constraints.maxWidth - 10) / 2).clamp(0.0, 200.0) / 2;
                   return Padding(
                     padding: const EdgeInsets.only(top: 6),
                     child: Wrap(
@@ -985,7 +983,7 @@ class _MealPlannerState extends State<MealPlanner> with WidgetsBindingObserver {
     );
     return LayoutBuilder(
       builder: (context, constraints) =>
-          childMode.value || constraints.maxWidth < 950
+          childMode.value || constraints.maxWidth < 720
           ? list
           : Row(
               children: [
