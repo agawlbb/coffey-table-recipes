@@ -5,6 +5,26 @@ import 'package:coffey_table_recipes/src/api.dart';
 
 void main() {
   test(
+    'trusted server time is reported for calibrated original edit timestamps',
+    () async {
+      int? observed;
+      final api = RecipeApi(
+        baseUrl: 'https://example.test',
+        onServerTime: (value, _) => observed = value,
+        client: MockClient(
+          (_) async => http.Response(
+            '{}',
+            200,
+            headers: {'x-ctr-time-ms': '1790000000123'},
+          ),
+        ),
+      );
+      addTearDown(api.close);
+      await api.request('/health', '');
+      expect(observed, 1790000000123);
+    },
+  );
+  test(
     'rate limiting uses a quiet cooldown and respects Retry-After',
     () async {
       final waits = <Duration>[];

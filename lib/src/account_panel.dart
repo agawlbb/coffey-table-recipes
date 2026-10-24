@@ -206,7 +206,11 @@ class HouseholdPanel extends StatefulWidget {
 }
 
 class _HouseholdPanelState extends State<HouseholdPanel> {
-  final _api = RecipeApi(baseUrl: apiBaseUrl);
+  late final _api = RecipeApi(
+    baseUrl: apiBaseUrl,
+    onServerTime: (milliseconds, receivedAt) =>
+        _local?.observeServerTime(milliseconds, receivedAt),
+  );
   OfflineRecipes? _offline;
   LocalData? _local;
   Timer? _mirrorTimer;
@@ -1504,6 +1508,7 @@ class _HouseholdPanelState extends State<HouseholdPanel> {
       drawer: _buildMenu(context),
       body: Column(
         children: [
+          if (_local != null) LocalSyncStatus(data: _local!),
           Expanded(
             child: IndexedStack(
               index: _planning

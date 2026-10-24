@@ -6,6 +6,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 
 import 'api.dart';
+import 'shopping_changes.dart';
 import 'offline_store.dart';
 import 'shopping_item_id.dart';
 
@@ -134,6 +135,15 @@ class LocalData extends ChangeNotifier {
   Timer? _timer, _reminderTimer;
   Future<void> _reminders = Future.value();
   String? reminderError;
+  int? _serverOffsetMs;
+  int _lastShoppingEditMs = 0;
+  void observeServerTime(int milliseconds, DateTime receivedAt) {
+    _serverOffsetMs = milliseconds - receivedAt.millisecondsSinceEpoch;
+    if (_lastShoppingEditMs > milliseconds + 300000) {
+      _lastShoppingEditMs = milliseconds;
+    }
+  }
+
   int get overdue => _queue
       .where(
         (q) =>
@@ -147,6 +157,18 @@ class LocalData extends ChangeNotifier {
   String? error;
   int get snapshotEpoch => _epoch;
   int get pending => _queue.length;
+  String? get lastSyncFailure {
+    final failed = _queue.where((q) => q['last_error'] != null).toList()
+      ..sort(
+        (a, b) => (b['last_attempt_at'] as int).compareTo(
+          a['last_attempt_at'] as int,
+        ),
+      );
+    if (failed.isEmpty) return null;
+    final q = failed.first;
+    return '${q['last_status'] == null ? '' : 'HTTP ${q['last_status']}: '}${q['last_error']}';
+  }
+
   List<Map<String, dynamic>> get conflicts =>
       _queue.where((q) => q['problem'] != null).map(_copy).toList();
   List<Map<String, dynamic>> get archivedDrafts => _archive.map(_copy).toList();
@@ -270,6 +292,8 @@ class LocalData extends ChangeNotifier {
       _data = Map<String, dynamic>.from(saved['data'] as Map);
       _aliases = Map<String, dynamic>.from(saved['aliases'] as Map? ?? {});
       _blocked = Map<String, dynamic>.from(saved['blocked'] as Map? ?? {});
+      _serverOffsetMs ??= saved['server_offset_ms'] as int?;
+      _lastShoppingEditMs = saved['last_shopping_edit_ms'] as int? ?? 0;
       _queue = (saved['queue'] as List).map((q) => _copy(q as Map)).toList();
       _archive = (saved['archive'] as List? ?? [])
           .map((q) => _copy(q as Map))
@@ -277,7 +301,8 @@ class LocalData extends ChangeNotifier {
       for (final q in _queue) {
         q['saved_at'] ??= now().millisecondsSinceEpoch;
         if (q['sending'] == true &&
-            (q['body'] as Map)['client_save_id'] == null) {
+            (q['body'] as Map)['client_save_id'] == null &&
+            (q['body'] as Map)['client_change_id'] == null) {
           q['problem'] = 'The app closed during synchronization. Review the server copy before retrying.';
         }
       }
@@ -297,6 +322,8 @@ class LocalData extends ChangeNotifier {
       'archive': _archive,
       'aliases': _aliases,
       'blocked': _blocked,
+      'server_offset_ms': _serverOffsetMs,
+      'last_shopping_edit_ms': _lastShoppingEditMs,
     });
     final task = _disk.then((_) async {
       await writeStore('local-first-v1-$key', value);
@@ -856,7 +883,17 @@ class LocalData extends ChangeNotifier {
             !_aliases.values.any((id) => path == '${prefix}recipes/$id'),
       );
       for (final entry in responses.entries) {
-        if (!_dirty(entry.key)) next[entry.key] = _copy(entry.value as Map);
+        if (!_dirty(entry.key)) {
+          next[entry.key] = _copy(entry.value as Map);
+        } else if (entry.key.endsWith('/shopping-list')) {
+          final pending = _queue.where((q) => q['path'] == entry.key).toList();
+          if (pending.every((q) => (q['body'] as Map)['base_items'] is List)) {
+            next[entry.key] = overlayShoppingChanges(
+              _copy(entry.value as Map),
+              pending,
+            );
+          }
+        }
       }
       next['snapshot-version:$household'] = snapshot['version'];
       next['snapshot-categories:$household'] = _copy({
@@ -1055,6 +1092,18 @@ class LocalData extends ChangeNotifier {
         _data.remove('snapshot-version:$household');
       }
     }
+    for (final q in _queue) {
+      final parts = Uri.parse(q['path'] as String).pathSegments;
+      if (parts.length >= 2 &&
+          households.contains(parts[1]) &&
+          [
+            'invalid_token',
+            'authentication_required',
+          ].contains(q['problem_code'])) {
+        q.remove('problem');
+        q.remove('problem_code');
+      }
+    }
     final removed = _data.keys
         .where(
           (p) =>
@@ -1211,6 +1260,13 @@ class LocalData extends ChangeNotifier {
           'Download this list once before editing offline.',
         );
       }
+      final editedAt = now().millisecondsSinceEpoch + (_serverOffsetMs ?? 0);
+      _lastShoppingEditMs = editedAt > _lastShoppingEditMs
+          ? editedAt
+          : _lastShoppingEditMs + 1;
+      value['client_change_id'] = id;
+      value['edited_at_ms'] = _lastShoppingEditMs;
+      value['base_items'] = _copy({'items': old['items']})['items'];
       response = {
         ...old,
         'revision': body['revision'] + 1,
@@ -1361,7 +1417,18 @@ class LocalData extends ChangeNotifier {
           q['sending'] = true;
           await _persist(); // Crash during send is never mistaken for unsent work.
         });
-        final result = await send(path, _copy(q['body'] as Map));
+        final received = await send(path, _copy(q['body'] as Map));
+        if (path.endsWith('/shopping-list') &&
+            (q['body'] as Map)['client_change_id'] != null &&
+            received['acknowledged_change_id'] !=
+                (q['body'] as Map)['client_change_id']) {
+          throw ApiException(
+            503,
+            'The shopping change was not acknowledged. It remains saved on this device.',
+          );
+        }
+        final result = Map<String, dynamic>.from(received)
+          ..remove('acknowledged_change_id');
         delivered = true;
         if (_closed || accessEpoch != _accessEpoch) return;
         await _serial(() async {
@@ -1465,7 +1532,13 @@ class LocalData extends ChangeNotifier {
           }
           // Receipt-backed recipe saves can replay after lost responses/crashes.
           // Legacy creates without a receipt identifier still require review.
-          if (delivered ||
+          q['last_attempt_at'] = now().millisecondsSinceEpoch;
+          q['attempts'] = (q['attempts'] as int? ?? 0) + 1;
+          q['last_error'] = failure is ApiException
+              ? failure.message
+              : 'The server response was interrupted.';
+          if (failure is ApiException) q['last_status'] = failure.status;
+          if ((delivered && (q['body'] as Map)['client_change_id'] == null) ||
               q['creating'] == true &&
                   (q['body'] as Map)['client_save_id'] == null ||
               failure is ApiException &&
@@ -1542,6 +1615,18 @@ class LocalData extends ChangeNotifier {
       }
       body['revision'] =
           (server['recipe'] as Map?)?['revision'] ?? server['revision'];
+      if ((first['path'] as String).endsWith('/shopping-list')) {
+        if (related.every((q) => (q['body'] as Map)['base_items'] is List)) {
+          body['items'] = overlayShoppingChanges(server, related)['items'];
+        }
+        body['base_items'] = _copy({'items': server['items']})['items'];
+        body['client_change_id'] = newShoppingItemId();
+        final editedAt = now().millisecondsSinceEpoch + (_serverOffsetMs ?? 0);
+        _lastShoppingEditMs = editedAt > _lastShoppingEditMs
+            ? editedAt
+            : _lastShoppingEditMs + 1;
+        body['edited_at_ms'] = _lastShoppingEditMs;
+      }
       if (server['recipe'] is Map) {
         final ids = <String, Map<String, String>>{};
         var next = 0;
@@ -1646,13 +1731,13 @@ class LocalSyncStatus extends StatelessWidget {
                 Expanded(
                   child: Text(
                     (data.overdue > 0
-                            ? '${data.overdue} change(s) have not reached the server after one minute. Saved on this device; check synchronization details.'
+                            ? '${data.overdue} change(s) still await server confirmation after one minute. Saved on this device.${data.lastSyncFailure == null ? '' : ' ${data.lastSyncFailure}'}'
                             : null) ??
                         data.reminderError ??
                         data.error ??
                         (data.pending == 0
                             ? 'Local drafts retained'
-                            : '${data.pending} change(s) saved locally · syncing'),
+                            : '${data.pending} change(s) saved on this device · awaiting server confirmation'),
                     style: Theme.of(context).textTheme.bodySmall,
                   ),
                 ),

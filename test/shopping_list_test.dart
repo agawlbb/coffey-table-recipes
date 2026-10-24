@@ -1,8 +1,122 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:coffey_table_recipes/src/shopping_list.dart';
+import 'package:coffey_table_recipes/src/api.dart';
+import 'package:coffey_table_recipes/src/shopping_list_cache.dart';
 
 void main() {
+  testWidgets('local-first shopping does not revive a stale secondary cache', (
+    tester,
+  ) async {
+    final primary = Completer<Map<String, dynamic>>();
+    await tester.pumpWidget(
+      MaterialApp(
+        home: ShoppingListScreen(
+          householdId: '1',
+          householdName: 'Coffey',
+          localFirst: true,
+          cache: ShoppingListCache(
+            account: 'a',
+            household: '1',
+            server: 's',
+            readStore: (_) async {
+              return '{"revision":2,"departments":["Dairy"],"items":[{"id":"milk","name":"Milk","checked":false,"department":"Dairy"}]}';
+            },
+            writeStore: (_, _) async {},
+          ),
+          request: (_, {body}) => primary.future,
+        ),
+      ),
+    );
+    await tester.pump();
+    expect(find.text('Milk'), findsNothing);
+    primary.complete({
+      'revision': 2,
+      'items': [],
+      'departments': ['Dairy'],
+    });
+    await tester.pumpAndSettle();
+    expect(find.text('Milk'), findsNothing);
+  });
+  testWidgets('local deletion waits for durable device acknowledgement', (
+    tester,
+  ) async {
+    final persisted = Completer<Map<String, dynamic>>();
+    final initial = {
+      'revision': 1,
+      'departments': ['Dairy'],
+      'items': [
+        {'id': 'milk', 'name': 'Milk', 'department': 'Dairy', 'checked': true},
+      ],
+    };
+    await tester.pumpWidget(
+      MaterialApp(
+        home: ShoppingListScreen(
+          householdId: '1',
+          householdName: 'Coffey',
+          localFirst: true,
+          request: (_, {body}) async =>
+              body == null ? initial : persisted.future,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Remove checked off'));
+    await tester.pump();
+    expect(find.text('Milk'), findsOneWidget);
+    persisted.complete({
+      'revision': 2,
+      'departments': ['Dairy'],
+      'items': [],
+    });
+    await tester.pumpAndSettle();
+    expect(find.text('Milk'), findsNothing);
+  });
+
+  testWidgets(
+    'failed durable deletion preserves item and reports device storage failure',
+    (tester) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: ShoppingListScreen(
+            householdId: '1',
+            householdName: 'Coffey',
+            localFirst: true,
+            request: (_, {body}) async {
+              if (body != null)
+                throw ApiException(
+                  507,
+                  'Could not save on this device. Free storage and retry.',
+                );
+              return {
+                'revision': 1,
+                'departments': ['Dairy'],
+                'items': [
+                  {
+                    'id': 'milk',
+                    'name': 'Milk',
+                    'department': 'Dairy',
+                    'checked': true,
+                  },
+                ],
+              };
+            },
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Remove checked off'));
+      await tester.pumpAndSettle();
+      expect(find.text('Milk'), findsOneWidget);
+      expect(
+        find.text('Could not save on this device. Free storage and retry.'),
+        findsOneWidget,
+      );
+      expect(find.textContaining('when connected'), findsNothing);
+    },
+  );
   testWidgets('double tap edits inline without completing or moving the item', (
     tester,
   ) async {

@@ -25,7 +25,15 @@ void main() {
       fetch:
           fetch ??
           (path) async => Map<String, dynamic>.from(server[path] as Map),
-      send: send ?? (path, body) async => throw TimeoutException('offline'),
+      send: (path, body) async {
+        if (send == null) throw TimeoutException('offline');
+        final result = await send(path, body);
+        return {
+          ...result,
+          if (body['client_change_id'] != null)
+            'acknowledged_change_id': body['client_change_id'],
+        };
+      },
       fallback: fallback,
       readStore: (key) async => disk[key],
       writeStore:
@@ -318,6 +326,125 @@ void main() {
     final second = store(key: 'another-server|another-account');
     expect(await second.cached(list), isNull);
   });
+
+  test('fresh verified account resumes a token-blocked upload without losing edits', () async {
+    var authenticated = false;
+    final data = store(
+      fetch: (path) async => path == '/me'
+          ? {
+              'households': [
+                {'id': '1', 'name': 'Coffey'},
+              ],
+            }
+          : Map<String, dynamic>.from(server[list] as Map),
+      send: (_, body) async {
+        if (!authenticated)
+          throw ApiException(401, 'Sign in again', code: 'invalid_token');
+        return {
+          'revision': 2,
+          'items': body['items'],
+          'departments': <String>[],
+        };
+      },
+    );
+    await data.request(list);
+    await data.save(list, {'revision': 1, 'items': []});
+    await settle(data);
+    expect(data.conflicts.single['problem_code'], 'invalid_token');
+    authenticated = true;
+    await data.refresh('/me', force: true);
+    await data.synchronize();
+    expect(data.pending, 0);
+    expect((await data.cached(list))!['items'], isEmpty);
+  });
+
+  test('deleted shopping item stays deleted after lost acknowledgement and restart', () async {
+    final attempts = <String>[];
+    var committed = false;
+    Future<Map<String, dynamic>> upload(
+      String path,
+      Map<String, dynamic> body,
+    ) async {
+      attempts.add(body['client_change_id'] as String);
+      if (!committed) {
+        committed = true;
+        server[list] = {'revision': 2, 'items': [], 'departments': <String>[]};
+        throw TimeoutException('server committed; response lost');
+      }
+      return Map<String, dynamic>.from(server[list] as Map);
+    }
+
+    final first = store(send: upload);
+    await first.request(list);
+    await first.save(list, {'revision': 1, 'items': []});
+    await Future<void>.delayed(Duration.zero);
+    expect(first.pending, 1);
+    expect((await first.cached(list))!['items'], isEmpty);
+    first.dispose();
+    stores.remove(first);
+    final restarted = store(send: upload);
+    expect((await restarted.cached(list))!['items'], isEmpty);
+    await restarted.synchronize();
+    expect(restarted.pending, 0);
+    expect(restarted.conflicts, isEmpty);
+    expect(attempts.toSet(), hasLength(1));
+    final otherDevice = store(key: 'other-device');
+    expect((await otherDevice.request(list))['items'], isEmpty);
+  });
+
+  test(
+    'shopping change is not discarded if server fails to acknowledge its ID',
+    () async {
+      final data = LocalData(
+        key: 'unacknowledged',
+        fetch: (_) async => Map<String, dynamic>.from(server[list] as Map),
+        send: (_, _) async => {
+          'revision': 2,
+          'items': [],
+          'departments': <String>[],
+        },
+        readStore: (key) async => disk[key],
+        writeStore: (key, value) async {
+          disk[key] = value;
+        },
+      );
+      stores.add(data);
+      await data.request(list);
+      await data.save(list, {'revision': 1, 'items': []});
+      await settle(data);
+      expect(data.pending, 1);
+      expect(data.conflicts, isEmpty);
+      expect((await data.cached(list))!['items'], isEmpty);
+      expect(data.error, contains('saved on this device'));
+    },
+  );
+
+  test(
+    'shopping edit time is calibrated once and does not change on retry',
+    () async {
+      final bodies = <Map<String, dynamic>>[];
+      final data = store(
+        send: (_, body) async {
+          bodies.add(body);
+          throw TimeoutException('offline');
+        },
+      );
+      await data.request(list);
+      final localNow = DateTime.now();
+      data.observeServerTime(localNow.millisecondsSinceEpoch - 60000, localNow);
+      await data.save(list, {'revision': 1, 'items': []});
+      await settle(data);
+      await data.synchronize();
+      expect(bodies.length, greaterThanOrEqualTo(2));
+      expect(bodies.first['client_change_id'], bodies.last['client_change_id']);
+      expect(bodies.first['edited_at_ms'], bodies.last['edited_at_ms']);
+      expect(
+        (bodies.first['edited_at_ms'] as int) - localNow.millisecondsSinceEpoch,
+        lessThan(-59000),
+      );
+      expect(bodies.first['base_items'], hasLength(1));
+    },
+  );
 
   test('access revocation removes local household data', () async {
     final first = store();

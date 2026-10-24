@@ -64,10 +64,11 @@ bool isPublicRecipeRead(String path) =>
         .hasMatch(Uri.parse(path).path);
 
 class RecipeApi {
-  RecipeApi({required this.baseUrl, http.Client? client})
+  RecipeApi({required this.baseUrl, http.Client? client, this.onServerTime})
     : _client = client ?? http.Client();
   final String baseUrl;
   final http.Client _client;
+  final void Function(int milliseconds, DateTime receivedAt)? onServerTime;
 
   Future<Map<String, dynamic>> request(
     String path,
@@ -136,6 +137,8 @@ class RecipeApi {
                   : _client.post(uri, headers: headers, body: jsonEncode(body)))
               .timeout(timeout);
     }
+    final serverTime = int.tryParse(response.headers['x-ctr-time-ms'] ?? '');
+    if (serverTime != null) onServerTime?.call(serverTime, DateTime.now());
     Duration? retryAfter;
     if (response.statusCode == 429) {
       retryAfter = rateLimitDelay(response.headers['retry-after']);

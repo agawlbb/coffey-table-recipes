@@ -1,6 +1,7 @@
 import 'child_mode.dart';
 
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/gestures.dart';
@@ -217,6 +218,7 @@ class _ShoppingListScreenState extends State<ShoppingListScreen>
   }
 
   Future<void> _restoreCache() async {
+    if (widget.localFirst) return; // LocalData is the single durable source.
     final data = await widget.cache?.read();
     if (data != null &&
         mounted &&
@@ -231,6 +233,7 @@ class _ShoppingListScreenState extends State<ShoppingListScreen>
   }
 
   void _cacheConfirmed() {
+    if (widget.localFirst) return;
     unawaited(
       widget.cache?.save({
         'revision': _revision,
@@ -241,10 +244,7 @@ class _ShoppingListScreenState extends State<ShoppingListScreen>
   }
 
   bool _connectionFailure(Object error) =>
-      error is! ApiException ||
-      error.status >= 500 ||
-      error.status == 408 ||
-      error.status == 429;
+      error is! ApiException || isTemporaryCommunicationFailure(error);
 
   Future<bool> _retryDelay(Duration delay) {
     final done = Completer<bool>();
@@ -325,7 +325,11 @@ class _ShoppingListScreenState extends State<ShoppingListScreen>
           _editingId == null &&
           generation == _saveGeneration) {
         final changed =
-            firstResponse || _loading || data['revision'] != _revision;
+            firstResponse ||
+            _loading ||
+            data['revision'] != _revision ||
+            jsonEncode(data['items']) != jsonEncode(_items) ||
+            jsonEncode(data['departments']) != jsonEncode(_departments);
         if (changed ||
             (_disconnected && !widget.localFirst) ||
             _accessDenied ||
@@ -371,6 +375,7 @@ class _ShoppingListScreenState extends State<ShoppingListScreen>
 
   Future<bool> _save(List<Map<String, dynamic>> items) {
     if (childMode.value) return Future.value(false);
+    if (widget.localFirst && _saving) return Future.value(false);
     if ((_disconnected && !widget.localFirst) || _accessDenied) {
       return Future.value(false);
     }
@@ -381,7 +386,9 @@ class _ShoppingListScreenState extends State<ShoppingListScreen>
     // Keep the dropped order visible while serializing writes against the
     // server revision.
     setState(() {
-      _items = items;
+      // In local-first mode the response confirms a durable device write,
+      // not a server upload. Do not hide a deletion before that write finishes.
+      if (!widget.localFirst) _items = items;
       _saving = true;
       _error = null;
       _saveNotice = false;

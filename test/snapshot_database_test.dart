@@ -43,6 +43,71 @@ Map<String, dynamic> snapshot(String title, {String household = '1'}) {
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
+  test('incoming snapshots preserve pending deletion and bring unrelated new items', () async {
+    String? saved;
+    LocalData local() => LocalData(
+      key: 'delete-snapshot',
+      snapshotOnly: true,
+      fetch: (_) async => throw StateError('network'),
+      send: (_, _) async => throw TimeoutException('offline'),
+      readStore: (_) async => saved,
+      writeStore: (_, value) async {
+        saved = value;
+      },
+    );
+    final data = local();
+    Map<String, dynamic> source(
+      String version,
+      int revision,
+      List<Map<String, dynamic>> items,
+    ) {
+      final result =
+          jsonDecode(jsonEncode(snapshot(version))) as Map<String, dynamic>;
+      result['responses']['/households/1/shopping-list'] = {
+        'revision': revision,
+        'items': items,
+        'departments': ['Produce'],
+      };
+      return result;
+    }
+
+    final milk = {
+      'id': 'milk',
+      'name': 'Milk',
+      'checked': true,
+      'department': '',
+    };
+    final apples = {
+      'id': 'apples',
+      'name': 'Apples',
+      'checked': false,
+      'department': 'Produce',
+    };
+    await data.installSnapshot(source('first', 1, [milk]));
+    await data.save('/households/1/shopping-list', {
+      'revision': 1,
+      'items': [],
+    });
+    await data.synchronize();
+    await data.installSnapshot(source('second', 2, [milk, apples]));
+    expect(
+      (data.readView('/households/1/shopping-list')['items'] as List)
+          .single['id'],
+      'apples',
+    );
+    expect(data.pending, 1);
+    data.dispose();
+    final restarted = local();
+    expect(
+      ((await restarted.cached('/households/1/shopping-list'))!['items']
+              as List)
+          .single['id'],
+      'apples',
+    );
+    expect(restarted.pending, 1);
+    expect(restarted.conflicts, isEmpty);
+    restarted.dispose();
+  });
   test('household AI image permission reaches local edit options and updates with the snapshot', () async {
     final data = LocalData(
       key: 'permissions',
