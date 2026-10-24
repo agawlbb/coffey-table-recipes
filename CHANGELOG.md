@@ -2,6 +2,14 @@
 
 Release dates and changes are reconstructed from annotated Git tags, commit history, and project release records. Versions before 1.0 are demonstration releases; 1.0 marks the first usable release. Android retains the existing signing identity; iOS delivery and signing are recorded for each release.
 
+## 2.1.2 — 2026-10-24
+
+Build 33; tag `v2.1.2`.
+
+- Preserve downloaded household data and pending edits when a request fails because an action is denied, a token expires, or an unstructured server/proxy error occurs; authoritative membership/account removal remains enforced.
+- Validate membership responses before revoking access, and repair legacy local household blocks after a successful membership refresh so missing records can be downloaded again.
+- Preserve archived drafts for review rather than automatically replaying them, and protect against late cross-household responses.
+- Build all platforms with patched Flutter 3.47.8/Dart 3.13.7 and enforce those minimum SDK versions. Existing 2.1.1 packages are superseded by this rebuild.
 ## 2.1.1 — 2026-10-23
 
 Build 32; tag `v2.1.1`.

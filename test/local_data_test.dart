@@ -325,7 +325,9 @@ void main() {
     await Future<void>.delayed(Duration.zero);
     final second = store(
       fetch: (_) async => throw ApiException(
-        404, 'Household not found', code: 'household_not_found',
+        404,
+        'Household not found',
+        code: 'household_not_found',
       ),
     );
     await expectLater(
@@ -342,59 +344,78 @@ void main() {
     ApiException(403, 'Blocked by proxy'),
     ApiException(401, 'Sign in again', code: 'invalid_token'),
   ]) {
-    test('${failure.code ?? "proxy"} read failure preserves household data', () async {
+    test(
+      '${failure.code ?? "proxy"} read failure preserves household data',
+      () async {
+        final initial = store();
+        await initial.request(list);
+        await initial.request(recipe);
+        await Future<void>.delayed(Duration.zero);
+        final failing = store(fetch: (_) async => throw failure);
+        await expectLater(
+          failing.refresh(list, force: true),
+          throwsA(same(failure)),
+        );
+        expect((await failing.cached(recipe))!['recipe']['title'], 'Soup');
+        expect((await failing.cached(list))!['items'], hasLength(1));
+        final restarted = store();
+        expect((await restarted.cached(recipe))!['recipe']['title'], 'Soup');
+      },
+    );
+  }
+
+  test(
+    'action denial preserves pending edits instead of archiving household',
+    () async {
       final initial = store();
       await initial.request(list);
       await initial.request(recipe);
       await Future<void>.delayed(Duration.zero);
-      final failing = store(fetch: (_) async => throw failure);
+      final failing = store(
+        send: (_, _) async =>
+            throw ApiException(403, 'Child mode', code: 'child_mode'),
+      );
+      await failing.save(list, {
+        'revision': 1,
+        'items': [item('Bread')],
+      });
+      await settle(failing);
+      expect(failing.pending, 1);
+      expect(failing.archivedDrafts, isEmpty);
+      expect(failing.conflicts.single['problem_code'], 'child_mode');
+      expect((await failing.cached(list))!['items'][0]['name'], 'Bread');
+      expect((await failing.cached(recipe))!['recipe']['title'], 'Soup');
+    },
+  );
+
+  test(
+    'invalid account response cannot erase memberships or cached recipes',
+    () async {
+      final initial = store();
+      await initial.request(recipe);
+      await Future<void>.delayed(Duration.zero);
+      final failing = store(
+        fetch: (_) async => {'status': 'temporarily unavailable'},
+      );
       await expectLater(
-        failing.refresh(list, force: true), throwsA(same(failure)),
+        failing.refresh('/me', force: true),
+        throwsFormatException,
       );
       expect((await failing.cached(recipe))!['recipe']['title'], 'Soup');
-      expect((await failing.cached(list))!['items'], hasLength(1));
-      final restarted = store();
-      expect((await restarted.cached(recipe))!['recipe']['title'], 'Soup');
-    });
-  }
-
-  test('action denial preserves pending edits instead of archiving household', () async {
-    final initial = store();
-    await initial.request(list);
-    await initial.request(recipe);
-    await Future<void>.delayed(Duration.zero);
-    final failing = store(send: (_, _) async => throw ApiException(
-      403, 'Child mode', code: 'child_mode',
-    ));
-    await failing.save(list, {'revision': 1, 'items': [item('Bread')]});
-    await settle(failing);
-    expect(failing.pending, 1);
-    expect(failing.archivedDrafts, isEmpty);
-    expect(failing.conflicts.single['problem_code'], 'child_mode');
-    expect((await failing.cached(list))!['items'][0]['name'], 'Bread');
-    expect((await failing.cached(recipe))!['recipe']['title'], 'Soup');
-  });
-
-  test('invalid account response cannot erase memberships or cached recipes', () async {
-    final initial = store();
-    await initial.request(recipe);
-    await Future<void>.delayed(Duration.zero);
-    final failing = store(fetch: (_) async => {'status': 'temporarily unavailable'});
-    await expectLater(
-      failing.refresh('/me', force: true), throwsFormatException,
-    );
-    expect((await failing.cached(recipe))!['recipe']['title'], 'Soup');
-  });
+    },
+  );
 
   test('confirmed account disable still revokes all local access', () async {
     final initial = store();
     await initial.request(recipe);
     await Future<void>.delayed(Duration.zero);
-    final failing = store(fetch: (_) async => throw ApiException(
-      403, 'Account disabled', code: 'account_disabled',
-    ));
+    final failing = store(
+      fetch: (_) async =>
+          throw ApiException(403, 'Account disabled', code: 'account_disabled'),
+    );
     await expectLater(
-      failing.refresh(recipe, force: true), throwsA(isA<ApiException>()),
+      failing.refresh(recipe, force: true),
+      throwsA(isA<ApiException>()),
     );
     expect(await failing.cached(recipe), isNull);
   });
@@ -411,12 +432,18 @@ void main() {
   test('successful membership refresh repairs legacy blocks and forces full download', () async {
     disk['local-first-v1-server|account'] = jsonEncode({
       'data': {'snapshot-version:1': 'old-version'},
-      'aliases': {}, 'blocked': {'/households/1/': 403},
-      'queue': [], 'archive': [],
+      'aliases': {},
+      'blocked': {'/households/1/': 403},
+      'queue': [],
+      'archive': [],
     });
-    final data = store(fetch: (_) async => {
-      'households': [{'id': '1', 'name': 'Coffey'}],
-    });
+    final data = store(
+      fetch: (_) async => {
+        'households': [
+          {'id': '1', 'name': 'Coffey'},
+        ],
+      },
+    );
     await data.refresh('/me', force: true);
     await Future<void>.delayed(Duration.zero);
     expect(await data.snapshotVersion('1'), isNull);
@@ -791,7 +818,9 @@ void main() {
       fetch: (path) async {
         if (path == list) return response.future;
         throw ApiException(
-          404, 'Household not found', code: 'household_not_found',
+          404,
+          'Household not found',
+          code: 'household_not_found',
         );
       },
     );
@@ -809,27 +838,34 @@ void main() {
     expect(await data.cached(list), isNull);
   });
 
-  test('a denial in another household cannot revoke a late valid response', () async {
-    final initial = store();
-    await initial.request(list);
-    await Future<void>.delayed(Duration.zero);
-    final response = Completer<Map<String, dynamic>>();
-    final data = store(fetch: (path) async {
-      if (path == list) return response.future;
-      throw ApiException(
-        404, 'Household not found', code: 'household_not_found',
+  test(
+    'a denial in another household cannot revoke a late valid response',
+    () async {
+      final initial = store();
+      await initial.request(list);
+      await Future<void>.delayed(Duration.zero);
+      final response = Completer<Map<String, dynamic>>();
+      final data = store(
+        fetch: (path) async {
+          if (path == list) return response.future;
+          throw ApiException(
+            404,
+            'Household not found',
+            code: 'household_not_found',
+          );
+        },
       );
-    });
-    final pending = data.refresh(list, force: true);
-    await expectLater(
-      data.refresh('/households/2/people', force: true),
-      throwsA(isA<ApiException>()),
-    );
-    final rejected = expectLater(pending, throwsA(isA<ApiException>()));
-    response.complete(server[list] as Map<String, dynamic>);
-    await rejected;
-    expect((await data.cached(list))!['items'][0]['name'], 'Milk');
-  });
+      final pending = data.refresh(list, force: true);
+      await expectLater(
+        data.refresh('/households/2/people', force: true),
+        throwsA(isA<ApiException>()),
+      );
+      final rejected = expectLater(pending, throwsA(isA<ApiException>()));
+      response.complete(server[list] as Map<String, dynamic>);
+      await rejected;
+      expect((await data.cached(list))!['items'][0]['name'], 'Milk');
+    },
+  );
 
   test('creation receipt does not replace a later local recipe edit', () async {
     final creation = Completer<Map<String, dynamic>>();

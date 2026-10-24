@@ -1038,8 +1038,8 @@ class LocalData extends ChangeNotifier {
     final rows = result['households'];
     if (rows is! List ||
         rows.any(
-          (row) => row is! Map ||
-              !RegExp(r'^[1-9][0-9]*$').hasMatch('${row['id']}'),
+          (row) =>
+              row is! Map || !RegExp(r'^[1-9][0-9]*$').hasMatch('${row['id']}'),
         )) {
       throw const FormatException('Invalid household membership response');
     }
