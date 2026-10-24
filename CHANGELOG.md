@@ -2,6 +2,15 @@
 
 Release dates and changes are reconstructed from annotated Git tags, commit history, and project release records. Versions before 1.0 are demonstration releases; 1.0 marks the first usable release. Android retains the existing signing identity; iOS delivery and signing are recorded for each release.
 
+## 2.1.3 — 2026-10-24
+
+Build 34; tag `v2.1.3`.
+
+- Save shopping changes durably before hiding deleted items, and retain visible items when device storage fails.
+- Retry interrupted shopping uploads safely across restarts with stable operation identities, original edit times and explicit server acknowledgements.
+- Merge pending changes into incoming shopping snapshots without losing unrelated items or resurrecting pending deletions; remove stale secondary-cache reads in local-first mode.
+- Show unconfirmed uploads and current errors in the shared sync banner, with recovery after a valid account refresh.
+- Pair with the deployed compatible server's duplicate-request receipts, per-field ordering and deletion tombstones. Preserve manually corrected shopping data; no historical replay or data reset is performed.
 ## 2.1.2 — 2026-10-24
 
 Build 33; tag `v2.1.2`.
