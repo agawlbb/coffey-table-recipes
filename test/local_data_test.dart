@@ -784,33 +784,49 @@ void main() {
       expect((range!['entries'] as List).map((e) => e['id']), ['a', 'b']);
     },
   );
-  test(
-    'reviewed conflict reapplies local content to the displayed revision',
-    () async {
-      var conflict = true;
-      final revisions = <int>[];
-      final data = store(
-        send: (_, body) async {
-          revisions.add(body['revision'] as int);
-          if (conflict) throw ApiException(409, 'Changed on another device');
-          return {'revision': 4, 'items': body['items'], 'departments': []};
-        },
+  testWidgets(
+    'reviewed conflict reapplies local content without showing archive controls',
+    (tester) async {
+      final data = (await tester.runAsync(() async {
+        var conflict = true;
+        final revisions = <int>[];
+        final data = store(
+          send: (_, body) async {
+            revisions.add(body['revision'] as int);
+            if (conflict) throw ApiException(409, 'Changed on another device');
+            return {'revision': 4, 'items': body['items'], 'departments': []};
+          },
+        );
+        await data.request(list);
+        await data.save(list, {
+          'revision': 1,
+          'items': [item('Bread')],
+        });
+        await settle(data);
+        conflict = false;
+        await data.useLocal(data.conflicts.single['id'] as String, {
+          'revision': 3,
+          'items': [item('Milk')],
+          'departments': [],
+        });
+        expect(revisions, [1, 3]);
+        expect((await data.cached(list))!['items'][0]['name'], 'Bread');
+        expect(data.archivedDrafts, hasLength(1));
+        expect(data.pending, 0);
+        return data;
+      }))!;
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(body: LocalSyncStatus(data: data)),
+        ),
       );
-      await data.request(list);
-      await data.save(list, {
-        'revision': 1,
-        'items': [item('Bread')],
-      });
-      await settle(data);
-      conflict = false;
-      await data.useLocal(data.conflicts.single['id'] as String, {
-        'revision': 3,
-        'items': [item('Milk')],
-        'departments': [],
-      });
-      expect(revisions, [1, 3]);
-      expect((await data.cached(list))!['items'][0]['name'], 'Bread');
-      expect(data.archivedDrafts, hasLength(1));
+      expect(find.byType(TextButton), findsNothing);
+      expect(find.byType(IconButton), findsNothing);
+      expect(find.text('Local drafts retained'), findsNothing);
+      expect(find.text('Saved local drafts'), findsNothing);
+      // The UI removal must not discard retained edits.
+      expect(data.archivedDrafts.single['body']['items'][0]['name'], 'Bread');
+      await tester.pumpWidget(const SizedBox());
     },
   );
 

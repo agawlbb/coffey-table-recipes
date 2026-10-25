@@ -1721,8 +1721,7 @@ class LocalSyncStatus extends StatelessWidget {
   @override
   Widget build(BuildContext context) => ListenableBuilder(
     listenable: data,
-    builder: (context, _) =>
-        data.pending == 0 && data.error == null && data.archivedDrafts.isEmpty
+    builder: (context, _) => data.pending == 0 && data.error == null
         ? const SizedBox.shrink()
         : Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -1735,42 +1734,10 @@ class LocalSyncStatus extends StatelessWidget {
                             : null) ??
                         data.reminderError ??
                         data.error ??
-                        (data.pending == 0
-                            ? 'Local drafts retained'
-                            : '${data.pending} change(s) saved on this device · awaiting server confirmation'),
+                        '${data.pending} change(s) saved on this device · awaiting server confirmation',
                     style: Theme.of(context).textTheme.bodySmall,
                   ),
                 ),
-                if (data.archivedDrafts.isNotEmpty)
-                  IconButton(
-                    tooltip: 'Saved local drafts',
-                    icon: const Icon(Icons.history),
-                    onPressed: () => showDialog<void>(
-                      context: context,
-                      builder: (dialog) => AlertDialog(
-                        title: const Text('Saved local drafts'),
-                        content: SizedBox(
-                          width: 500,
-                          child: SingleChildScrollView(
-                            child: SelectableText(
-                              data.archivedDrafts
-                                  .map(
-                                    (draft) =>
-                                        describeLocalData(draft['body'] as Map),
-                                  )
-                                  .join('\n\n────────\n\n'),
-                            ),
-                          ),
-                        ),
-                        actions: [
-                          TextButton(
-                            onPressed: () => Navigator.pop(dialog),
-                            child: const Text('Close'),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
                 TextButton(
                   onPressed: () async {
                     if (data.conflicts.isEmpty) {

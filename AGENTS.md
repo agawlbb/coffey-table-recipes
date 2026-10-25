@@ -1,5 +1,9 @@
 # Repository workflow
 
+## Requested scope
+
+- Keep bug fixes within the user's requested behavior. Do not add unrequested user-facing features, controls, dialogs, screens, or workflows as part of a repair. If an additional feature seems useful, describe the concrete proposal and obtain the user's explicit approval before implementing it. Internal reliability changes needed for the requested fix remain in scope. Report any necessary visible behavior changes clearly before release; do not hide feature additions in technical repair summaries.
+
 ## Proportionate validation and coding speed
 
 - Default to focused validation, not `flutter test` over the entire repository. Before editing, identify the changed behavior and the smallest relevant test files; include callers and shared dependencies when affected. Run them together in one Flutter invocation, for example `flutter test --no-pub test/recipe_filter_dialog_test.dart test/blank_recipe_detail_layout_test.dart` when dependencies are already resolved.
