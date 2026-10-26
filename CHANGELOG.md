@@ -2,6 +2,12 @@
 
 Release dates and changes are reconstructed from annotated Git tags, commit history, and project release records. Versions before 1.0 are demonstration releases; 1.0 marks the first usable release. Android retains the existing signing identity; iOS delivery and signing are recorded for each release.
 
+## 2.1.4 — 2026-10-25
+
+Build 35; tag `v2.1.4`.
+
+- Remove the unrequested Saved local drafts history button/dialog and archive-only Local drafts retained banner.
+- Preserve internally retained edits, pending shopping uploads, sync error reporting and existing conflict resolution. Retained drafts alone no longer display a sync row; no stored data is deleted or replayed.
 ## 2.1.3 — 2026-10-24
 
 Build 34; tag `v2.1.3`.
