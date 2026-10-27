@@ -2,6 +2,13 @@
 
 Release dates and changes are reconstructed from annotated Git tags, commit history, and project release records. Versions before 1.0 are demonstration releases; 1.0 marks the first usable release. Android retains the existing signing identity; iOS delivery and signing are recorded for each release.
 
+## 2.1.5 — 2026-10-27
+
+Build 36; tag `v2.1.5`.
+
+- Recover uncertain recipe-variation responses and busy requests with bounded retries using the same request identity and answers, without duplicating generation.
+- Preserve entered text and show specific timeout, network and malformed-response messages; stop recovery when leaving the preparation screen or going offline. Explicit provider failures are not automatically regenerated.
+- Pair with the compatible server's nonblocking request locks, completed-draft recovery and sanitized timeout diagnostics. No screens or controls were added, and saved recipe data is unchanged.
 ## 2.1.4 — 2026-10-25
 
 Build 35; tag `v2.1.4`.
