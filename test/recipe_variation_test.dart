@@ -198,6 +198,112 @@ void main() {
     expect(bodies[1]['changes'], bodies[0]['changes']);
   });
 
+  testWidgets(
+    'gateway timeout recovers an active draft using the same identity',
+    (tester) async {
+      final bodies = <Map<String, dynamic>>[];
+      await openVariation(tester, (_, body) async {
+        bodies.add(Map<String, dynamic>.from(body));
+        if (bodies.length == 1) throw ApiException(504, 'Gateway timed out');
+        if (bodies.length == 2) {
+          throw ApiException(
+            503,
+            'Still preparing',
+            code: 'variation_in_progress',
+          );
+        }
+        return variationDraft(['Which milk alternative?']);
+      });
+      await prepare(tester);
+      expect(find.text('Gateway timed out'), findsNothing);
+      expect(bodies, hasLength(3));
+      expect(bodies.map((body) => body['request_id']).toSet(), hasLength(1));
+      expect(find.text('Which milk alternative?'), findsOneWidget);
+    },
+  );
+
+  testWidgets(
+    'transport retries stop and explain timeout while retaining input',
+    (tester) async {
+      var calls = 0;
+      await openVariation(tester, (_, _) async {
+        calls++;
+        throw TimeoutException('private transport detail');
+      });
+      await prepare(tester);
+      for (final seconds in [3, 5, 8, 12, 15]) {
+        await tester.pump(Duration(seconds: seconds));
+        await tester.pump();
+      }
+      await tester.pumpAndSettle();
+      expect(calls, 6);
+      expect(
+        find.textContaining('variation request timed out'),
+        findsOneWidget,
+      );
+      expect(find.text('Make it dairy-free'), findsOneWidget);
+      expect(find.textContaining('private transport detail'), findsNothing);
+    },
+  );
+
+  testWidgets('explicit provider timeout is not automatically regenerated', (
+    tester,
+  ) async {
+    var calls = 0;
+    await openVariation(tester, (_, _) async {
+      calls++;
+      throw ApiException(
+        504,
+        'Recipe AI took too long to respond.',
+        code: 'ai_timeout',
+      );
+    });
+    await prepare(tester);
+    expect(calls, 1);
+    expect(find.text('Recipe AI took too long to respond.'), findsOneWidget);
+    expect(find.text('Make it dairy-free'), findsOneWidget);
+  });
+
+  testWidgets('leaving during retry wait prevents another request', (
+    tester,
+  ) async {
+    var calls = 0;
+    await openVariation(tester, (_, _) async {
+      calls++;
+      throw ApiException(504, 'Gateway timed out');
+    });
+    await tester.enterText(find.byType(TextField).first, 'Use rice');
+    await tester.tap(find.text('Prepare variation'));
+    await tester.pump();
+    await tester.tap(find.text('Cancel'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+    await tester.tap(find.text('Discard'));
+    await tester.pumpAndSettle();
+    await tester.pump(const Duration(seconds: 20));
+    expect(calls, 1);
+    expect(find.text('Open variation'), findsOneWidget);
+  });
+
+  testWidgets('malformed variation response retains input and can be retried', (
+    tester,
+  ) async {
+    final ids = <Object?>[];
+    await openVariation(tester, (_, body) async {
+      ids.add(body['request_id']);
+      return ids.length == 1
+          ? {'recipe': {}}
+          : variationDraft(['Which milk alternative?']);
+    });
+    await prepare(tester);
+    expect(find.textContaining('incomplete variation'), findsOneWidget);
+    expect(find.text('Make it dairy-free'), findsOneWidget);
+    await tester.tap(find.text('Prepare variation'));
+    await tester.pumpAndSettle();
+    expect(ids[1], ids[0]);
+    expect(find.text('Which milk alternative?'), findsOneWidget);
+  });
+
   testWidgets('edited failed request starts a fresh generation identity', (
     tester,
   ) async {

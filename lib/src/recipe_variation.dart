@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:math';
 
@@ -70,6 +71,53 @@ class _RecipeVariationState extends State<RecipeVariation> {
     super.dispose();
   }
 
+  Future<Map<String, dynamic>> _requestDraft(
+    Map<String, dynamic> body,
+    int generation,
+  ) async {
+    final deadline = DateTime.now().add(const Duration(seconds: 150));
+    const delays = [3, 5, 8, 12, 15];
+    for (var attempt = 0; ; attempt++) {
+      try {
+        final remaining = deadline.difference(DateTime.now());
+        if (remaining <= Duration.zero) {
+          throw TimeoutException('Variation recovery deadline reached');
+        }
+        return await widget
+            .request(
+              '/households/${widget.householdId}/recipes/${widget.parentRecipeId}/variation',
+              body,
+            )
+            .timeout(remaining);
+      } catch (error) {
+        // Only recover transport uncertainty or an existing worker. Explicit
+        // provider failures (quota, validation or ai_timeout) need user action.
+        final recoverable =
+            isOfflineFailure(error) ||
+            (error is ApiException &&
+                (error.code == 'variation_in_progress' ||
+                    ([408, 504].contains(error.status) && error.code == null)));
+        if (!recoverable ||
+            attempt >= delays.length ||
+            !mounted ||
+            _leaving ||
+            generation != _generation ||
+            offlineStatus.value) {
+          rethrow;
+        }
+        final delay = Duration(seconds: delays[attempt]);
+        if (deadline.difference(DateTime.now()) <= delay) rethrow;
+        await Future<void>.delayed(delay);
+        if (!mounted ||
+            _leaving ||
+            generation != _generation ||
+            offlineStatus.value) {
+          rethrow;
+        }
+      }
+    }
+  }
+
   Future<void> _prepare() async {
     if (childMode.value) return;
     if (_busy || _reviewing || _leaving || offlineStatus.value) return;
@@ -98,15 +146,24 @@ class _RecipeVariationState extends State<RecipeVariation> {
       _error = null;
     });
     try {
-      final data = await widget.request(
-        '/households/${widget.householdId}/recipes/${widget.parentRecipeId}/variation',
-        {
-          'changes': changes,
-          'request_id': _requestId,
-          if (answers.isNotEmpty) 'answers': answers,
-        },
-      );
+      final data = await _requestDraft({
+        'changes': changes,
+        'request_id': _requestId,
+        if (answers.isNotEmpty) 'answers': answers,
+      }, generation);
       if (!mounted || _leaving || generation != _generation) return;
+      if (data['questions'] is! List ||
+          (data['questions'] as List).any((value) => value is! String) ||
+          data['recipe'] is! Map<String, dynamic> ||
+          (data['recipe'] as Map)['title'] is! String ||
+          (data['recipe'] as Map)['ingredients'] is! List ||
+          (data['recipe'] as Map)['steps'] is! List) {
+        throw ApiException(
+          502,
+          'The recipe service returned an incomplete variation. Your input is still here; please try again.',
+          code: 'invalid_variation_response',
+        );
+      }
       final questions = (data['questions'] as List).cast<String>();
       // Deep-copy before adding client safeguards: never mutate the source.
       final draft =
@@ -135,7 +192,16 @@ class _RecipeVariationState extends State<RecipeVariation> {
     } catch (error) {
       if (mounted && !_leaving && generation == _generation) {
         setState(
-          () => _error = error is ApiException ? error.message : 'Could not prepare your variation. Your input is still here; try again.',
+          () => _error = error is ApiException
+              ? error.message
+              : error is TimeoutException
+              ? 'The variation request timed out. Your input is still here; please try again.'
+              : isOfflineFailure(error)
+              ? 'Could not reach the recipe service. Your input is still here; please try again.'
+              : 'Could not read the variation response. Your input is still here; please try again.',
+        );
+        debugPrint(
+          'Variation request failed: ${error.runtimeType}${error is ApiException ? ' HTTP ${error.status} code ${error.code}' : ''}',
         );
       }
     } finally {

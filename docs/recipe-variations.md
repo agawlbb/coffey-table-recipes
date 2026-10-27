@@ -188,3 +188,11 @@ Action-row layout: the title uses the full content width. The compact Variations
 2026-10-16: The recipe action row places edit, share and delete on the left and the Variations dropdown on the right. The centered title continues to use the full content width. The 400px layout regression checks both edges and row alignment.
 
 2026-10-17: The recipe-view Variations dropdown now uses 18px semibold red text, a matching larger chevron, and a fine rounded red outline with a 44px minimum height. It remains on the right of the action row. The 400px family-navigation/layout regression passes and Flutter analysis is clean. No app build was created.
+
+## Timeout recovery (2026-10-27)
+
+Read-only cPanel inspection found a completed protected draft matching the reported request at 14:23 Eastern, despite the app showing an error. The original response/exception was not retained, so the exact failing network or client stage remains unconfirmed. Resource Usage reported no limit faults in the prior 24 hours; the domain PHP editor showed a 30-second execution setting. No cPanel settings or recipe data were changed.
+
+The existing preparation screen now retries transport uncertainty and the server's `variation_in_progress` response with the same request ID and answers. Recovery is bounded to six attempts and a 150-second total deadline, and stops after leaving the screen or going offline. Explicit provider errors, including `ai_timeout`, are not automatically regenerated. The compatible backend uses a nonblocking request lock and returns cached completed drafts to fresh workers. No controls or screens were added. Timeout, network and malformed-draft errors retain the entered text and have specific messages.
+
+Validation: affected-file analysis clean; all 43 tests in `test/recipe_variation_test.dart` and `test/api_test.dart` passed with the isolated Flutter 3.47.8 SDK. Coverage includes gateway timeout followed by an active worker and cached recovery, bounded transport failures, explicit provider timeout, malformed success responses, stable retry identity and leaving during a retry wait. No app build or physical-device reproduction was performed for this source repair.
