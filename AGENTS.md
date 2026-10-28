@@ -62,3 +62,15 @@ Complete and verify project work, commit it, and push it to the existing GitHub 
 - Outside an instruction to "create a release", obtain explicit permission before pushing or deploying the hosted app. An instruction to "create a release" authorizes hosted app deployment. App builds require an explicit build or release request as stated above.
 - Use coffeybean.com as the testing backend. Retain the local PHP source for development. The backend and persistent MySQL database are hosted exclusively; the outdated local recipe database was retired on 2026-10-11.
 - Use the Codex built-in browser for work whenever possible. Use Chrome only to investigate Chrome-specific problems identified by the user.
+
+## Keep the project simple
+
+Avoid overengineering. Treat these as small personal projects unless the user says
+otherwise. Use the simplest maintainable implementation that meets the current
+requirements. Brief deployment downtime (including a couple of minutes) is
+acceptable. Prefer copying files and restarting a process over release frameworks,
+zero-downtime machinery, repeated setup migrations, compatibility modes, feature
+flags or abstractions for hypothetical future scale. Keep setup separate from
+routine deployment. Preserve authentication, credential privacy and protection
+against real data loss, and use proportionate tests. Explain a concrete need before
+adding complexity; do not introduce unrequested features or operational workflows.

@@ -28,8 +28,9 @@ tooltip or action and does not claim that the outbox is empty. Mobile OS
 suspension can interrupt connections; durable synchronization resumes afterward.
 
 The backend repository documents its normal deployment entry point in
-`docs/shopping-websocket-migration.md`. Deployment includes credential preparation,
-journal preservation, Caddy/TLS and retirement of the old shopping HTTP routes.
+`docs/backend-deployment.md`. Separate `inmotion/` and `vps/` directories have
+independent copy commands. Setup and credential import do not run on deployment.
+The inMotion branch retires the old shopping HTTP routes.
 This app branch already uses the VPS; there is no separate cutover switch.
 
 Verified on 2026-10-28 using the shared development container and Flutter 3.47.8:
