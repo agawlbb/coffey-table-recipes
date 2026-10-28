@@ -45,7 +45,7 @@ recipe screen. This was a warm-start check, not physical-phone/cold-start
 acceptance. No new app build or reinstall was needed. The separate iOS
 association repair and release validation are recorded under 1.6.1 below.
 
-When the user says "create a release", review progress since the previous release, choose an appropriate version and increment its build number, validate and commit, create and push an immutable annotated tag, rebuild web/Android/signed iOS, explicitly dispatch hosted deployment using the release tag, save the verified Android APK in the accessible "recipe app" folder, and upload signed iOS to TestFlight. Requested iOS runs need no separate approval; other macOS runner builds still require explicit approval. Verify Apple processing and internal distribution, observing the France exclusion policy. Then remove obsolete release packages from their respective destinations, retaining unrelated files and signed packages. A tag by itself does not authorize hosted deployment; the web workflow is manual-only and requires a release tag.
+When the user says "create a release", review progress since the previous release, choose an appropriate version and increment its build number, validate and commit, create and push an immutable annotated tag, rebuild web/Android/signed iOS, explicitly dispatch hosted deployment using the release tag, publish the verified Android APK on the VPS using the procedure below, and upload signed iOS to TestFlight. Requested iOS runs need no separate approval; other macOS runner builds still require explicit approval. Verify Apple processing and internal distribution, observing the France exclusion policy. The Android publisher removes older hosted release APKs only after the replacement's public downloads pass verification; retain unrelated files and signed iOS packages. A tag by itself does not authorize hosted deployment; the web workflow is manual-only and requires a release tag.
 
 `CHANGELOG.md` covers previous releases using Git history, tags, and the release records below. Every future release must update it with the version, release date, and meaningful changes since the prior release. Commit the changelog before tagging the release. Describe only changes supported by the project history.
 
@@ -75,6 +75,41 @@ uses that identity. Pass the persistent Firebase file with
 The VPS accepts administration SSH on its Tailscale address `100.81.219.127`;
 public-hostname SSH is blocked by its firewall. The laptop's existing
 `vps_coffeybean_admin_ed25519` key authenticates as `debian`.
+
+For this 1.5 GiB development container, persistent user settings in
+`.dev-tools/gradle/gradle.properties` override the project's desktop Gradle heap:
+640 MiB heap, 256 MiB metaspace, 64 MiB code cache, one worker, no parallel build,
+no persistent Gradle daemon, and Kotlin compilation in process. Stop only an
+orphaned compiler from a failed task before retrying; preserve other tasks.
+
+### Android publication and automatic cleanup
+
+Google Drive authorization is not needed. The user selected public VPS hosting
+on 2026-10-28. The stable distribution link is
+<https://vps.coffeybean.com/recipes/android/latest.apk>.
+The VPS infrastructure repository tracks the Caddy route and read-only public
+directory mount. No signing key or Firebase source file belongs in that directory.
+
+Build using the persistent Firebase JSON, inspect the actual APK with SDK
+`apksigner verify --print-certs` and `aapt dump badging`, and verify its version,
+build, non-debuggable flag and original signing certificate. Run the hosted
+association checker using that actual certificate. Calculate the APK's SHA-256,
+then publish from the VPS host (replace the version, build and hash arguments):
+
+```bash
+sudo python3 tool/publish-android.py \
+  --apk build/app/outputs/flutter-apk/app-release.apk \
+  --version VERSION --build BUILD --sha256 VERIFIED_SHA256
+```
+
+The script stages and checks the APK, verifies the versioned HTTPS download,
+atomically changes `latest.apk`, and verifies its public checksum. Only then
+does it delete precisely named, lower-build release APKs from the public
+directory. It preserves unrelated files and newer packages, refuses a downgrade
+or changed contents for an existing versioned filename, and restores the previous
+latest link if its download fails verification. Publishing needs no Caddy restart.
+Distribute the stable link after the script succeeds; versioned URLs expire when
+their APK is superseded. No in-app update control is part of this release.
 
 ## 2.2.0 — persistent shopping synchronization
 
