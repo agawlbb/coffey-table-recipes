@@ -41,8 +41,11 @@ jobs:
           umask 077
           mkdir -p "$HOME/.android" "$HOME/.gradle"
           python3 - <<'PY'
-          import base64, os
+          import base64, json, os
           from pathlib import Path
+          config = json.loads(os.environ['FIREBASE_CONFIG'])
+          required = ['FIREBASE_ANDROID_APP_ID', 'FIREBASE_ANDROID_API_KEY', 'FIREBASE_SENDER_ID', 'FIREBASE_PROJECT_ID']
+          assert all(config.get(key) for key in required), 'Firebase configuration lacks required Android fields'
           Path.home().joinpath('.android/debug.keystore').write_bytes(base64.b64decode(os.environ['ANDROID_KEYSTORE'], validate=True))
           Path(os.environ['RUNNER_TEMP'], 'firebase.json').write_text(os.environ['FIREBASE_CONFIG'])
           PY
@@ -52,8 +55,8 @@ jobs:
           org.gradle.parallel=false
           kotlin.compiler.execution.strategy=in-process
           EOF
-      - run: flutter pub get
-      - run: flutter build apk --release --no-pub --dart-define-from-file="$RUNNER_TEMP/firebase.json"
+      # This Flutter version regenerates release-only plugin registration during pub.
+      - run: flutter build apk --release --dart-define-from-file="$RUNNER_TEMP/firebase.json"
       - name: Verify signed package, version, provenance and hosted app links
         env:
           RELEASE_TAG: ${{ inputs.release_tag }}

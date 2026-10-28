@@ -86,6 +86,9 @@ status and hosted app links, then saves the APK and `verification.json` as a
 `release_tag`; the workflow checks out that tag for compilation. Source and tag
 pushes do not dispatch builds. The public repository's standard runner does not
 use paid larger-runner capacity.
+Allow the release build command to run pub itself: with this Flutter version,
+`--no-pub` after a normal `pub get` skips release plugin regeneration and can
+leave the dev-only integration-test plugin referenced by generated Android Java.
 
 Local Android attempts exceeded the 1.5 GiB development container's memory
 limit, including after reducing Gradle memory. No successful local VPS APK build
