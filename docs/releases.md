@@ -67,10 +67,10 @@ The private `credentials` subdirectory contains `android-original.keystore` and
 directory mode 700 and credential files mode 600. The Android key was verified
 against the previously distributed APK certificate:
 `F8:DE:93:3F:14:B9:BB:4B:31:91:A9:4A:ED:C8:63:79:72:C5:AB:22:45:65:F6:AB:D7:80:8F:80:38:D1:20:97`.
-Before Android builds, restore this key to the development user's
-`~/.android/debug.keystore`, since the current Gradle release configuration
-uses that identity. Pass the persistent Firebase file with
-`--dart-define-from-file`; never commit either file.
+For local recovery, explicitly sign the compiled APK with this keystore using
+SDK `apksigner`; do not rely on Gradle's default debug-key location. Pass the
+persistent Firebase file with `--dart-define-from-file` when building locally;
+never commit either file.
 
 The VPS accepts administration SSH on its Tailscale address `100.81.219.127`;
 public-hostname SSH is blocked by its firewall. The laptop's existing
@@ -89,6 +89,13 @@ use paid larger-runner capacity.
 Allow the release build command to run pub itself: with this Flutter version,
 `--no-pub` after a normal `pub get` skips release plugin regeneration and can
 leave the dev-only integration-test plugin referenced by generated Android Java.
+The original key is restored to a restricted temporary file and its public
+certificate checked before compilation. After compilation, SDK Build Tools
+36.0.0 explicitly signs the APK with that key, independently of Gradle's generated
+debug identity. Certificate verification hashes its PEM certificate's DER bytes,
+avoiding SDK-dependent human-readable output. Failed-verification APKs are kept
+for one day as inspection-only artifacts; never distribute them without the
+independent signature/version/provenance checks above.
 
 Local Android attempts exceeded the 1.5 GiB development container's memory
 limit, including after reducing Gradle memory. No successful local VPS APK build
@@ -127,6 +134,66 @@ or changed contents for an existing versioned filename, and restores the previou
 latest link if its download fails verification. Publishing needs no Caddy restart.
 Distribute the stable link after the script succeeds; versioned URLs expire when
 their APK is superseded. No in-app update control is part of this release.
+
+## 2.2.1 — shopping reconnect and VPS release setup
+
+Version 2.2.1/build 38 uses immutable tag `v2.2.1`, app source
+`bbb647d84182f6f8540df47b99da68fff09391a7`. The accepted reconnect fix starts
+shopping synchronization immediately when networking returns, caps retry delay
+at five seconds and prevents stale connection attempts/snapshots from blocking
+recovery. Pending edits are preserved; no app update control is added.
+
+Android compilation in
+[40789084508](https://github.com/agawlbb/coffey-table-recipes/actions/runs/40789084508)
+used the exact tagged source. Its guard rejected Gradle's generated runner debug
+identity and retained the APK for inspection. On the VPS, SDK `apksigner` signed
+that compiled package with the original key. Independent checks passed for the
+actual F8:DE release certificate, package identity, version/build 2.2.1/38,
+non-debuggable flag, 16 KiB ZIP alignment, all four native Firebase resource values
+against the owner's configuration, and hosted Android app links. No source
+changes or recompilation were needed for signing recovery. The final delivered
+APK SHA-256 is
+`4a2575be159618f820fc25553d6ea337ab0fca9dbac3b1b88df086b1fefcd9d1`.
+The publisher verified both public HTTPS URLs and installed
+<https://vps.coffeybean.com/recipes/android/latest.apk>. This first publication
+had no older hosted APKs to delete; future publications automatically prune them
+only after public-download verification. Google Drive was not authorized or
+modified. CI now performs explicit original-key preflight and signing.
+The corrected standard-runner workflow passed end to end in
+[40790077811](https://github.com/agawlbb/coffey-table-recipes/actions/runs/40790077811),
+including saved-key preflight, compilation, explicit original-key signing,
+package/provenance/certificate/app-link verification and verified artifact upload.
+This validated future builds without replacing the already verified public APK.
+
+Local Flutter 3.47.8 analysis and all 535 tests passed. All six publisher tests
+passed, covering successful cleanup, invalid source hashes, failed public
+downloads, latest-link rollback, newer-release protection and immutable release
+filenames. Android workflow YAML, shell and embedded Python validation passed;
+the certificate hash calculation was checked against the actual original public
+certificate. The VPS setup and publication procedure above records persistent
+credentials and the switch from resource-limited local Android compilation to
+standard public-repository GitHub runners. No paid larger runner was selected.
+
+Web deployment [40783695459](https://github.com/agawlbb/coffey-table-recipes/actions/runs/40783695459)
+passed; independent cache-busted HTTPS metadata confirms version 2.2.1/build 38
+and the exact tagged source. The PHP backend remains synchronized at
+`5424e9dbb9e5e559784f5aa6e3bedd070d3b6edb`; unchanged source required no backend
+redeployment or database changes.
+
+Signed iOS [40783699387, attempt 2](https://github.com/agawlbb/coffey-table-recipes/actions/runs/40783699387/attempts/2)
+passed archive, export, strict app/ShareExtension/TimerWidget signature and
+provisioning checks, production APNs, encryption declarations, and hosted AASA
+matching against the actual signed app. IPA SHA-256 is
+`3623a8f12ab332f22f55e7c1b908deed84a2fd531dee17f2925f55f44c391255`,
+source matches the tag. Attempt 1 stopped at an Apple distribution-signature
+export error before any upload; the single failed-job retry succeeded without
+credential replacement or revocation. Read-only TestFlight checker
+[40788369855](https://github.com/agawlbb/coffey-table-recipes/actions/runs/40788369855)
+confirmed Apple build `d2c3d52a-e483-4734-b16b-9a5ec4b30255` is VALID,
+usesNonExemptEncryption false, IN_BETA_TESTING and ready for the existing Family
+testers group. No tester invitations or territory changes were made; France
+exclusion remains in force. Physical-device installation, cold/warm recipe
+links and native alarm/push acceptance were not performed in this VPS session.
 
 ## 2.2.0 — persistent shopping synchronization
 

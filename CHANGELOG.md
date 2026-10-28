@@ -8,6 +8,7 @@ Build 38; tag `v2.2.1`.
 
 - Reconnect shopping synchronization immediately when networking returns and limit retry delays to five seconds.
 - Prevent interrupted connection attempts and stale snapshots from blocking or marking a newer connection ready. Preserve pending shopping edits during recovery.
+- Distribute Android APKs from the stable VPS HTTPS download instead of Google Drive, with verified replacement downloads and automatic removal of older hosted release APKs. The in-app update link remains deferred.
 
 ## 2.2.0 — 2026-10-28
 
