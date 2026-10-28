@@ -2,6 +2,15 @@
 
 Release dates and changes are reconstructed from annotated Git tags, commit history, and project release records. Versions before 1.0 are demonstration releases; 1.0 marks the first usable release. Android retains the existing signing identity; iOS delivery and signing are recorded for each release.
 
+## 2.2.0 — 2026-10-28
+
+Build 37; tag `v2.2.0`.
+
+- Move shopping synchronization to the persistent VPS WebSocket service, with authenticated live updates, reconnects and safe replay of durable local edits.
+- Preserve pending changes when receiving snapshots and acknowledgements, and allow shopping uploads independently of recipe HTTP availability.
+- Show the small green connection icon when shopping synchronization is ready. Remove the unwanted manual shopping sync controls and overdue shopping notice; other temporary notices can be dismissed and expire after eight seconds.
+- Keep child-mode editing controls hidden in the app. Account, recipe and meal-planning operations continue through inMotion; the HA integration uses the same VPS shopping service.
+
 ## 2.1.5 — 2026-10-27
 
 Build 36; tag `v2.1.5`.
