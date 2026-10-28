@@ -1,0 +1,95 @@
+name: Build signed Android release
+on:
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: Immutable release tag to build
+        required: true
+        type: string
+permissions:
+  contents: read
+concurrency:
+  group: android-release
+  cancel-in-progress: false
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Require a release tag and existing signing credentials
+        env:
+          RELEASE_TAG: ${{ inputs.release_tag }}
+          ANDROID_KEYSTORE: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          FIREBASE_CONFIG: ${{ secrets.FIREBASE_CONFIG_JSON }}
+        run: |
+          [[ "$RELEASE_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo 'Invalid release tag'; exit 1; }
+          test -n "$ANDROID_KEYSTORE"
+          test -n "$FIREBASE_CONFIG"
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: ${{ inputs.release_tag }}
+      - name: Install pinned Flutter
+        run: |
+          git clone --depth 1 --branch 3.47.8 https://github.com/flutter/flutter.git "$RUNNER_TEMP/flutter"
+          echo "$RUNNER_TEMP/flutter/bin" >> "$GITHUB_PATH"
+          java -version
+      - name: Restore existing Android identity and private configuration
+        env:
+          ANDROID_KEYSTORE: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          FIREBASE_CONFIG: ${{ secrets.FIREBASE_CONFIG_JSON }}
+        run: |
+          umask 077
+          mkdir -p "$HOME/.android" "$HOME/.gradle"
+          python3 - <<'PY'
+          import base64, os
+          from pathlib import Path
+          Path.home().joinpath('.android/debug.keystore').write_bytes(base64.b64decode(os.environ['ANDROID_KEYSTORE'], validate=True))
+          Path(os.environ['RUNNER_TEMP'], 'firebase.json').write_text(os.environ['FIREBASE_CONFIG'])
+          PY
+          cat > "$HOME/.gradle/gradle.properties" <<'EOF'
+          org.gradle.jvmargs=-Xmx3G -XX:MaxMetaspaceSize=1G -XX:ReservedCodeCacheSize=256m
+          org.gradle.workers.max=2
+          org.gradle.parallel=false
+          kotlin.compiler.execution.strategy=in-process
+          EOF
+      - run: flutter pub get
+      - run: flutter build apk --release --no-pub --dart-define-from-file="$RUNNER_TEMP/firebase.json"
+      - name: Verify signed package, version, provenance and hosted app links
+        env:
+          RELEASE_TAG: ${{ inputs.release_tag }}
+        run: |
+          python3 - <<'PY'
+          import hashlib, json, os, re, shutil, subprocess
+          from pathlib import Path
+          apk = Path('build/app/outputs/flutter-apk/app-release.apk')
+          tools = sorted(Path(os.environ['ANDROID_HOME'], 'build-tools').iterdir())[-1]
+          signature = subprocess.check_output([str(tools / 'apksigner'), 'verify', '--print-certs', str(apk)], text=True)
+          fingerprint = re.search(r'Signer #1 certificate SHA-256 digest: ([a-fA-F0-9]+)', signature)[1].lower()
+          assert fingerprint == 'f8de933f14b9bb4b3191a94aedc8637972c5ab224565f6abd7808f8038d12097', 'Unexpected signing identity'
+          version, build = re.search(r'^version: (\d+\.\d+\.\d+)\+(\d+)', Path('pubspec.yaml').read_text(), re.M).groups()
+          assert os.environ['RELEASE_TAG'] == f'v{version}', 'Tag/version mismatch'
+          badging = subprocess.check_output([str(tools / 'aapt'), 'dump', 'badging', str(apk)], text=True)
+          package = re.search(r"^package: name='([^']+)' versionCode='([^']+)' versionName='([^']+)'", badging)
+          assert package and package.groups() == ('com.coffeytable.coffey_table_recipes', build, version), 'Package/version mismatch'
+          assert 'application-debuggable' not in badging, 'Release must not be debuggable'
+          subprocess.run(['python3', 'tool/verify-app-links.py', '--fingerprint', fingerprint], check=True)
+          output = Path('build/android-delivery')
+          output.mkdir(parents=True, exist_ok=True)
+          filename = f'CoffeyTableRecipes-{version}-build{build}.apk'
+          shutil.copyfile(apk, output / filename)
+          report = dict(version=version, build=int(build), tag=os.environ['RELEASE_TAG'],
+                        source=subprocess.check_output(['git', 'rev-parse', 'HEAD'], text=True).strip(),
+                        filename=filename, sha256=hashlib.sha256(apk.read_bytes()).hexdigest(), certificate_sha256=fingerprint)
+          (output / 'verification.json').write_text(json.dumps(report, indent=2))
+          print(json.dumps(report, indent=2))
+          PY
+      - name: Save verified APK for VPS publication
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: CoffeyTableRecipes-Android-${{ inputs.release_tag }}
+          path: build/android-delivery/
+          if-no-files-found: error
+          retention-days: 14
+      - name: Remove temporary private files
+        if: always()
+        run: rm -f "$HOME/.android/debug.keystore" "$RUNNER_TEMP/firebase.json"

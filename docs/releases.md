@@ -76,14 +76,23 @@ The VPS accepts administration SSH on its Tailscale address `100.81.219.127`;
 public-hostname SSH is blocked by its firewall. The laptop's existing
 `vps_coffeybean_admin_ed25519` key authenticates as `debian`.
 
-For this 1.5 GiB development container, persistent user settings in
-`.dev-tools/gradle/gradle.properties` override the project's desktop Gradle heap:
-512 MiB heap, 384 MiB metaspace, 64 MiB code cache, one worker, no parallel build,
-no persistent Gradle daemon, and Kotlin compilation in process. Stop only an
-orphaned compiler from a failed task before retrying; preserve other tasks.
-The restore template is `tool/gradle-vps.properties`; during VPS setup, copy it
-to `/home/debian/projects/.dev-tools/gradle/gradle.properties` inside the
-development container. Routine builds reuse these persistent settings.
+Android compilation uses the manual `android-release.yml` workflow on the
+standard `ubuntu-latest` runner. It builds the requested immutable release tag
+using Flutter 3.47.8, the existing encrypted `FIREBASE_CONFIG_JSON`, and
+`ANDROID_KEYSTORE_BASE64`, which holds the original laptop signing key. The
+workflow verifies package identity, version, signing certificate, non-debuggable
+status and hosted app links, then saves the APK and `verification.json` as a
+14-day Actions artifact. Dispatch from current `main` with the intended
+`release_tag`; the workflow checks out that tag for compilation. Source and tag
+pushes do not dispatch builds. The public repository's standard runner does not
+use paid larger-runner capacity.
+
+Local Android attempts exceeded the 1.5 GiB development container's memory
+limit, including after reducing Gradle memory. No successful local VPS APK build
+is claimed. The bounded diagnostic settings remain in
+`.dev-tools/gradle/gradle.properties`, with a restore template at
+`tool/gradle-vps.properties`. Routine distribution uses the Actions build rather
+than changing VPS production/development resource limits.
 
 ### Android publication and automatic cleanup
 
@@ -93,15 +102,17 @@ on 2026-10-28. The stable distribution link is
 The VPS infrastructure repository tracks the Caddy route and read-only public
 directory mount. No signing key or Firebase source file belongs in that directory.
 
-Build using the persistent Firebase JSON, inspect the actual APK with SDK
-`apksigner verify --print-certs` and `aapt dump badging`, and verify its version,
-build, non-debuggable flag and original signing certificate. Run the hosted
-association checker using that actual certificate. Calculate the APK's SHA-256,
-then publish from the VPS host (replace the version, build and hash arguments):
+Download the successful Android workflow artifact into ignored `build/` storage
+on the VPS. Check `verification.json` against the release tag's exact source
+commit and the downloaded APK's SHA-256. Independently inspect the APK with SDK
+`apksigner verify --print-certs` and `aapt dump badging`; verify its version,
+build, non-debuggable flag and original signing certificate, then run the hosted
+association checker with that actual certificate. Publish from the VPS host
+(replace the APK path, version, build and hash arguments):
 
 ```bash
 sudo python3 tool/publish-android.py \
-  --apk build/app/outputs/flutter-apk/app-release.apk \
+  --apk build/verified-android/CoffeyTableRecipes-VERSION-buildBUILD.apk \
   --version VERSION --build BUILD --sha256 VERIFIED_SHA256
 ```
 
