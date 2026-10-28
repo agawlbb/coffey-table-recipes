@@ -104,7 +104,9 @@ class LocalData extends ChangeNotifier {
     this.fallback,
     this.onRecipeSaved,
     this.online,
+    this.canSend,
     this.snapshotOnly = false,
+    this.separateShopping = false,
     this.onPendingChanged,
     this.now = DateTime.now,
     this.readStore = readOfflineStore,
@@ -116,12 +118,14 @@ class LocalData extends ChangeNotifier {
   final DateTime Function() now;
   final String key;
   final bool snapshotOnly;
+  final bool separateShopping;
   final LocalRead fetch;
   final LocalRead? readServer;
   final LocalWrite send;
   final Future<Map<String, dynamic>?> Function(String)? fallback;
   final Future<void> Function(String, Map<String, dynamic>)? onRecipeSaved;
   final bool Function()? online;
+  final bool Function(String path)? canSend;
   final Future<String?> Function(String) readStore;
   final Future<void> Function(String, String) writeStore;
   Map<String, dynamic> _data = {}, _aliases = {}, _blocked = {};
@@ -868,6 +872,7 @@ class LocalData extends ChangeNotifier {
         }
       }
       for (final resource in ['people', 'shopping-list', 'recipe-blank']) {
+        if (separateShopping && resource == 'shopping-list') continue;
         if (supplied['/households/$household/$resource'] is! Map) {
           throw const FormatException('Incomplete household resources');
         }
@@ -879,10 +884,12 @@ class LocalData extends ChangeNotifier {
       next.removeWhere(
         (path, _) =>
             path.startsWith(prefix) &&
+            !(separateShopping && path.endsWith('/shopping-list')) &&
             !_dirty(path) &&
             !_aliases.values.any((id) => path == '${prefix}recipes/$id'),
       );
       for (final entry in responses.entries) {
+        if (separateShopping && entry.key.endsWith('/shopping-list')) continue;
         if (!_dirty(entry.key)) {
           next[entry.key] = _copy(entry.value as Map);
         } else if (entry.key.endsWith('/shopping-list')) {
@@ -920,6 +927,40 @@ class LocalData extends ChangeNotifier {
       }
     },
   );
+
+  /// Pushes are committed to the same durable store as local edits. Pending
+  /// operations remain queued until their own acknowledgement arrives.
+  Future<void> acceptShopping(
+    String household,
+    Map<String, dynamic> state,
+  ) => _serial(() async {
+    await _load();
+    final path = '/households/$household/shopping-list';
+    if (_closed || _blocked.keys.any((prefix) => _under(path, prefix))) return;
+    if (state['revision'] is! int ||
+        state['items'] is! List ||
+        state['departments'] is! List) {
+      throw const FormatException('Invalid shopping snapshot');
+    }
+    final marker = 'shopping-server-revision:$household';
+    if ((state['revision'] as int) < (_data[marker] as int? ?? -1)) return;
+    final pending = _queue.where((q) => q['path'] == path).toList();
+    final next = Map<String, dynamic>.from(_data);
+    next[marker] = state['revision'];
+    next['shopping-server-state:$household'] = _copy(state);
+    next[path] = overlayShoppingChanges(_copy(state), pending);
+    for (final change in pending) {
+      final departments = (change['body'] as Map)['departments'];
+      if (departments is List) (next[path] as Map)['departments'] = departments;
+    }
+    final changed = jsonEncode(next[path]) != jsonEncode(_data[path]);
+    await _persist(data: next);
+    _data = next;
+    if (changed) {
+      _bump(path);
+      _changed(path);
+    }
+  });
 
   /// Ready household screens read the committed in-memory generation directly.
   /// Never wait for file I/O, an outbox write, a token, or a background download.
@@ -1150,9 +1191,14 @@ class LocalData extends ChangeNotifier {
     _blocked[prefix] = status;
     _data.removeWhere((p, _) => _under(p, prefix));
     if (parts.length >= 2 && prefix == '/households/${parts[1]}/') {
+      _data.remove('shopping-server-revision:${parts[1]}');
+      _data.remove('shopping-server-state:${parts[1]}');
       for (final kind in ['version', 'categories', 'options']) {
         _data.remove('snapshot-$kind:${parts[1]}');
       }
+    }
+    if (prefix == '/') {
+      _data.removeWhere((key, _) => key.startsWith('shopping-server-'));
     }
     for (final q in _queue.where((q) => _under(q['path'] as String, prefix))) {
       _archive.add({
@@ -1267,10 +1313,14 @@ class LocalData extends ChangeNotifier {
       value['client_change_id'] = id;
       value['edited_at_ms'] = _lastShoppingEditMs;
       value['base_items'] = _copy({'items': old['items']})['items'];
+      if (value['departments'] is List) {
+        value['base_departments'] = old['departments'];
+      }
       response = {
         ...old,
         'revision': body['revision'] + 1,
         'items': value['items'],
+        if (value['departments'] is List) 'departments': value['departments'],
       };
     } else if (path.endsWith('/meal-plan')) {
       final old = await cached(path);
@@ -1387,10 +1437,14 @@ class LocalData extends ChangeNotifier {
   Future<void> _drain() async {
     await _load();
     while (!_closed && _queue.isNotEmpty) {
-      if (online?.call() == false) return;
       // Preserve order within a resource; a conflict in one household must not
       // prevent independent households/resources from synchronizing.
       final q = _queue.where((candidate) {
+        if (!(canSend?.call(candidate['path'] as String) ??
+            online?.call() ??
+            true)) {
+          return false;
+        }
         if (candidate['problem'] != null) return false;
         final earlier = _queue.takeWhile((q) => q != candidate);
         if (earlier.any(
@@ -1505,6 +1559,26 @@ class LocalData extends ChangeNotifier {
               _data[path] = _copy(result);
             } else if (path.endsWith('/meal-plan')) {
               (_data[path] as Map?)?['revision'] = result['revision'];
+            }
+          }
+          if (separateShopping && path.endsWith('/shopping-list')) {
+            final household = Uri.parse(path).pathSegments[1];
+            final marker = 'shopping-server-revision:$household';
+            final stateKey = 'shopping-server-state:$household';
+            if ((result['revision'] as int) >= (_data[marker] as int? ?? -1)) {
+              _data[marker] = result['revision'];
+              _data[stateKey] = _copy(result);
+            }
+            final remaining = _queue.where((p) => p['path'] == path).toList();
+            _data[path] = overlayShoppingChanges(
+              _copy(_data[stateKey] as Map),
+              remaining,
+            );
+            for (final change in remaining) {
+              final departments = (change['body'] as Map)['departments'];
+              if (departments is List) {
+                (_data[path] as Map)['departments'] = departments;
+              }
             }
           }
           error = null;

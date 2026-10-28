@@ -1,0 +1,211 @@
+import 'dart:async';
+import 'dart:convert';
+import 'dart:math' as math;
+
+import 'package:flutter/foundation.dart';
+import 'package:web_socket_channel/web_socket_channel.dart';
+
+import 'api.dart';
+
+const shoppingSocketUrl = String.fromEnvironment(
+  'SHOPPING_SOCKET_URL',
+  defaultValue: 'wss://ctr.coffeybean.com/shopping',
+);
+
+bool isShoppingPath(String path) =>
+    RegExp(r'^/households/[1-9][0-9]*/shopping-list(?:/sync-request)?$')
+        .hasMatch(path);
+
+/// The durable repository owns edits; this connection owns transport only.
+class ShoppingSocket extends ChangeNotifier {
+  ShoppingSocket({
+    required this.household,
+    required this.token,
+    required this.onSnapshot,
+    this.onTime,
+    this.onReady,
+    this.connect = WebSocketChannel.connect,
+    this.url = shoppingSocketUrl,
+  });
+
+  final String household;
+  final Future<String?> Function(bool refresh) token;
+  final Future<void> Function(Map<String, dynamic>) onSnapshot;
+  final void Function(int milliseconds)? onTime;
+  final void Function()? onReady;
+  final WebSocketChannel Function(Uri) connect;
+  final String url;
+  WebSocketChannel? _channel;
+  StreamSubscription<dynamic>? _subscription;
+  Timer? _retry, _heartbeat, _renew;
+  Completer<void>? _ready;
+  final _pending = <String, Completer<Map<String, dynamic>>>{};
+  Future<void> _incoming = Future.value();
+  bool connected = false, _closed = false, _opening = false;
+  int _sequence = 0, _attempt = 0, _generation = 0;
+  DateTime _lastReceived = DateTime.now();
+
+  void start() {
+    if (!_closed && !_opening && _channel == null) unawaited(_open());
+  }
+
+  void reconnect() {
+    if (_closed) return;
+    _lost();
+    start();
+  }
+
+  Future<void> _open() async {
+    _opening = true;
+    final generation = ++_generation;
+    _ready = Completer<void>();
+    // Startup may have no caller waiting; errors are still surfaced to requests.
+    unawaited(_ready!.future.catchError((Object _) {}));
+    try {
+      final credential = await token(_attempt > 0)
+          .timeout(const Duration(seconds: 10));
+      if (_closed || generation != _generation) return;
+      if (credential == null) throw ApiException(401, 'Please sign in again.');
+      final channel = connect(Uri.parse(url));
+      _channel = channel;
+      _subscription = channel.stream.listen(
+        (dynamic message) {
+          _incoming = _incoming
+              .then((_) async {
+                if (generation == _generation && !_closed) {
+                  await _receive(message);
+                }
+              })
+              .catchError((Object _) {
+                if (generation == _generation) _lost();
+              });
+        },
+        onDone: () {
+          if (generation == _generation) _lost();
+        },
+        onError: (Object _) {
+          if (generation == _generation) _lost();
+        },
+      );
+      await channel.ready.timeout(const Duration(seconds: 10));
+      if (_closed || generation != _generation) return;
+      _send({'type': 'auth', 'token': credential, 'household_id': household});
+      await _ready!.future.timeout(const Duration(seconds: 20));
+      if (_closed || generation != _generation) return;
+      _lastReceived = DateTime.now();
+      _heartbeat = Timer.periodic(const Duration(seconds: 25), (_) {
+        if (DateTime.now().difference(_lastReceived) >
+            const Duration(seconds: 60)) {
+          _lost();
+        } else {
+          _send({'type': 'ping'});
+        }
+      });
+      _renew = Timer(const Duration(minutes: 45), _lost);
+    } catch (_) {
+      if (!_closed && generation == _generation) _lost();
+    } finally {
+      _opening = false;
+    }
+  }
+
+  void _send(Map<String, dynamic> message) =>
+      _channel?.sink.add(jsonEncode({'v': 1, ...message}));
+
+  Future<void> _receive(dynamic raw) async {
+    final message = Map<String, dynamic>.from(jsonDecode(raw as String) as Map);
+    _lastReceived = DateTime.now();
+    if (message['server_time_ms'] is int) {
+      onTime?.call(message['server_time_ms'] as int);
+    }
+    final type = message['type'];
+    if (type == 'error') {
+      final details = message['error'] as Map?;
+      final error = ApiException(
+        message['status'] as int? ?? 503,
+        details?['message'] as String? ?? 'Shopping synchronization paused.',
+        code: details?['code'] as String?,
+      );
+      final pending = _pending.remove(message['id']);
+      if (pending != null) pending.completeError(error);
+      if (message['id'] == null || [401, 403, 404].contains(error.status)) {
+        _lost(error);
+      }
+    } else if (type == 'ready' || type == 'snapshot') {
+      if (message['household_id'] != household) {
+        throw const FormatException('Wrong household');
+      }
+      await onSnapshot(Map<String, dynamic>.from(message['data'] as Map));
+      if (_closed || _channel == null) return;
+      if (type == 'ready') {
+        connected = true;
+        _attempt = 0;
+        if (!(_ready?.isCompleted ?? true)) _ready!.complete();
+        notifyListeners();
+        onReady?.call();
+      }
+    } else if (type == 'response') {
+      _pending
+          .remove(message['id'])
+          ?.complete(Map<String, dynamic>.from(message['data'] as Map));
+    }
+  }
+
+  Future<Map<String, dynamic>> request(
+    String path, {
+    Map<String, dynamic>? body,
+  }) async {
+    if (_closed) throw StateError('Shopping connection closed');
+    if (!path.startsWith('/households/$household/shopping-list') ||
+        !isShoppingPath(path)) {
+      throw ArgumentError('Shopping path outside this household');
+    }
+    start();
+    await _ready!.future.timeout(const Duration(seconds: 20));
+    if (!connected) {
+      throw ApiException(503, 'Shopping synchronization disconnected.');
+    }
+    final id = '${++_sequence}';
+    final response = Completer<Map<String, dynamic>>();
+    _pending[id] = response;
+    _send({'type': 'request', 'id': id, 'path': path, 'body': ?body});
+    try {
+      return await response.future.timeout(const Duration(seconds: 20));
+    } finally {
+      _pending.remove(id);
+    }
+  }
+
+  void _lost([Object? failure]) {
+    ++_generation;
+    connected = false;
+    _heartbeat?.cancel();
+    _renew?.cancel();
+    unawaited(_subscription?.cancel());
+    unawaited(_channel?.sink.close());
+    _channel = null;
+    final error =
+        failure ?? ApiException(503, 'Shopping synchronization disconnected.');
+    if (!(_ready?.isCompleted ?? true)) _ready!.completeError(error);
+    for (final pending in _pending.values) {
+      pending.completeError(error);
+    }
+    _pending.clear();
+    if (!_closed) {
+      notifyListeners();
+      _retry?.cancel();
+      _retry = Timer(
+        Duration(seconds: math.min(30, 1 << math.min(_attempt++, 5))),
+        start,
+      );
+    }
+  }
+
+  @override
+  void dispose() {
+    _closed = true;
+    _retry?.cancel();
+    _lost();
+    super.dispose();
+  }
+}

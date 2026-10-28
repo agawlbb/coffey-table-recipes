@@ -1,3 +1,4 @@
+import 'shopping_socket.dart';
 import 'child_mode.dart';
 import 'meal_plan_actions.dart';
 import 'restaurant_manager.dart';
@@ -205,7 +206,8 @@ class HouseholdPanel extends StatefulWidget {
   State<HouseholdPanel> createState() => _HouseholdPanelState();
 }
 
-class _HouseholdPanelState extends State<HouseholdPanel> {
+class _HouseholdPanelState extends State<HouseholdPanel>
+    with WidgetsBindingObserver {
   late final _api = RecipeApi(
     baseUrl: apiBaseUrl,
     onServerTime: (milliseconds, receivedAt) =>
@@ -213,6 +215,28 @@ class _HouseholdPanelState extends State<HouseholdPanel> {
   );
   OfflineRecipes? _offline;
   LocalData? _local;
+  final _shoppingSockets = <String, ShoppingSocket>{};
+  ShoppingSocket _shoppingSocket(String household) =>
+      _shoppingSockets.putIfAbsent(household, () {
+        final socket = ShoppingSocket(
+          household: household,
+          token: (refresh) => _idToken(refresh),
+          onSnapshot: (state) async {
+            await _local?.acceptShopping(household, state);
+          },
+          onTime: (time) => _local?.observeServerTime(time, DateTime.now()),
+          onReady: () {
+            if (mounted) unawaited(_local?.synchronize());
+          },
+        );
+        socket.addListener(_shoppingConnectionChanged);
+        socket.start();
+        return socket;
+      });
+  void _shoppingConnectionChanged() {
+    if (mounted) setState(() {});
+  }
+
   Timer? _mirrorTimer;
   void _localChanged() {
     if (mounted && localDataChanges.value.startsWith('/me#')) {
@@ -378,6 +402,7 @@ class _HouseholdPanelState extends State<HouseholdPanel> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     sharedRecipeInbox.addListener(_sharedRecipeChanged);
     _personName.text = widget.user.displayName ?? '';
     if (widget.request == null) {
@@ -403,11 +428,18 @@ class _HouseholdPanelState extends State<HouseholdPanel> {
     if (widget.request == null) {
       _local = LocalData(
         key: '$apiBaseUrl|${widget.user.uid}',
-        fetch: (path) => _offline!.request(path),
+        fetch: (path) => isShoppingPath(path)
+            ? _onlineRequest(path)
+            : _offline!.request(path),
         readServer: (path) => _onlineRequest(path),
         send: (path, body) => _onlineRequest(path, body: body),
         online: () => !offlineStatus.value,
+        canSend: (path) => isShoppingPath(path)
+            ? (_shoppingSockets[Uri.parse(path).pathSegments[1]]?.connected ??
+                  false)
+            : !offlineStatus.value,
         snapshotOnly: true,
+        separateShopping: true,
         onPendingChanged: SyncNotifications.update,
       )..start();
       localDataChanges.addListener(_localChanged);
@@ -428,8 +460,12 @@ class _HouseholdPanelState extends State<HouseholdPanel> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     sharedRecipeInbox.removeListener(_sharedRecipeChanged);
     _mirrorTimer?.cancel();
+    for (final socket in _shoppingSockets.values) {
+      socket.dispose();
+    }
     localDataChanges.removeListener(_localChanged);
     _local?.dispose();
     _offline?.close();
@@ -437,6 +473,15 @@ class _HouseholdPanelState extends State<HouseholdPanel> {
     _householdName.dispose();
     _personName.dispose();
     super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      for (final socket in _shoppingSockets.values) {
+        socket.reconnect();
+      }
+    }
   }
 
   void _sharedRecipeChanged() {
@@ -545,6 +590,10 @@ class _HouseholdPanelState extends State<HouseholdPanel> {
     String path, {
     Map<String, dynamic>? body,
   }) async {
+    if (isShoppingPath(path)) {
+      final household = Uri.parse(path).pathSegments[1];
+      return _shoppingSocket(household).request(path, body: body);
+    }
     if (body == null && isPublicRecipeRead(path)) {
       return _api.request(path, '', timeout: const Duration(seconds: 8));
     }
@@ -706,7 +755,6 @@ class _HouseholdPanelState extends State<HouseholdPanel> {
           }
           for (final resource in [
             'people',
-            'shopping-list',
             'recipe-blank',
             'meal-plan',
             'meal-plan/history',
@@ -785,6 +833,9 @@ class _HouseholdPanelState extends State<HouseholdPanel> {
       }
       if (mounted) setState(() => _databaseChecking = false);
     }
+    if (widget.request == null && _selected != null) {
+      _shoppingSocket(_selected!);
+    }
     await _perform(() async {
       final data = _local == null
           ? await _request('/me')
@@ -839,11 +890,7 @@ class _HouseholdPanelState extends State<HouseholdPanel> {
       }
       if (_local != null) {
         for (final household in households) {
-          unawaited(
-            _local!
-                .request('/households/${household['id']}/shopping-list')
-                .catchError((Object _) => <String, dynamic>{}),
-          );
+          _shoppingSocket(household['id'] as String);
           unawaited(
             _local!
                 .request(
@@ -1450,6 +1497,11 @@ class _HouseholdPanelState extends State<HouseholdPanel> {
                 width: 120,
                 child: Text(name, maxLines: 1, overflow: TextOverflow.ellipsis),
               ),
+            ),
+          if (_shopping && (_shoppingSockets[_selected]?.connected ?? false))
+            const Padding(
+              padding: EdgeInsets.only(right: 4),
+              child: Icon(Icons.cloud_done, color: Colors.green, size: 18),
             ),
           AccountMenu(
             name: name,
