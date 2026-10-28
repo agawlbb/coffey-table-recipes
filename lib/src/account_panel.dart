@@ -1560,7 +1560,7 @@ class _HouseholdPanelState extends State<HouseholdPanel>
       drawer: _buildMenu(context),
       body: Column(
         children: [
-          if (_local != null) LocalSyncStatus(data: _local!),
+          if (_local != null && !_shopping) LocalSyncStatus(data: _local!),
           Expanded(
             child: IndexedStack(
               index: _planning

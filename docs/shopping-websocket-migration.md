@@ -47,3 +47,15 @@ Verified on 2026-10-28 using the shared development container and Flutter 3.47.8
 No app packages were built. The prepared VPS endpoint subsequently passed a live
 authenticated public WSS read and open-connection credential revocation check.
 Real-user Firebase sign-in and physical-device checks were not performed.
+
+Shopping repair: the shopping screen no longer displays the shared manual sync
+button/status row. Shopping outbox changes do not schedule overdue banners;
+they still persist and automatically retry. Other in-app reminders have a close
+icon and expire after eight seconds. The small green connection icon is retained.
+Child mode still hides editing controls in the app; the VPS no longer makes a
+server-side child-policy HTTP request, per the owner's instruction.
+
+Focused verification: 53 queue/socket/shopping UI tests passed in the first run;
+after correcting the notification-dismiss test and closed-notice cleanup, the two
+notification tests plus 14 child-mode tests passed. Analysis of all five changed
+Dart files passed. No app build was performed.

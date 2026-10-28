@@ -19,6 +19,36 @@ void main() {
         'items': items,
         'departments': ['Other'],
       };
+  testWidgets('shopping retries stay local without overdue banners', (
+    tester,
+  ) async {
+    final disk = <String, String>{};
+    final reminders = <List<Map<String, dynamic>>>[];
+    final data = LocalData(
+      key: 'quiet-shopping',
+      fetch: (_) async => {},
+      send: (_, _) async => throw StateError('Offline'),
+      online: () => false,
+      separateShopping: true,
+      readStore: (key) async => disk[key],
+      writeStore: (key, value) async {
+        disk[key] = value;
+      },
+      onPendingChanged: (_, changes) async {
+        reminders.add(changes);
+      },
+    );
+    addTearDown(data.dispose);
+    await data.acceptShopping('1', state(1, [item('milk')]));
+    await data.save(path, {'revision': 1, 'items': []});
+    await tester.pump(const Duration(minutes: 2));
+    expect(data.pending, 1);
+    expect((await data.cached(path))!['items'], isEmpty);
+    expect(disk.values.single, contains('client_change_id'));
+    expect(reminders, isNotEmpty);
+    expect(reminders.every((changes) => changes.isEmpty), isTrue);
+  });
+
   test(
     'shopping can synchronize while the recipe HTTP transport is offline',
     () async {

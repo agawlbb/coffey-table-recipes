@@ -40,6 +40,12 @@ void main() {
       await SyncNotifications.update('web-account', due);
       await tester.pump();
       expect(find.textContaining('server has not confirmed'), findsOneWidget);
+      await tester.tap(find.byIcon(Icons.close));
+      await tester.pumpAndSettle();
+      expect(find.textContaining('server has not confirmed'), findsNothing);
+      await SyncNotifications.update('web-account', due);
+      await tester.pump();
+      expect(find.textContaining('server has not confirmed'), findsNothing);
       await SyncNotifications.update('web-account', []);
       await tester.pumpAndSettle();
       expect(find.textContaining('server has not confirmed'), findsNothing);

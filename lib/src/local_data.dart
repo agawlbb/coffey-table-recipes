@@ -342,11 +342,13 @@ class LocalData extends ChangeNotifier {
     _reminderTimer?.cancel();
     final changes = [
       for (final q in _queue)
-        {
-          'id': q['id'],
-          'deadline':
-              (q['saved_at'] as int? ?? now().millisecondsSinceEpoch) + 60000,
-        },
+        if (!separateShopping ||
+            !(q['path'] as String).endsWith('/shopping-list'))
+          {
+            'id': q['id'],
+            'deadline':
+                (q['saved_at'] as int? ?? now().millisecondsSinceEpoch) + 60000,
+          },
     ];
     final future =
         changes

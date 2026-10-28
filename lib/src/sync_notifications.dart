@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/material.dart';
@@ -30,17 +32,20 @@ class SyncNotifications {
         syncMessengerKey.currentState != null) {
       _announced.addAll(due.map((q) => '$prefix${q['id']}'));
       _notice?.close();
-      _notice = syncMessengerKey.currentState!.showSnackBar(
+      final notice = syncMessengerKey.currentState!.showSnackBar(
         SnackBar(
           content: const Text(
             'A change is saved on this device, but the server has not confirmed it after one minute.',
           ),
-          duration: const Duration(days: 1),
-          action: SnackBarAction(
-            label: 'Dismiss',
-            onPressed: () => _notice?.close(),
-          ),
+          duration: const Duration(seconds: 8),
+          showCloseIcon: true,
         ),
+      );
+      _notice = notice;
+      unawaited(
+        notice.closed.then((_) {
+          if (identical(_notice, notice)) _notice = null;
+        }),
       );
     }
     if (kIsWeb ||
