@@ -2,6 +2,13 @@
 
 Release dates and changes are reconstructed from annotated Git tags, commit history, and project release records. Versions before 1.0 are demonstration releases; 1.0 marks the first usable release. Android retains the existing signing identity; iOS delivery and signing are recorded for each release.
 
+## 2.2.1 — 2026-10-28
+
+Build 38; tag `v2.2.1`.
+
+- Reconnect shopping synchronization immediately when networking returns and limit retry delays to five seconds.
+- Prevent interrupted connection attempts and stale snapshots from blocking or marking a newer connection ready. Preserve pending shopping edits during recovery.
+
 ## 2.2.0 — 2026-10-28
 
 Build 37; tag `v2.2.0`.

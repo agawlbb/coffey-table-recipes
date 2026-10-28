@@ -49,6 +49,33 @@ When the user says "create a release", review progress since the previous releas
 
 `CHANGELOG.md` covers previous releases using Git history, tags, and the release records below. Every future release must update it with the version, release date, and meaningful changes since the prior release. Commit the changelog before tagging the release. Describe only changes supported by the project history.
 
+## VPS release setup
+
+Run Git, Flutter and release tools through `/home/debian/.local/bin/dev exec`.
+For login shells, first source `/home/debian/projects/.dev-tools/ctr-env.sh`.
+Flutter and the Android SDK are persistent under `.dev-tools` outside this
+repository. Never replace the existing Android signing identity during setup.
+
+Persistent release tooling is under `/home/debian/projects/.release-tools`,
+outside Git. GitHub CLI uses `GH_CONFIG_DIR` set to its `github` subdirectory;
+the authenticated account is `agawlbb`. Apple signing, Firebase and web hosting
+secrets remain in GitHub Actions. iOS builds run on the existing macOS workflow;
+the Linux VPS dispatches and monitors it.
+
+The private `credentials` subdirectory contains `android-original.keystore` and
+`firebase.json`, transferred from the laptop over Tailscale SSH. Keep that
+directory mode 700 and credential files mode 600. The Android key was verified
+against the previously distributed APK certificate:
+`F8:DE:93:3F:14:B9:BB:4B:31:91:A9:4A:ED:C8:63:79:72:C5:AB:22:45:65:F6:AB:D7:80:8F:80:38:D1:20:97`.
+Before Android builds, restore this key to the development user's
+`~/.android/debug.keystore`, since the current Gradle release configuration
+uses that identity. Pass the persistent Firebase file with
+`--dart-define-from-file`; never commit either file.
+
+The VPS accepts administration SSH on its Tailscale address `100.81.219.127`;
+public-hostname SSH is blocked by its firewall. The laptop's existing
+`vps_coffeybean_admin_ed25519` key authenticates as `debian`.
+
 ## 2.2.0 — persistent shopping synchronization
 
 Release 2.2.0/build 37, tag `v2.2.0`, built from app main commit `111407cc8b34b623e5458166b92ebf23461fd859`. App migration `migration/shopping-websocket` and HA migration of the same name were fast-forwarded into main. Backend `migration-take-2` was fast-forwarded into main at `5424e9dbb9e5e559784f5aa6e3bedd070d3b6edb`; the superseded `migration/vps-backend` was excluded on explicit user instruction. All development branches are retained at the user's request. The independent VPS repository already has its accepted source on main; this release does not recreate or redeploy that service.
