@@ -78,9 +78,12 @@ public-hostname SSH is blocked by its firewall. The laptop's existing
 
 For this 1.5 GiB development container, persistent user settings in
 `.dev-tools/gradle/gradle.properties` override the project's desktop Gradle heap:
-640 MiB heap, 256 MiB metaspace, 64 MiB code cache, one worker, no parallel build,
+512 MiB heap, 384 MiB metaspace, 64 MiB code cache, one worker, no parallel build,
 no persistent Gradle daemon, and Kotlin compilation in process. Stop only an
 orphaned compiler from a failed task before retrying; preserve other tasks.
+The restore template is `tool/gradle-vps.properties`; during VPS setup, copy it
+to `/home/debian/projects/.dev-tools/gradle/gradle.properties` inside the
+development container. Routine builds reuse these persistent settings.
 
 ### Android publication and automatic cleanup
 
