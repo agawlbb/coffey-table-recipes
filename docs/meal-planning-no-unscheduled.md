@@ -1,5 +1,7 @@
 # Required meal dates: accepted experiment history
 
+Historical record: named chats, checkout ownership and branch locations below describe past work, not current workflow requirements. Follow [AGENTS.md](../AGENTS.md) for GitHub-canonical development, task coordination, merging and branch cleanup.
+
 Status: accepted and merged into `codex/meal-planning-v2`, 2026-10-23. Separate local/remote experiment branches retired at the user's request.
 
 Owner: Plan CTR meal planning v2 chat (`01a165dd-0324-7e10-8ffc-03bb397420bc`).

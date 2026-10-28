@@ -1,5 +1,7 @@
 # Releases
 
+Historical record: named chats, checkout ownership and branch locations below describe past work, not current workflow requirements. Follow [AGENTS.md](../AGENTS.md) for GitHub-canonical development, task coordination, merging and branch cleanup.
+
 ## Release command
 
 ### Required native link verification
