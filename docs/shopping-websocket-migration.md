@@ -27,11 +27,10 @@ shopping is open and its household connection is ready. It has no added label,
 tooltip or action and does not claim that the outbox is empty. Mobile OS
 suspension can interrupt connections; durable synchronization resumes afterward.
 
-The backend cutover runbook is in the backend repository at
-`docs/shopping-websocket-migration.md`. It covers shared HA credential hashes,
-sync-request journal preservation, Caddy/TLS, and disabling inMotion PHP shopping
-routes. This branch is not compatible with an unconfigured VPS shopping endpoint;
-do not distribute it before the coordinated backend/client cutover.
+The backend repository documents its normal deployment entry point in
+`docs/shopping-websocket-migration.md`. Deployment includes credential preparation,
+journal preservation, Caddy/TLS and retirement of the old shopping HTTP routes.
+This app branch already uses the VPS; there is no separate cutover switch.
 
 Verified on 2026-10-28 using the shared development container and Flutter 3.47.8:
 
@@ -44,5 +43,6 @@ Verified on 2026-10-28 using the shared development container and Flutter 3.47.8
 - `flutter analyze --no-pub`: no issues in the final source.
 - Changed Dart files formatted; `git diff --check` passed.
 
-No app packages were built. Public WSS, real-user Firebase sign-in and physical
-device checks remain for the approved service/client rollout.
+No app packages were built. The prepared VPS endpoint subsequently passed a live
+authenticated public WSS read and open-connection credential revocation check.
+Real-user Firebase sign-in and physical-device checks were not performed.
