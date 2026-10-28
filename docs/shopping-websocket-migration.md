@@ -59,3 +59,28 @@ Focused verification: 53 queue/socket/shopping UI tests passed in the first run;
 after correcting the notification-dismiss test and closed-notice cleanup, the two
 notification tests plus 14 child-mode tests passed. Analysis of all five changed
 Dart files passed. No app build was performed.
+
+## Faster network recovery
+
+Continued on `migration/shopping-websocket` from fetched release commit
+`111407c`. The existing connectivity_plus stream now directly notifies shopping
+sockets of network loss/restoration. Restoration and app resume reset backoff,
+cancel scheduled retry delays and immediately start a replacement connection.
+Fallback retries are 1, 2, 4, then at most 5 seconds. A network event does not
+mark the socket connected: authentication and durable snapshot installation
+remain required before the existing green icon appears.
+
+Abandoned token fetches, handshakes and snapshot callbacks cannot hold the new
+attempt's opening flag or mark its connection ready. Each attempt retains its
+own readiness future and incoming-message sequence. The existing ready callback
+immediately drains locally persisted edits with their original change IDs.
+No UI, dependency, backend, Google Keep or Apple integration changes were added.
+
+Validation: five deterministic recovery tests cover stalled token/handshake
+attempts, late snapshots, repeated toggles, duplicate events, disposal, prolonged
+outage/resume and immediate lost-response replay. All five passed; the strengthened
+late-snapshot test was rerun separately. All 65 existing tests in
+shopping_socket_test, shopping_push_test, local_data_test, snapshot_database_test,
+account_timer_menu_test and shopping_departments_test passed in one invocation.
+Changed Dart files were formatted and analyzed. No app build or deployment was
+performed; physical-device Wi-Fi recovery still needs checking in a new build.

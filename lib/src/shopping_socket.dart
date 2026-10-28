@@ -26,7 +26,16 @@ class ShoppingSocket extends ChangeNotifier {
     this.onReady,
     this.connect = WebSocketChannel.connect,
     this.url = shoppingSocketUrl,
-  });
+    Stream<bool>? networkChanges,
+  }) {
+    _network = networkChanges?.distinct().listen((available) {
+      if (available) {
+        reconnect();
+      } else {
+        _lost();
+      }
+    }, onError: (Object _) {}); // Socket retries still work without OS events.
+  }
 
   final String household;
   final Future<String?> Function(bool refresh) token;
@@ -37,6 +46,7 @@ class ShoppingSocket extends ChangeNotifier {
   final String url;
   WebSocketChannel? _channel;
   StreamSubscription<dynamic>? _subscription;
+  StreamSubscription<bool>? _network;
   Timer? _retry, _heartbeat, _renew;
   Completer<void>? _ready;
   final _pending = <String, Completer<Map<String, dynamic>>>{};
@@ -46,21 +56,26 @@ class ShoppingSocket extends ChangeNotifier {
   DateTime _lastReceived = DateTime.now();
 
   void start() {
-    if (!_closed && !_opening && _channel == null) unawaited(_open());
+    if (!_closed && !_opening && _channel == null) {
+      _retry?.cancel();
+      unawaited(_open());
+    }
   }
 
   void reconnect() {
     if (_closed) return;
     _lost();
+    _attempt = 0;
+    _retry?.cancel();
     start();
   }
 
   Future<void> _open() async {
     _opening = true;
     final generation = ++_generation;
-    _ready = Completer<void>();
+    final ready = _ready = Completer<void>();
     // Startup may have no caller waiting; errors are still surfaced to requests.
-    unawaited(_ready!.future.catchError((Object _) {}));
+    unawaited(ready.future.catchError((Object _) {}));
     try {
       final credential = await token(_attempt > 0)
           .timeout(const Duration(seconds: 10));
@@ -73,7 +88,7 @@ class ShoppingSocket extends ChangeNotifier {
           _incoming = _incoming
               .then((_) async {
                 if (generation == _generation && !_closed) {
-                  await _receive(message);
+                  await _receive(message, generation);
                 }
               })
               .catchError((Object _) {
@@ -90,7 +105,7 @@ class ShoppingSocket extends ChangeNotifier {
       await channel.ready.timeout(const Duration(seconds: 10));
       if (_closed || generation != _generation) return;
       _send({'type': 'auth', 'token': credential, 'household_id': household});
-      await _ready!.future.timeout(const Duration(seconds: 20));
+      await ready.future.timeout(const Duration(seconds: 20));
       if (_closed || generation != _generation) return;
       _lastReceived = DateTime.now();
       _heartbeat = Timer.periodic(const Duration(seconds: 25), (_) {
@@ -105,14 +120,14 @@ class ShoppingSocket extends ChangeNotifier {
     } catch (_) {
       if (!_closed && generation == _generation) _lost();
     } finally {
-      _opening = false;
+      if (generation == _generation) _opening = false;
     }
   }
 
   void _send(Map<String, dynamic> message) =>
       _channel?.sink.add(jsonEncode({'v': 1, ...message}));
 
-  Future<void> _receive(dynamic raw) async {
+  Future<void> _receive(dynamic raw, int generation) async {
     final message = Map<String, dynamic>.from(jsonDecode(raw as String) as Map);
     _lastReceived = DateTime.now();
     if (message['server_time_ms'] is int) {
@@ -136,7 +151,7 @@ class ShoppingSocket extends ChangeNotifier {
         throw const FormatException('Wrong household');
       }
       await onSnapshot(Map<String, dynamic>.from(message['data'] as Map));
-      if (_closed || _channel == null) return;
+      if (_closed || generation != _generation || _channel == null) return;
       if (type == 'ready') {
         connected = true;
         _attempt = 0;
@@ -178,6 +193,8 @@ class ShoppingSocket extends ChangeNotifier {
 
   void _lost([Object? failure]) {
     ++_generation;
+    _opening = false;
+    _incoming = Future.value();
     connected = false;
     _heartbeat?.cancel();
     _renew?.cancel();
@@ -195,7 +212,7 @@ class ShoppingSocket extends ChangeNotifier {
       notifyListeners();
       _retry?.cancel();
       _retry = Timer(
-        Duration(seconds: math.min(30, 1 << math.min(_attempt++, 5))),
+        Duration(seconds: math.min(5, 1 << math.min(_attempt++, 3))),
         start,
       );
     }
@@ -204,6 +221,7 @@ class ShoppingSocket extends ChangeNotifier {
   @override
   void dispose() {
     _closed = true;
+    unawaited(_network?.cancel());
     _retry?.cancel();
     _lost();
     super.dispose();

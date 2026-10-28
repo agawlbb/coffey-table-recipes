@@ -11,6 +11,7 @@ import 'dart:convert';
 import 'offline_store.dart';
 
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
@@ -220,6 +221,10 @@ class _HouseholdPanelState extends State<HouseholdPanel>
       _shoppingSockets.putIfAbsent(household, () {
         final socket = ShoppingSocket(
           household: household,
+          networkChanges: Connectivity().onConnectivityChanged.map(
+            (results) =>
+                results.any((result) => result != ConnectivityResult.none),
+          ),
           token: (refresh) => _idToken(refresh),
           onSnapshot: (state) async {
             await _local?.acceptShopping(household, state);
