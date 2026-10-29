@@ -53,8 +53,9 @@ When the user says "create a release", review progress since the previous releas
 
 Run Git, Flutter and release tools through `/home/debian/.local/bin/dev exec`.
 For login shells, first source `/home/debian/projects/.dev-tools/ctr-env.sh`.
-Flutter and the Android SDK are persistent under `.dev-tools` outside this
-repository. Never replace the existing Android signing identity during setup.
+Flutter and Android APK verification tools are persistent under `.dev-tools`
+outside this repository. Never replace the existing Android signing identity
+during setup.
 
 Persistent release tooling is under `/home/debian/projects/.release-tools`,
 outside Git. GitHub CLI uses `GH_CONFIG_DIR` set to its `github` subdirectory;
@@ -99,10 +100,12 @@ independent signature/version/provenance checks above.
 
 Local Android attempts exceeded the 1.5 GiB development container's memory
 limit, including after reducing Gradle memory. No successful local VPS APK build
-is claimed. The bounded diagnostic settings remain in
-`.dev-tools/gradle/gradle.properties`, with a restore template at
-`tool/gradle-vps.properties`. Routine distribution uses the Actions build rather
-than changing VPS production/development resource limits.
+is claimed. Local Gradle, NDK, SDK compilation platforms and setup/device tools
+have since been removed, along with the obsolete Gradle settings template.
+The VPS retains Build Tools 36.0.0 and a headless Java runtime for APK signing,
+metadata, alignment and certificate checks. Flutter analysis and unit/widget
+tests remain local; Android compilation runs on Actions without changing VPS
+production/development resource limits.
 
 ### Android publication and automatic cleanup
 
