@@ -23,7 +23,7 @@ from source and the live service. Caddy validation/recreation passed. Stable
 and versioned APK URLs plus `latest.json` now return 404; FlightSync remains
 200. Caddy retains production shares 1024 and unlimited effective CPU quota.
 The public APK/link/metadata have been removed. The signed 2.3.0/build 39 APK
-was retained privately with a verified checksum for later Drive transfer;
+was retained privately with a verified checksum and subsequently copied to Drive;
 it was not rebuilt. The VPS runbook records backup/rollback paths.
 
 rclone v1.75.2 is installed privately after checking the official release
@@ -35,8 +35,24 @@ redirect parameters were inspected and verified. The tracked one-time helper
 future releases need no laptop. The publisher rejects full/missing/mixed-scope
 configurations and a destination different from its configured recipe folder.
 The recipe folder ID is user-provided and pinned to
-`1VM1K1Ge6sgjEjtoEjS7aGzHYiSzlLVE-`. Google consent and live upload/download/
-trash checks remain pending. Existing child APK access is not assumed from
+`1VM1K1Ge6sgjEjtoEjS7aGzHYiSzlLVE-`. On 2026-10-29, Google consent
+completed and the OAuth config was verified mode 600 with a refresh token.
+Direct Google metadata readback confirmed the ID, name **recipe app**, folder
+MIME type and upload capability. A disposable probe was uploaded, downloaded,
+SHA-256 checked, moved to Drive trash, and confirmed absent from the live listing.
+No pre-existing Drive file was modified by that check.
+A forced-expiry test then confirmed that rclone renews access from the VPS's
+stored refresh token without a browser, SSH tunnel or laptop. The existing
+signed 2.3.0/build 39 APK was published with the actual publisher and its
+uploaded bytes were downloaded and verified:
+
+- [Verified existing 2.3.0 APK](https://drive.google.com/file/d/1mNnSFKwYrEigaJf94mIr9Jnr744yUf2J/view).
+- SHA-256: `e6915b67ecda537a6127a92d315c32eb59fc2bc8e8e5409f325668f26d81bf2b`.
+- Publisher result: no older authorized APKs were visible; zero were trashed.
+- Drive sharing was preserved; no app package was built and no new version was
+  tagged or released. This APK retains its original 2.3.0 code; removal of the
+  update feature takes effect only in a later authorized build from this branch.
+ Existing child APK access is not assumed from
 folder selection alone; existing legacy files must be selected explicitly if
 they are to be cleaned up by this credential.
 The existing Firebase credential stays private and is no longer needed by the

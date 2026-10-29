@@ -183,8 +183,8 @@ and [Drive scopes](https://developers.google.com/workspace/drive/api/guides/api-
 
 The user identified the [existing recipe app folder](https://drive.google.com/drive/folders/1VM1K1Ge6sgjEjtoEjS7aGzHYiSzlLVE-).
 The setup helper pins `root_folder_id = 1VM1K1Ge6sgjEjtoEjS7aGzHYiSzlLVE-`
-in the private `[ctr-drive]` config. Folder identity is user-provided; live
-read/write access must still be verified after consent.
+in the private `[ctr-drive]` config. Folder identity was supplied by the user and live
+read/write access was verified after consent.
 The publisher requires `type = drive`, `scope = drive.file`, and rejects a
 command-line folder ID different from that configured destination. It also
 sets `--drive-root-folder-id` and `--drive-scope drive.file` on every command.
@@ -197,7 +197,24 @@ Do not create a second recipe app folder or change its sharing permissions.
 The initial all-Drive authorization attempt was stopped without saving a Drive
 credential. The replacement request was inspected and verified to include only
 `drive.file`, Picker folder selection, `include_granted_scopes=false`, and
-`access_type=offline`. Actual Google consent and live Drive checks are pending.
+`access_type=offline`. Google consent completed on 2026-10-29. The private config is mode 600,
+contains offline renewal credentials, and is pinned to the supplied folder.
+Direct Google metadata readback verified the folder ID/name and upload capability.
+The exact publisher client passed a live disposable upload/download/SHA-256/
+trash check; the probe was confirmed absent afterward. No pre-existing file was
+changed by the check. The SSH tunnel can be closed after initial consent.
+A forced-expiry test verified unattended renewal using the private refresh token.
+The already-released signed 2.3.0/build 39 APK was migrated to
+[the verified Drive file](https://drive.google.com/file/d/1mNnSFKwYrEigaJf94mIr9Jnr744yUf2J/view) with
+SHA-256 `e6915b67ecda537a6127a92d315c32eb59fc2bc8e8e5409f325668f26d81bf2b`.
+The actual publisher uploaded it, downloaded it and verified the checksum.
+No older APKs were visible to the restricted grant, so no old files were
+removed. Existing manually uploaded files may need one-time individual
+selection for cleanup; there is no claim that all legacy folder contents were
+visible or removed. Folder/file sharing was preserved. This was a transfer of
+an existing approved release, not a new build or release; that APK retains
+its original 2.3.0 code. Source removal remains on the feature branch.
+
 
 See [Android distribution change](android-updates.md) for source/removal checks,
 live hosting status and any remaining Drive authorization step.
