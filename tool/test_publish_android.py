@@ -1,10 +1,14 @@
 """Ensure publication failures preserve the working download and older packages."""
+import base64
 import hashlib
+import io
+import json
+import urllib.parse
 import importlib.util
 from pathlib import Path
 import tempfile
 import unittest
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 import zipfile
 
 spec = importlib.util.spec_from_file_location('publish_android', Path(__file__).with_name('publish-android.py'))
@@ -25,10 +29,11 @@ class PublicationTests(unittest.TestCase):
         self.apk = root / 'new.apk'
         with zipfile.ZipFile(self.apk, 'w') as package:
             package.writestr('AndroidManifest.xml', b'test fixture')
+        self.notify = Mock()
         self.sha = hashlib.sha256(self.apk.read_bytes()).hexdigest()
 
     def publish(self, sha=None):
-        return publisher.publish(self.apk, '2.2.1', 38, sha or self.sha, self.directory)
+        return publisher.publish(self.apk, '2.2.1', 38, sha or self.sha, self.directory, notify=self.notify)
 
     def assert_previous_preserved(self):
         self.assertTrue(self.old.exists())
@@ -82,6 +87,77 @@ class PublicationTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'different contents'):
             self.publish()
         self.assert_previous_preserved()
+
+
+    def test_metadata_and_push_follow_download_verification_and_retry_is_quiet(self):
+        def notify(version, build):
+            self.assertEqual((version, build), ('2.2.1', 38))
+            import json
+            metadata = json.loads((self.directory / 'latest.json').read_text())
+            self.assertEqual(metadata['build'], 38)
+            self.assertTrue(self.old.exists())
+        self.notify.side_effect = notify
+        with patch.object(publisher, 'verify_download'):
+            self.publish()
+            self.publish()
+        self.notify.assert_called_once_with('2.2.1', 38)
+
+    def test_push_failure_keeps_packages_and_retries_without_false_success(self):
+        self.notify.side_effect = RuntimeError('push unavailable')
+        with patch.object(publisher, 'verify_download'):
+            with self.assertRaisesRegex(RuntimeError, 'push unavailable'):
+                self.publish()
+            self.assertTrue(self.old.exists())
+            self.assertFalse((self.directory.parent / '.android-update-sent.json').exists())
+            self.notify.side_effect = None
+            self.publish()
+        self.assertEqual(self.notify.call_count, 2)
+
+    def test_failed_download_does_not_advertise_or_notify(self):
+        with patch.object(publisher, 'verify_download', side_effect=ValueError('offline')):
+            with self.assertRaises(ValueError):
+                self.publish()
+        self.assertFalse((self.directory / 'latest.json').exists())
+        self.notify.assert_not_called()
+
+
+class SenderTests(unittest.TestCase):
+    def test_scoped_oauth_and_android_only_topic_payload(self):
+        with tempfile.TemporaryDirectory() as root:
+            credential = Path(root) / 'service.json'
+            credential.write_text(json.dumps(dict(project_id='coffey-table-recipes',
+                client_email='sender@example.test', private_key='fixture-key')))
+            oauth = Mock()
+            oauth.__enter__ = Mock(return_value=io.BytesIO(b'{"access_token":"fixture-token"}'))
+            oauth.__exit__ = Mock(return_value=False)
+            fcm = Mock()
+            fcm.__enter__ = Mock(return_value=Mock(status=200))
+            fcm.__exit__ = Mock(return_value=False)
+            with patch.object(publisher.subprocess, 'run', return_value=Mock(stdout=b'signature')), \
+                 patch.object(publisher.urllib.request, 'urlopen', side_effect=[oauth, fcm]) as request:
+                publisher.send_update(credential, '2.3.0', 39)
+            auth_request = request.call_args_list[0].args[0]
+            assertion = urllib.parse.parse_qs(auth_request.data.decode())['assertion'][0]
+            encoded = assertion.split('.')[1]
+            claims = json.loads(base64.urlsafe_b64decode(encoded + '=' * (-len(encoded) % 4)))
+            self.assertEqual(claims['scope'], 'https://www.googleapis.com/auth/firebase.messaging')
+            self.assertEqual(claims['exp'] - claims['iat'], 3600)
+            push_request = request.call_args_list[1].args[0]
+            message = json.loads(push_request.data)['message']
+            self.assertEqual(message['topic'], 'android_releases')
+            self.assertEqual(message['data'], dict(kind='android_update', version='2.3.0', build='39'))
+            self.assertEqual(message['android']['priority'], 'HIGH')
+            self.assertNotIn('token', message)
+            self.assertNotIn('apns', message)
+
+    def test_wrong_project_cannot_send(self):
+        with tempfile.TemporaryDirectory() as root:
+            credential = Path(root) / 'service.json'
+            credential.write_text('{"project_id":"another-project"}')
+            with patch.object(publisher.urllib.request, 'urlopen') as request:
+                with self.assertRaisesRegex(ValueError, 'Wrong Firebase'):
+                    publisher.send_update(credential, '2.3.0', 39)
+                request.assert_not_called()
 
 
 if __name__ == '__main__':

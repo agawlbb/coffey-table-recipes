@@ -123,17 +123,45 @@ association checker with that actual certificate. Publish from the VPS host
 ```bash
 sudo python3 tool/publish-android.py \
   --apk build/verified-android/CoffeyTableRecipes-VERSION-buildBUILD.apk \
-  --version VERSION --build BUILD --sha256 VERIFIED_SHA256
+  --version VERSION --build BUILD --sha256 VERIFIED_SHA256 \
+  --service-account /PRIVATE/PATH/android-release-push.json
 ```
 
 The script stages and checks the APK, verifies the versioned HTTPS download,
 atomically changes `latest.apk`, and verifies its public checksum. Only then
-does it delete precisely named, lower-build release APKs from the public
-directory. It preserves unrelated files and newer packages, refuses a downgrade
+does it atomically publish `latest.json` and send the `android_releases`
+Firebase topic push. Successful sends have a private receipt, so rerunning the
+same publication does not send another push. A push failure leaves the verified
+APK/metadata available and retains old packages; rerun publication to retry.
+If FCM accepted a request but the response or receipt was lost, a retry may
+resend it; Android replaces the same notification rather than stacking it.
+Only after notification acceptance does it delete precisely named,
+lower-build release APKs from the public directory. It preserves unrelated files and newer packages, refuses a downgrade
 or changed contents for an existing versioned filename, and restores the previous
 latest link if its download fails verification. Publishing needs no Caddy restart.
 Distribute the stable link after the script succeeds; versioned URLs expire when
-their APK is superseded. No in-app update control is part of this release.
+their APK is superseded.
+
+The publisher requires Python 3.9+ and OpenSSL. As a one-time setup, place a
+Firebase service account JSON for project `coffey-table-recipes` outside the
+public directory, owned by the release operator with mode 600. Grant only
+`cloudmessaging.messages.create`, and enable Firebase Cloud Messaging API v1.
+The backend timer sender uses that same permission; an already provisioned
+messaging identity can be reused through an authorized private transfer.
+Never use the client `firebase.json` or grant messaging to the auth lookup account.
+Do not copy credentials into Git, Actions artifacts, or public downloads.
+
+Android clients containing this feature subscribe to `android_releases` and
+request notification permission. Native delivery posts an **App updates**
+notification only when its build number exceeds the installed build. Tapping it
+opens the app. On launch/resume the app independently checks `latest.json` and
+shows a dismissible window with the stable APK link and **Download update**.
+The download opens in the external browser; Android handles installation.
+There is no automatic installation. Offline/invalid responses leave the app
+usable. iOS and web skip these checks. Notification denial does not disable
+launch checks. Existing 2.2.1 installations must first install a release with
+this feature; they cannot receive these new topic notifications retroactively.
+See `docs/android-updates.md` for implementation validation and setup status.
 
 ## 2.2.1 — shopping reconnect and VPS release setup
 

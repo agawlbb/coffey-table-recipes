@@ -1,3 +1,4 @@
+import 'android_updates.dart';
 import 'child_mode.dart';
 import 'sync_notifications.dart';
 
@@ -51,7 +52,13 @@ class CoffeyTableApp extends StatelessWidget {
         child: Overlay.wrap(
           child: Stack(
             children: [
-              ActiveTimerHost(navigatorKey: _appNavigatorKey, child: child!),
+              AndroidUpdateHost(
+                navigatorKey: _appNavigatorKey,
+                child: ActiveTimerHost(
+                  navigatorKey: _appNavigatorKey,
+                  child: child!,
+                ),
+              ),
               if (MediaQuery.viewInsetsOf(context).bottom > 0)
                 Positioned(
                   right: 12,
