@@ -85,7 +85,13 @@ Focused validation through the shared development container:
 - Manual native-source review confirms there is no notification click intent or URL, startup metadata check or update dialog. Native Android compilation/device receipt have not been verified in this task.
 - No app build, tag, app deployment, device installation or live broadcast is part of this task.
 
-Keep the branch for user review; no automatic merge to main is intended.
+The user subsequently approved merging this work into `main`, removing the
+feature branch locally/remotely and pushing both repositories. Fresh fetches
+confirmed the current default is already contained in the feature branch;
+reviewed application code is identical to the 14 passing focused Flutter tests,
+23 passing publisher checks and clean affected-file analysis recorded above.
+Only this merge-approval note changes after validation; no app build, release,
+deployment or live broadcast is authorized by source integration.
 
 ## Historical update feature (superseded)
 
