@@ -43,7 +43,12 @@ No app build, tag, app deployment or device installation was performed.
 Native Android compilation, real push delivery, notification tapping and APK
 installation require a future explicitly authorized build/release and a physical
 device. Installed 2.2.1 clients need a manual update to the first release carrying
-this feature before they can subscribe. The VPS has client Firebase configuration
-but no identified messaging service-account file; sender setup/live verification
-remains pending that credential. Existing backend timer credentials are kept
-separate and have not been changed.
+this feature before they can subscribe. The user copied the existing inMotion timer sender credential to the private VPS
+path `/home/debian/projects/.release-tools/credentials/timer-push.local.json`.
+On October 28, 2026 (America/New_York), mode 600, the matching Firebase project,
+OAuth and FCM `validate_only` authorization passed with the publisher's exact
+Android topic payload. No notification was sent; the inMotion credential was
+not changed. This establishes sender authorization, not device delivery.
+Verification documentation task `task/verify-android-push-credential` starts at
+fetched `origin/main` commit `d9dcc67`; documentation-only diff/link review is
+sufficient and no app checks or builds were repeated.

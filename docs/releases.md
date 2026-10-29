@@ -124,7 +124,7 @@ association checker with that actual certificate. Publish from the VPS host
 sudo python3 tool/publish-android.py \
   --apk build/verified-android/CoffeyTableRecipes-VERSION-buildBUILD.apk \
   --version VERSION --build BUILD --sha256 VERIFIED_SHA256 \
-  --service-account /PRIVATE/PATH/android-release-push.json
+  --service-account /home/debian/projects/.release-tools/credentials/timer-push.local.json
 ```
 
 The script stages and checks the APK, verifies the versioned HTTPS download,
@@ -148,6 +148,12 @@ public directory, owned by the release operator with mode 600. Grant only
 `cloudmessaging.messages.create`, and enable Firebase Cloud Messaging API v1.
 The backend timer sender uses that same permission; an already provisioned
 messaging identity can be reused through an authorized private transfer.
+The existing inMotion timer sender credential was copied privately to
+`/home/debian/projects/.release-tools/credentials/timer-push.local.json`.
+On October 28, 2026 (America/New_York), its mode 600, matching Firebase project,
+OAuth exchange and FCM `validate_only` authorization were verified using the
+publisher's exact Android topic payload. No notification was sent. Use that
+private path in the publication command above.
 Never use the client `firebase.json` or grant messaging to the auth lookup account.
 Do not copy credentials into Git, Actions artifacts, or public downloads.
 
