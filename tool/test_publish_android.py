@@ -134,8 +134,14 @@ class PublicationTests(unittest.TestCase):
 
 
 class DriveTests(unittest.TestCase):
+    def setUp(self):
+        self.temp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temp.cleanup)
+        self.config = Path(self.temp.name) / 'rclone.conf'
+        self.config.write_text('[ctr-drive]\ntype = drive\nscope = drive.file\nroot_folder_id = folder_12345\n')
+
     def test_commands_are_confined_to_folder_and_delete_uses_trash(self):
-        drive = publisher.Drive('/private/rclone', '/private/rclone.conf', 'ctr-drive', 'folder_12345')
+        drive = publisher.Drive('/private/rclone', self.config, 'ctr-drive', 'folder_12345')
         with patch.object(publisher.subprocess, 'run', return_value=Mock(returncode=0, stdout='[]')) as run:
             drive.files()
             drive.trash('CoffeyTableRecipes-2.2.0-build37.apk')
@@ -147,13 +153,30 @@ class DriveTests(unittest.TestCase):
         self.assertIn('deletefile', run.call_args.args[0])
         self.assertNotIn('sync', run.call_args.args[0])
 
+    def test_broad_or_missing_scope_is_rejected_before_any_drive_request(self):
+        for scope in ['drive', '', 'drive.file,drive.readonly']:
+            with self.subTest(scope=scope):
+                self.config.write_text('[ctr-drive]\ntype = drive\nscope = ' + scope + '\n')
+                with self.assertRaisesRegex(ValueError, 'drive.file-only'):
+                    publisher.Drive('rclone', self.config, 'ctr-drive', 'folder_12345')
+
+    def test_unpinned_destination_is_rejected(self):
+        self.config.write_text('[ctr-drive]\ntype = drive\nscope = drive.file\n')
+        with self.assertRaisesRegex(ValueError, 'Pin the authorized recipe folder'):
+            publisher.Drive('rclone', self.config, 'ctr-drive', 'folder_12345')
+
+    def test_configured_folder_cannot_be_replaced_by_another_destination(self):
+        self.config.write_text('[ctr-drive]\ntype = drive\nscope = drive.file\nroot_folder_id = recipe_12345\n')
+        with self.assertRaisesRegex(ValueError, 'Destination differs'):
+            publisher.Drive('rclone', self.config, 'ctr-drive', 'other_12345')
+
     def test_invalid_remote_or_folder_is_rejected(self):
         for remote, folder in [('drive:elsewhere', 'folder_12345'), ('ctr-drive', '../other')]:
             with self.assertRaises(ValueError):
                 publisher.Drive('rclone', 'private.conf', remote, folder)
 
     def test_failure_does_not_print_private_process_output(self):
-        drive = publisher.Drive('rclone', 'private.conf', 'ctr-drive', 'folder_12345')
+        drive = publisher.Drive('rclone', self.config, 'ctr-drive', 'folder_12345')
         with patch.object(publisher.subprocess, 'run', return_value=Mock(returncode=1, stdout='', stderr='private-token')):
             with self.assertRaisesRegex(RuntimeError, 'operation failed') as error:
                 drive.files()

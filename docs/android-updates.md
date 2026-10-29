@@ -27,8 +27,18 @@ was retained privately with a verified checksum for later Drive transfer;
 it was not rebuilt. The VPS runbook records backup/rollback paths.
 
 rclone v1.75.2 is installed privately after checking the official release
-SHA-256. Browser authorization is in progress; the destination folder ID and
-live Drive upload/download/trash checks remain pending the owner's consent.
+SHA-256. The initial all-Drive authorization was stopped without saving credentials.
+The replacement uses only `drive.file` and Google's OAuth-integrated Picker,
+excluding prior broader scopes and requesting offline renewal. Its actual Google
+redirect parameters were inspected and verified. The tracked one-time helper
+`tool/authorize-google-drive.py` stores the resulting refresh token privately;
+future releases need no laptop. The publisher rejects full/missing/mixed-scope
+configurations and a destination different from its configured recipe folder.
+The recipe folder ID is user-provided and pinned to
+`1VM1K1Ge6sgjEjtoEjS7aGzHYiSzlLVE-`. Google consent and live upload/download/
+trash checks remain pending. Existing child APK access is not assumed from
+folder selection alone; existing legacy files must be selected explicitly if
+they are to be cleaned up by this credential.
 The existing Firebase credential stays private and is no longer needed by the
 release publisher. Installed 2.3.0 apps retain their prior code until a later
 explicitly authorized release is installed; the former update endpoint is now
@@ -39,7 +49,7 @@ Focused validation through the shared development container:
 - `dart format lib/src/app.dart`: no changes needed.
 - `flutter analyze --no-pub lib/src/app.dart`: no issues.
 - `flutter test --no-pub test/timer_sync_test.dart test/account_timer_menu_test.dart test/recipe_timer_navigation_test.dart`: 10 passed.
-- `python3 -m unittest tool/test_publish_android.py`: 14 passed, including upload/download failure preservation, unchanged-filename retry, duplicate names, downgrade/conflict refusal, missing IDs and cleanup failure.
+- `python3 -m unittest tool/test_publish_android.py`: 17 passed, including upload/download failure preservation, unchanged-filename retry, duplicate names, downgrade/conflict refusal, missing IDs and cleanup failure.
 - Manual native-source diff confirms only the release-update handling was removed.
 - No app build, tag, app deployment or device installation is part of this task.
 
@@ -86,7 +96,7 @@ Validation on 2026-10-29, through the shared development container:
 
 - `dart format lib/src/android_updates.dart lib/src/app.dart test/android_updates_test.dart`.
 - `flutter analyze --no-pub lib/src/android_updates.dart lib/src/app.dart test/android_updates_test.dart`: no issues.
-- `flutter test --no-pub test/android_updates_test.dart test/timer_sync_test.dart test/account_timer_menu_test.dart test/recipe_timer_navigation_test.dart`: 16 passed.
+- `flutter test --no-pub test/android_updates_test.dart test/timer_sync_test.dart test/account_timer_menu_test.dart test/recipe_timer_navigation_test.dart`: 17 passed.
 - `python3 -m unittest tool/test_publish_android.py`: 11 passed, including publication ordering, failure preservation/retry, repeat-send suppression, scoped OAuth and Android topic payload.
 - Diff/links reviewed. An initial test command included nonexistent `test/widget_test.dart`; the corrected command above passed.
 

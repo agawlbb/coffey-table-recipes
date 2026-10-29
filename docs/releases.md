@@ -128,7 +128,7 @@ recorded during setup (not the folder's display name):
 /home/debian/.local/bin/dev exec python3 tool/publish-android.py \
   --apk build/verified-android/CoffeyTableRecipes-VERSION-buildBUILD.apk \
   --version VERSION --build BUILD --sha256 VERIFIED_SHA256 \
-  --folder-id RECIPE_APP_FOLDER_ID
+  --folder-id 1VM1K1Ge6sgjEjtoEjS7aGzHYiSzlLVE-
 ```
 
 The publisher uses `/home/debian/projects/.release-tools/rclone` and
@@ -152,21 +152,52 @@ as a private standalone executable from the official release with its SHA-256
 checked. The config directory is mode 700 and `rclone.conf` must be mode 600.
 Never paste OAuth tokens into chat, put them in Git, or include them in artifacts.
 
-Authorize the VPS through a browser with an SSH-forwarded loopback callback,
-or run `rclone config` on a trusted machine and privately upload the resulting
-config. Configure a Google Drive remote named `ctr-drive`, scope `drive`.
-This scope is needed to find the existing folder and remove APKs that were
-created by earlier tools; `drive.file` cannot manage those existing files.
-Google's consent page shows the granted access. The publisher sets
-`--drive-root-folder-id` on every operation to confine normal publication to the
-verified recipe app folder. This folder selection is not an OAuth security
-boundary. Do not use a sync/purge command against the account or folder.
+Run the one-time setup helper on the VPS host:
 
-After authorization, list top-level folders, identify the existing **recipe app**
-folder, verify its ID and list its immediate children. Record the ID without any
-token data. Then exercise upload/download/trash in that folder with an explicitly
-named disposable probe before marking setup verified. Do not create a second
-folder with the same name or change sharing permissions.
+```bash
+python3 tool/authorize-google-drive.py
+```
+
+For the initial browser consent only, forward loopback port 53682 over SSH:
+
+```bash
+ssh -N -L 53682:127.0.0.1:53682 debian@100.81.219.127
+```
+
+Open the helper's current authorization link in that browser. It requests only
+`drive.file`, excludes prior broader scopes, asks for offline access, and enables
+Google's OAuth-integrated Picker (`trigger_onepick=true`,
+`allow_folder_selection=true`). Select the existing **recipe app** folder.
+Do not approve a request for all-Drive access. The helper saves the refresh token
+privately; the laptop is not required for future publications. The ChatGPT Drive
+plugin is separate and its permission grant is not used as a VPS credential.
+
+Google's restricted scope covers files/folders explicitly selected for the app
+and files it creates. Existing child files are not assumed authorized by folder
+selection alone: explicitly select any existing release APKs that the publisher
+must clean up, or handle that initial legacy cleanup manually. Routine cleanup
+then applies to APKs created by this publisher. A separate folder ID alone is
+not an OAuth security boundary. See Google's
+[desktop Picker authorization](https://developers.google.com/workspace/drive/picker/guides/desktop-mobile-picker)
+and [Drive scopes](https://developers.google.com/workspace/drive/api/guides/api-specific-auth).
+
+The user identified the [existing recipe app folder](https://drive.google.com/drive/folders/1VM1K1Ge6sgjEjtoEjS7aGzHYiSzlLVE-).
+The setup helper pins `root_folder_id = 1VM1K1Ge6sgjEjtoEjS7aGzHYiSzlLVE-`
+in the private `[ctr-drive]` config. Folder identity is user-provided; live
+read/write access must still be verified after consent.
+The publisher requires `type = drive`, `scope = drive.file`, and rejects a
+command-line folder ID different from that configured destination. It also
+sets `--drive-root-folder-id` and `--drive-scope drive.file` on every command.
+No `drive`, read-all, sync or purge grant/operation is needed. All-Drive,
+missing/mixed-scope or unpinned destination configs are rejected before any Drive operation.
+
+After consent, list only the selected folder's immediate children. Exercise
+upload/download/trash with a disposable probe before marking setup verified.
+Do not create a second recipe app folder or change its sharing permissions.
+The initial all-Drive authorization attempt was stopped without saving a Drive
+credential. The replacement request was inspected and verified to include only
+`drive.file`, Picker folder selection, `include_granted_scopes=false`, and
+`access_type=offline`. Actual Google consent and live Drive checks are pending.
 
 See [Android distribution change](android-updates.md) for source/removal checks,
 live hosting status and any remaining Drive authorization step.

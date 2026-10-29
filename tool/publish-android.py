@@ -1,5 +1,6 @@
 """Upload a verified release APK to Google Drive before trashing older releases."""
 import argparse
+import configparser
 import hashlib
 import json
 from pathlib import Path
@@ -23,9 +24,22 @@ class Drive:
             raise ValueError('Use a configured remote name without a colon or path')
         if not re.fullmatch(r'[A-Za-z0-9_-]{10,}', folder_id):
             raise ValueError('A Google Drive destination folder ID is required')
+        settings = configparser.ConfigParser(interpolation=None)
+        with Path(config).open() as private:
+            settings.read_file(private)
+        if (not settings.has_section(remote) or
+                settings.get(remote, 'type', fallback='') != 'drive' or
+                settings.get(remote, 'scope', fallback='').strip() not in
+                ('drive.file', 'https://www.googleapis.com/auth/drive.file')):
+            raise ValueError('Google Drive publication requires a drive.file-only OAuth configuration')
+        configured_folder = settings.get(remote, 'root_folder_id', fallback='').strip()
+        if not configured_folder:
+            raise ValueError('Pin the authorized recipe folder in the private root_folder_id configuration')
+        if configured_folder != folder_id:
+            raise ValueError('Destination differs from the authorized recipe folder configuration')
         self.root = remote + ':'
         self.command = [str(rclone), '--config', str(config),
-                        '--drive-root-folder-id', folder_id,
+                        '--drive-root-folder-id', folder_id, '--drive-scope', 'drive.file',
                         '--drive-use-trash=true', '--contimeout', '15s', '--timeout', '60s']
 
     def run(self, *arguments):
@@ -116,5 +130,5 @@ if __name__ == '__main__':
     drive = Drive(args.rclone, args.config, args.remote, args.folder_id)
     try:
         print(json.dumps(publish(args.apk, args.version, args.build, args.sha256, drive), indent=2))
-    except (ValueError, RuntimeError, OSError, zipfile.BadZipFile, subprocess.SubprocessError) as error:
+    except (ValueError, RuntimeError, OSError, configparser.Error, zipfile.BadZipFile, subprocess.SubprocessError) as error:
         parser.exit(1, f'Publication failed: {error}\n')
