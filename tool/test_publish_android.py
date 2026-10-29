@@ -1,163 +1,163 @@
-"""Ensure publication failures preserve the working download and older packages."""
-import base64
+"""Drive publication never trashes old APKs before verifying the replacement."""
 import hashlib
-import io
-import json
-import urllib.parse
 import importlib.util
+import json
 from pathlib import Path
 import tempfile
 import unittest
 from unittest.mock import Mock, patch
 import zipfile
 
-spec = importlib.util.spec_from_file_location('publish_android', Path(__file__).with_name('publish-android.py'))
+spec = importlib.util.spec_from_file_location('publisher', Path(__file__).with_name('publish-android.py'))
 publisher = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(publisher)
+
+
+class FakeDrive:
+    def __init__(self):
+        self.data = {'CoffeyTableRecipes-2.2.0-build37.apk': b'old',
+                     'inspection-only.apk': b'keep', 'signed-ios.ipa': b'keep'}
+        self.actions = []
+
+    def files(self):
+        return [dict(Name=name, ID='file_' + str(i)) for i, name in enumerate(self.data)]
+
+    def upload(self, apk, filename):
+        self.actions.append('upload')
+        self.data[filename] = apk.read_bytes()
+
+    def sha256(self, filename):
+        self.actions.append('verify')
+        return hashlib.sha256(self.data[filename]).hexdigest()
+
+    def trash(self, filename):
+        self.actions.append('trash')
+        del self.data[filename]
 
 
 class PublicationTests(unittest.TestCase):
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
         self.addCleanup(self.temp.cleanup)
-        root = Path(self.temp.name)
-        self.directory = root / 'public'
-        self.directory.mkdir()
-        self.old = self.directory / 'CoffeyTableRecipes-2.2.0-build37.apk'
-        self.old.write_bytes(b'previous verified release')
-        (self.directory / 'latest.apk').symlink_to(self.old.name)
-        self.apk = root / 'new.apk'
-        with zipfile.ZipFile(self.apk, 'w') as package:
-            package.writestr('AndroidManifest.xml', b'test fixture')
-        self.notify = Mock()
+        self.apk = Path(self.temp.name) / 'release.apk'
+        with zipfile.ZipFile(self.apk, 'w') as z:
+            z.writestr('AndroidManifest.xml', b'fixture')
         self.sha = hashlib.sha256(self.apk.read_bytes()).hexdigest()
+        self.drive = FakeDrive()
+        self.old = 'CoffeyTableRecipes-2.2.0-build37.apk'
+        self.name = 'CoffeyTableRecipes-2.3.0-build39.apk'
 
     def publish(self, sha=None):
-        return publisher.publish(self.apk, '2.2.1', 38, sha or self.sha, self.directory, notify=self.notify)
+        return publisher.publish(self.apk, '2.3.0', 39, sha or self.sha, self.drive)
 
-    def assert_previous_preserved(self):
-        self.assertTrue(self.old.exists())
-        self.assertEqual((self.directory / 'latest.apk').resolve(), self.old)
+    def test_success_verifies_before_trashing_only_older_releases(self):
+        result = self.publish()
+        self.assertEqual(self.drive.actions, ['upload', 'verify', 'trash'])
+        self.assertEqual(result['removed'], [self.old])
+        self.assertIn('inspection-only.apk', self.drive.data)
+        self.assertIn('signed-ios.ipa', self.drive.data)
+        self.assertEqual(self.drive.data[self.name], self.apk.read_bytes())
+        self.assertTrue(result['url'].startswith('https://drive.google.com/file/d/'))
 
-    def test_success_verifies_both_urls_before_removing_only_old_releases(self):
-        unrelated = self.directory / 'migration-test.apk'
-        unrelated.write_bytes(b'keep')
-        newer = self.directory / 'CoffeyTableRecipes-2.2.2-build39.apk'
-        newer.write_bytes(b'keep future package')
+    def test_bad_source_checksum_never_contacts_drive(self):
+        with patch.object(self.drive, 'files') as listing:
+            with self.assertRaisesRegex(ValueError, 'Source APK checksum'):
+                self.publish('0' * 64)
+        listing.assert_not_called()
 
-        def verify(url, sha):
-            self.assertTrue(self.old.exists())
-            self.assertEqual(hashlib.sha256((self.directory / url.rsplit('/', 1)[1]).read_bytes()).hexdigest(), sha)
+    def test_invalid_apk_never_contacts_drive(self):
+        self.apk.write_bytes(b'not a zip')
+        with patch.object(self.drive, 'files') as listing:
+            with self.assertRaises(zipfile.BadZipFile):
+                self.publish(hashlib.sha256(self.apk.read_bytes()).hexdigest())
+        listing.assert_not_called()
 
-        with patch.object(publisher, 'verify_download', side_effect=verify) as check:
-            result = self.publish()
-        self.assertEqual(check.call_count, 2)
-        self.assertEqual(result['removed'], [self.old.name])
-        self.assertTrue(unrelated.exists())
-        self.assertTrue(newer.exists())
-        self.assertEqual((self.directory / 'latest.apk').read_bytes(), self.apk.read_bytes())
-
-    def test_checksum_failure_keeps_existing_download(self):
-        with self.assertRaisesRegex(ValueError, 'Source APK checksum'):
-            self.publish('0' * 64)
-        self.assert_previous_preserved()
-
-    def test_version_download_failure_keeps_existing_download(self):
-        with patch.object(publisher, 'verify_download', side_effect=ValueError('unavailable')):
-            with self.assertRaisesRegex(ValueError, 'unavailable'):
+    def test_upload_failure_preserves_old_release(self):
+        with patch.object(self.drive, 'upload', side_effect=RuntimeError('offline')):
+            with self.assertRaises(RuntimeError):
                 self.publish()
-        self.assert_previous_preserved()
+        self.assertIn(self.old, self.drive.data)
+        self.assertNotIn('trash', self.drive.actions)
 
-    def test_latest_download_failure_restores_previous_link_and_keeps_packages(self):
-        with patch.object(publisher, 'verify_download', side_effect=[None, ValueError('bad latest')]):
-            with self.assertRaisesRegex(ValueError, 'bad latest'):
+    def test_download_verification_failure_preserves_old_release(self):
+        with patch.object(self.drive, 'sha256', return_value='0' * 64):
+            with self.assertRaisesRegex(ValueError, 'Drive APK checksum'):
                 self.publish()
-        self.assert_previous_preserved()
+        self.assertIn(self.old, self.drive.data)
+        self.assertNotIn('trash', self.drive.actions)
 
-    def test_refuses_to_replace_newer_release(self):
-        latest = self.directory / 'latest.apk'
-        latest.unlink()
-        latest.symlink_to('CoffeyTableRecipes-2.2.2-build39.apk')
-        with self.assertRaisesRegex(ValueError, 'newer release'):
+    def test_retry_reuses_same_verified_file(self):
+        self.publish()
+        self.drive.actions.clear()
+        self.publish()
+        self.assertEqual(self.drive.actions, ['verify'])
+
+    def test_changed_existing_release_is_not_overwritten(self):
+        self.drive.data[self.name] = b'changed'
+        with self.assertRaisesRegex(ValueError, 'Drive APK checksum'):
             self.publish()
-        self.assertTrue(self.old.exists())
+        self.assertEqual(self.drive.data[self.name], b'changed')
+        self.assertIn(self.old, self.drive.data)
+        self.assertNotIn('upload', self.drive.actions)
 
-    def test_refuses_changed_contents_under_existing_release_name(self):
-        (self.directory / 'CoffeyTableRecipes-2.2.1-build38.apk').write_bytes(b'different package')
-        with self.assertRaisesRegex(ValueError, 'different contents'):
-            self.publish()
-        self.assert_previous_preserved()
+    def test_newer_or_same_build_conflict_refuses_publication(self):
+        for name in ['CoffeyTableRecipes-2.4.0-build40.apk', 'CoffeyTableRecipes-2.2.9-build39.apk']:
+            with self.subTest(name=name):
+                self.drive.data[name] = b'keep'
+                with self.assertRaisesRegex(ValueError, 'newer or conflicting'):
+                    self.publish()
+                del self.drive.data[name]
+        self.assertEqual(self.drive.actions, [])
 
-
-    def test_metadata_and_push_follow_download_verification_and_retry_is_quiet(self):
-        def notify(version, build):
-            self.assertEqual((version, build), ('2.2.1', 38))
-            import json
-            metadata = json.loads((self.directory / 'latest.json').read_text())
-            self.assertEqual(metadata['build'], 38)
-            self.assertTrue(self.old.exists())
-        self.notify.side_effect = notify
-        with patch.object(publisher, 'verify_download'):
-            self.publish()
-            self.publish()
-        self.notify.assert_called_once_with('2.2.1', 38)
-
-    def test_push_failure_keeps_packages_and_retries_without_false_success(self):
-        self.notify.side_effect = RuntimeError('push unavailable')
-        with patch.object(publisher, 'verify_download'):
-            with self.assertRaisesRegex(RuntimeError, 'push unavailable'):
+    def test_duplicate_release_names_require_review(self):
+        rows = self.drive.files()
+        with patch.object(self.drive, 'files', return_value=rows + rows):
+            with self.assertRaisesRegex(ValueError, 'Duplicate'):
                 self.publish()
-            self.assertTrue(self.old.exists())
-            self.assertFalse((self.directory.parent / '.android-update-sent.json').exists())
-            self.notify.side_effect = None
-            self.publish()
-        self.assertEqual(self.notify.call_count, 2)
+        self.assertEqual(self.drive.actions, [])
 
-    def test_failed_download_does_not_advertise_or_notify(self):
-        with patch.object(publisher, 'verify_download', side_effect=ValueError('offline')):
+    def test_cleanup_failure_retains_verified_new_release(self):
+        with patch.object(self.drive, 'trash', side_effect=RuntimeError('offline')):
+            with self.assertRaises(RuntimeError):
+                self.publish()
+        self.assertEqual(self.drive.data[self.name], self.apk.read_bytes())
+        self.assertIn(self.old, self.drive.data)
+
+    def test_missing_file_id_prevents_cleanup(self):
+        original = self.drive.files
+        def files():
+            return [{**row, 'ID': ''} for row in original()]
+        with patch.object(self.drive, 'files', side_effect=files):
+            with self.assertRaisesRegex(ValueError, 'identify'):
+                self.publish()
+        self.assertIn(self.old, self.drive.data)
+
+
+class DriveTests(unittest.TestCase):
+    def test_commands_are_confined_to_folder_and_delete_uses_trash(self):
+        drive = publisher.Drive('/private/rclone', '/private/rclone.conf', 'ctr-drive', 'folder_12345')
+        with patch.object(publisher.subprocess, 'run', return_value=Mock(returncode=0, stdout='[]')) as run:
+            drive.files()
+            drive.trash('CoffeyTableRecipes-2.2.0-build37.apk')
+        for call in run.call_args_list:
+            command = call.args[0]
+            self.assertIn('--drive-root-folder-id', command)
+            self.assertIn('folder_12345', command)
+            self.assertIn('--drive-use-trash=true', command)
+        self.assertIn('deletefile', run.call_args.args[0])
+        self.assertNotIn('sync', run.call_args.args[0])
+
+    def test_invalid_remote_or_folder_is_rejected(self):
+        for remote, folder in [('drive:elsewhere', 'folder_12345'), ('ctr-drive', '../other')]:
             with self.assertRaises(ValueError):
-                self.publish()
-        self.assertFalse((self.directory / 'latest.json').exists())
-        self.notify.assert_not_called()
+                publisher.Drive('rclone', 'private.conf', remote, folder)
 
-
-class SenderTests(unittest.TestCase):
-    def test_scoped_oauth_and_android_only_topic_payload(self):
-        with tempfile.TemporaryDirectory() as root:
-            credential = Path(root) / 'service.json'
-            credential.write_text(json.dumps(dict(project_id='coffey-table-recipes',
-                client_email='sender@example.test', private_key='fixture-key')))
-            oauth = Mock()
-            oauth.__enter__ = Mock(return_value=io.BytesIO(b'{"access_token":"fixture-token"}'))
-            oauth.__exit__ = Mock(return_value=False)
-            fcm = Mock()
-            fcm.__enter__ = Mock(return_value=Mock(status=200))
-            fcm.__exit__ = Mock(return_value=False)
-            with patch.object(publisher.subprocess, 'run', return_value=Mock(stdout=b'signature')), \
-                 patch.object(publisher.urllib.request, 'urlopen', side_effect=[oauth, fcm]) as request:
-                publisher.send_update(credential, '2.3.0', 39)
-            auth_request = request.call_args_list[0].args[0]
-            assertion = urllib.parse.parse_qs(auth_request.data.decode())['assertion'][0]
-            encoded = assertion.split('.')[1]
-            claims = json.loads(base64.urlsafe_b64decode(encoded + '=' * (-len(encoded) % 4)))
-            self.assertEqual(claims['scope'], 'https://www.googleapis.com/auth/firebase.messaging')
-            self.assertEqual(claims['exp'] - claims['iat'], 3600)
-            push_request = request.call_args_list[1].args[0]
-            message = json.loads(push_request.data)['message']
-            self.assertEqual(message['topic'], 'android_releases')
-            self.assertEqual(message['data'], dict(kind='android_update', version='2.3.0', build='39'))
-            self.assertEqual(message['android']['priority'], 'HIGH')
-            self.assertNotIn('token', message)
-            self.assertNotIn('apns', message)
-
-    def test_wrong_project_cannot_send(self):
-        with tempfile.TemporaryDirectory() as root:
-            credential = Path(root) / 'service.json'
-            credential.write_text('{"project_id":"another-project"}')
-            with patch.object(publisher.urllib.request, 'urlopen') as request:
-                with self.assertRaisesRegex(ValueError, 'Wrong Firebase'):
-                    publisher.send_update(credential, '2.3.0', 39)
-                request.assert_not_called()
+    def test_failure_does_not_print_private_process_output(self):
+        drive = publisher.Drive('rclone', 'private.conf', 'ctr-drive', 'folder_12345')
+        with patch.object(publisher.subprocess, 'run', return_value=Mock(returncode=1, stdout='', stderr='private-token')):
+            with self.assertRaisesRegex(RuntimeError, 'operation failed') as error:
+                drive.files()
+        self.assertNotIn('private-token', str(error.exception))
 
 
 if __name__ == '__main__':

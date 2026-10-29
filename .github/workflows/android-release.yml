@@ -101,7 +101,7 @@ jobs:
           (output / 'verification.json').write_text(json.dumps(report, indent=2))
           print(json.dumps(report, indent=2))
           PY
-      - name: Save verified APK for VPS publication
+      - name: Save verified APK for Google Drive publication
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: CoffeyTableRecipes-Android-${{ inputs.release_tag }}

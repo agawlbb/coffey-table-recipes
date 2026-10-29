@@ -45,7 +45,7 @@ recipe screen. This was a warm-start check, not physical-phone/cold-start
 acceptance. No new app build or reinstall was needed. The separate iOS
 association repair and release validation are recorded under 1.6.1 below.
 
-When the user says "create a release", review progress since the previous release, choose an appropriate version and increment its build number, validate and commit, create and push an immutable annotated tag, rebuild web/Android/signed iOS, explicitly dispatch hosted deployment using the release tag, publish the verified Android APK on the VPS using the procedure below, and upload signed iOS to TestFlight. Requested iOS runs need no separate approval; other macOS runner builds still require explicit approval. Verify Apple processing and internal distribution, observing the France exclusion policy. The Android publisher removes older hosted release APKs only after the replacement's public downloads pass verification; retain unrelated files and signed iOS packages. A tag by itself does not authorize hosted deployment; the web workflow is manual-only and requires a release tag.
+When the user says "create a release", review progress since the previous release, choose an appropriate version and increment its build number, validate and commit, create and push an immutable annotated tag, rebuild web/Android/signed iOS, explicitly dispatch hosted deployment using the release tag, publish the verified Android APK to the existing Google Drive recipe app folder using the procedure below, and upload signed iOS to TestFlight. Requested iOS runs need no separate approval; other macOS runner builds still require explicit approval. Verify Apple processing and internal distribution, observing the France exclusion policy. The Android publisher moves older Drive release APKs to trash only after downloading and verifying the replacement; retain unrelated files and signed iOS packages. A tag by itself does not authorize hosted deployment; the web workflow is manual-only and requires a release tag.
 
 `CHANGELOG.md` covers previous releases using Git history, tags, and the release records below. Every future release must update it with the version, release date, and meaningful changes since the prior release. Commit the changelog before tagging the release. Describe only changes supported by the project history.
 
@@ -109,68 +109,67 @@ production/development resource limits.
 
 ### Android publication and automatic cleanup
 
-Google Drive authorization is not needed. The user selected public VPS hosting
-on 2026-10-28. The stable distribution link is
-<https://vps.coffeybean.com/recipes/android/latest.apk>.
-The VPS infrastructure repository tracks the Caddy route and read-only public
-directory mount. No signing key or Firebase source file belongs in that directory.
+Android releases are distributed in the existing Google Drive **recipe app**
+folder. VPS APK hosting, release push notifications and the in-app update dialog
+are retired. Historical release records below describe the previous delivery
+method and remain evidence; they are not current publication instructions.
 
-Download the successful Android workflow artifact into ignored `build/` storage
-on the VPS. Check `verification.json` against the release tag's exact source
-commit and the downloaded APK's SHA-256. Independently inspect the APK with SDK
-`apksigner verify --print-certs` and `aapt dump badging`; verify its version,
-build, non-debuggable flag and original signing certificate, then run the hosted
-association checker with that actual certificate. Publish from the VPS host
-(replace the APK path, version, build and hash arguments):
+Download the successful Android workflow artifact into ignored `build/` storage.
+Check `verification.json` against the release tag's exact source commit and the
+APK SHA-256. Independently inspect the APK using `apksigner verify --print-certs`
+and `aapt dump badging`; verify version, build, non-debuggable flag and original
+certificate, then run the hosted app-link checker with that actual certificate.
+Builds still need an explicit build/release request.
+
+Publish using the private Drive OAuth configuration and the exact folder ID
+recorded during setup (not the folder's display name):
 
 ```bash
-sudo python3 tool/publish-android.py \
+/home/debian/.local/bin/dev exec python3 tool/publish-android.py \
   --apk build/verified-android/CoffeyTableRecipes-VERSION-buildBUILD.apk \
   --version VERSION --build BUILD --sha256 VERIFIED_SHA256 \
-  --service-account /home/debian/projects/.release-tools/credentials/timer-push.local.json
+  --folder-id RECIPE_APP_FOLDER_ID
 ```
 
-The script stages and checks the APK, verifies the versioned HTTPS download,
-atomically changes `latest.apk`, and verifies its public checksum. Only then
-does it atomically publish `latest.json` and send the `android_releases`
-Firebase topic push. Successful sends have a private receipt, so rerunning the
-same publication does not send another push. A push failure leaves the verified
-APK/metadata available and retains old packages; rerun publication to retry.
-If FCM accepted a request but the response or receipt was lost, a retry may
-resend it; Android replaces the same notification rather than stacking it.
-Only after notification acceptance does it delete precisely named,
-lower-build release APKs from the public directory. It preserves unrelated files and newer packages, refuses a downgrade
-or changed contents for an existing versioned filename, and restores the previous
-latest link if its download fails verification. Publishing needs no Caddy restart.
-Distribute the stable link after the script succeeds; versioned URLs expire when
-their APK is superseded.
+The publisher uses `/home/debian/projects/.release-tools/rclone` and
+`/home/debian/projects/.release-tools/credentials/rclone.conf`, outside Git.
+Run one Android publication at a time. It refuses newer/conflicting builds,
+duplicate release filenames, and changed bytes under an existing release name.
+It uploads the APK, downloads the actual Drive bytes and checks SHA-256, then
+moves only lower-build `CoffeyTableRecipes-VERSION-buildBUILD.apk` files in the
+selected folder to Drive trash. Upload/check failures preserve all older files.
+Unrelated files, inspection APKs, subfolders and signed iOS packages are retained.
+Repeated publication verifies the existing file without uploading a duplicate.
+The output contains the Drive file link, verified checksum and trashed names.
+Folder/file sharing is preserved; it does not make anything public or send push
+notifications. Give the user the verified Drive link.
 
-The publisher requires Python 3.9+ and OpenSSL. As a one-time setup, place a
-Firebase service account JSON for project `coffey-table-recipes` outside the
-public directory, owned by the release operator with mode 600. Grant only
-`cloudmessaging.messages.create`, and enable Firebase Cloud Messaging API v1.
-The backend timer sender uses that same permission; an already provisioned
-messaging identity can be reused through an authorized private transfer.
-The existing inMotion timer sender credential was copied privately to
-`/home/debian/projects/.release-tools/credentials/timer-push.local.json`.
-On October 28, 2026 (America/New_York), its mode 600, matching Firebase project,
-OAuth exchange and FCM `validate_only` authorization were verified using the
-publisher's exact Android topic payload. No notification was sent. Use that
-private path in the publication command above.
-Never use the client `firebase.json` or grant messaging to the auth lookup account.
-Do not copy credentials into Git, Actions artifacts, or public downloads.
+### Google Drive access setup
 
-Android clients containing this feature subscribe to `android_releases` and
-request notification permission. Native delivery posts an **App updates**
-notification only when its build number exceeds the installed build. Tapping it
-opens the app. On launch/resume the app independently checks `latest.json` and
-shows a dismissible window with the stable APK link and **Download update**.
-The download opens in the external browser; Android handles installation.
-There is no automatic installation. Offline/invalid responses leave the app
-usable. iOS and web skip these checks. Notification denial does not disable
-launch checks. Existing 2.2.1 installations must first install a release with
-this feature; they cannot receive these new topic notifications retroactively.
-See `docs/android-updates.md` for implementation validation and setup status.
+Setup is separate from publication. Use the owner's Google OAuth authorization
+for rclone, not the Firebase messaging service account. rclone v1.75.2 is installed
+as a private standalone executable from the official release with its SHA-256
+checked. The config directory is mode 700 and `rclone.conf` must be mode 600.
+Never paste OAuth tokens into chat, put them in Git, or include them in artifacts.
+
+Authorize the VPS through a browser with an SSH-forwarded loopback callback,
+or run `rclone config` on a trusted machine and privately upload the resulting
+config. Configure a Google Drive remote named `ctr-drive`, scope `drive`.
+This scope is needed to find the existing folder and remove APKs that were
+created by earlier tools; `drive.file` cannot manage those existing files.
+Google's consent page shows the granted access. The publisher sets
+`--drive-root-folder-id` on every operation to confine normal publication to the
+verified recipe app folder. This folder selection is not an OAuth security
+boundary. Do not use a sync/purge command against the account or folder.
+
+After authorization, list top-level folders, identify the existing **recipe app**
+folder, verify its ID and list its immediate children. Record the ID without any
+token data. Then exercise upload/download/trash in that folder with an explicitly
+named disposable probe before marking setup verified. Do not create a second
+folder with the same name or change sharing permissions.
+
+See [Android distribution change](android-updates.md) for source/removal checks,
+live hosting status and any remaining Drive authorization step.
 
 ## 2.3.0 — VPS data transport and Android release updates
 

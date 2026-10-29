@@ -15,13 +15,6 @@ import org.json.JSONObject
 /** Native reception does not depend on a running Flutter activity or isolate. */
 class TimerSyncReceiver : FirebaseMessagingService() {
     override fun onMessageReceived(message: RemoteMessage) {
-        if (message.data["kind"] == "android_update") {
-            val build = message.data["build"]?.toLongOrNull() ?: return
-            val info = packageManager.getPackageInfo(packageName, 0)
-            val installed = if (Build.VERSION.SDK_INT >= 28) info.longVersionCode else info.versionCode.toLong()
-            if (build > installed) AndroidUpdateNotice.show(this)
-            return
-        }
         if (message.data["kind"] != "recipe_timer") return
         try { TimerSyncNative.apply(this, JSONObject(message.data as Map<*, *>)) }
         catch (_: Exception) {
@@ -120,19 +113,4 @@ object TimerSyncNative {
     }
 
     fun register(bridge: MethodChannel) { channel = bridge }
-}
-
-/** Separate from timer permissions and account-specific timer delivery. */
-object AndroidUpdateNotice {
-    fun show(c: Context) {
-        if (Build.VERSION.SDK_INT >= 33 && c.checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) return
-        val manager = c.getSystemService(NotificationManager::class.java)
-        if (Build.VERSION.SDK_INT >= 26) manager.createNotificationChannel(NotificationChannel("android_updates", "App updates", NotificationManager.IMPORTANCE_DEFAULT))
-        val open = PendingIntent.getActivity(c, 7103, Intent(c, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP), PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
-        val builder = if (Build.VERSION.SDK_INT >= 26) Notification.Builder(c, "android_updates") else Notification.Builder(c)
-        manager.notify(7103, builder.setSmallIcon(android.R.drawable.stat_sys_download_done)
-            .setContentTitle("Coffey Table Recipes update")
-            .setContentText("A new Android version is available. Open the app to download it.")
-            .setContentIntent(open).setAutoCancel(true).build())
-    }
 }

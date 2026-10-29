@@ -1,3 +1,54 @@
+# Android distribution change
+
+The user rejected the Android update-notification process and requested work on
+`feature/android-drive-distribution`. This branch starts at fetched app
+`origin/main` `fe83d03`. It removes the Android-only Firebase release handler,
+release-topic subscription/notification permission request, startup/resume
+metadata checks, update dialog and its feature-specific tests. Account-private
+timer notifications and navigation remain in place. No dependency was removed
+because Firebase messaging, package info and URL launching have other callers.
+
+Android delivery uses the existing Google Drive **recipe app** folder. The
+publisher requires a privately configured rclone OAuth remote and exact folder
+ID, refuses ambiguous/conflicting releases, uploads the signed APK, downloads
+and verifies SHA-256, and only then trashes precisely named lower-build release
+APKs in that folder. Existing release filenames are verified before reuse.
+Unrelated files, subfolders, inspection APKs and signed iOS files are preserved.
+No Google sharing permissions are changed and no release push is sent.
+See [current publication/setup instructions](releases.md#android-publication-and-automatic-cleanup).
+
+VPS infrastructure changes are on the matching branch in `vps_admin`, based on
+`175e465`. Caddy APK/metadata routes and the read-only package mount were removed
+from source and the live service. Caddy validation/recreation passed. Stable
+and versioned APK URLs plus `latest.json` now return 404; FlightSync remains
+200. Caddy retains production shares 1024 and unlimited effective CPU quota.
+The public APK/link/metadata have been removed. The signed 2.3.0/build 39 APK
+was retained privately with a verified checksum for later Drive transfer;
+it was not rebuilt. The VPS runbook records backup/rollback paths.
+
+rclone v1.75.2 is installed privately after checking the official release
+SHA-256. Browser authorization is in progress; the destination folder ID and
+live Drive upload/download/trash checks remain pending the owner's consent.
+The existing Firebase credential stays private and is no longer needed by the
+release publisher. Installed 2.3.0 apps retain their prior code until a later
+explicitly authorized release is installed; the former update endpoint is now
+unavailable and its existing client silently ignores that response.
+
+Focused validation through the shared development container:
+
+- `dart format lib/src/app.dart`: no changes needed.
+- `flutter analyze --no-pub lib/src/app.dart`: no issues.
+- `flutter test --no-pub test/timer_sync_test.dart test/account_timer_menu_test.dart test/recipe_timer_navigation_test.dart`: 10 passed.
+- `python3 -m unittest tool/test_publish_android.py`: 14 passed, including upload/download failure preservation, unchanged-filename retry, duplicate names, downgrade/conflict refusal, missing IDs and cleanup failure.
+- Manual native-source diff confirms only the release-update handling was removed.
+- No app build, tag, app deployment or device installation is part of this task.
+
+Keep the branch for user review; no automatic merge to main is intended.
+
+## Historical update feature (superseded)
+
+The following evidence describes the rejected implementation before removal.
+
 # Android release updates
 
 Task `task/android-release-updates` starts at app commit `1680c0c` from fetched
