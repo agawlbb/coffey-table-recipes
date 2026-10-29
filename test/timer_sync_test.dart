@@ -22,17 +22,26 @@ void main() {
   late String? currentUid;
   late StreamController<String?> accounts;
   late TimerSync sync;
+  late RecipeApi api;
+  var pushDuringUnregister = false;
   late int permissions;
 
   Future<void> create() async {
     accounts = StreamController<String?>();
     sync = TimerSync(
       preferences: SharedPreferencesAsync.new,
-      api: RecipeApi(
+      api: api = RecipeApi(
         baseUrl: 'https://fixture/api',
         client: MockClient((request) async {
           if (offline) throw http.ClientException('Offline');
           if (request.url.path.endsWith('timer-devices/remove')) {
+            if (pushDuringUnregister) {
+              await api.onTimerSnapshot?.call({
+                'timers': [
+                  {'timer_id': 'old-account-timer'},
+                ],
+              });
+            }
             return http.Response('{}', 200);
           }
           if (request.url.path.endsWith('timer-devices')) {
@@ -80,6 +89,7 @@ void main() {
     published = [];
     remote = [];
     offline = false;
+    pushDuringUnregister = false;
     currentUid = 'val';
     permissions = 0;
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
@@ -228,6 +238,35 @@ void main() {
         'Other',
       );
       expect(published, isEmpty);
+    },
+  );
+
+  test(
+    'account switch rejects unregister pushes and delayed old snapshots',
+    () async {
+      final oldSnapshot = api.onTimerSnapshot!;
+      native.clear();
+      pushDuringUnregister = true;
+      currentUid = 'other';
+      accounts.add(currentUid);
+      await Future<void>.delayed(Duration.zero);
+      await sync.syncNow();
+      await oldSnapshot({
+        'timers': [
+          {'timer_id': 'delayed-old-account-timer'},
+        ],
+      });
+      expect(native.where((call) => call.method == 'applyRemote'), isEmpty);
+      await api.onTimerSnapshot!({
+        'timers': [
+          {'timer_id': 'new-account-timer'},
+        ],
+      });
+      final applied =
+          native.singleWhere((call) => call.method == 'applyRemote').arguments
+              as Map;
+      expect(applied['account_uid'], 'other');
+      expect(applied['timer_id'], 'new-account-timer');
     },
   );
 

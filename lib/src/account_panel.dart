@@ -221,13 +221,26 @@ class _HouseholdPanelState extends State<HouseholdPanel>
       _shoppingSockets.putIfAbsent(household, () {
         final socket = ShoppingSocket(
           household: household,
+          scope: 'household',
           networkChanges: Connectivity().onConnectivityChanged.map(
             (results) =>
                 results.any((result) => result != ConnectivityResult.none),
           ),
           token: (refresh) => _idToken(refresh),
           onSnapshot: (state) async {
-            await _local?.acceptShopping(household, state);
+            await _local?.acceptShopping(
+              household,
+              Map<String, dynamic>.from(state['shopping'] as Map),
+            );
+            await _local?.installSnapshot(
+              Map<String, dynamic>.from(state['library'] as Map),
+            );
+            if (mounted) {
+              setState(() {
+                _readyHouseholds.add(household);
+                _databaseError = null;
+              });
+            }
           },
           onTime: (time) => _local?.observeServerTime(time, DateTime.now()),
           onReady: () {
@@ -258,6 +271,7 @@ class _HouseholdPanelState extends State<HouseholdPanel>
   final _personName = TextEditingController();
   List<Map<String, dynamic>> _households = [];
   List<Map<String, dynamic>> _people = [];
+  final _peopleChildModes = <String, bool>{};
   String? _selected;
   String? _error;
   bool _settings = false;
@@ -407,6 +421,9 @@ class _HouseholdPanelState extends State<HouseholdPanel>
   @override
   void initState() {
     super.initState();
+    _api.householdRequest = (path, {body}) =>
+        _shoppingSocket(Uri.parse(path).pathSegments[1])
+            .request(path, body: body);
     WidgetsBinding.instance.addObserver(this);
     sharedRecipeInbox.addListener(_sharedRecipeChanged);
     _personName.text = widget.user.displayName ?? '';
@@ -433,19 +450,20 @@ class _HouseholdPanelState extends State<HouseholdPanel>
     if (widget.request == null) {
       _local = LocalData(
         key: '$apiBaseUrl|${widget.user.uid}',
-        fetch: (path) => isShoppingPath(path)
+        fetch: (path) => isVpsDataPath(path)
             ? _onlineRequest(path)
             : _offline!.request(path),
         readServer: (path) => _onlineRequest(path),
         send: (path, body) => _onlineRequest(path, body: body),
         online: () => !offlineStatus.value,
-        canSend: (path) => isShoppingPath(path)
+        canSend: (path) => isVpsDataPath(path)
             ? (_shoppingSockets[Uri.parse(path).pathSegments[1]]?.connected ??
                   false)
             : !offlineStatus.value,
         snapshotOnly: true,
         separateShopping: true,
-        onPendingChanged: SyncNotifications.update,
+        onPendingChanged: (scope, _) =>
+            SyncNotifications.update(scope, const []),
       )..start();
       localDataChanges.addListener(_localChanged);
       _mirrorTimer = Timer.periodic(const Duration(minutes: 1), (_) {
@@ -595,12 +613,9 @@ class _HouseholdPanelState extends State<HouseholdPanel>
     String path, {
     Map<String, dynamic>? body,
   }) async {
-    if (isShoppingPath(path)) {
+    if (isVpsDataPath(path) && path.startsWith('/households/')) {
       final household = Uri.parse(path).pathSegments[1];
       return _shoppingSocket(household).request(path, body: body);
-    }
-    if (body == null && isPublicRecipeRead(path)) {
-      return _api.request(path, '', timeout: const Duration(seconds: 8));
     }
     final token = await _idToken();
     if (token == null) throw ApiException(401, 'Please sign in again.');
@@ -1070,10 +1085,24 @@ class _HouseholdPanelState extends State<HouseholdPanel>
       final policy = await _onlineRequest('/me/child-mode');
       if (!mounted) return;
       childMode.value = policy['enabled'] == true;
+      if (policy['people_child_modes'] is Map) {
+        final flags = policy['people_child_modes'] as Map;
+        setState(() {
+          _peopleChildModes
+            ..clear()
+            ..addAll(
+              flags.map((id, enabled) => MapEntry('$id', enabled == true)),
+            );
+        });
+      }
       try {
         await writeOfflineStore(
           'ctr-child-mode:${widget.user.uid}',
           '${childMode.value}',
+        );
+        await writeOfflineStore(
+          'ctr-people-child-modes:${widget.user.uid}',
+          jsonEncode(_peopleChildModes),
         );
       } catch (_) {}
     } catch (_) {
@@ -1110,6 +1139,22 @@ class _HouseholdPanelState extends State<HouseholdPanel>
             'true';
       } catch (_) {
         childMode.value = true;
+      }
+    }
+    if (widget.request == null) {
+      try {
+        final saved = await readOfflineStore(
+          'ctr-people-child-modes:${widget.user.uid}',
+        ).timeout(const Duration(seconds: 2));
+        if (saved != null) {
+          _peopleChildModes.addAll(
+            (jsonDecode(saved) as Map).map(
+              (id, enabled) => MapEntry('$id', enabled == true),
+            ),
+          );
+        }
+      } catch (_) {
+        /* Keep account-policy badges at their last confirmed values. */
       }
     }
     if (mounted) await _load();
@@ -1394,7 +1439,9 @@ class _HouseholdPanelState extends State<HouseholdPanel>
                     children: [
                       Flexible(child: Text(person['display_name'] as String)),
                       if (person['user_id'] != null &&
-                          person['child_mode'] == true) ...[
+                          (_peopleChildModes[person['id']] ??
+                                  person['child_mode']) ==
+                              true) ...[
                         const SizedBox(width: 8),
                         const Tooltip(
                           message: 'Child account',
@@ -1503,7 +1550,7 @@ class _HouseholdPanelState extends State<HouseholdPanel>
                 child: Text(name, maxLines: 1, overflow: TextOverflow.ellipsis),
               ),
             ),
-          if (_shopping && (_shoppingSockets[_selected]?.connected ?? false))
+          if (_shoppingSockets[_selected]?.connected ?? false)
             const Padding(
               padding: EdgeInsets.only(right: 4),
               child: Icon(Icons.cloud_done, color: Colors.green, size: 18),
@@ -1565,7 +1612,6 @@ class _HouseholdPanelState extends State<HouseholdPanel>
       drawer: _buildMenu(context),
       body: Column(
         children: [
-          if (_local != null && !_shopping) LocalSyncStatus(data: _local!),
           Expanded(
             child: IndexedStack(
               index: _planning

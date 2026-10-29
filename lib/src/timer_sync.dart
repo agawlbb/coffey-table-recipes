@@ -32,6 +32,9 @@ class TimerSync with WidgetsBindingObserver {
        _idToken =
            idToken ??
            (() async => FirebaseAuth.instance.currentUser?.getIdToken()),
+       _refreshIdToken =
+           idToken ??
+           (() async => FirebaseAuth.instance.currentUser?.getIdToken(true)),
        _pushToken = pushToken ?? (() => FirebaseMessaging.instance.getToken()),
        _authorizeReceiving = authorizeReceiving ?? _authorize,
        _accountChanges =
@@ -44,6 +47,7 @@ class TimerSync with WidgetsBindingObserver {
 
   final String? Function() _currentUid;
   final Future<String?> Function() _idToken;
+  final Future<String?> Function() _refreshIdToken;
   final Future<String?> Function() _pushToken;
   final Future<void> Function() _authorizeReceiving;
   final Stream<String?> Function() _accountChanges;
@@ -99,6 +103,8 @@ class TimerSync with WidgetsBindingObserver {
   Future<void> start() async {
     if (_started || !NativeTimers.supported) return;
     _started = true;
+    _api.refreshSocketToken = _refreshIdToken;
+    _api.onSocketReady = refresh;
     _installation = await _prefs.getString('timer_installation') ?? randomId();
     await _prefs.setString('timer_installation', _installation);
     WidgetsBinding.instance.addObserver(this);
@@ -129,6 +135,7 @@ class TimerSync with WidgetsBindingObserver {
   Future<void> _account(String? uid) async {
     if (uid != _currentUid()) return;
     final previous = _uid;
+    _api.onTimerSnapshot = null;
     _uid = uid;
     signedIn.value = uid != null;
     if (previous != _uid && previous != null && _lastToken != null) {
@@ -144,6 +151,17 @@ class TimerSync with WidgetsBindingObserver {
         /* Native account matching rejects delayed old pushes. */
       }
     }
+    _api.resetSockets();
+    // Capture the authenticated account. Delayed snapshots from an old
+    // connection must never be rebound to the next account.
+    _api.onTimerSnapshot = (data) async {
+      if (uid == null || _uid != uid || _currentUid() != uid) return;
+      for (final row in data['timers'] as List) {
+        if (_uid != uid || _currentUid() != uid) return;
+        await _apply(Map<String, dynamic>.from(row as Map));
+      }
+      await NativeTimers.restore();
+    };
     _lastToken = null;
     receiving.value =
         _uid != null && (await _prefs.getBool('receive_timers_$_uid') ?? false);
@@ -368,6 +386,7 @@ class TimerSync with WidgetsBindingObserver {
   void didChangeAppLifecycleState(AppLifecycleState state) {
     _poll?.cancel();
     if (state == AppLifecycleState.resumed) {
+      _api.reconnectSockets();
       refresh();
       _poll = Timer.periodic(const Duration(seconds: 20), (_) => refresh());
     }

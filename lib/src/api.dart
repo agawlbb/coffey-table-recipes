@@ -1,3 +1,9 @@
+import 'shopping_socket.dart';
+
+import 'package:web_socket_channel/web_socket_channel.dart';
+
+import 'package:connectivity_plus/connectivity_plus.dart';
+
 import 'child_mode.dart';
 
 import 'dart:convert';
@@ -64,11 +70,98 @@ bool isPublicRecipeRead(String path) =>
         .hasMatch(Uri.parse(path).path);
 
 class RecipeApi {
-  RecipeApi({required this.baseUrl, http.Client? client, this.onServerTime})
-    : _client = client ?? http.Client();
+  RecipeApi({
+    required this.baseUrl,
+    http.Client? client,
+    this.onServerTime,
+    WebSocketChannel Function(Uri)? socketConnect,
+  }) : _client = client ?? http.Client(),
+       _useSockets = client == null || socketConnect != null,
+       _socketConnect = socketConnect ?? WebSocketChannel.connect;
   final String baseUrl;
   final http.Client _client;
   final void Function(int milliseconds, DateTime receivedAt)? onServerTime;
+
+  final bool _useSockets;
+  final WebSocketChannel Function(Uri) _socketConnect;
+  final _sockets = <String, ShoppingSocket>{};
+  Future<Map<String, dynamic>> Function(
+    String path, {
+    Map<String, dynamic>? body,
+  })?
+  householdRequest;
+  Future<void> Function(Map<String, dynamic>)? onTimerSnapshot;
+  void Function()? onSocketReady;
+  String _socketToken = '';
+  Future<String?> Function()? refreshSocketToken;
+
+  void resetSockets() {
+    for (final socket in _sockets.values) {
+      socket.dispose();
+    }
+    _sockets.clear();
+    _socketToken = '';
+  }
+
+  void reconnectSockets() {
+    for (final socket in _sockets.values) {
+      socket.reconnect();
+    }
+  }
+
+  Future<Map<String, dynamic>> _socketRequest(
+    String path,
+    String token, {
+    Map<String, dynamic>? body,
+  }) {
+    final uri = Uri.parse(path);
+    final scope = uri.path.startsWith('/me/')
+        ? 'timers'
+        : uri.path.startsWith('/recipes/')
+        ? 'public'
+        : 'household';
+    if (scope == 'household' && householdRequest != null) {
+      return householdRequest!(path, body: body);
+    }
+    // An API instance belongs to one account. Drop old authenticated connections
+    // when the caller switches identity (including sign-out).
+    if (_socketToken != token && scope != 'public') {
+      for (final socket in _sockets.values) {
+        socket.dispose();
+      }
+      _sockets.clear();
+      _socketToken = token;
+    }
+    final household = scope == 'household' ? uri.pathSegments[1] : '';
+    final key = '$scope/$household';
+    final socket = _sockets.putIfAbsent(
+      key,
+      () => ShoppingSocket(
+        household: household,
+        scope: scope,
+        connect: _socketConnect,
+        token: (refresh) async {
+          if (scope == 'public') return '';
+          if (refresh) {
+            final renewed =
+                await (refreshSocketToken?.call() ??
+                    FirebaseAuth.instance.currentUser?.getIdToken(true));
+            if (renewed != null) _socketToken = renewed;
+          }
+          return _socketToken;
+        },
+        networkChanges: Connectivity().onConnectivityChanged.map(
+          (results) => results.any((r) => r != ConnectivityResult.none),
+        ),
+        onSnapshot: (data) async {
+          if (scope == 'timers') await onTimerSnapshot?.call(data);
+        },
+        onTime: (time) => onServerTime?.call(time, DateTime.now()),
+        onReady: () => onSocketReady?.call(),
+      ),
+    );
+    return socket.request(path, body: body);
+  }
 
   Future<Map<String, dynamic>> request(
     String path,
@@ -78,6 +171,15 @@ class RecipeApi {
     void Function(int received, int? total)? onProgress,
   }) async {
     if (body != null) requireChildModeWrite(path);
+    if (_closed) throw StateError('API closed');
+    if (_useSockets && isVpsDataPath(path)) {
+      return body == null
+          ? retryCommunication(
+              () => _socketRequest(path, token),
+              active: () => !_closed,
+            )
+          : _socketRequest(path, token, body: body);
+    }
     if (body == null) {
       return retryCommunication(
         () =>
@@ -193,6 +295,10 @@ class RecipeApi {
 
   void close() {
     _closed = true;
+    for (final socket in _sockets.values) {
+      socket.dispose();
+    }
+    _sockets.clear();
     _client.close();
   }
 }

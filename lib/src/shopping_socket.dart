@@ -16,6 +16,16 @@ bool isShoppingPath(String path) =>
     RegExp(r'^/households/[1-9][0-9]*/shopping-list(?:/sync-request)?$')
         .hasMatch(path);
 
+/// AI generation and account provisioning retain their InMotion credentials.
+bool isVpsDataPath(String path) {
+  final route = Uri.parse(path).path;
+  return RegExp(r'^/recipes/[1-9][0-9]*$').hasMatch(route) ||
+      RegExp(r'^/me/(?:timers|timer-devices(?:/remove)?)$').hasMatch(route) ||
+      RegExp(
+        r'^/households/[1-9][0-9]*/(?:snapshot|name|people(?:/me/name)?|restaurants|recipe-blank|shopping-list(?:/sync-request)?|meal-plan(?:/(?:ingredients|history|pairings/[1-9][0-9]*))?|recipes(?:/deleted|/[1-9][0-9]*(?:/(?:edit-options|share|favorites|attach|delete|restore))?)?)$',
+      ).hasMatch(route);
+}
+
 /// The durable repository owns edits; this connection owns transport only.
 class ShoppingSocket extends ChangeNotifier {
   ShoppingSocket({
@@ -23,6 +33,7 @@ class ShoppingSocket extends ChangeNotifier {
     required this.token,
     required this.onSnapshot,
     this.onTime,
+    this.scope = 'shopping',
     this.onReady,
     this.connect = WebSocketChannel.connect,
     this.url = shoppingSocketUrl,
@@ -38,6 +49,7 @@ class ShoppingSocket extends ChangeNotifier {
   }
 
   final String household;
+  final String scope;
   final Future<String?> Function(bool refresh) token;
   final Future<void> Function(Map<String, dynamic>) onSnapshot;
   final void Function(int milliseconds)? onTime;
@@ -104,8 +116,15 @@ class ShoppingSocket extends ChangeNotifier {
       );
       await channel.ready.timeout(const Duration(seconds: 10));
       if (_closed || generation != _generation) return;
-      _send({'type': 'auth', 'token': credential, 'household_id': household});
-      await ready.future.timeout(const Duration(seconds: 20));
+      _send({
+        'type': 'auth',
+        'token': credential,
+        'household_id': household.isEmpty ? null : household,
+        'scope': scope,
+      });
+      await ready.future.timeout(
+        Duration(seconds: scope == 'household' ? 90 : 20),
+      );
       if (_closed || generation != _generation) return;
       _lastReceived = DateTime.now();
       _heartbeat = Timer.periodic(const Duration(seconds: 25), (_) {
@@ -138,7 +157,7 @@ class ShoppingSocket extends ChangeNotifier {
       final details = message['error'] as Map?;
       final error = ApiException(
         message['status'] as int? ?? 503,
-        details?['message'] as String? ?? 'Shopping synchronization paused.',
+        details?['message'] as String? ?? 'Data synchronization paused.',
         code: details?['code'] as String?,
       );
       final pending = _pending.remove(message['id']);
@@ -147,7 +166,7 @@ class ShoppingSocket extends ChangeNotifier {
         _lost(error);
       }
     } else if (type == 'ready' || type == 'snapshot') {
-      if (message['household_id'] != household) {
+      if ((message['household_id'] ?? '') != household) {
         throw const FormatException('Wrong household');
       }
       await onSnapshot(Map<String, dynamic>.from(message['data'] as Map));
@@ -170,22 +189,33 @@ class ShoppingSocket extends ChangeNotifier {
     String path, {
     Map<String, dynamic>? body,
   }) async {
-    if (_closed) throw StateError('Shopping connection closed');
-    if (!path.startsWith('/households/$household/shopping-list') ||
-        !isShoppingPath(path)) {
-      throw ArgumentError('Shopping path outside this household');
+    if (_closed) throw StateError('Data connection closed');
+    if (scope == 'shopping'
+        ? (!path.startsWith('/households/$household/shopping-list') ||
+              !isShoppingPath(path))
+        : !isVpsDataPath(path) ||
+              (scope == 'household' &&
+                  !path.startsWith('/households/$household/')) ||
+              (scope == 'timers' && !path.startsWith('/me/')) ||
+              (scope == 'public' &&
+                  !RegExp(r'^/recipes/[1-9][0-9]*$').hasMatch(path))) {
+      throw ArgumentError('Data path outside this connection');
     }
     start();
-    await _ready!.future.timeout(const Duration(seconds: 20));
+    await _ready!.future.timeout(
+      Duration(seconds: scope == 'household' ? 90 : 20),
+    );
     if (!connected) {
-      throw ApiException(503, 'Shopping synchronization disconnected.');
+      throw ApiException(503, 'Data synchronization disconnected.');
     }
     final id = '${++_sequence}';
     final response = Completer<Map<String, dynamic>>();
     _pending[id] = response;
     _send({'type': 'request', 'id': id, 'path': path, 'body': ?body});
     try {
-      return await response.future.timeout(const Duration(seconds: 20));
+      return await response.future.timeout(
+        Duration(seconds: scope == 'household' ? 90 : 20),
+      );
     } finally {
       _pending.remove(id);
     }
@@ -202,7 +232,7 @@ class ShoppingSocket extends ChangeNotifier {
     unawaited(_channel?.sink.close());
     _channel = null;
     final error =
-        failure ?? ApiException(503, 'Shopping synchronization disconnected.');
+        failure ?? ApiException(503, 'Data synchronization disconnected.');
     if (!(_ready?.isCompleted ?? true)) _ready!.completeError(error);
     for (final pending in _pending.values) {
       pending.completeError(error);
