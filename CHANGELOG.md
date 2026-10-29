@@ -2,6 +2,15 @@
 
 Release dates and changes are reconstructed from annotated Git tags, commit history, and project release records. Versions before 1.0 are demonstration releases; 1.0 marks the first usable release. Android retains the existing signing identity; iOS delivery and signing are recorded for each release.
 
+## 2.3.0 — 2026-10-29
+
+Build 39; tag `v2.3.0`.
+
+- Synchronize recipes, favorites, household data and meal plans through the authenticated VPS WebSocket connection while preserving local data, durable pending edits and required meal dates.
+- Show the existing green connection icon throughout the household app only after shopping and library snapshots are saved; remove obsolete manual data-sync/status controls.
+- Synchronize account-private timers through VPS snapshots with reconnect and account-switch guards. Keep the SQL database, account provisioning, invitations and AI access on inMotion; retain existing photo URLs and store new uploads on the VPS.
+- Add Android release notifications and a dismissible update window on launch/resume with the trusted VPS APK link. Installation remains manual through Android; existing 2.2.1 clients need this first update installed manually.
+- Build Android releases on a standard GitHub runner, retain the original signing identity, and verify public versioned/latest downloads before release notification and cleanup.
 ## 2.2.1 — 2026-10-28
 
 Build 38; tag `v2.2.1`.
