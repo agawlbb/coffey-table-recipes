@@ -1,10 +1,13 @@
 """Drive publication never trashes old APKs before verifying the replacement."""
+import base64
 import hashlib
+import io
 import importlib.util
 import json
 from pathlib import Path
 import tempfile
 import unittest
+import urllib.parse
 from unittest.mock import Mock, patch
 import zipfile
 
@@ -44,15 +47,17 @@ class PublicationTests(unittest.TestCase):
             z.writestr('AndroidManifest.xml', b'fixture')
         self.sha = hashlib.sha256(self.apk.read_bytes()).hexdigest()
         self.drive = FakeDrive()
+        self.receipt = Path(self.temp.name) / 'notification.json'
+        self.notify = Mock(side_effect=lambda *_: self.drive.actions.append('notify'))
         self.old = 'CoffeyTableRecipes-2.2.0-build37.apk'
         self.name = 'CoffeyTableRecipes-2.3.0-build39.apk'
 
     def publish(self, sha=None):
-        return publisher.publish(self.apk, '2.3.0', 39, sha or self.sha, self.drive)
+        return publisher.publish(self.apk, '2.3.0', 39, sha or self.sha, self.drive, notify=self.notify, receipt=self.receipt)
 
     def test_success_verifies_before_trashing_only_older_releases(self):
         result = self.publish()
-        self.assertEqual(self.drive.actions, ['upload', 'verify', 'trash'])
+        self.assertEqual(self.drive.actions, ['upload', 'verify', 'notify', 'trash'])
         self.assertEqual(result['removed'], [self.old])
         self.assertIn('inspection-only.apk', self.drive.data)
         self.assertIn('signed-ios.ipa', self.drive.data)
@@ -122,6 +127,40 @@ class PublicationTests(unittest.TestCase):
                 self.publish()
         self.assertEqual(self.drive.data[self.name], self.apk.read_bytes())
         self.assertIn(self.old, self.drive.data)
+        self.assertFalse(self.publish()['notified'])
+        self.notify.assert_called_once_with('2.3.0', 39)
+
+    def test_notification_failure_retains_old_files_and_retries(self):
+        self.notify.side_effect = RuntimeError('push offline')
+        with self.assertRaisesRegex(RuntimeError, 'push offline'):
+            self.publish()
+        self.assertIn(self.old, self.drive.data)
+        self.assertFalse(self.receipt.exists())
+        self.notify.side_effect = None
+        result = self.publish()
+        self.assertTrue(result['notified'])
+        self.assertNotIn(self.old, self.drive.data)
+        self.assertEqual(self.notify.call_count, 2)
+
+    def test_repeat_publication_does_not_notify_twice(self):
+        self.assertTrue(self.publish()['notified'])
+        self.assertFalse(self.publish()['notified'])
+        self.notify.assert_called_once_with('2.3.0', 39)
+        self.assertEqual(self.receipt.stat().st_mode & 0o777, 0o600)
+
+    def test_verification_failure_cannot_notify(self):
+        with patch.object(self.drive, 'sha256', return_value='0' * 64):
+            with self.assertRaises(ValueError):
+                self.publish()
+        self.notify.assert_not_called()
+        self.assertFalse(self.receipt.exists())
+
+    def test_newer_or_conflicting_notification_receipt_is_preserved(self):
+        self.receipt.write_text(json.dumps(dict(version='2.4.0', build=40, sha256='0' * 64)))
+        with self.assertRaisesRegex(ValueError, 'newer or conflicting'):
+            self.publish()
+        self.notify.assert_not_called()
+        self.assertIn(self.old, self.drive.data)
 
     def test_missing_file_id_prevents_cleanup(self):
         original = self.drive.files
@@ -181,6 +220,44 @@ class DriveTests(unittest.TestCase):
             with self.assertRaisesRegex(RuntimeError, 'operation failed') as error:
                 drive.files()
         self.assertNotIn('private-token', str(error.exception))
+
+
+class SenderTests(unittest.TestCase):
+    def test_android_topic_and_validate_only_never_delivers(self):
+        for dry_run in [False, True]:
+            with self.subTest(dry_run=dry_run), tempfile.TemporaryDirectory() as root:
+                credential = Path(root) / 'sender.json'
+                credential.write_text(json.dumps(dict(project_id='coffey-table-recipes',
+                    client_email='sender@example.test', private_key='fixture-key')))
+                oauth = Mock()
+                oauth.__enter__ = Mock(return_value=io.BytesIO(b'{"access_token":"fixture-token"}'))
+                oauth.__exit__ = Mock(return_value=False)
+                fcm = Mock()
+                fcm.__enter__ = Mock(return_value=Mock(status=200))
+                fcm.__exit__ = Mock(return_value=False)
+                with patch.object(publisher.subprocess, 'run', return_value=Mock(stdout=b'signature')), \
+                     patch.object(publisher.urllib.request, 'urlopen', side_effect=[oauth, fcm]) as request:
+                    publisher.send_update(credential, '2.3.1', 40, validate_only=dry_run)
+                assertion = urllib.parse.parse_qs(request.call_args_list[0].args[0].data.decode())['assertion'][0]
+                encoded = assertion.split('.')[1]
+                claims = json.loads(base64.urlsafe_b64decode(encoded + '=' * (-len(encoded) % 4)))
+                self.assertEqual(claims['scope'], 'https://www.googleapis.com/auth/firebase.messaging')
+                self.assertEqual(claims['exp'] - claims['iat'], 3600)
+                payload = json.loads(request.call_args_list[1].args[0].data)
+                self.assertEqual(payload.get('validate_only', False), dry_run)
+                message = payload['message']
+                self.assertEqual(message['topic'], 'android_releases')
+                self.assertEqual(message['data'], dict(kind='android_update', version='2.3.1', build='40'))
+                self.assertNotIn('apns', message)
+
+    def test_wrong_firebase_project_never_sends(self):
+        with tempfile.TemporaryDirectory() as root:
+            credential = Path(root) / 'sender.json'
+            credential.write_text('{"project_id":"other-project"}')
+            with patch.object(publisher.urllib.request, 'urlopen') as request:
+                with self.assertRaisesRegex(ValueError, 'Wrong Firebase'):
+                    publisher.send_update(credential, '2.3.1', 40)
+                request.assert_not_called()
 
 
 if __name__ == '__main__':

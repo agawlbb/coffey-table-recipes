@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:firebase_auth/firebase_auth.dart';
 
 import 'src/child_mode.dart';
@@ -7,6 +9,7 @@ import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 
 import 'src/app.dart';
+import 'src/android_release_notifications.dart';
 import 'src/shared_recipe_import.dart';
 import 'src/firebase_config.dart';
 import 'src/timer_sync.dart';
@@ -25,6 +28,7 @@ Future<void> main() async {
     }
   }
   if (options != null && initializationError == null) {
+    unawaited(registerAndroidReleaseNotifications());
     final account = FirebaseAuth.instance.currentUser;
     if (account != null) {
       try {

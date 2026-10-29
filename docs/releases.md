@@ -110,7 +110,9 @@ production/development resource limits.
 ### Android publication and automatic cleanup
 
 Android releases are distributed in the existing Google Drive **recipe app**
-folder. VPS APK hosting, release push notifications and the in-app update dialog
+folder. After a new APK is uploaded and checksum-verified, send Android devices
+an informational notification that a new version is available in Google Drive.
+It includes no link or click action. VPS APK hosting and the in-app update dialog
 are retired. Historical release records below describe the previous delivery
 method and remain evidence; they are not current publication instructions.
 
@@ -140,9 +142,38 @@ moves only lower-build `CoffeyTableRecipes-VERSION-buildBUILD.apk` files in the
 selected folder to Drive trash. Upload/check failures preserve all older files.
 Unrelated files, inspection APKs, subfolders and signed iOS packages are retained.
 Repeated publication verifies the existing file without uploading a duplicate.
-The output contains the Drive file link, verified checksum and trashed names.
-Folder/file sharing is preserved; it does not make anything public or send push
-notifications. Give the user the verified Drive link.
+After Drive verification, the publisher sends the Android release announcement
+using the private Firebase credential, then cleans up older authorized APKs.
+A send failure keeps the verified new file and older releases; rerun publication
+to retry. The private `/home/debian/projects/.release-tools/android-release-notifications.json`
+receipt suppresses repeat sends after success. If a send response/receipt is
+lost after FCM acceptance, a retry may resend; Android replaces the existing
+App updates notification instead of stacking duplicates. Cleanup retries reuse
+the receipt and do not announce the release again. Only one publication should
+run at a time. Output includes the Drive link, checksum, notification-send status
+and trashed names. Folder/file sharing is preserved; nothing is made public.
+Give the user the verified Drive link.
+
+Android subscribes to `android_releases` on launch after Firebase initialization,
+independent of sign-in or timer sharing, and requests OS notification permission.
+Registration is best effort and does not block startup. The native receiver posts
+an App updates notice only for a higher build, including with Flutter stopped.
+Its text says that the version is available in Google Drive. There is no
+click action or embedded link; recipients use their own shared Drive location.
+No metadata check, update dialog or automatic installation is performed.
+iOS/web do not register for these announcements. Notification denial suppresses
+the notice. Native receipt and device delivery require a later authorized build
+and device test; existing 2.3.0 clients may already be subscribed, but retain their
+original notification behavior until updated.
+
+The sender uses `/home/debian/projects/.release-tools/credentials/timer-push.local.json`
+(mode 600), Python's standard library and OpenSSL, with only Firebase messaging
+permission. It is separate from the Drive OAuth credential. The release payload
+contains kind/version/build only, without an account, link or folder path.
+On 2026-10-29, OAuth and FCM `validate_only` checks passed for this payload;
+no live announcement was sent. Existing release 2.3.0/build 39 was recorded as
+the private baseline, so copying or republishing it does not generate a new
+announcement. Future releases use their greater build number.
 
 ### Google Drive access setup
 

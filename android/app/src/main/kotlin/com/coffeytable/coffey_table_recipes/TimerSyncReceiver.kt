@@ -15,6 +15,15 @@ import org.json.JSONObject
 /** Native reception does not depend on a running Flutter activity or isolate. */
 class TimerSyncReceiver : FirebaseMessagingService() {
     override fun onMessageReceived(message: RemoteMessage) {
+        if (message.data["kind"] == "android_update") {
+            val build = message.data["build"]?.toLongOrNull() ?: return
+            val version = message.data["version"] ?: return
+            if (!version.matches(Regex("[0-9]+\\.[0-9]+\\.[0-9]+"))) return
+            val info = packageManager.getPackageInfo(packageName, 0)
+            val installed = if (Build.VERSION.SDK_INT >= 28) info.longVersionCode else info.versionCode.toLong()
+            if (build > installed) AndroidReleaseNotice.show(this, version)
+            return
+        }
         if (message.data["kind"] != "recipe_timer") return
         try { TimerSyncNative.apply(this, JSONObject(message.data as Map<*, *>)) }
         catch (_: Exception) {
@@ -113,4 +122,19 @@ object TimerSyncNative {
     }
 
     fun register(bridge: MethodChannel) { channel = bridge }
+}
+
+/** Informational release notices; recipients use their own Google Drive location. */
+object AndroidReleaseNotice {
+    fun show(c: Context, version: String) {
+        if (Build.VERSION.SDK_INT >= 33 && c.checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) return
+        val manager = c.getSystemService(NotificationManager::class.java)
+        if (Build.VERSION.SDK_INT >= 26) manager.createNotificationChannel(NotificationChannel("android_updates", "App updates", NotificationManager.IMPORTANCE_DEFAULT))
+        val builder = if (Build.VERSION.SDK_INT >= 26) Notification.Builder(c, "android_updates") else Notification.Builder(c)
+        manager.notify(7103, builder.setSmallIcon(android.R.drawable.stat_sys_download_done)
+            .setContentTitle("Coffey Table Recipes update")
+            .setContentText("Version $version is available in Google Drive.")
+            .setStyle(Notification.BigTextStyle().bigText("A new version of Coffey Table Recipes ($version) is available in Google Drive."))
+            .build())
+    }
 }

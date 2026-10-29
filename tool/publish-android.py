@@ -1,11 +1,16 @@
 """Upload a verified release APK to Google Drive before trashing older releases."""
 import argparse
+import base64
 import configparser
 import hashlib
 import json
 from pathlib import Path
 import re
 import subprocess
+import tempfile
+import time
+import urllib.parse
+import urllib.request
 import zipfile
 
 RELEASE = re.compile(r'CoffeyTableRecipes-(\d+\.\d+\.\d+)-build([1-9]\d*)\.apk')
@@ -78,7 +83,63 @@ def release_files(rows):
     return releases
 
 
-def publish(apk, version, build, expected, drive):
+def send_update(service_account, version, build, *, validate_only=False):
+    """Send an Android-only release hint using the private messaging identity."""
+    key = json.loads(service_account.read_text())
+    if key.get('project_id') != 'coffey-table-recipes':
+        raise ValueError('Wrong Firebase push project')
+    def encode(value):
+        return base64.urlsafe_b64encode(value).rstrip(b'=')
+    now = int(time.time())
+    claims = dict(iss=key['client_email'],
+                  scope='https://www.googleapis.com/auth/firebase.messaging',
+                  aud='https://oauth2.googleapis.com/token', iat=now, exp=now + 3600)
+    unsigned = b'.'.join(encode(json.dumps(value).encode()) for value in
+                         ({'alg': 'RS256', 'typ': 'JWT'}, claims))
+    with tempfile.TemporaryDirectory() as private:
+        path = Path(private) / 'key.pem'
+        path.write_text(key['private_key'])
+        path.chmod(0o600)
+        signed = subprocess.run(['openssl', 'dgst', '-sha256', '-sign', str(path)],
+                                input=unsigned, capture_output=True, check=True).stdout
+    assertion = (unsigned + b'.' + encode(signed)).decode()
+    request = urllib.request.Request('https://oauth2.googleapis.com/token',
+        data=urllib.parse.urlencode(dict(grant_type='urn:ietf:params:oauth:grant-type:jwt-bearer',
+                                         assertion=assertion)).encode())
+    with urllib.request.urlopen(request, timeout=30) as response:
+        token = json.load(response)['access_token']
+    message = dict(topic='android_releases', data=dict(kind='android_update',
+                   version=version, build=str(build)),
+                   android=dict(priority='HIGH', ttl='86400s', collapse_key='android_update'))
+    payload = dict(message=message)
+    if validate_only:
+        payload['validate_only'] = True
+    request = urllib.request.Request(
+        'https://fcm.googleapis.com/v1/projects/coffey-table-recipes/messages:send',
+        data=json.dumps(payload).encode(),
+        headers={'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json'})
+    with urllib.request.urlopen(request, timeout=30) as response:
+        if response.status != 200:
+            raise RuntimeError('Release notification failed; retry publication')
+
+
+def notify_release(version, build, expected, receipt, notify):
+    release = dict(version=version, build=build, sha256=expected)
+    sent = json.loads(receipt.read_text()) if receipt.exists() else None
+    if sent == release:
+        return False
+    if sent and int(sent['build']) >= build:
+        raise ValueError('Notification receipt contains a newer or conflicting release')
+    notify(version, build)
+    receipt.parent.mkdir(parents=True, exist_ok=True)
+    temporary = receipt.with_name('.' + receipt.name + '-new')
+    temporary.write_text(json.dumps(release) + '\n')
+    temporary.chmod(0o600)
+    temporary.replace(receipt)
+    return True
+
+
+def publish(apk, version, build, expected, drive, *, notify, receipt):
     filename = f'CoffeyTableRecipes-{version}-build{build}.apk'
     if not RELEASE.fullmatch(filename) or not re.fullmatch(r'[a-f0-9]{64}', expected):
         raise ValueError('Invalid release version, build or SHA-256')
@@ -103,6 +164,7 @@ def publish(apk, version, build, expected, drive):
     if not uploaded or not re.fullmatch(r'[A-Za-z0-9_-]+', uploaded.get('ID', '')):
         raise ValueError('Could not identify the verified Drive file; older releases retained')
 
+    notified = notify_release(version, build, expected, receipt, notify)
     removed = []
     for name in releases:
         if int(RELEASE.fullmatch(name)[2]) < build:
@@ -111,7 +173,7 @@ def publish(apk, version, build, expected, drive):
     remaining = release_files(drive.files())
     if filename not in remaining or any(name in remaining for name in removed):
         raise ValueError('Drive cleanup could not be confirmed; inspect destination before retrying')
-    return dict(filename=filename, sha256=expected, removed=sorted(removed),
+    return dict(filename=filename, sha256=expected, removed=sorted(removed), notified=notified,
                 url=f'https://drive.google.com/file/d/{uploaded["ID"]}/view')
 
 
@@ -126,9 +188,13 @@ if __name__ == '__main__':
     tools = Path('/home/debian/projects/.release-tools')
     parser.add_argument('--rclone', type=Path, default=tools / 'rclone')
     parser.add_argument('--config', type=Path, default=tools / 'credentials/rclone.conf')
+    parser.add_argument('--service-account', type=Path, default=tools / 'credentials/timer-push.local.json')
+    parser.add_argument('--notification-receipt', type=Path, default=tools / 'android-release-notifications.json')
     args = parser.parse_args()
-    drive = Drive(args.rclone, args.config, args.remote, args.folder_id)
     try:
-        print(json.dumps(publish(args.apk, args.version, args.build, args.sha256, drive), indent=2))
+        drive = Drive(args.rclone, args.config, args.remote, args.folder_id)
+        print(json.dumps(publish(args.apk, args.version, args.build, args.sha256, drive,
+            notify=lambda version, build: send_update(args.service_account, version, build),
+            receipt=args.notification_receipt), indent=2))
     except (ValueError, RuntimeError, OSError, configparser.Error, zipfile.BadZipFile, subprocess.SubprocessError) as error:
         parser.exit(1, f'Publication failed: {error}\n')

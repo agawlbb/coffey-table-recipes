@@ -1,12 +1,19 @@
-# Android distribution change
+# Android Drive distribution and release announcements
 
-The user rejected the Android update-notification process and requested work on
-`feature/android-drive-distribution`. This branch starts at fetched app
-`origin/main` `fe83d03`. It removes the Android-only Firebase release handler,
-release-topic subscription/notification permission request, startup/resume
-metadata checks, update dialog and its feature-specific tests. Account-private
-timer notifications and navigation remain in place. No dependency was removed
-because Firebase messaging, package info and URL launching have other callers.
+Work remains on `feature/android-drive-distribution`, originally based on fetched
+app `origin/main` `fe83d03`. APK distribution stays in Google Drive. Android
+receives a notification advising that a newer version is available there.
+Notifications have no link or click action because recipients may use different
+shared Drive locations. The automatic update window, startup/resume metadata
+checks and VPS APK hosting remain removed. Timer notifications and navigation
+are preserved. No new dependency or user-facing control is introduced.
+
+After Firebase initialization, Android requests notification permission and
+subscribes to `android_releases` without delaying startup. It is independent of
+sign-in/timer sharing and retries registration on the next launch after failure.
+iOS/web skip registration. Native reception checks the installed build and
+version format before displaying the informational App updates notification.
+Current/newer installed builds and denied notification permission suppress it.
 
 Android delivery uses the existing Google Drive **recipe app** folder. The
 publisher requires a privately configured rclone OAuth remote and exact folder
@@ -14,7 +21,13 @@ ID, refuses ambiguous/conflicting releases, uploads the signed APK, downloads
 and verifies SHA-256, and only then trashes precisely named lower-build release
 APKs in that folder. Existing release filenames are verified before reuse.
 Unrelated files, subfolders, inspection APKs and signed iOS files are preserved.
-No Google sharing permissions are changed and no release push is sent.
+No Google sharing permissions are changed. After uploaded-byte verification,
+the publisher sends the Android-only FCM announcement, writes a private atomic
+mode-600 receipt, and then removes older authorized releases. Notification
+failures preserve older files for retry; repeat publication or cleanup retry
+reuses the send receipt. Lost FCM responses/receipt writes can permit a duplicate
+send, but a fixed native notification ID replaces earlier notices. A newer or
+conflicting receipt is rejected rather than overwritten.
 See [current publication/setup instructions](releases.md#android-publication-and-automatic-cleanup).
 
 VPS infrastructure changes are on the matching branch in `vps_admin`, based on
@@ -55,19 +68,22 @@ uploaded bytes were downloaded and verified:
  Existing child APK access is not assumed from
 folder selection alone; existing legacy files must be selected explicitly if
 they are to be cleaned up by this credential.
-The existing Firebase credential stays private and is no longer needed by the
-release publisher. Installed 2.3.0 apps retain their prior code until a later
+The existing Firebase messaging credential is reused privately by the release
+publisher. OAuth and FCM validate-only authorization passed for the actual new
+payload on 2026-10-29; no notification was delivered by this check. The existing
+2.3.0/build 39 artifact's hash was checked before initializing its private
+notification baseline, so this already-delivered version is not reannounced. Installed 2.3.0 apps retain their prior code until a later
 explicitly authorized release is installed; the former update endpoint is now
 unavailable and its existing client silently ignores that response.
 
 Focused validation through the shared development container:
 
-- `dart format lib/src/app.dart`: no changes needed.
-- `flutter analyze --no-pub lib/src/app.dart`: no issues.
-- `flutter test --no-pub test/timer_sync_test.dart test/account_timer_menu_test.dart test/recipe_timer_navigation_test.dart`: 10 passed.
-- `python3 -m unittest tool/test_publish_android.py`: 17 passed, including upload/download failure preservation, unchanged-filename retry, duplicate names, downgrade/conflict refusal, missing IDs and cleanup failure.
-- Manual native-source diff confirms only the release-update handling was removed.
-- No app build, tag, app deployment or device installation is part of this task.
+- `dart format lib/main.dart lib/src/android_release_notifications.dart test/android_release_notifications_test.dart`.
+- `flutter analyze --no-pub lib/main.dart lib/src/android_release_notifications.dart test/android_release_notifications_test.dart`: no issues.
+- `flutter test --no-pub test/android_release_notifications_test.dart test/timer_sync_test.dart test/account_timer_menu_test.dart test/recipe_timer_navigation_test.dart`: 14 passed.
+- `python3 -m unittest tool/test_publish_android.py`: 23 passed, including Drive failure preservation, duplicate/conflicting releases, restricted config, notification ordering/failure/retry, repeat-send suppression, scoped OAuth and validate-only payloads.
+- Manual native-source review confirms there is no notification click intent or URL, startup metadata check or update dialog. Native Android compilation/device receipt have not been verified in this task.
+- No app build, tag, app deployment, device installation or live broadcast is part of this task.
 
 Keep the branch for user review; no automatic merge to main is intended.
 
@@ -112,7 +128,7 @@ Validation on 2026-10-29, through the shared development container:
 
 - `dart format lib/src/android_updates.dart lib/src/app.dart test/android_updates_test.dart`.
 - `flutter analyze --no-pub lib/src/android_updates.dart lib/src/app.dart test/android_updates_test.dart`: no issues.
-- `flutter test --no-pub test/android_updates_test.dart test/timer_sync_test.dart test/account_timer_menu_test.dart test/recipe_timer_navigation_test.dart`: 17 passed.
+- `flutter test --no-pub test/android_updates_test.dart test/timer_sync_test.dart test/account_timer_menu_test.dart test/recipe_timer_navigation_test.dart`: 16 passed.
 - `python3 -m unittest tool/test_publish_android.py`: 11 passed, including publication ordering, failure preservation/retry, repeat-send suppression, scoped OAuth and Android topic payload.
 - Diff/links reviewed. An initial test command included nonexistent `test/widget_test.dart`; the corrected command above passed.
 
