@@ -20,6 +20,12 @@ void main() {
     ]) {
       expect(managedRecipeImageUrl(url), url);
     }
+    expect(
+      managedRecipeImageUrl(
+        'https://coffeybean.com/CoffeyTableRecipes/media/recipe-illustrations/crab-mushroom-wine-sauce-ai-v1.jpg',
+      ),
+      'https://ctr.coffeybean.com/media/recipes/crab-mushroom-wine-sauce-ai-v1.jpg',
+    );
     final legacy = '${List.filled(64, 'b').join()}.png';
     expect(
       managedRecipeImageUrl(

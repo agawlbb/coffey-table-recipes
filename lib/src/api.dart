@@ -81,7 +81,7 @@ String managedRecipeImageUrl(String value) {
     return value;
   }
   final match = RegExp(
-    r'^/CoffeyTableRecipes/media/(?:recipes|recipe-photos)/((?:[a-f0-9]{48}|[a-f0-9]{64})\.(?:jpg|png|webp)|category-[1-9][0-9]*\.jpg)$',
+    r'^/CoffeyTableRecipes/media/(?:recipes|recipe-photos|recipe-illustrations)/((?:[a-f0-9]{48}|[a-f0-9]{64}|[a-z][a-z0-9-]*-ai-v[1-9][0-9]*)\.(?:jpg|png|webp)|category-[1-9][0-9]*\.jpg)$',
   ).firstMatch(uri.path);
   if (match == null) {
     return value;
