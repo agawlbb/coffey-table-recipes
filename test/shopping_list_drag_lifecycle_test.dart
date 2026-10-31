@@ -38,9 +38,13 @@ void main() {
         ),
       );
       await tester.pumpAndSettle();
+      await tester.pump(const Duration(seconds: 2));
+      await tester.pumpAndSettle();
       expect(find.byType(DropdownButtonFormField<String>), findsNothing);
       await tester.enterText(find.byType(TextField), 'Apples');
       await tester.tap(find.byTooltip('Add item'));
+      await tester.pumpAndSettle();
+      await tester.pump(const Duration(seconds: 2));
       await tester.pumpAndSettle();
       expect(items.firstWhere((i) => i['name'] == 'Apples')['department'], '');
       expect(
@@ -57,6 +61,8 @@ void main() {
       );
       await tester.pump(const Duration(milliseconds: 50));
       await assign.up();
+      await tester.pumpAndSettle();
+      await tester.pump(const Duration(seconds: 2));
       await tester.pumpAndSettle();
       expect(
         items.firstWhere((i) => i['name'] == 'Apples')['department'],
@@ -77,6 +83,8 @@ void main() {
       );
       await tester.pump(const Duration(milliseconds: 50));
       await unassign.up();
+      await tester.pumpAndSettle();
+      await tester.pump(const Duration(seconds: 2));
       await tester.pumpAndSettle();
       expect(items.firstWhere((i) => i['name'] == 'Apples')['department'], '');
       expect(find.byKey(const ValueKey('department-Produce')), findsNothing);
@@ -120,6 +128,8 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
+    await tester.pump(const Duration(seconds: 2));
+    await tester.pumpAndSettle();
     final gesture = await tester.startGesture(
       tester.getCenter(find.text('Apples')),
       kind: PointerDeviceKind.mouse,
@@ -132,6 +142,8 @@ void main() {
     await tester.pump(const Duration(milliseconds: 50));
     await gesture.up();
     await tester.pumpAndSettle();
+    await tester.pump(const Duration(seconds: 2));
+    await tester.pumpAndSettle();
     expect(items.single['department'], 'Dairy & eggs');
     expect(items.single['checked'], false);
     final touch = await tester.startGesture(
@@ -142,6 +154,8 @@ void main() {
     await tester.pump(const Duration(milliseconds: 50));
     await touch.up();
     await tester.pumpAndSettle();
+    await tester.pump(const Duration(seconds: 2));
+    await tester.pumpAndSettle();
     expect(items.single['department'], 'Dairy & eggs');
     final click = await tester.startGesture(
       tester.getCenter(find.text('Apples')),
@@ -149,6 +163,8 @@ void main() {
     );
     await click.up();
     await tester.pump(const Duration(milliseconds: 350));
+    await tester.pumpAndSettle();
+    await tester.pump(const Duration(seconds: 2));
     await tester.pumpAndSettle();
     expect(items.single['checked'], true);
     await tester.pumpWidget(const SizedBox());
@@ -198,6 +214,8 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
+    await tester.pump(const Duration(seconds: 2));
+    await tester.pumpAndSettle();
     final draggable = find.descendant(
       of: find.byKey(const ValueKey('apples')),
       matching: find.byWidgetPredicate((widget) => widget is Draggable<String>),
@@ -215,6 +233,8 @@ void main() {
       );
       await tester.pump(const Duration(milliseconds: 100));
       await gesture.up();
+      await tester.pumpAndSettle();
+      await tester.pump(const Duration(seconds: 2));
       await tester.pumpAndSettle();
       expect(
         items.firstWhere((i) => i['id'] == 'apples')['department'],
