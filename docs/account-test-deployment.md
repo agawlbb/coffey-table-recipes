@@ -1,5 +1,10 @@
 # Account test deployment — 2026-10-31
 
+The current Android test is [build 42](verification-delivery-fix.md), which fixes
+the verification connection interruption and adds a resend cooldown. The build-41
+delivery below is historical; its APK is no longer visible in the authorized
+Drive listing.
+
 The user authorized deploying the VPS feature branch and delivering a test Android
 APK to the usual Google Drive recipe app folder. All three account branches remain
 unmerged. The hosted web app and InMotion retirement branch were not deployed.

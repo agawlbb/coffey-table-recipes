@@ -27,8 +27,30 @@ failure requires no backend source or credential changes. No real test email or
 new Firebase account is created by the regression tests. Actual fresh-user signup
 and inbox delivery remain device checks after installing the updated test APK.
 
-Focused validation covers
+Focused validation: 22 tests passed in one invocation across
 `shopping_socket_test.dart`, `backend_socket_test.dart`,
 `email_verification_test.dart`, `verification_delivery_test.dart` and
-`invitations_test.dart`. Changed Dart files were formatted. Full-suite, analysis
-and updated APK delivery evidence will be recorded after completion.
+`invitations_test.dart`. Changed Dart files were formatted and scoped analysis
+passed with no issues. The complete `flutter test --no-pub --reporter compact`
+suite passed all 549 tests. It ran once after the final source changes because
+the socket lifecycle affects shared account/data connections.
+
+A live diagnostic also generated a Firebase action link for an existing unverified
+account using the deployed VPS service. It succeeded without sending mail or
+logging the link, recipient or token. No new account was created. The existing
+VPS runtime and private credentials were retained; there was no backend source
+change or unnecessary restart.
+
+Updated test delivery: Android `2.4.0-account-test`, build 42, from immutable source
+`80c7260b3ac42479123225431af5c7016cc915cc`.
+[Build 41210524212](https://github.com/agawlbb/coffey-table-recipes/actions/runs/41210524212)
+passed, including original signing identity, package/version/source and hosted
+app-link verification. Independent local APK checks and the downloaded Drive
+SHA-256 matched: `552c1b92af58162e33e4036abf5655e95a706231baae35ace5c0f37de284bce4`.
+[Download verified build 42](https://drive.google.com/file/d/1kBLKeNviqthun7UYSd5RTqpTyLF6sNVv/view).
+The usual private pinned recipe app folder was used. An informational Android
+notification was sent with no link/click action. Stable build 40 was retained;
+superseded test build 41 was already absent from the authorized listing, so this
+publication trashed no files. No web/iOS build, merge to main, app metadata on the
+VPS or sharing change was performed. Install over the previous app and retry
+verification, or test automatic delivery with a fresh signup.
