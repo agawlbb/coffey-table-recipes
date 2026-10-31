@@ -291,6 +291,59 @@ Google Drive verification/notification and TestFlight processing are recorded
 below after delivery. Physical-device native-link checks require an available
 device; none is attached to this development environment.
 
+Web run [41235473623](https://github.com/agawlbb/coffey-table-recipes/actions/runs/41235473623)
+succeeded with analysis, all **558 tests**, compilation, isolated deployment-client
+checks and hosted metadata/asset hash verification. Independent public HTTPS
+checks confirm 2.5.0/build 47 at immutable source
+`02170f6f5c4a9cf69d92523fe638f0154dfea0fe`, the expected `/CoffeyTableRecipes/app/`
+base path and available JS/font assets. Published `main.dart.js` SHA-256 is
+`71b02fbeb52e3cb55130aae534a01fbf5c62fa2ca1b4a9cfcf9ddd01fc9b25df`.
+Only static Flutter assets were published on InMotion; its PHP/backend retirement
+workflow was not dispatched and its last existing run remains `41194982790`.
+
+Android run [41235471250](https://github.com/agawlbb/coffey-table-recipes/actions/runs/41235471250)
+succeeded from the exact release tag. Independent artifact verification confirms
+package `com.coffeytable.coffey_table_recipes`, version 2.5.0/build 47,
+non-debuggable status, immutable source `02170f6f5c4a9cf69d92523fe638f0154dfea0fe`,
+compiled VPS recipe-link route and original certificate SHA-256
+`f8de933f14b9bb4b3191a94aedc8637972c5ab224565f6abd7808f8038d12097`. The actual-certificate hosted Android
+association check passed. The workflow also verified the retained Kotlin JNI
+classes required by timer preferences. APK size is 70,014,442 bytes;
+SHA-256 is `0a53a84506c4ee8360b9bc438d4783b2280b29871ba1f8b983a877828ef6215e`.
+
+The exact-tag `tool/publish-android.py` used the private restricted Drive OAuth
+configuration and pinned recipe app folder. Uploaded bytes were downloaded and
+SHA-256 matched before informational FCM notification and cleanup. FCM accepted
+the notice with no link or click action; device receipt is not claimed. No older
+matching release APK was visible (`removed=[]`); test APKs, unrelated files,
+signed iOS packages and sharing were retained. Verified
+[Android Drive APK](https://drive.google.com/file/d/16lsi95dbnFOkP2A1y6YmRJ3hZ9rkHfHe/view). No APK or metadata was published on the VPS.
+
+Signed iOS run [41235472392](https://github.com/agawlbb/coffey-table-recipes/actions/runs/41235472392)
+succeeded with analysis, all **558 tests**, iOS tooling checks, archive/export,
+actual signed-package verification and App Store Connect upload. Exported IPA
+SHA-256 is `ac5b4d6968bd34ec8928ff459b8b98c3f45ce4eee6e15b2c0ee4d53159451317`, from immutable source
+`02170f6f5c4a9cf69d92523fe638f0154dfea0fe`. Runner, ShareExtension and TimerWidget verify
+version 2.5.0/build 47, strict signatures, unexpired App Store Connect profiles,
+matching signed application/team identities, and non-exempt-encryption false
+flags. Actual exported Runner production APNs and Associated Domains match the
+hosted AASA; required App Groups pass. Verification completed at 19:57:02Z and
+upload submission completed at 20:00:22Z. Existing tester/territory settings were
+not changed; France exclusion is retained. Read-only Apple processing and existing
+Family-group availability verification follows below.
+
+Apple status run [41236913969](https://github.com/agawlbb/coffey-table-recipes/actions/runs/41236913969)
+verified build `a132afee-3e90-4fd0-ba21-3409b06b9281`: processing **VALID**,
+usesNonExemptEncryption false, internal state **IN_BETA_TESTING**, and
+ready=true for the existing **Family testers** group. No
+additional upload, tester invitation or territory change was needed. All three
+platforms are delivered from `v2.5.0`; web and native actual-package association
+checks passed. Physical-device installation/link resolution, background behavior
+and notification receipt were not exercised because no device is attached.
+Release records are committed back to main; temporary release branches are removed
+only after verifying their commits are contained in main. Historical detached
+worktrees, recovery evidence, test APKs and immutable release tags are preserved.
+
 ## 2.4.0 — VPS AI transport and Google Drive Android releases
 
 User requested stale local branch cleanup and all-platform release from main. After fetch/prune, live app and inMotion remotes contained only main. The deleted feature/vps-ai-websocket local branch was verified as an ancestor of canonical main and removed without discarding unique work; historical detached archives were preserved. Laptop integration copies fast-forwarded cleanly. Isolated task codex/release-2.4.0 began from fetched app main `573e51e7ce94174c851b9efa83b2a56bb78493ef`. The active backend task was coordinated with user permission and completed its integration, deployment and branch retirement before release publication; no overlapping source/signing job was found. All project local branches/tags are synchronized before immutable tagging.
