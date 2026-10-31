@@ -74,7 +74,7 @@ class _ShoppingListScreenState extends State<ShoppingListScreen>
   }
 
   void _startEditing(Map<String, dynamic> item) {
-    if (childMode.value) return;
+    if (childMode.value || _displayPause != null) return;
     if (_heldItemId == item['id']) return;
     _finishEditing();
     _editName.text = item['name'] as String;
@@ -144,6 +144,59 @@ class _ShoppingListScreenState extends State<ShoppingListScreen>
   bool _saveNotice = false;
   final _retryWaiters = <Timer, Completer<bool>>{};
   Timer? _poll;
+  Timer? _displayPause;
+  final _pendingCompletion = <String, Timer>{};
+
+  bool _atBottom(Map<String, dynamic> item) =>
+      item['checked'] == true && !_pendingCompletion.containsKey(item['id']);
+
+  void _setItems(
+    List<Map<String, dynamic>> items, {
+    bool remote = false,
+    bool initial = false,
+  }) {
+    final previouslyChecked = {
+      for (final item in _items)
+        if (item['checked'] == true) item['id'],
+    };
+    final checked = {
+      for (final item in items)
+        if (item['checked'] == true) item['id'] as String,
+    };
+    for (final id in _pendingCompletion.keys.toList()) {
+      if (!checked.contains(id)) _pendingCompletion.remove(id)?.cancel();
+    }
+    if (!initial) {
+      for (final id in checked.difference(previouslyChecked)) {
+        _pendingCompletion[id] = Timer(const Duration(seconds: 5), () {
+          if (!mounted) return;
+          setState(() {
+            _pendingCompletion.remove(id);
+            // The delayed move is still a remote display change when the
+            // check arrived from another device. Keep an active inline
+            // editor intact, as incoming refreshes do while editing.
+            if (remote && _editingId == null) _pauseEdits();
+          });
+        });
+      }
+    }
+    _items = items;
+  }
+
+  // A changed row can put a different item under an incoming tap. Only actual
+  // incoming display changes restart the pause; local saves never do so.
+  void _pauseAfterDisplayChange(Object before) {
+    if (before == jsonEncode([_items, _departments])) return;
+    _pauseEdits();
+  }
+
+  void _pauseEdits() {
+    _displayPause?.cancel();
+    _displayPause = Timer(const Duration(seconds: 2), () {
+      if (mounted) setState(() => _displayPause = null);
+    });
+  }
+
   String get _path => '/households/${widget.householdId}/shopping-list';
 
   @override
@@ -200,13 +253,20 @@ class _ShoppingListScreenState extends State<ShoppingListScreen>
   }
 
   void _accept(Map<String, dynamic> data) {
+    final before = jsonEncode([_items, _departments]);
+    final wasDisplayed = !_loading;
     _departments =
         (data['departments'] as List?)?.cast<String>() ?? _departments;
     _revision = data['revision'] as int;
-    _items = (data['items'] as List)
-        .map((item) => Map<String, dynamic>.from(item as Map))
-        .toList();
+    _setItems(
+      (data['items'] as List)
+          .map((item) => Map<String, dynamic>.from(item as Map))
+          .toList(),
+      remote: true,
+      initial: !wasDisplayed,
+    );
     _confirmedItems = _items;
+    if (wasDisplayed) _pauseAfterDisplayChange(before);
   }
 
   void _localChanged() {
@@ -321,6 +381,7 @@ class _ShoppingListScreenState extends State<ShoppingListScreen>
       final firstResponse = !_serverLoaded;
       _serverLoaded = true;
       if (!_saving &&
+          !_holding &&
           !_dragging &&
           _editingId == null &&
           generation == _saveGeneration) {
@@ -359,7 +420,7 @@ class _ShoppingListScreenState extends State<ShoppingListScreen>
           _disconnected = false;
           if (denied) {
             _accessDenied = true;
-            _items = [];
+            _setItems([]);
             _confirmedItems = [];
             _revision = 0;
           }
@@ -374,7 +435,7 @@ class _ShoppingListScreenState extends State<ShoppingListScreen>
   }
 
   Future<bool> _save(List<Map<String, dynamic>> items) {
-    if (childMode.value) return Future.value(false);
+    if (childMode.value || _displayPause != null) return Future.value(false);
     if (widget.localFirst && _saving) return Future.value(false);
     if ((_disconnected && !widget.localFirst) || _accessDenied) {
       return Future.value(false);
@@ -388,7 +449,7 @@ class _ShoppingListScreenState extends State<ShoppingListScreen>
     setState(() {
       // In local-first mode the response confirms a durable device write,
       // not a server upload. Do not hide a deletion before that write finishes.
-      if (!widget.localFirst) _items = items;
+      if (!widget.localFirst) _setItems(items);
       _saving = true;
       _error = null;
       _saveNotice = false;
@@ -439,9 +500,12 @@ class _ShoppingListScreenState extends State<ShoppingListScreen>
         _writes.removeAt(0);
         if (!write.done.isCompleted) write.done.complete(true);
       } catch (error) {
+        String? remoteBefore;
         if (error is ApiException && error.status == 409) {
           try {
+            final before = jsonEncode([_confirmedItems, _departments]);
             final data = await widget.request(_path);
+            remoteBefore = before;
             _departments =
                 (data['departments'] as List?)?.cast<String>() ?? _departments;
             _revision = data['revision'] as int;
@@ -459,12 +523,13 @@ class _ShoppingListScreenState extends State<ShoppingListScreen>
         _writes.clear();
         if (mounted) {
           setState(() {
-            _items = _confirmedItems;
+            _setItems(_confirmedItems, remote: remoteBefore != null);
+            if (remoteBefore != null) _pauseAfterDisplayChange(remoteBefore);
             if (_connectionFailure(error)) _disconnected = true;
             if (error is ApiException &&
                 [401, 403, 404].contains(error.status)) {
               _accessDenied = true;
-              _items = [];
+              _setItems([]);
               _confirmedItems = [];
               _revision = 0;
               unawaited(widget.cache?.clear());
@@ -487,14 +552,14 @@ class _ShoppingListScreenState extends State<ShoppingListScreen>
     }
     if (mounted) {
       setState(() {
-        _items = _confirmedItems;
+        _setItems(_confirmedItems);
         _saving = false;
       });
     }
   }
 
   Future<void> _add() async {
-    if (childMode.value) return;
+    if (childMode.value || _displayPause != null) return;
     final name = _name.text.trim();
     if (name.isEmpty) {
       _focus.requestFocus();
@@ -528,6 +593,11 @@ class _ShoppingListScreenState extends State<ShoppingListScreen>
     _retryWaiters.clear();
     localDataChanges.removeListener(_localChanged);
     _poll?.cancel();
+    _displayPause?.cancel();
+    for (final timer in _pendingCompletion.values) {
+      timer.cancel();
+    }
+    _pendingCompletion.clear();
     _autoScroll?.cancel();
     _listController.dispose();
     WidgetsBinding.instance.removeObserver(this);
@@ -544,29 +614,27 @@ class _ShoppingListScreenState extends State<ShoppingListScreen>
 
   List<Map<String, dynamic>> get _rows => [
     {'heading': ''},
-    ..._items.where(
-      (item) => item['department'] == '' && item['checked'] != true,
-    ),
+    ..._items.where((item) => item['department'] == '' && !_atBottom(item)),
     for (final department in _departments)
       if (_holding ||
           _dragging ||
           _items.any(
-            (item) =>
-                item['department'] == department && item['checked'] != true,
+            (item) => item['department'] == department && !_atBottom(item),
           )) ...[
         {'heading': department},
         ..._items.where(
-          (item) => item['department'] == department && item['checked'] != true,
+          (item) => item['department'] == department && !_atBottom(item),
         ),
       ],
-    if (_items.any((item) => item['checked'] == true)) ...[
+    if (_items.any((item) => _atBottom(item))) ...[
       {'completed': true},
-      ..._items.where((item) => item['checked'] == true),
+      ..._items.where((item) => _atBottom(item)),
     ],
   ];
 
   void _pressItem(PointerDownEvent event, String id, BuildContext rowContext) {
-    if (_editingId == id ||
+    if (_displayPause != null ||
+        _editingId == id ||
         _loading ||
         (_disconnected && !widget.localFirst) ||
         _accessDenied ||
@@ -662,7 +730,8 @@ class _ShoppingListScreenState extends State<ShoppingListScreen>
     bool after = false,
   }) {
     final original = _items.where((item) => item['id'] == id).firstOrNull;
-    if (!_dropMoved ||
+    if (_displayPause != null ||
+        !_dropMoved ||
         original == null ||
         target == id ||
         (_disconnected && !widget.localFirst) ||
@@ -706,7 +775,7 @@ class _ShoppingListScreenState extends State<ShoppingListScreen>
         toggled: checked,
         child: Card(
           margin: EdgeInsets.only(
-            left: !checked && item['department'] != '' ? 16 : 0,
+            left: !_atBottom(item) && item['department'] != '' ? 16 : 0,
             bottom: 6,
           ),
           clipBehavior: Clip.antiAlias,
@@ -867,6 +936,7 @@ class _ShoppingListScreenState extends State<ShoppingListScreen>
               key: ValueKey('department-$department'),
               hitTestBehavior: HitTestBehavior.opaque,
               onWillAcceptWithDetails: (details) =>
+                  _displayPause == null &&
                   !_loading &&
                   (!_disconnected || widget.localFirst) &&
                   !_accessDenied &&
@@ -909,6 +979,7 @@ class _ShoppingListScreenState extends State<ShoppingListScreen>
             builder: (rowContext, constraints) => DragTarget<String>(
               hitTestBehavior: HitTestBehavior.opaque,
               onWillAcceptWithDetails: (details) =>
+                  _displayPause == null &&
                   !_loading &&
                   (!_disconnected || widget.localFirst) &&
                   !_accessDenied &&
@@ -947,7 +1018,8 @@ class _ShoppingListScreenState extends State<ShoppingListScreen>
                   touch: touch,
                   data: item['id'] as String,
                   maxSimultaneousDrags:
-                      childMode.value ||
+                      _displayPause != null ||
+                          childMode.value ||
                           _editingId == item['id'] ||
                           _loading ||
                           (_disconnected && !widget.localFirst) ||
@@ -991,6 +1063,7 @@ class _ShoppingListScreenState extends State<ShoppingListScreen>
     childModeOf(context);
     final colors = Theme.of(context).colorScheme;
     final busy =
+        _displayPause != null ||
         childMode.value ||
         _loading ||
         _saving ||
@@ -1061,7 +1134,10 @@ class _ShoppingListScreenState extends State<ShoppingListScreen>
                             child: TextField(
                               controller: _name,
                               focusNode: _focus,
-                              enabled: !_loading && !_saving,
+                              enabled:
+                                  !_loading &&
+                                  !_saving &&
+                                  _displayPause == null,
                               maxLength: 200,
                               textInputAction: TextInputAction.done,
                               decoration: const InputDecoration(
