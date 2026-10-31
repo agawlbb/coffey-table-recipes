@@ -1,13 +1,18 @@
 # Account test deployment — 2026-10-31
 
+The user accepted this work for integration into `main` on 2026-10-31, with no new
+release, build or deployment. The account feature branches are removed after the
+verified merges. Deployment statements below record the earlier test rollout.
+
 The current Android test is [build 43](child-mode-sql.md), which uses SQL child-mode
 policy through the VPS and retains the verification connection fix and resend cooldown. The build-41
 delivery below is historical; its APK is no longer visible in the authorized
 Drive listing.
 
 The user authorized deploying the VPS feature branch and delivering a test Android
-APK to the usual Google Drive recipe app folder. All three account branches remain
-unmerged. The hosted web app and InMotion retirement branch were not deployed.
+APK to the usual Google Drive recipe app folder. At that delivery checkpoint all
+three account branches were unmerged. The hosted web app and InMotion retirement
+branch had not yet been deployed.
 
 - VPS runtime source: `cecdda0d116ed3c27ff785b71369474f679f8495`.
   Source/dependency copy and restart succeeded; 47 deployed source/lock/asset hashes
