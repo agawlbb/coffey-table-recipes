@@ -18,7 +18,11 @@ bool isShoppingPath(String path) =>
     RegExp(r'^/households/[1-9][0-9]*/shopping-list(?:/sync-request)?$')
         .hasMatch(path);
 
-/// AI generation and account provisioning retain their InMotion credentials.
+/// Account setup has no household selection and requires a Firebase ID token.
+bool isAccountPath(String path) => RegExp(
+  r'^/(?:me(?:/verification-email)?|households|households/[1-9][0-9]*/people/[1-9][0-9]*/invitations|invitations/[1-9][0-9]*/respond)$',
+).hasMatch(Uri.parse(path).path);
+
 bool isAiPath(String path) => RegExp(
   r'^/(?:households/[1-9][0-9]*/(?:recipe-import|recipe-photo|recipe-category|category-image|recipes/[1-9][0-9]*/variation)|admin/parent-categories(?:/[1-9][0-9]*/category-image)?)$',
 ).hasMatch(Uri.parse(path).path);
@@ -205,7 +209,9 @@ class ShoppingSocket extends ChangeNotifier {
     Map<String, dynamic>? body,
   }) async {
     if (_closed) throw StateError('Data connection closed');
-    if (scope == 'ai'
+    if (scope == 'account'
+        ? !isAccountPath(path) || household.isNotEmpty
+        : scope == 'ai'
         ? (!isAiPath(path) ||
               (path.startsWith('/households/') &&
                   !path.startsWith('/households/$household/')) ||
@@ -239,6 +245,8 @@ class ShoppingSocket extends ChangeNotifier {
         Duration(
           seconds: scope == 'ai' || body?['source_type'] == 'blank'
               ? 615
+              : scope == 'account'
+              ? 90
               : scope == 'household'
               ? 90
               : 20,
