@@ -3,9 +3,13 @@ on:
   workflow_dispatch:
     inputs:
       release_tag:
-        description: Immutable release tag to build
+        description: Immutable release tag, or commit SHA for an account test
         required: true
         type: string
+      test_build:
+        description: Build an account-test APK from the supplied immutable commit
+        type: boolean
+        default: false
 permissions:
   contents: read
 concurrency:
@@ -19,10 +23,15 @@ jobs:
       - name: Require a release tag and existing signing credentials
         env:
           RELEASE_TAG: ${{ inputs.release_tag }}
+          TEST_BUILD: ${{ inputs.test_build }}
           ANDROID_KEYSTORE: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
           FIREBASE_CONFIG: ${{ secrets.FIREBASE_CONFIG_JSON }}
         run: |
-          [[ "$RELEASE_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo 'Invalid release tag'; exit 1; }
+          if [[ "$TEST_BUILD" == true ]]; then
+            [[ "$RELEASE_TAG" =~ ^[0-9a-f]{40}$ ]] || { echo 'Test builds require an immutable commit SHA'; exit 1; }
+          else
+            [[ "$RELEASE_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo 'Invalid release tag'; exit 1; }
+          fi
           test -n "$ANDROID_KEYSTORE"
           test -n "$FIREBASE_CONFIG"
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
@@ -38,6 +47,7 @@ jobs:
         env:
           ANDROID_KEYSTORE: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
           FIREBASE_CONFIG: ${{ secrets.FIREBASE_CONFIG_JSON }}
+          TEST_BUILD: ${{ inputs.test_build }}
         run: |
           umask 077
           mkdir -p "$HOME/.gradle"
@@ -53,6 +63,12 @@ jobs:
           certificate = re.search(r'-----BEGIN CERTIFICATE-----.*?-----END CERTIFICATE-----', public, re.S)[0]
           assert hashlib.sha256(ssl.PEM_cert_to_DER_cert(certificate)).hexdigest() == 'f8de933f14b9bb4b3191a94aedc8637972c5ab224565f6abd7808f8038d12097', 'Stored Android signing identity mismatch'
           Path(os.environ['RUNNER_TEMP'], 'firebase.json').write_text(os.environ['FIREBASE_CONFIG'])
+          version, build = re.search(r'^version: (\d+\.\d+\.\d+)\+(\d+)', Path('pubspec.yaml').read_text(), re.M).groups()
+          if os.environ['TEST_BUILD'] == 'true':
+              version += '-account-test'
+              build = str(int(build) + 1)
+          with open(os.environ['GITHUB_ENV'], 'a') as output:
+              output.write(f'APK_VERSION={version}\nAPK_BUILD={build}\n')
           PY
           cat > "$HOME/.gradle/gradle.properties" <<'EOF'
           org.gradle.jvmargs=-Xmx3G -XX:MaxMetaspaceSize=1G -XX:ReservedCodeCacheSize=256m
@@ -61,7 +77,7 @@ jobs:
           kotlin.compiler.execution.strategy=in-process
           EOF
       # This Flutter version regenerates release-only plugin registration during pub.
-      - run: flutter build apk --release --dart-define-from-file="$RUNNER_TEMP/firebase.json"
+      - run: flutter build apk --release --dart-define-from-file="$RUNNER_TEMP/firebase.json" --build-name="$APK_VERSION" --build-number="$APK_BUILD"
       - name: Sign explicitly with the original distribution identity
         run: |
           apk=build/app/outputs/flutter-apk/app-release.apk
@@ -73,6 +89,7 @@ jobs:
       - name: Verify signed package, version, provenance and hosted app links
         env:
           RELEASE_TAG: ${{ inputs.release_tag }}
+          TEST_BUILD: ${{ inputs.test_build }}
         run: |
           python3 - <<'PY'
           import hashlib, json, os, re, shutil, ssl, subprocess
@@ -85,7 +102,14 @@ jobs:
           fingerprint = hashlib.sha256(ssl.PEM_cert_to_DER_cert(certificates[0])).hexdigest()
           assert fingerprint == 'f8de933f14b9bb4b3191a94aedc8637972c5ab224565f6abd7808f8038d12097', 'Unexpected signing identity'
           version, build = re.search(r'^version: (\d+\.\d+\.\d+)\+(\d+)', Path('pubspec.yaml').read_text(), re.M).groups()
-          assert os.environ['RELEASE_TAG'] == f'v{version}', 'Tag/version mismatch'
+          test_build = os.environ['TEST_BUILD'] == 'true'
+          source = subprocess.check_output(['git', 'rev-parse', 'HEAD'], text=True).strip()
+          if test_build:
+              assert os.environ['RELEASE_TAG'] == source, 'Test source mismatch'
+              version += '-account-test'
+              build = str(int(build) + 1)
+          else:
+              assert os.environ['RELEASE_TAG'] == f'v{version}', 'Tag/version mismatch'
           badging = subprocess.check_output([str(tools / 'aapt'), 'dump', 'badging', str(apk)], text=True)
           package = re.search(r"^package: name='([^']+)' versionCode='([^']+)' versionName='([^']+)'", badging)
           assert package and package.groups() == ('com.coffeytable.coffey_table_recipes', build, version), 'Package/version mismatch'
@@ -95,7 +119,7 @@ jobs:
           output.mkdir(parents=True, exist_ok=True)
           filename = f'CoffeyTableRecipes-{version}-build{build}.apk'
           shutil.copyfile(apk, output / filename)
-          report = dict(version=version, build=int(build), tag=os.environ['RELEASE_TAG'],
+          report = dict(version=version, build=int(build), tag=os.environ['RELEASE_TAG'], test_build=test_build,
                         source=subprocess.check_output(['git', 'rev-parse', 'HEAD'], text=True).strip(),
                         filename=filename, sha256=hashlib.sha256(apk.read_bytes()).hexdigest(), certificate_sha256=fingerprint)
           (output / 'verification.json').write_text(json.dumps(report, indent=2))
