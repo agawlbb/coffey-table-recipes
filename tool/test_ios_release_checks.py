@@ -5,14 +5,14 @@ from ios_release_checks import validate_association, validate_entitlements
 
 class DistributionChecks(unittest.TestCase):
     def setUp(self):
-        self.signed = {'aps-environment': 'production', 'com.apple.developer.associated-domains': ['applinks:coffeybean.com']}
+        self.signed = {'aps-environment': 'production', 'com.apple.developer.associated-domains': ['applinks:ctr.coffeybean.com']}
         self.profile = {'aps-environment': 'production', 'com.apple.developer.associated-domains': ['*']}
         self.identifier = 'FIXTURE123.com.coffeytable.coffeyTableRecipes'
-        self.association = {'applinks': {'details': [{'appIDs': [self.identifier], 'components': [{'/': '/CoffeyTableRecipes/share.php'}]}]}}
+        self.association = {'applinks': {'details': [{'appIDs': [self.identifier], 'components': [{'/': '/recipes/*'}]}]}}
 
     def test_distribution_push_and_profile_domain_permission(self):
         validate_entitlements(self.signed, self.profile)
-        self.profile['com.apple.developer.associated-domains'] = ['applinks:coffeybean.com']
+        self.profile['com.apple.developer.associated-domains'] = ['applinks:ctr.coffeybean.com']
         validate_entitlements(self.signed, self.profile)
 
     def test_development_or_missing_push_is_rejected_on_either_side(self):
@@ -36,11 +36,11 @@ class DistributionChecks(unittest.TestCase):
             validate_association(self.association, 'OTHERTEAM.com.coffeytable.coffeyTableRecipes')
 
     def test_wrong_or_excluded_route_is_rejected(self):
-        for component in [{'/': '/other'}, {'/': '/CoffeyTableRecipes/share.php', 'exclude': True}]:
+        for component in [{'/': '/other'}, {'/': '/recipes/*', 'exclude': True}]:
             document = copy.deepcopy(self.association)
             document['applinks']['details'][0]['components'] = [component]
             with self.assertRaises(ValueError):
                 validate_association(document, self.identifier)
 
     def test_legacy_association(self):
-        validate_association({'applinks': {'details': [{'appID': self.identifier, 'paths': ['/CoffeyTableRecipes/share.php']}]}}, self.identifier)
+        validate_association({'applinks': {'details': [{'appID': self.identifier, 'paths': ['/recipes/*']}]}}, self.identifier)

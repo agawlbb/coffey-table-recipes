@@ -2,8 +2,8 @@
 import json
 import urllib.request
 
-DOMAIN = 'applinks:coffeybean.com'
-ROUTE = '/CoffeyTableRecipes/share.php'
+DOMAIN = 'applinks:ctr.coffeybean.com'
+ROUTE = '/recipes/*'
 
 
 def validate_entitlements(signed, provisioned):
@@ -33,7 +33,7 @@ class NoRedirect(urllib.request.HTTPRedirectHandler):
 
 def verify_hosted_association(application_identifier):
     opener = urllib.request.build_opener(NoRedirect)
-    with opener.open('https://coffeybean.com/.well-known/apple-app-site-association', timeout=60) as response:
+    with opener.open('https://ctr.coffeybean.com/.well-known/apple-app-site-association', timeout=60) as response:
         if response.status != 200 or response.headers.get_content_type() != 'application/json':
             raise ValueError('iOS association requires HTTPS 200 and JSON MIME without redirects')
         validate_association(json.load(response), application_identifier)

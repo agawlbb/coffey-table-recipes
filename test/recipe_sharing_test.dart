@@ -22,7 +22,7 @@ void main() {
   test('HTML recipe links escape titles and use the public rendered page', () {
     expect(
       recipeShareHtml('3', 'Fish & "Chips" <hot>'),
-      '<a href="https://coffeybean.com/CoffeyTableRecipes/share.php?id=3">Fish &amp; &quot;Chips&quot; &lt;hot&gt;</a>',
+      '<a href="https://ctr.coffeybean.com/recipes/3">Fish &amp; &quot;Chips&quot; &lt;hot&gt;</a>',
     );
   });
   testWidgets('copy HTML link copies the named escaped anchor', (tester) async {
@@ -61,7 +61,7 @@ void main() {
     await tester.pumpAndSettle();
     expect(
       copied,
-      '<a href="https://coffeybean.com/CoffeyTableRecipes/share.php?id=3">Soup &amp; beans</a>',
+      '<a href="https://ctr.coffeybean.com/recipes/3">Soup &amp; beans</a>',
     );
     expect(find.text('HTML link copied'), findsOneWidget);
   });
@@ -102,11 +102,11 @@ void main() {
     await tester.pumpAndSettle();
     expect(
       shared?.arguments['html'],
-      '<a href="https://coffeybean.com/CoffeyTableRecipes/share.php?id=3">Crêpes &amp; cream</a>',
+      '<a href="https://ctr.coffeybean.com/recipes/3">Crêpes &amp; cream</a>',
     );
     expect(
       shared?.arguments['text'],
-      'Crêpes & cream\nhttps://coffeybean.com/CoffeyTableRecipes/share.php?id=3',
+      'Crêpes & cream\nhttps://ctr.coffeybean.com/recipes/3',
     );
     expect(find.text('Recipe link'), findsNothing);
   });
@@ -128,7 +128,7 @@ void main() {
         null,
       ),
     );
-    const url = 'https://coffeybean.com/CoffeyTableRecipes/share.php?id=3';
+    const url = 'https://ctr.coffeybean.com/recipes/3';
     await tester.pumpWidget(
       MaterialApp(
         home: RecipeDetail(
@@ -197,10 +197,7 @@ void main() {
       await tester.pumpAndSettle();
       expect(paths.length, 1);
       expect(find.text('Copy link'), findsOneWidget);
-      expect(
-        find.text('https://coffeybean.com/CoffeyTableRecipes/share.php?id=3'),
-        findsOneWidget,
-      );
+      expect(find.text('https://ctr.coffeybean.com/recipes/3'), findsOneWidget);
       await tester.tap(find.text('Close'));
       await tester.pumpAndSettle();
       expect(

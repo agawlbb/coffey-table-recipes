@@ -20,27 +20,23 @@ void main() {
     }
   });
   test('shared HTTPS links validate host, path and numeric id', () {
-    expect(
-      recipeIdFromLink(
-        'https://coffeybean.com/CoffeyTableRecipes/share.php?id=12',
-      ),
-      '12',
-    );
-    expect(recipeIdFromLink('/CoffeyTableRecipes/share.php?id=12'), '12');
-    expect(
-      recipeIdFromLink(
-        'http://coffeybean.com/CoffeyTableRecipes/share.php?id=12',
-      ),
-      isNull,
-    );
-    expect(
-      recipeIdFromLink(
-        'https://example.com/CoffeyTableRecipes/share.php?id=12',
-      ),
-      isNull,
-    );
-    expect(recipeIdFromLink('/CoffeyTableRecipes/share.php?id=0'), isNull);
-    expect(recipeIdFromLink('/CoffeyTableRecipes/share.php?id=12x'), isNull);
+    expect(recipeIdFromLink('https://ctr.coffeybean.com/recipes/12'), '12');
+    expect(recipeIdFromLink('/recipes/12'), '12');
+    expect(recipeIdFromLink('http://ctr.coffeybean.com/recipes/12'), isNull);
+    expect(recipeIdFromLink('https://example.com/recipes/12'), isNull);
+    expect(recipeIdFromLink('/recipes/0'), isNull);
+    expect(recipeIdFromLink('/recipes/12x'), isNull);
+    for (final link in [
+      'javascript:/recipes/12',
+      'https:/recipes/12',
+      'https://user@ctr.coffeybean.com/recipes/12',
+      'https://ctr.coffeybean.com:444/recipes/12',
+      'https://ctr.coffeybean.com/recipes/12?other=1',
+      'https://ctr.coffeybean.com/recipes/12#other',
+      'https://coffeybean.com/CoffeyTableRecipes/share.php?id=12',
+    ]) {
+      expect(recipeIdFromLink(link), isNull);
+    }
   });
   test(
     'native timer IDs isolate recipes and permission failures propagate',
