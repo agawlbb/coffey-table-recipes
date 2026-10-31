@@ -73,8 +73,8 @@ passed. Superseded build attempts were not distributed.
   The existing private publisher configuration was checked against the pinned
   recipe app folder and restricted Drive scope. Uploaded bytes were downloaded
   and SHA-256 matched. No existing Drive files were deleted or sharing changed.
-  Android devices received an informational FCM notification with no link/click
-  action. Device receipt and installation were not claimed as verified.
+  FCM accepted an informational Android notification with no link/click action.
+  Device receipt and installation were not claimed as verified.
 
 Install build 44 over build 43, preserving app storage. Test existing sign-in,
 offline queued edits, recipe links/images, administration and AI progress.
