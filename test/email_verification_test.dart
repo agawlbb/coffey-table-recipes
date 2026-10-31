@@ -1,4 +1,7 @@
+import 'dart:async';
+
 import 'package:coffey_table_recipes/src/email_verification_screen.dart';
+import 'package:coffey_table_recipes/src/api.dart';
 import 'package:coffey_table_recipes/src/invitation_entry.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
@@ -24,8 +27,86 @@ class PendingUser extends TestUser {
 
 void main() {
   setUp(() {
+    InvitationVerification.resetForTesting();
     InvitationVerification.delivery = (user) => user.sendEmailVerification();
   });
+  testWidgets(
+    'initial send cooldown survives rebuild and expires after 60 seconds',
+    (tester) async {
+      InvitationVerification.now = () => tester.binding.clock.now();
+      final user = PendingUser('cooldown');
+      await InvitationVerification.send(user);
+      Widget screen() => MaterialApp(
+        home: EmailVerificationScreen(
+          user: user,
+          refresh: () async {},
+          signOut: () async {},
+        ),
+      );
+      await tester.pumpWidget(screen());
+      await tester.pumpAndSettle();
+      expect(find.text('Resend in 60s'), findsOneWidget);
+      expect(
+        tester.widget<FilledButton>(find.byType(FilledButton)).onPressed,
+        isNull,
+      );
+      await tester.pump(const Duration(seconds: 30));
+      expect(find.text('Resend in 30s'), findsOneWidget);
+      await tester.pumpWidget(const SizedBox());
+      await tester.pumpWidget(screen());
+      await tester.pumpAndSettle();
+      expect(find.text('Resend in 30s'), findsOneWidget);
+      await tester.pump(const Duration(seconds: 30));
+      expect(find.text('Resend verification email'), findsOneWidget);
+      await tester.tap(find.text('Resend verification email'));
+      await tester.pumpAndSettle();
+      expect(user.sends, 2);
+      expect(find.text('Resend in 60s'), findsOneWidget);
+      await tester.pumpWidget(const SizedBox());
+    },
+  );
+  testWidgets(
+    'interrupted send reports uncertain delivery and blocks duplicate sends',
+    (tester) async {
+      InvitationVerification.now = () => tester.binding.clock.now();
+      final pending = Completer<void>();
+      var calls = 0;
+      InvitationVerification.delivery = (_) {
+        calls++;
+        return pending.future;
+      };
+      final user = PendingUser('disconnect');
+      final first = InvitationVerification.send(user);
+      final observed = first.catchError((Object _) {});
+      expect(InvitationVerification.send(user, resend: true), same(first));
+      await tester.pumpWidget(
+        MaterialApp(
+          home: EmailVerificationScreen(
+            user: user,
+            refresh: () async {},
+            signOut: () async {},
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('Sending…'), findsOneWidget);
+      pending.completeError(
+        ApiException(
+          503,
+          'Data synchronization disconnected.',
+          code: 'connection_lost',
+        ),
+      );
+      await observed;
+      await tester.pumpAndSettle();
+      expect(find.textContaining('delivery was confirmed'), findsOneWidget);
+      expect(find.textContaining('Data synchronization'), findsNothing);
+      expect(find.textContaining('Verification email sent.'), findsNothing);
+      expect(find.text('Resend in 60s'), findsOneWidget);
+      expect(calls, 1);
+      await tester.pumpWidget(const SizedBox());
+    },
+  );
   tearDown(() {
     InvitationVerification.delivery = InvitationVerification.sendHosted;
   });

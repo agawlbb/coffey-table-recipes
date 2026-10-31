@@ -14,7 +14,7 @@ import 'package:web_socket_channel/web_socket_channel.dart';
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
-  test('recipe, meal and timer traffic uses authenticated sockets; AI progress use sockets; signup stays HTTP', () async {
+  test('recipe, meal and timer traffic uses authenticated sockets; AI progress use sockets; account setup uses sockets', () async {
     final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
     final frames = <Map<String, dynamic>>[];
     final peers = <WebSocket>[];
@@ -136,12 +136,29 @@ void main() {
       body: {'kind': 'answers', 'answers': []},
     );
     await api.request('/households/1/recipes/2/variation', 'fixture', body: {});
-    expect(httpPaths, ['/me']);
+    for (final path in [
+      '/households',
+      '/me/verification-email',
+      '/me/child-mode',
+      '/admin/users/2/reset-child-mode',
+      '/households/1/people/2/invitations',
+      '/invitations/3/respond',
+    ]) {
+      await api.request(path, 'fixture', body: {});
+    }
+    await api.request('/admin/users', 'fixture');
+    expect(httpPaths, ['/admin/users']);
+    final accountAuth = frames.firstWhere(
+      (f) => f['type'] == 'auth' && f['scope'] == 'account',
+    );
+    expect(accountAuth['household_id'], isNull);
+
     final auth = frames.where((f) => f['type'] == 'auth').toList();
     expect(auth.map((f) => f['scope']), [
       'household',
       'timers',
       'public',
+      'account',
       'ai',
     ]);
     expect(auth.first['token'], 'fixture');
