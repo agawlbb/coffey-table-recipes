@@ -139,13 +139,15 @@ void main() {
     for (final path in [
       '/households',
       '/me/verification-email',
+      '/me/child-mode',
+      '/admin/users/2/reset-child-mode',
       '/households/1/people/2/invitations',
       '/invitations/3/respond',
     ]) {
       await api.request(path, 'fixture', body: {});
     }
-    await api.request('/me/child-mode', 'fixture');
-    expect(httpPaths, ['/me/child-mode']);
+    await api.request('/admin/users', 'fixture');
+    expect(httpPaths, ['/admin/users']);
     final accountAuth = frames.firstWhere(
       (f) => f['type'] == 'auth' && f['scope'] == 'account',
     );

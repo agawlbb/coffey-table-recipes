@@ -20,7 +20,7 @@ bool isShoppingPath(String path) =>
 
 /// Account setup has no household selection and requires a Firebase ID token.
 bool isAccountPath(String path) => RegExp(
-  r'^/(?:me(?:/verification-email)?|households|households/[1-9][0-9]*/people/[1-9][0-9]*/invitations|invitations/[1-9][0-9]*/respond)$',
+  r'^/(?:me(?:/verification-email|/child-mode)?|admin/users/[1-9][0-9]*/reset-child-mode|households|households/[1-9][0-9]*/people/[1-9][0-9]*/invitations|invitations/[1-9][0-9]*/respond)$',
 ).hasMatch(Uri.parse(path).path);
 
 bool isAiPath(String path) => RegExp(
