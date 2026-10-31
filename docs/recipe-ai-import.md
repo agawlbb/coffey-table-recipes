@@ -158,3 +158,33 @@ is advanced to 45 so the existing test workflow produces signed build 46,
 `2.4.0-account-test`, without colliding with the previously delivered build 45.
 This is a feature test, not a release, and does not authorize iOS/web builds or
 merging the feature into main.
+
+
+### Verified Android test delivery — 2026-10-31
+
+Signed Android **2.4.0-account-test, build 46** was built from immutable app source
+`9754546d62ea6d29a8833832f9ba8a571ed3cb30` by
+[Actions run 41232863162](https://github.com/agawlbb/coffey-table-recipes/actions/runs/41232863162).
+The run completed successfully. The workflow verified the retained Kotlin JNI
+classes needed by Android timer preferences before accepting the APK.
+
+- APK: `CoffeyTableRecipes-2.4.0-account-test-build46.apk` (70,014,442 bytes).
+- SHA-256: `f1c4dc48edb9422d85bba21587d31075ab392c6ac61dafd67dfe6e06588817f5`.
+- Original certificate SHA-256:
+  `f8de933f14b9bb4b3191a94aedc8637972c5ab224565f6abd7808f8038d12097`.
+- Package `com.coffeytable.coffey_table_recipes`, version/build, non-debuggable
+  status, compiled `ctr.coffeybean.com` recipe-link route, checksum and exact source
+  were independently verified after downloading the Actions artifact.
+- `python3 tool/verify-app-links.py --fingerprint ACTUAL_APK_CERTIFICATE_SHA256`
+  passed using that actual certificate.
+- [Download the verified test APK](https://drive.google.com/file/d/1Tiix3CWmRw22OBJ5hdEiTJ4pAzxDh9u1/view).
+  The existing pinned recipe app Drive folder and restricted OAuth configuration
+  were used. Uploaded bytes were downloaded from Drive and SHA-256 matched.
+  No existing Drive file was deleted, sharing changed or notification sent.
+
+The VPS feature backend remains running with installed source matching the feature
+branch. Both branch working trees are clean and published; neither feature branch
+was merged into main. No release tag, web/iOS build or hosted Flutter deployment
+was made. Physical-device installation, OS link-resolution and a signed-in live AI
+conversation remain unverified; source/widget/wire and deployment checks are
+recorded above. Install the signed test APK over the existing app to retain data.
