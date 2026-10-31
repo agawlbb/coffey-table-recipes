@@ -133,3 +133,28 @@ explicit user approval. Source publication does not deploy or build the app.
   deployment, service restart, release or merge was performed. GitHub main moved
   independently during implementation; this feature retains its recorded bases
   and must be integrated/tested against main only when merging is authorized.
+
+
+### Authorized backend deployment and Android test build — 2026-10-31
+
+The user requested deploying this backend branch and building a test Android APK.
+Current accepted main was merged INTO both feature branches to preserve the
+completed VPS routing/media cutover and Android preferences startup repair; no
+feature was merged into main. The app integration commit is `90917ba`; the VPS
+integration/deployed source commit is `8dc297aabcaedf7fa1bd01b7eecc303e50c74774`.
+
+Post-integration validation: affected Dart analysis passed and
+`flutter test --no-pub --concurrency=1 test/recipe_chat_test.dart test/recipe_variation_test.dart test/child_mode_test.dart test/api_test.dart test/backend_socket_test.dart test/offline_recipes_test.dart`
+passed all 105 tests. Dependencies were resolved from the existing offline cache
+because main's accepted Android dependency inputs changed. VPS chat (81 checks),
+variation (92), import (294), worker recovery, 10 AI socket tests, 4 deployer tests,
+34 HTTP checks and media-preservation fixtures passed. No full-suite rerun.
+
+The existing source-copy deployer replaced only VPS code and restarted the one
+backend process. Deployed files were hash-verified against the source commit;
+private configuration hashes and the persistent state-directory identity were
+unchanged. Docker CPU shares remain 1024 with unlimited cpu.max. The build counter
+is advanced to 45 so the existing test workflow produces signed build 46,
+`2.4.0-account-test`, without colliding with the previously delivered build 45.
+This is a feature test, not a release, and does not authorize iOS/web builds or
+merging the feature into main.
