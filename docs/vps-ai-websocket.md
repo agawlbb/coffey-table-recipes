@@ -4,8 +4,8 @@ Working branch `feature/vps-ai-websocket`, based on fetched app main `2920c38`.
 Companion branches use InMotion `c5503a3` and VPS `b977c8f`. The user approved
 integration and branch removal on October 31, 2026. Completed source is integrated
 into main; the VPS is deployed from main. No app build or release is requested.
-Shared-hosting endpoint retirement is merged but not deployed, preserving the
-released apps' HTTP AI calls until an explicitly requested app update.
+The user also explicitly authorized the shared-hosting backend's normal main-push
+deployment to publish its endpoint retirements. No app build or release is included.
 
 Recipe imports, clarification answers, variations, recipe images, category
 artwork and parent-category administration use the existing encrypted VPS
@@ -31,9 +31,8 @@ routine deployment still copies source and restarts the existing service. No
 schema change, new infrastructure or compatibility transport is added. New
 category artwork lives on VPS storage; existing InMotion media URLs remain valid.
 
-Only the VPS runtime is published for this integration. App builds and publishing
-the shared-hosting endpoint retirements require a coordinated, explicitly requested
-update; no app build or release is included here.
+Both backends are published for this integration on the user's explicit request.
+App builds still require an explicit build or release request and are not included.
 
 ## Validation — 2026-10-30
 
