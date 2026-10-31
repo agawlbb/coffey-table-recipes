@@ -24,7 +24,7 @@ bool isAccountPath(String path) => RegExp(
 ).hasMatch(Uri.parse(path).path);
 
 bool isAiPath(String path) => RegExp(
-  r'^/(?:households/[1-9][0-9]*/(?:recipe-import|recipe-photo|recipe-category|category-image|recipes/[1-9][0-9]*/variation)|admin/parent-categories(?:/[1-9][0-9]*/category-image)?)$',
+  r'^/(?:households/[1-9][0-9]*/(?:recipe-chat|recipe-import|recipe-photo|recipe-category|category-image|recipes/[1-9][0-9]*/variation)|admin/parent-categories(?:/[1-9][0-9]*/category-image)?)$',
 ).hasMatch(Uri.parse(path).path);
 
 bool isVpsDataPath(String path) {

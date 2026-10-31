@@ -156,7 +156,8 @@ class _RecipeEditorState extends State<RecipeEditor> {
     }
     if (_draft['source_type'] != null &&
         !_blank &&
-        _draft['source_type'] != 'ai_variation') {
+        _draft['source_type'] != 'ai_variation' &&
+        _draft['source_type'] != 'ai_created') {
       _draft['source_type'] = recipeSourceLabel(_draft['source_type']);
     }
     _draft.remove('photo_suggestions');
@@ -2409,7 +2410,10 @@ class _RecipeEditorState extends State<RecipeEditor> {
                     if (!_blank) ...[
                       _section('Notes & source', Icons.notes_outlined, [
                         _field(_draft, 'notes', 'Recipe notes', lines: 3),
-                        if (_draft['source_type'] == 'ai_variation')
+                        if ([
+                          'ai_variation',
+                          'ai_created',
+                        ].contains(_draft['source_type']))
                           _help(
                             'Recipe source: ${recipeSourceLabel(_draft['source_type'])}',
                           )

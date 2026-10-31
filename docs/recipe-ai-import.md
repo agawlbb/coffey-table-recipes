@@ -75,3 +75,116 @@ The conversational backend fix abb83db deployed successfully in Ubuntu Actions
 run 38913942056. Local web rebuilt successfully with connection/timeout messages;
 published main.dart.js matched the build. No hosted Flutter deployment or iOS
 build was triggered.
+
+
+## Conversational dish creation
+
+**Create a dish with AI** is an Add recipe import method available to every
+household; it does not depend on AI image privileges. It opens a messaging-style
+chat with labeled You/AI bubbles, a message composer, Send, and an AI thinking
+indicator. Users can develop a dish, ask for improvements, compare approaches,
+and discuss the effects of substitutions. Questions about hypothetical changes
+are discussion, not acceptance of those changes.
+
+AI keeps the currently agreed cooking specification separately from the visible
+conversation. Readiness exposes **Review recipe** without ending the chat. Only
+that explicit action standardizes the agreed dish through the existing importer;
+any remaining importer questions return to the chat. The normal review editor
+and **Save** remain the only way to create a recipe. Cancelling review returns to
+the conversation; a later message invalidates the previous prepared draft.
+
+All new backend functions are in `agawlbb/coffey-table-recipes-vps`, using
+`/households/{household}/recipe-chat` over the existing authenticated VPS AI
+WebSocket scope. Shared hosting has no new endpoints or AI functions. Private AI
+configuration is reused; no database migration, new credential or infrastructure
+is required. Chat requests bypass saved-recipe cache updates. Lost-response
+retries recover the same session/turn before a different message can be sent;
+definitive provider rejections allow editing the failed message. Conversations
+are private temporary working drafts, not a saved chat history or resumable inbox.
+
+Implementation branch: `feature/ai-dish-chat`, app base
+`0f5c38bd7dbf13027b750e4f58b59d7bf889c09c`, VPS base
+`1257a920f9c09e1c6ca0407ee3dbb0fc315895f9`. This feature remains unmerged until
+explicit user approval. Source publication does not deploy or build the app.
+
+
+### Feature validation — 2026-10-31
+
+- Changed Dart files formatted; affected-file analysis passed. Final chat/test
+  follow-up analysis also passed.
+- `flutter test --no-pub --concurrency=1 test/recipe_chat_test.dart`: 17 passed,
+  including messaging, hypothetical discussion, create/variation/edit save routes,
+  lost-response recovery, cancel/late-response handling, failed saves, retained
+  variation cover/explanation and enlarged-text/keyboard layout.
+- `flutter test --no-pub --concurrency=1 test/recipe_chat_test.dart test/recipe_variation_test.dart test/child_mode_test.dart`:
+  33 passed before the final cover/explanation follow-up; the final chat-only run
+  above covers that follow-up. Existing family and child-mode regressions remain.
+- `flutter test --no-pub --concurrency=1 test/recipe_import_test.dart test/recipe_import_methods_test.dart test/shared_recipe_import_test.dart test/recipe_editor_test.dart test/blank_recipe_detail_layout_test.dart`:
+  51 passed.
+- API, shopping-socket and offline-cache suites passed in the initial combined
+  run. That run exposed initial chat test/layout failures, corrected and verified
+  in the focused runs above. The full Flutter suite was not run.
+- VPS validation: 81 chat fixture checks, 92 existing variation checks, 294 import
+  preprocessing/validation checks, AI worker recovery/cancellation checks, PHP
+  syntax checks and 10 AI socket integration tests passed. Providers are mocked;
+  wire tests use disposable SQLite, including households without AI image access,
+  cross-household denial and preparation without saved-recipe mutations.
+- No paid/live-provider request, device run, app build, production-data change,
+  deployment, service restart, release or merge was performed. GitHub main moved
+  independently during implementation; this feature retains its recorded bases
+  and must be integrated/tested against main only when merging is authorized.
+
+
+### Authorized backend deployment and Android test build — 2026-10-31
+
+The user requested deploying this backend branch and building a test Android APK.
+Current accepted main was merged INTO both feature branches to preserve the
+completed VPS routing/media cutover and Android preferences startup repair; no
+feature was merged into main. The app integration commit is `90917ba`; the VPS
+integration/deployed source commit is `8dc297aabcaedf7fa1bd01b7eecc303e50c74774`.
+
+Post-integration validation: affected Dart analysis passed and
+`flutter test --no-pub --concurrency=1 test/recipe_chat_test.dart test/recipe_variation_test.dart test/child_mode_test.dart test/api_test.dart test/backend_socket_test.dart test/offline_recipes_test.dart`
+passed all 105 tests. Dependencies were resolved from the existing offline cache
+because main's accepted Android dependency inputs changed. VPS chat (81 checks),
+variation (92), import (294), worker recovery, 10 AI socket tests, 4 deployer tests,
+34 HTTP checks and media-preservation fixtures passed. No full-suite rerun.
+
+The existing source-copy deployer replaced only VPS code and restarted the one
+backend process. Deployed files were hash-verified against the source commit;
+private configuration hashes and the persistent state-directory identity were
+unchanged. Docker CPU shares remain 1024 with unlimited cpu.max. The build counter
+is advanced to 45 so the existing test workflow produces signed build 46,
+`2.4.0-account-test`, without colliding with the previously delivered build 45.
+This is a feature test, not a release, and does not authorize iOS/web builds or
+merging the feature into main.
+
+
+### Verified Android test delivery — 2026-10-31
+
+Signed Android **2.4.0-account-test, build 46** was built from immutable app source
+`9754546d62ea6d29a8833832f9ba8a571ed3cb30` by
+[Actions run 41232863162](https://github.com/agawlbb/coffey-table-recipes/actions/runs/41232863162).
+The run completed successfully. The workflow verified the retained Kotlin JNI
+classes needed by Android timer preferences before accepting the APK.
+
+- APK: `CoffeyTableRecipes-2.4.0-account-test-build46.apk` (70,014,442 bytes).
+- SHA-256: `f1c4dc48edb9422d85bba21587d31075ab392c6ac61dafd67dfe6e06588817f5`.
+- Original certificate SHA-256:
+  `f8de933f14b9bb4b3191a94aedc8637972c5ab224565f6abd7808f8038d12097`.
+- Package `com.coffeytable.coffey_table_recipes`, version/build, non-debuggable
+  status, compiled `ctr.coffeybean.com` recipe-link route, checksum and exact source
+  were independently verified after downloading the Actions artifact.
+- `python3 tool/verify-app-links.py --fingerprint ACTUAL_APK_CERTIFICATE_SHA256`
+  passed using that actual certificate.
+- [Download the verified test APK](https://drive.google.com/file/d/1Tiix3CWmRw22OBJ5hdEiTJ4pAzxDh9u1/view).
+  The existing pinned recipe app Drive folder and restricted OAuth configuration
+  were used. Uploaded bytes were downloaded from Drive and SHA-256 matched.
+  No existing Drive file was deleted, sharing changed or notification sent.
+
+The VPS feature backend remains running with installed source matching the feature
+branch. Both branch working trees are clean and published; neither feature branch
+was merged into main. No release tag, web/iOS build or hosted Flutter deployment
+was made. Physical-device installation, OS link-resolution and a signed-in live AI
+conversation remain unverified; source/widget/wire and deployment checks are
+recorded above. Install the signed test APK over the existing app to retain data.

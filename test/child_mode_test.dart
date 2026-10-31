@@ -5,7 +5,7 @@ import 'package:coffey_table_recipes/src/meal_planner.dart';
 import 'package:coffey_table_recipes/src/recipe_browser.dart';
 import 'package:coffey_table_recipes/src/shopping_list.dart';
 import 'package:coffey_table_recipes/src/blank_recipe_detail.dart';
-import 'package:coffey_table_recipes/src/recipe_variation.dart';
+import 'package:coffey_table_recipes/src/recipe_chat.dart';
 import 'package:coffey_table_recipes/src/recipe_import.dart';
 import 'package:coffey_table_recipes/src/recipe_shopping_selector.dart';
 import 'package:coffey_table_recipes/src/meal_plan_ingredients.dart';
@@ -115,10 +115,10 @@ void main() {
 
     for (final screen in <Widget>[
       RecipeImport(householdId: '1', request: request),
-      RecipeVariation(
+      RecipeChat(
         householdId: '1',
-        parentRecipeId: '2',
-        parentTitle: 'Soup',
+        recipeId: '2',
+        recipeTitle: 'Soup',
         request: request,
       ),
     ]) {

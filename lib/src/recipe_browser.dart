@@ -21,7 +21,7 @@ import 'recipe_editor.dart';
 import 'recipe_time.dart';
 import 'recipe_value.dart';
 import 'recipe_source_links.dart';
-import 'recipe_variation.dart';
+import 'recipe_chat.dart';
 import 'recipe_import.dart';
 import 'blank_recipe_detail.dart';
 import 'recipe_favorites.dart';
@@ -53,6 +53,7 @@ String recipeSourceLabel(Object? source) => switch (source) {
   'ai_camera' => 'Camera photo',
   'ai_reviewed' => 'Imported recipe',
   'ai_variation' => 'AI recipe variation',
+  'ai_created' => 'Created with AI',
   _ => source?.toString() ?? '',
 };
 
@@ -1599,10 +1600,10 @@ class _RecipeDetailState extends State<RecipeDetail> {
     try {
       final saved = await Navigator.of(context).push<Map<String, dynamic>>(
         MaterialPageRoute(
-          builder: (_) => RecipeVariation(
+          builder: (_) => RecipeChat(
             householdId: widget.householdId,
-            parentRecipeId: widget.recipeId,
-            parentTitle: _recipe!['title'] as String,
+            recipeId: widget.recipeId,
+            recipeTitle: _recipe!['title'] as String,
             request: widget.save!,
           ),
         ),
@@ -1612,8 +1613,8 @@ class _RecipeDetailState extends State<RecipeDetail> {
       await _load();
       if (!mounted) return;
       ScaffoldMessenger.of(context)
-          .showSnackBar(const SnackBar(content: Text('Variation saved')));
-      await _openRelated(saved);
+          .showSnackBar(const SnackBar(content: Text('Recipe saved')));
+      if (saved['id']?.toString() != widget.recipeId) await _openRelated(saved);
     } finally {
       if (mounted) setState(() => _variationOpen = false);
     }
