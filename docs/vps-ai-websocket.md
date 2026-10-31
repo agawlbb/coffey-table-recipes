@@ -31,9 +31,9 @@ routine deployment still copies source and restarts the existing service. No
 schema change, new infrastructure or compatibility transport is added. New
 category artwork lives on VPS storage; existing InMotion media URLs remain valid.
 
-Production is unchanged
-until the matching branches are integrated and published; app builds require
-an explicit build or release request.
+Only the VPS runtime is published for this integration. App builds and publishing
+the shared-hosting endpoint retirements require a coordinated, explicitly requested
+update; no app build or release is included here.
 
 ## Validation — 2026-10-30
 
