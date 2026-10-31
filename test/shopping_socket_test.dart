@@ -7,6 +7,69 @@ import 'package:coffey_table_recipes/src/shopping_socket.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  test('initial online notification does not interrupt verification delivery', () async {
+    final network = StreamController<bool>(sync: true);
+    final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+    final peers = <WebSocket>[];
+    var sends = 0;
+    server.listen((request) async {
+      final ws = await WebSocketTransformer.upgrade(request);
+      peers.add(ws);
+      ws.listen((raw) async {
+        final frame = jsonDecode(raw as String) as Map;
+        if (frame['type'] == 'auth') {
+          ws.add(
+            jsonEncode({'type': 'ready', 'household_id': null, 'data': {}}),
+          );
+        } else if (frame['type'] == 'request') {
+          sends++;
+          // Android reports the current network when a new subscription starts.
+          network.add(true);
+          await Future<void>.delayed(const Duration(milliseconds: 20));
+          ws.add(
+            jsonEncode({
+              'type': 'response',
+              'id': frame['id'],
+              'data': {'sent': true},
+            }),
+          );
+        }
+      });
+    });
+    final socket = ShoppingSocket(
+      household: '',
+      scope: 'account',
+      token: (_) async => 'new-user',
+      url: 'ws://127.0.0.1:${server.port}',
+      onSnapshot: (_) async {},
+      networkChanges: network.stream,
+    );
+    addTearDown(() async {
+      socket.dispose();
+      await network.close();
+      for (final peer in peers) {
+        await peer.close();
+      }
+      await server.close(force: true);
+    });
+    expect(await socket.request('/me/verification-email', body: {}), {
+      'sent': true,
+    });
+    expect(sends, 1);
+    expect(socket.connected, isTrue);
+    final lost = Completer<void>();
+    socket.addListener(() {
+      if (!socket.connected && !lost.isCompleted) lost.complete();
+    });
+    network.add(false);
+    await lost.future;
+    expect(socket.connected, isFalse);
+    network.add(true);
+    expect(await socket.request('/me/verification-email', body: {}), {
+      'sent': true,
+    });
+    expect(sends, 2); // Recovery only submits the explicit second request.
+  });
   test(
     'ready requires authentication and durable snapshot; disconnect clears it',
     () async {

@@ -28,6 +28,11 @@ class EmailVerificationScreen extends StatefulWidget {
 class _EmailVerificationScreenState extends State<EmailVerificationScreen>
     with WidgetsBindingObserver {
   Timer? _timer;
+  Timer? _cooldownTimer;
+  int get _remainingSeconds =>
+      (InvitationVerification.resendRemaining(widget.user.uid).inMilliseconds /
+              1000)
+          .ceil();
   bool _sending = false;
   bool _checking = false;
   String? _message;
@@ -66,6 +71,7 @@ class _EmailVerificationScreenState extends State<EmailVerificationScreen>
   }
 
   void _signupAttemptChanged() {
+    _updateCooldown();
     final attempt = InvitationVerification.attemptFor(widget.user.uid);
     if (attempt != null && attempt != _observedAttempt && mounted) {
       _observedAttempt = attempt;
@@ -73,9 +79,22 @@ class _EmailVerificationScreenState extends State<EmailVerificationScreen>
     }
   }
 
+  void _updateCooldown() {
+    _cooldownTimer?.cancel();
+    if (!mounted) return;
+    setState(() {});
+    if (_remainingSeconds > 0) {
+      _cooldownTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+        if (!mounted || _remainingSeconds == 0) timer.cancel();
+        if (mounted) setState(() {});
+      });
+    }
+  }
+
   @override
   void dispose() {
     _timer?.cancel();
+    _cooldownTimer?.cancel();
     InvitationVerification.changes.removeListener(_signupAttemptChanged);
     WidgetsBinding.instance.removeObserver(this);
     super.dispose();
@@ -83,7 +102,10 @@ class _EmailVerificationScreenState extends State<EmailVerificationScreen>
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.resumed) _refresh();
+    if (state == AppLifecycleState.resumed) {
+      _refresh();
+      _updateCooldown();
+    }
   }
 
   Future<void> _refresh() async {
@@ -99,7 +121,7 @@ class _EmailVerificationScreenState extends State<EmailVerificationScreen>
   }
 
   Future<void> _send({bool resend = false}) async {
-    if (_sending) return;
+    if (_sending || _remainingSeconds > 0) return;
     await InvitationVerification.send(
       widget.user,
       resend: resend,
@@ -122,7 +144,12 @@ class _EmailVerificationScreenState extends State<EmailVerificationScreen>
       }
     } catch (error) {
       if (mounted) {
-        final message = error is FirebaseAuthException
+        final connectionInterrupted =
+            error is TimeoutException ||
+            (error is ApiException && error.code == 'connection_lost');
+        final message = connectionInterrupted
+            ? 'The connection was interrupted before verification email delivery was confirmed. Check your inbox before resending.'
+            : error is FirebaseAuthException
             ? switch (error.code) {
                 'too-many-requests' => 'Firebase rejected the verification email request (too-many-requests). No email was sent. Firebase does not provide a retry time.',
                 'network-request-failed' => 'The verification email could not be sent. Check your connection and resend.',
@@ -167,7 +194,7 @@ class _EmailVerificationScreenState extends State<EmailVerificationScreen>
                   ),
                   const SizedBox(height: 12),
                   Text(
-                    'Open the verification email sent to ${widget.user.email ?? 'your email address'} and click its link to complete verification.',
+                    'Verify ${widget.user.email ?? 'your email address'} using the link in your verification email. Check your inbox and spam folder after sending is confirmed.',
                   ),
                   const SizedBox(height: 12),
                   if (_registrationError != null) ...[
@@ -184,9 +211,15 @@ class _EmailVerificationScreenState extends State<EmailVerificationScreen>
                   ],
                   const SizedBox(height: 20),
                   FilledButton(
-                    onPressed: _sending ? null : () => _send(resend: true),
+                    onPressed: _sending || _remainingSeconds > 0
+                        ? null
+                        : () => _send(resend: true),
                     child: Text(
-                      _sending ? 'Sending…' : 'Resend verification email',
+                      _sending
+                          ? 'Sending…'
+                          : _remainingSeconds > 0
+                          ? 'Resend in ${_remainingSeconds}s'
+                          : 'Resend verification email',
                     ),
                   ),
                 ],

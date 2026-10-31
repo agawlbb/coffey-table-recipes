@@ -41,6 +41,7 @@ class ReturnUrlRejectedUser extends VerificationUser {
 
 void main() {
   setUp(() {
+    InvitationVerification.resetForTesting();
     InvitationVerification.delivery = (user) => user.sendEmailVerification();
   });
   tearDown(() {
@@ -53,8 +54,46 @@ void main() {
       await InvitationVerification.send(user);
       await InvitationVerification.send(user);
       expect(user.sends, 1);
+      await expectLater(
+        InvitationVerification.send(user, resend: true),
+        throwsA(isA<ApiException>().having((e) => e.status, 'status', 429)),
+      );
+      final later = InvitationVerification.now().add(
+        const Duration(seconds: 60),
+      );
+      InvitationVerification.now = () => later;
       await InvitationVerification.send(user, resend: true);
       expect(user.sends, 2);
+    },
+  );
+  test(
+    'failed verification cannot be retried before its cooldown expires',
+    () async {
+      final user = VerificationUser();
+      var calls = 0;
+      InvitationVerification.delivery = (_) async {
+        calls++;
+        throw ApiException(503, 'Mail unavailable');
+      };
+      await InvitationVerification.send(user).catchError((Object _) {});
+      await expectLater(
+        InvitationVerification.send(user),
+        throwsA(isA<ApiException>().having((e) => e.status, 'status', 429)),
+      );
+      await expectLater(
+        InvitationVerification.send(user, resend: true),
+        throwsA(isA<ApiException>().having((e) => e.status, 'status', 429)),
+      );
+      expect(calls, 1);
+      final later = InvitationVerification.now().add(
+        const Duration(seconds: 60),
+      );
+      InvitationVerification.now = () => later;
+      await InvitationVerification.send(
+        user,
+        resend: true,
+      ).catchError((Object _) {});
+      expect(calls, 2);
     },
   );
   testWidgets('invitation entry selects signup and prefills email', (

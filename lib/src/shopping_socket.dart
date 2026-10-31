@@ -18,7 +18,11 @@ bool isShoppingPath(String path) =>
     RegExp(r'^/households/[1-9][0-9]*/shopping-list(?:/sync-request)?$')
         .hasMatch(path);
 
-/// AI generation and account provisioning retain their InMotion credentials.
+/// Account setup has no household selection and requires a Firebase ID token.
+bool isAccountPath(String path) => RegExp(
+  r'^/(?:me(?:/verification-email|/child-mode)?|admin/users/[1-9][0-9]*/reset-child-mode|households|households/[1-9][0-9]*/people/[1-9][0-9]*/invitations|invitations/[1-9][0-9]*/respond)$',
+).hasMatch(Uri.parse(path).path);
+
 bool isAiPath(String path) => RegExp(
   r'^/(?:households/[1-9][0-9]*/(?:recipe-import|recipe-photo|recipe-category|category-image|recipes/[1-9][0-9]*/variation)|admin/parent-categories(?:/[1-9][0-9]*/category-image)?)$',
 ).hasMatch(Uri.parse(path).path);
@@ -47,10 +51,13 @@ class ShoppingSocket extends ChangeNotifier {
   }) {
     _network = networkChanges?.distinct().listen((available) {
       if (available) {
-        reconnect();
+        // The first online event reports current state; it is not a network
+        // change. Do not cancel an opening socket or an in-flight write.
+        if (_networkAvailable != null) reconnect();
       } else {
         _lost();
       }
+      _networkAvailable = available;
     }, onError: (Object _) {}); // Socket retries still work without OS events.
   }
 
@@ -62,6 +69,7 @@ class ShoppingSocket extends ChangeNotifier {
   final void Function()? onReady;
   final WebSocketChannel Function(Uri) connect;
   final String url;
+  bool? _networkAvailable;
   WebSocketChannel? _channel;
   StreamSubscription<dynamic>? _subscription;
   StreamSubscription<bool>? _network;
@@ -205,7 +213,9 @@ class ShoppingSocket extends ChangeNotifier {
     Map<String, dynamic>? body,
   }) async {
     if (_closed) throw StateError('Data connection closed');
-    if (scope == 'ai'
+    if (scope == 'account'
+        ? !isAccountPath(path) || household.isNotEmpty
+        : scope == 'ai'
         ? (!isAiPath(path) ||
               (path.startsWith('/households/') &&
                   !path.startsWith('/households/$household/')) ||
@@ -226,7 +236,7 @@ class ShoppingSocket extends ChangeNotifier {
       Duration(seconds: scope == 'household' ? 90 : 20),
     );
     if (!connected) {
-      throw ApiException(503, 'Data synchronization disconnected.');
+      throw _connectionLost();
     }
     final id = '${++_sequence}';
     final response = Completer<Map<String, dynamic>>();
@@ -239,6 +249,8 @@ class ShoppingSocket extends ChangeNotifier {
         Duration(
           seconds: scope == 'ai' || body?['source_type'] == 'blank'
               ? 615
+              : scope == 'account'
+              ? 90
               : scope == 'household'
               ? 90
               : 20,
@@ -260,8 +272,7 @@ class ShoppingSocket extends ChangeNotifier {
     unawaited(_subscription?.cancel());
     unawaited(_channel?.sink.close());
     _channel = null;
-    final error =
-        failure ?? ApiException(503, 'Data synchronization disconnected.');
+    final error = failure ?? _connectionLost();
     if (!(_ready?.isCompleted ?? true)) _ready!.completeError(error);
     for (final pending in _pending.values) {
       pending.completeError(error);
@@ -277,6 +288,14 @@ class ShoppingSocket extends ChangeNotifier {
       );
     }
   }
+
+  ApiException _connectionLost() => ApiException(
+    503,
+    scope == 'account'
+        ? 'The connection to the account service was interrupted. Please try again.'
+        : 'Data synchronization disconnected.',
+    code: 'connection_lost',
+  );
 
   @override
   void dispose() {

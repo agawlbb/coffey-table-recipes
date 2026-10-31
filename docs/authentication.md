@@ -1,5 +1,25 @@
 # Authentication and household checkpoint
 
+Current transport: account bootstrap (`/me`), first
+household setup, verification mail and invitation requests use the VPS WebSocket's
+`account` scope. Firebase still manages password/Google sign-in and password reset.
+The current UI is preserved. Child-mode flags, PIN changes and administrator resets
+now use SQL through the VPS, with no InMotion PHP policy call; see
+[SQL policy and Android build 43](child-mode-sql.md). Other account administration
+and the MySQL host remain on InMotion. See the VPS repository's
+[account setup and credential paths](https://github.com/agawlbb/coffey-table-recipes-vps/blob/main/ACCOUNT-WEBSOCKET.md).
+The VPS branch and an Android test APK were deployed/delivered on 2026-10-31;
+see [test deployment evidence](account-test-deployment.md). SMTP authentication and
+Firebase lookup passed; fresh-user signup and actual inbox delivery remain device
+tests. Earlier checkpoint notes below describe the original setup.
+
+Initial source-only branch validation: changed Dart files formatted; `flutter analyze --no-pub
+lib/src/api.dart lib/src/shopping_socket.dart test/backend_socket_test.dart` passed.
+Focused `backend_socket_test.dart` and `verification_delivery_test.dart` passed
+(4 tests). `flutter test --no-pub --reporter compact` passed all 545 tests.
+No app build was made. The subsequent integration of `39a318b` adds only
+`docs/releases.md`; it does not change the tested app source.
+
 Firebase project: `coffey-table-recipes` (Spark plan). Android and web registered. Email/password and Google providers enabled, debug SHA-1 and SHA-256 added. Firebase Hosting, Analytics, and optional Gemini assistance are not used. Localhost is authorized.
 
 Email access supports sign-in, account creation with name and password confirmation, and password reset. New passwords require at least eight characters in the client. Firebase manages passwords; the PHP server receives only ID tokens. Enter your own new password in the app. Google remains an optional sign-in method.
