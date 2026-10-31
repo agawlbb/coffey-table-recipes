@@ -3,7 +3,7 @@
 Branch `feature/vps-remaining-php` starts at app main `8970194`. The subsequent user
 request authorized deploying the VPS feature backend and building test Android
 build 44. No merge or release was performed. Matching backend/HA branches are required; see
-the [VPS cutover instructions](https://github.com/agawlbb/coffey-table-recipes-vps/blob/feature/vps-remaining-php/REMAINING-PHP.md).
+the [VPS cutover instructions](https://github.com/agawlbb/coffey-table-recipes-vps/blob/main/REMAINING-PHP.md).
 
 The API base is `https://ctr.coffeybean.com/api/v1`. Account administration uses
 the existing account WebSocket with progress. Recipe links use
@@ -82,3 +82,12 @@ JNI verification. Install build 45 over the existing app, preserving app storage
 Test existing sign-in, offline queued edits, recipe links/images, administration
 and AI progress.
 No iOS/web build, hosted Flutter deployment, main merge or release tag was made.
+
+## Accepted merge — 2026-10-31
+
+The user approved merging the remaining-PHP branches and removing them. Latest
+app main (main dishes first per meal-planner date) was integrated before merging.
+Focused meal planner, access, drag, backend socket and API tests passed, along
+with analysis of the affected meal planner and API files. Earlier full-suite
+validation remains recorded above. No app build or release is authorized by this
+merge; release waits for AI dish chat. InMotion deployment is explicitly deferred.
