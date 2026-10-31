@@ -157,16 +157,64 @@ class _MealPlannerState extends State<MealPlanner> with WidgetsBindingObserver {
     try {
       final data = await widget.request('$_path?${_range()}');
       if (!mounted || generation != _generation) return false;
+      final entries = recipeRows(data['entries']);
+      if (!mounted || generation != _generation) return false;
       final today = DateTime.tryParse('${data['today']}');
       setState(() {
         if (today != null) _today = today;
         _revision = (data['revision'] as num).toInt();
-        _entries = recipeRows(data['entries'])
-            .map((e) => {...e, '_revision': _revision})
-            .toList();
+        _entries = entries.map((e) => {...e, '_revision': _revision}).toList();
         _error = null;
         _loading = false;
         _ready = true;
+      });
+      final mainRecipes = <String>{};
+      for (final id
+          in entries
+              .where((e) => e['kind'] == 'recipe' && e['available'] != false)
+              .map((e) => e['recipe_id']?.toString())
+              .whereType<String>()
+              .toSet()) {
+        try {
+          final detail = await widget.request(
+            '/households/${widget.householdId}/recipes/$id',
+          );
+          if (!mounted || generation != _generation) return false;
+          final recipe = detail['recipe'] as Map?;
+          final assigned = recipeRows(recipe?['category_assignments'])
+              .map((c) => c['category_id'].toString())
+              .toSet();
+          final categories = recipeRows(
+            (recipe?['edit_options'] as Map?)?['categories'],
+          );
+          bool mainLabel(Object? value) => const {
+            'main dish',
+            'main dishes',
+          }.contains(value?.toString().trim().toLowerCase());
+          if (categories.any(
+            (c) =>
+                assigned.contains(c['id'].toString()) &&
+                (mainLabel(c['label']) || mainLabel(c['parent_label'])),
+          )) {
+            mainRecipes.add(id);
+          }
+        } catch (error) {
+          if (!mounted || generation != _generation) return false;
+          if (_invalidateAccess(error)) return false;
+          // Missing recipe metadata must not prevent viewing the meal plan.
+        }
+      }
+      if (!mounted || generation != _generation) return false;
+      setState(() {
+        // Partition without changing the order within either group.
+        _entries = [
+          ..._entries.where(
+            (e) => mainRecipes.contains(e['recipe_id']?.toString()),
+          ),
+          ..._entries.where(
+            (e) => !mainRecipes.contains(e['recipe_id']?.toString()),
+          ),
+        ];
       });
       return true;
     } catch (error) {

@@ -39,6 +39,7 @@ class PlanFixture {
   bool conflict = false;
   final writes = <Map<String, dynamic>>[];
   final reads = <String>[];
+  final details = <String, Map<String, dynamic>>{};
   final entries = <Map<String, dynamic>>[
     {
       'id': 'past',
@@ -67,6 +68,8 @@ class PlanFixture {
   ];
   Future<Map<String, dynamic>> request(String path) async {
     reads.add(path);
+    final id = path.split('/').last;
+    if (details.containsKey(id)) return {'recipe': details[id]};
     if (path.contains('/pairings/')) {
       return {
         'recipes': [
@@ -143,6 +146,56 @@ class PlanFixture {
 }
 
 void main() {
+  testWidgets('each day displays main dishes first with stable group order', (
+    tester,
+  ) async {
+    final fixture = PlanFixture();
+    fixture.entries.clear();
+    for (final id in ['side', 'main', 'unknown', 'second-main', 'next-day']) {
+      fixture.entries.add({
+        'id': id,
+        'recipe_id': id,
+        'kind': 'recipe',
+        'title': id,
+        'available': true,
+        'plan_date': id == 'next-day' ? '2026-10-23' : '2026-10-22',
+      });
+    }
+    fixture.details.addAll({
+      for (final id in ['side', 'main', 'second-main', 'next-day'])
+        id: {
+          'category_assignments': [
+            {'category_id': '10'},
+          ],
+          'edit_options': {
+            'categories': [
+              {
+                'id': '10',
+                'label': id == 'side'
+                    ? 'Side dishes'
+                    : id == 'second-main'
+                    ? 'Pasta'
+                    : ' Main Dish ',
+                'parent_label': id == 'second-main' ? 'Main dishes' : null,
+              },
+            ],
+          },
+        },
+    });
+    await tester.pumpWidget(fixture.app());
+    await tester.pumpAndSettle();
+    final day = find.byKey(const ValueKey('meal-day-2026-10-22'));
+    final titles = tester
+        .widgetList<Tooltip>(
+          find.descendant(of: day, matching: find.byType(Tooltip)),
+        )
+        .map((tooltip) => tooltip.message)
+        .where((title) => fixture.entries.any((e) => e['title'] == title));
+    expect(titles, ['main', 'second-main', 'side', 'unknown']);
+    expect(fixture.writes, isEmpty);
+    await tester.pumpWidget(const SizedBox());
+  });
+
   testWidgets('quick swipe on a planned dish scrolls; short hold moves it', (
     tester,
   ) async {
