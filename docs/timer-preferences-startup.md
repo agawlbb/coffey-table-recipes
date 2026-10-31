@@ -33,3 +33,25 @@ Verified before publication:
   release-specific gap that mocked preference tests cannot catch.
 - `git diff --check` passed. Corrected signed-APK verification and delivery are
   recorded after the requested feature test build completes. No main merge.
+
+## Corrected test APK delivery
+
+[Android build 41229755998](https://github.com/agawlbb/coffey-table-recipes/actions/runs/41229755998)
+passed from immutable feature source `aa0dc5b351646acd7cc65a52138f9401203e0265`.
+Test version is `2.4.0-account-test`, build **45**.
+
+- APK: `CoffeyTableRecipes-2.4.0-account-test-build45.apk`.
+- SHA-256: `0f5956319110b4e3f0b67512705e918553841543782f613386a7aafa06b8abf8`.
+- The CI guard and independent local `dexdump` check both verified all six JNI
+  class names in the actual signed APK. Original signing certificate,
+  package/version, non-debuggable status and hosted Android association verified.
+- [Verified Drive APK](https://drive.google.com/file/d/1hzHNPCh9quRgnCqHjRc9ps1NNELFKb-Q/view).
+  Uploaded to the existing pinned recipe app folder, downloaded and SHA-256
+  checked. FCM accepted the informational Android update notification. Only the
+  exact known superseded build-44 test APK was moved to Drive trash after this
+  verification; unrelated files and stable releases were preserved.
+
+Install over build 44 without clearing app data. Physical-device startup and
+timer sharing still require the user's confirmation; artifact inspection is not
+an installed-device execution test. No backend/HA deployment, iOS/web build,
+release tag or main merge was needed for this correction.

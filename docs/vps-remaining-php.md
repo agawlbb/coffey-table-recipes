@@ -76,6 +76,9 @@ passed. Superseded build attempts were not distributed.
   FCM accepted an informational Android notification with no link/click action.
   Device receipt and installation were not claimed as verified.
 
-Install build 44 over build 43, preserving app storage. Test existing sign-in,
-offline queued edits, recipe links/images, administration and AI progress.
+Build 44 was superseded by [corrected build 45](timer-preferences-startup.md),
+which fixes the Android preferences release-startup failure and adds APK-level
+JNI verification. Install build 45 over the existing app, preserving app storage.
+Test existing sign-in, offline queued edits, recipe links/images, administration
+and AI progress.
 No iOS/web build, hosted Flutter deployment, main merge or release tag was made.
