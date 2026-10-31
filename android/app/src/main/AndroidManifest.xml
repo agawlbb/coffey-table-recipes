@@ -51,7 +51,7 @@
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
-                <data android:scheme="https" android:host="coffeybean.com" android:path="/CoffeyTableRecipes/share.php" />
+                <data android:scheme="https" android:host="ctr.coffeybean.com" android:pathPrefix="/recipes/" />
             </intent-filter>
         </activity>
         <!-- Don't delete the meta-data below.

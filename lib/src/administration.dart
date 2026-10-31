@@ -1,3 +1,4 @@
+import 'ai_progress.dart';
 import 'child_mode.dart';
 
 import 'package:firebase_auth/firebase_auth.dart';
@@ -27,6 +28,18 @@ class _AdministrationPageState extends State<AdministrationPage> {
   String? _actorId;
   String? _error;
   bool _busy = true;
+  final _progress = AiRunProgress();
+
+  Future<Map<String, dynamic>> _request(
+    String path, {
+    Map<String, dynamic>? body,
+  }) => _progress.run(() => widget.request(path, body: body));
+
+  @override
+  void dispose() {
+    _progress.dispose();
+    super.dispose();
+  }
 
   @override
   void initState() {
@@ -44,12 +57,12 @@ class _AdministrationPageState extends State<AdministrationPage> {
       _error = null;
     });
     try {
-      final me = await widget.request('/me');
+      final me = await _request('/me');
       final user = me['user'] as Map;
       if (user['account_role'] != 'administrator') {
         throw ApiException(403, 'Administrator access is required.');
       }
-      final data = await widget.request('/admin/users');
+      final data = await _request('/admin/users');
       if (!mounted) return;
       setState(() {
         _actorId = user['id'] as String;
@@ -98,7 +111,7 @@ class _AdministrationPageState extends State<AdministrationPage> {
     if (accepted != true || !mounted) return;
     setState(() => _busy = true);
     try {
-      await widget.request(
+      await _request(
         '/admin/users/${user['id']}/reset-child-mode',
         body: {'confirm': true},
       );
@@ -148,7 +161,7 @@ class _AdministrationPageState extends State<AdministrationPage> {
       _error = null;
     });
     try {
-      await widget.request(
+      await _request(
         '/admin/${person
             ? 'people'
             : user['firebase_only'] == true
@@ -186,7 +199,7 @@ class _AdministrationPageState extends State<AdministrationPage> {
       _error = null;
     });
     try {
-      final result = await widget.request(
+      final result = await _request(
         '/admin/households/${household['id']}/ai-images',
         body: {'enabled': enabled},
       );
@@ -237,6 +250,7 @@ class _AdministrationPageState extends State<AdministrationPage> {
         child: Column(
           children: [
             if (_busy) const LinearProgressIndicator(),
+            AiProgressText(_progress),
             if (_error != null)
               Padding(
                 padding: const EdgeInsets.all(16),

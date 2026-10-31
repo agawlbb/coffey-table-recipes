@@ -430,7 +430,7 @@ class _HouseholdPanelState extends State<HouseholdPanel>
     if (widget.request == null) {
       _offline =
           OfflineRecipes(
-            key: '$apiBaseUrl|${widget.user.uid}',
+            key: '$apiStorageNamespace|${widget.user.uid}',
             fetch: (path) async {
               if (path == '/me') {
                 if (kIsWeb && Uri.base.queryParameters['account'] == 'signin') {
@@ -449,7 +449,7 @@ class _HouseholdPanelState extends State<HouseholdPanel>
     }
     if (widget.request == null) {
       _local = LocalData(
-        key: '$apiBaseUrl|${widget.user.uid}',
+        key: '$apiStorageNamespace|${widget.user.uid}',
         fetch: (path) => isVpsDataPath(path)
             ? _onlineRequest(path)
             : _offline!.request(path),
@@ -809,7 +809,8 @@ class _HouseholdPanelState extends State<HouseholdPanel>
   Future<void> _load({bool reviewInvitations = true}) async {
     // This cache chooses public browsing only. It never authorizes a mutation,
     // exposes account data, or substitutes for authenticated /me responses.
-    final browseKey = 'browse-households|$apiBaseUrl|${widget.user.uid}';
+    final browseKey =
+        'browse-households|$apiStorageNamespace|${widget.user.uid}';
     if (_households.isEmpty && widget.request == null) {
       try {
         final cached = await readOfflineStore(browseKey)
@@ -1111,7 +1112,7 @@ class _HouseholdPanelState extends State<HouseholdPanel>
   }
 
   String get _sectionKey =>
-      'ctr-last-section-v1:$apiBaseUrl|${widget.user.uid}';
+      'ctr-last-section-v1:$apiStorageNamespace|${widget.user.uid}';
   Future<void> _restoreSectionAndLoad() async {
     try {
       final reader =
@@ -1682,7 +1683,7 @@ class _HouseholdPanelState extends State<HouseholdPanel>
                     cache: ShoppingListCache(
                       account: widget.user.uid,
                       household: _selected!,
-                      server: apiBaseUrl,
+                      server: apiStorageNamespace,
                     ),
                     householdId: _selected!,
                     householdName: selected['name'] as String,

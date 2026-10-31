@@ -209,7 +209,9 @@ class _ParentCategoriesState extends State<ParentCategories> {
                         height: 48,
                         child: category['image_url'] is String
                             ? Image.network(
-                                category['image_url'] as String,
+                                managedRecipeImageUrl(
+                                  category['image_url'] as String,
+                                ),
                                 fit: BoxFit.cover,
                                 errorBuilder: (_, error, stack) =>
                                     const Icon(Icons.category_outlined),

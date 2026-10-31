@@ -61,7 +61,32 @@ final apiBaseUrl = resolveApiBaseUrl(
 
 String resolveApiBaseUrl({String override = ''}) {
   if (override.isNotEmpty) return override;
-  return 'https://coffeybean.com/CoffeyTableRecipes/api/v1';
+  return 'https://ctr.coffeybean.com/api/v1';
+}
+
+// Keep existing persisted queues when only the production request host changes.
+String apiStorageNamespaceFor(String baseUrl) =>
+    baseUrl == 'https://ctr.coffeybean.com/api/v1'
+    ? 'https://coffeybean.com/CoffeyTableRecipes/api/v1'
+    : baseUrl;
+final apiStorageNamespace = apiStorageNamespaceFor(apiBaseUrl);
+
+String managedRecipeImageUrl(String value) {
+  final uri = Uri.tryParse(value);
+  if (uri == null ||
+      !['http', 'https'].contains(uri.scheme) ||
+      !['coffeybean.com', 'www.coffeybean.com'].contains(uri.host) ||
+      uri.hasPort ||
+      uri.userInfo.isNotEmpty) {
+    return value;
+  }
+  final match = RegExp(
+    r'^/CoffeyTableRecipes/media/(?:recipes|recipe-photos|recipe-illustrations)/((?:[a-f0-9]{48}|[a-f0-9]{64}|[a-z][a-z0-9-]*-ai-v[1-9][0-9]*)\.(?:jpg|png|webp)|category-[1-9][0-9]*\.jpg)$',
+  ).firstMatch(uri.path);
+  if (match == null) {
+    return value;
+  }
+  return 'https://ctr.coffeybean.com/media/recipes/${match.group(1)}';
 }
 
 bool isPublicRecipeRead(String path) =>

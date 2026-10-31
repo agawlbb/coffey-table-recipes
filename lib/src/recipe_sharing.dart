@@ -3,15 +3,12 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 
-import 'api.dart';
-
-String recipeShareLink(String recipeId) => Uri.parse(apiBaseUrl)
-    .replace(
-      path: Uri.parse(apiBaseUrl).path
-          .replaceFirst(RegExp(r'/api/v1/?$'), '/share.php'),
-      queryParameters: {'id': recipeId},
-    )
-    .toString();
+String recipeShareLink(String recipeId) {
+  if (!RegExp(r'^[1-9][0-9]{0,18}$').hasMatch(recipeId)) {
+    throw ArgumentError('Invalid recipe ID');
+  }
+  return 'https://ctr.coffeybean.com/recipes/$recipeId';
+}
 
 String recipeShareHtml(String recipeId, String title) {
   const escape = HtmlEscape(HtmlEscapeMode.attribute);

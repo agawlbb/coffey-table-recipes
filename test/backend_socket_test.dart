@@ -147,7 +147,8 @@ void main() {
       await api.request(path, 'fixture', body: {});
     }
     await api.request('/admin/users', 'fixture');
-    expect(httpPaths, ['/admin/users']);
+    await api.request('/home-assistant/auth-config', 'fixture');
+    expect(httpPaths, ['/home-assistant/auth-config']);
     final accountAuth = frames.firstWhere(
       (f) => f['type'] == 'auth' && f['scope'] == 'account',
     );

@@ -92,7 +92,7 @@ jobs:
           TEST_BUILD: ${{ inputs.test_build }}
         run: |
           python3 - <<'PY'
-          import hashlib, json, os, re, shutil, ssl, subprocess
+          import hashlib, json, os, re, shutil, ssl, subprocess, tempfile, zipfile
           from pathlib import Path
           apk = Path('build/app/outputs/flutter-apk/app-release.apk')
           tools = Path(os.environ['ANDROID_HOME'], 'build-tools', '36.0.0')
@@ -114,6 +114,21 @@ jobs:
           package = re.search(r"^package: name='([^']+)' versionCode='([^']+)' versionName='([^']+)'", badging)
           assert package and package.groups() == ('com.coffeytable.coffey_table_recipes', build, version), 'Package/version mismatch'
           assert 'application-debuggable' not in badging, 'Release must not be debuggable'
+          # These names are looked up through JNI by Android timer preferences.
+          # A successful compile does not detect R8 removing/renaming them.
+          required = {'kotlin/Unit', 'kotlin/Result', 'kotlin/Result$Failure',
+                      'kotlin/coroutines/Continuation',
+                      'kotlin/coroutines/intrinsics/CoroutineSingletons',
+                      'kotlin/coroutines/intrinsics/IntrinsicsKt'}
+          classes = set()
+          with tempfile.TemporaryDirectory() as directory, zipfile.ZipFile(apk) as archive:
+              for name in archive.namelist():
+                  if re.fullmatch(r'classes[0-9]*\.dex', name):
+                      dex = Path(directory, name)
+                      dex.write_bytes(archive.read(name))
+                      dump = subprocess.check_output([str(tools / 'dexdump'), str(dex)], text=True)
+                      classes.update(re.findall(r"Class descriptor\s*:\s*'L([^']+);'", dump))
+          assert required <= classes, 'R8 removed Kotlin classes required by Android timer preferences: ' + ', '.join(sorted(required - classes))
           subprocess.run(['python3', 'tool/verify-app-links.py', '--fingerprint', fingerprint], check=True)
           output = Path('build/android-delivery')
           output.mkdir(parents=True, exist_ok=True)
@@ -121,7 +136,8 @@ jobs:
           shutil.copyfile(apk, output / filename)
           report = dict(version=version, build=int(build), tag=os.environ['RELEASE_TAG'], test_build=test_build,
                         source=subprocess.check_output(['git', 'rev-parse', 'HEAD'], text=True).strip(),
-                        filename=filename, sha256=hashlib.sha256(apk.read_bytes()).hexdigest(), certificate_sha256=fingerprint)
+                        filename=filename, sha256=hashlib.sha256(apk.read_bytes()).hexdigest(), certificate_sha256=fingerprint,
+                        android_preferences_jni_verified=True)
           (output / 'verification.json').write_text(json.dumps(report, indent=2))
           print(json.dumps(report, indent=2))
           PY

@@ -83,6 +83,37 @@ void main() {
   });
 
   test(
+    'VPS cutover keeps unsent changes in the existing account namespace',
+    () async {
+      const oldBase = 'https://coffeybean.com/CoffeyTableRecipes/api/v1';
+      final first = store(key: '$oldBase|account');
+      await first.request(list);
+      await first.save(list, {
+        'revision': 1,
+        'items': [item('Queued milk')],
+      });
+      await settle(first);
+      first.dispose();
+      stores.remove(first);
+      var writes = 0;
+      final restarted = store(
+        key: '${apiStorageNamespaceFor(resolveApiBaseUrl())}|account',
+        send: (path, body) async {
+          writes++;
+          expect(body['items'][0]['name'], 'Queued milk');
+          return {'revision': 2, 'items': body['items'], 'departments': []};
+        },
+      );
+      expect(
+        (await restarted.cached(list))!['items'][0]['name'],
+        'Queued milk',
+      );
+      await settle(restarted);
+      expect(writes, 1);
+    },
+  );
+
+  test(
     'shopping notes survive offline restart and upload with the entry',
     () async {
       final first = store();
