@@ -1,7 +1,7 @@
 # Account test deployment — 2026-10-31
 
-The current Android test is [build 42](verification-delivery-fix.md), which fixes
-the verification connection interruption and adds a resend cooldown. The build-41
+The current Android test is [build 43](child-mode-sql.md), which uses SQL child-mode
+policy through the VPS and retains the verification connection fix and resend cooldown. The build-41
 delivery below is historical; its APK is no longer visible in the authorized
 Drive listing.
 

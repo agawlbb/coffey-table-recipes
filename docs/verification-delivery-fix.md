@@ -1,5 +1,9 @@
 # Verification delivery and resend cooldown
 
+The current test APK is [build 43](child-mode-sql.md), which retains these fixes and
+also removes the InMotion HTTP policy dependency. Build 42 below is historical;
+its superseded APK was moved to Drive trash after build 43 was verified.
+
 The account-test build exposed a client connection race: a newly subscribed
 Android connectivity stream reports its initial online state. The socket treated
 that first notification as a network transition, closed an already-opening/ready

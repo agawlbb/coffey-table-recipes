@@ -3,16 +3,17 @@
 Current transport on `feature/vps-account-auth`: account bootstrap (`/me`), first
 household setup, verification mail and invitation requests use the VPS WebSocket's
 `account` scope. Firebase still manages password/Google sign-in and password reset.
-The current UI is preserved. Child-mode PIN policy and account administration stay
-on InMotion; the VPS checks the existing policy endpoint and fails closed if it is
-unavailable. MySQL remains on InMotion. See the VPS repository's
+The current UI is preserved. Child-mode flags, PIN changes and administrator resets
+now use SQL through the VPS, with no InMotion PHP policy call; see
+[SQL policy and Android build 43](child-mode-sql.md). Other account administration
+and the MySQL host remain on InMotion. See the VPS repository's
 [account setup and credential paths](https://github.com/agawlbb/coffey-table-recipes-vps/blob/feature/vps-account-auth/ACCOUNT-WEBSOCKET.md).
 The VPS branch and an Android test APK were deployed/delivered on 2026-10-31;
 see [test deployment evidence](account-test-deployment.md). SMTP authentication and
 Firebase lookup passed; fresh-user signup and actual inbox delivery remain device
 tests. Earlier checkpoint notes below describe the original setup.
 
-Branch validation: changed Dart files formatted; `flutter analyze --no-pub
+Initial source-only branch validation: changed Dart files formatted; `flutter analyze --no-pub
 lib/src/api.dart lib/src/shopping_socket.dart test/backend_socket_test.dart` passed.
 Focused `backend_socket_test.dart` and `verification_delivery_test.dart` passed
 (4 tests). `flutter test --no-pub --reporter compact` passed all 545 tests.
