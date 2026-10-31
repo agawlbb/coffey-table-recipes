@@ -52,7 +52,7 @@ void main() {
         );
         await tester.pumpAndSettle();
         final formerMilkPosition = tester.getCenter(find.text('Milk'));
-        // Another user checks Milk; Eggs takes its former position.
+        // Another user checks Milk; it stays in place during the grace period.
         items = [
           {...items[0], 'checked': true},
           items[1],
@@ -60,7 +60,7 @@ void main() {
         revision++;
         await tester.tap(find.byTooltip('Refresh'));
         await tester.pumpAndSettle();
-        expect(tester.getCenter(find.text('Eggs')), formerMilkPosition);
+        expect(tester.getCenter(find.text('Milk')), formerMilkPosition);
         expect(tester.widget<TextField>(find.byType(TextField)).enabled, false);
         expect(
           tester
@@ -84,23 +84,214 @@ void main() {
         await tester.pumpAndSettle();
         expect(writes, 1);
         expect(items.every((item) => item['checked'] == true), true);
-        // Local acknowledgements and their later refresh echoes do not pause.
-        expect(tester.widget<TextField>(find.byType(TextField)).enabled, true);
-        await tester.tap(find.byTooltip('Refresh'));
-        await tester.pumpAndSettle();
-        await tester.tap(find.text('Eggs'));
-        await tester.pump(const Duration(milliseconds: 350));
-        await tester.pumpAndSettle();
-        expect(writes, 2);
-        expect(
-          items.singleWhere((item) => item['id'] == 'eggs')['checked'],
-          false,
-        );
+        // A local save acknowledgement does not add an editing pause.
         expect(tester.widget<TextField>(find.byType(TextField)).enabled, true);
         await tester.pumpWidget(const SizedBox());
       },
     );
   }
+  for (final localFirst in [false, true]) {
+    for (final remote in [false, true]) {
+      testWidgets(
+        'five-second checkoff grace (remote=$remote, localFirst=$localFirst)',
+        (tester) async {
+          var items = <Map<String, dynamic>>[
+            {
+              'id': 'a',
+              'name': 'Apples',
+              'department': 'Produce',
+              'checked': false,
+            },
+            {
+              'id': 'b',
+              'name': 'Butter',
+              'department': 'Dairy',
+              'checked': false,
+            },
+          ];
+          var revision = 1;
+          var writes = 0;
+          await tester.pumpWidget(
+            MaterialApp(
+              home: ShoppingListScreen(
+                householdId: '1',
+                householdName: 'Coffey',
+                localFirst: localFirst,
+                request: (_, {body}) async {
+                  if (body != null) {
+                    writes++;
+                    items = (body['items'] as List)
+                        .cast<Map<String, dynamic>>();
+                    revision++;
+                  }
+                  return {
+                    'revision': revision,
+                    'items': items,
+                    'departments': ['Produce', 'Dairy'],
+                  };
+                },
+              ),
+            ),
+          );
+          await tester.pumpAndSettle();
+          final originalPosition = tester.getTopLeft(find.text('Apples'));
+          if (remote) {
+            items = [
+              {...items[0], 'checked': true},
+              items[1],
+            ];
+            revision++;
+            await tester.tap(find.byTooltip('Refresh'));
+          } else {
+            await tester.tap(find.text('Apples'));
+            await tester.pump(const Duration(milliseconds: 350));
+          }
+          await tester.pumpAndSettle();
+          expect(
+            tester.widget<Text>(find.text('Apples')).style!.decoration,
+            TextDecoration.lineThrough,
+          );
+          expect(tester.getTopLeft(find.text('Apples')), originalPosition);
+          expect(find.byKey(const ValueKey('completed-section')), findsNothing);
+          expect(
+            tester.widget<TextField>(find.byType(TextField)).enabled,
+            !remote,
+          );
+          await tester.pump(const Duration(seconds: 3));
+          // An unchanged refresh must not postpone the move.
+          await tester.tap(find.byTooltip('Refresh'));
+          await tester.pumpAndSettle();
+          expect(tester.getTopLeft(find.text('Apples')), originalPosition);
+          expect(
+            tester.widget<TextField>(find.byType(TextField)).enabled,
+            true,
+          );
+          await tester.pump(const Duration(seconds: 2));
+          expect(
+            find.byKey(const ValueKey('completed-section')),
+            findsOneWidget,
+          );
+          expect(
+            tester.getTopLeft(find.text('Apples')).dy,
+            greaterThan(tester.getTopLeft(find.text('Butter')).dy),
+          );
+          expect(find.text('Produce'), findsNothing);
+          expect(
+            tester.widget<TextField>(find.byType(TextField)).enabled,
+            !remote,
+          );
+          expect(writes, remote ? 0 : 1);
+          await tester.pumpWidget(const SizedBox());
+        },
+      );
+    }
+  }
+
+  testWidgets(
+    'unchecking cancels the move and checking again gets five fresh seconds',
+    (tester) async {
+      var items = <Map<String, dynamic>>[
+        {
+          'id': 'a',
+          'name': 'Apples',
+          'department': 'Produce',
+          'checked': false,
+        },
+      ];
+      await tester.pumpWidget(
+        MaterialApp(
+          home: ShoppingListScreen(
+            householdId: '1',
+            householdName: 'Coffey',
+            request: (_, {body}) async {
+              if (body != null) {
+                items = (body['items'] as List).cast<Map<String, dynamic>>();
+              }
+              return {
+                'revision': 1,
+                'items': items,
+                'departments': ['Produce'],
+              };
+            },
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      Future<void> toggle() async {
+        await tester.tap(find.text('Apples'));
+        await tester.pump(const Duration(milliseconds: 350));
+        await tester.pumpAndSettle();
+      }
+
+      await toggle();
+      await tester.pump(const Duration(seconds: 2));
+      await toggle();
+      await tester.pump(const Duration(seconds: 3));
+      expect(items.single['checked'], false);
+      expect(find.byKey(const ValueKey('completed-section')), findsNothing);
+      await toggle();
+      await tester.pump(const Duration(seconds: 4));
+      expect(find.text('Produce'), findsOneWidget);
+      expect(find.byKey(const ValueKey('completed-section')), findsNothing);
+      await tester.pump(const Duration(seconds: 1));
+      expect(find.byKey(const ValueKey('completed-section')), findsOneWidget);
+      await tester.pumpWidget(const SizedBox());
+    },
+  );
+  testWidgets('remote delayed move preserves an active inline edit', (
+    tester,
+  ) async {
+    var items = <Map<String, dynamic>>[
+      {'id': 'a', 'name': 'Apples', 'department': 'Produce', 'checked': false},
+      {'id': 'b', 'name': 'Butter', 'department': 'Dairy', 'checked': false},
+    ];
+    var revision = 1;
+    await tester.pumpWidget(
+      MaterialApp(
+        home: ShoppingListScreen(
+          householdId: '1',
+          householdName: 'Coffey',
+          request: (_, {body}) async {
+            if (body != null) {
+              items = (body['items'] as List).cast<Map<String, dynamic>>();
+              revision++;
+            }
+            return {
+              'revision': revision,
+              'items': items,
+              'departments': ['Produce', 'Dairy'],
+            };
+          },
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    items = [
+      {...items[0], 'checked': true},
+      items[1],
+    ];
+    revision++;
+    await tester.tap(find.byTooltip('Refresh'));
+    await tester.pumpAndSettle();
+    await tester.pump(const Duration(seconds: 3));
+    await tester.tap(find.text('Butter'));
+    await tester.pump(const Duration(milliseconds: 100));
+    await tester.tap(find.text('Butter'));
+    await tester.pumpAndSettle();
+    final editor = find.byKey(const ValueKey('edit-b'));
+    await tester.enterText(editor, 'Salted butter');
+    await tester.pump(const Duration(seconds: 2));
+    expect(find.byKey(const ValueKey('completed-section')), findsOneWidget);
+    expect(editor, findsOneWidget);
+    expect(tester.widget<TextField>(editor).controller!.text, 'Salted butter');
+    await tester.tap(find.byTooltip('Save item'));
+    await tester.pumpAndSettle();
+    expect(
+      items.singleWhere((item) => item['id'] == 'b')['name'],
+      'Salted butter',
+    );
+    await tester.pumpWidget(const SizedBox());
+  });
   testWidgets('local-first shopping does not revive a stale secondary cache', (
     tester,
   ) async {
@@ -391,6 +582,8 @@ void main() {
       expect(text.style?.decoration, TextDecoration.lineThrough);
       expect(items.single['checked'], true);
       expect(find.byType(Checkbox), findsNothing);
+      expect(find.byKey(const ValueKey('completed-section')), findsNothing);
+      await tester.pump(const Duration(seconds: 5));
       expect(
         tester.getTopLeft(find.text('Milk')).dy,
         greaterThan(
@@ -459,7 +652,7 @@ void main() {
     },
   );
   testWidgets(
-    'tap groups checked items at the bottom and restores their original departments',
+    'checked items stay in their department for five seconds before moving down',
     (tester) async {
       tester.view.physicalSize = const Size(800, 1400);
       tester.view.devicePixelRatio = 1;
@@ -508,12 +701,19 @@ void main() {
       await tester.pumpAndSettle();
       expect(
         tester.getTopLeft(find.text('Apples')).dy,
+        lessThan(tester.getTopLeft(find.text('Butter')).dy),
+      );
+      expect(find.byKey(const ValueKey('completed-section')), findsNothing);
+      await tester.pump(const Duration(seconds: 5));
+      expect(
+        tester.getTopLeft(find.text('Apples')).dy,
         greaterThan(tester.getTopLeft(find.text('Butter')).dy),
       );
       expect(items.first['department'], 'Produce');
       await tester.tap(find.text('Butter'));
       await tester.pump(const Duration(milliseconds: 350));
       await tester.pumpAndSettle();
+      await tester.pump(const Duration(seconds: 5));
       for (final name in ['Apples', 'Butter']) {
         expect(
           tester.getTopLeft(find.text(name)).dy,
