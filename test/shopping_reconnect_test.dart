@@ -1,3 +1,5 @@
+import 'package:coffey_table_recipes/src/ai_progress.dart';
+
 import 'dart:async';
 import 'dart:convert';
 
@@ -308,6 +310,92 @@ void main() {
       socket.dispose();
       data.dispose();
       unawaited(network.close());
+      await tester.pump();
+    },
+  );
+  testWidgets(
+    'AI progress keeps a long request alive and the same socket accepts clarification',
+    (tester) async {
+      late _Channel channel;
+      channel = _Channel(
+        onSend: (message) {
+          if (message['type'] == 'auth') {
+            channel.receive({
+              'type': 'ready',
+              'household_id': '1',
+              'data': <String, dynamic>{},
+            });
+          } else if (message['type'] == 'ping') {
+            channel.receive({'type': 'pong'});
+          }
+        },
+      );
+      final socket = ShoppingSocket(
+        household: '1',
+        scope: 'ai',
+        token: (_) async => 'fixture',
+        connect: (_) => channel,
+        onSnapshot: (_) async {},
+      );
+      final progress = AiRunProgress();
+      var complete = false;
+      final request = progress.run(
+        () => socket.request(
+          '/households/1/recipe-import',
+          body: {'kind': 'text', 'text': 'Soup'},
+        ),
+      );
+      unawaited(
+        request.then((_) {
+          complete = true;
+        }),
+      );
+      await tester.pump();
+      final id = channel.messages.firstWhere(
+        (m) => m['type'] == 'request',
+      )['id'];
+      // More than both the previous HTTP limit and the ordinary data socket limit.
+      for (var step = 1; step <= 8; step++) {
+        channel.receive({
+          'type': 'progress',
+          'id': id,
+          'message': 'Preparing recipe…',
+          'elapsed_seconds': step * 20,
+        });
+        await tester.pump(const Duration(seconds: 20));
+        expect(complete, isFalse);
+        expect(progress.value, 'Preparing recipe… (${step * 20} s)');
+        expect(socket.connected, isTrue);
+      }
+      channel.receive({
+        'type': 'response',
+        'id': id,
+        'data': {
+          'questions': ['How much water?'],
+        },
+      });
+      await tester.pump();
+      expect((await request)['questions'], ['How much water?']);
+      expect(progress.value, isNull);
+      final followup = socket.request(
+        '/households/1/recipe-import',
+        body: {
+          'kind': 'answers',
+          'answers': ['One cup'],
+        },
+      );
+      await tester.pump();
+      final next = channel.messages.lastWhere((m) => m['type'] == 'request');
+      channel.receive({
+        'type': 'response',
+        'id': next['id'],
+        'data': {'questions': <String>[]},
+      });
+      await tester.pump();
+      expect((await followup)['questions'], isEmpty);
+      expect(channel.messages.where((m) => m['type'] == 'auth'), hasLength(1));
+      socket.dispose();
+      progress.dispose();
       await tester.pump();
     },
   );

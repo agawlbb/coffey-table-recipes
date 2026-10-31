@@ -115,7 +115,9 @@ class RecipeApi {
     Map<String, dynamic>? body,
   }) {
     final uri = Uri.parse(path);
-    final scope = uri.path.startsWith('/me/')
+    final scope = isAiPath(path)
+        ? 'ai'
+        : uri.path.startsWith('/me/')
         ? 'timers'
         : uri.path.startsWith('/recipes/')
         ? 'public'
@@ -132,7 +134,11 @@ class RecipeApi {
       _sockets.clear();
       _socketToken = token;
     }
-    final household = scope == 'household' ? uri.pathSegments[1] : '';
+    final household =
+        (scope == 'household' || scope == 'ai') &&
+            uri.path.startsWith('/households/')
+        ? uri.pathSegments[1]
+        : '';
     final key = '$scope/$household';
     final socket = _sockets.putIfAbsent(
       key,
@@ -172,7 +178,7 @@ class RecipeApi {
   }) async {
     if (body != null) requireChildModeWrite(path);
     if (_closed) throw StateError('API closed');
-    if (_useSockets && isVpsDataPath(path)) {
+    if (_useSockets && (isVpsDataPath(path) || isAiPath(path))) {
       return body == null
           ? retryCommunication(
               () => _socketRequest(path, token),

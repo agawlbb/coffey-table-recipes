@@ -1,3 +1,5 @@
+import 'package:coffey_table_recipes/src/ai_progress.dart';
+
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
@@ -12,7 +14,7 @@ import 'package:web_socket_channel/web_socket_channel.dart';
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
-  test('recipe, meal and timer traffic uses authenticated sockets; AI and signup stay HTTP', () async {
+  test('recipe, meal and timer traffic uses authenticated sockets; AI progress use sockets; signup stays HTTP', () async {
     final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
     final frames = <Map<String, dynamic>>[];
     final peers = <WebSocket>[];
@@ -35,6 +37,16 @@ void main() {
             }),
           );
         } else if (frame['type'] == 'request') {
+          if (isAiPath(frame['path'] as String)) {
+            peer.add(
+              jsonEncode({
+                'type': 'progress',
+                'id': frame['id'],
+                'message': 'Checking draft…',
+                'elapsed_seconds': 12,
+              }),
+            );
+          }
           peer.add(
             jsonEncode({
               'type': 'response',
@@ -110,15 +122,28 @@ void main() {
     );
     await api.request('/recipes/2', '');
     await api.request('/me', 'fixture');
-    await api.request('/households/1/recipe-import', 'fixture', body: {});
-    await api.request('/households/1/recipes/2/variation', 'fixture', body: {});
-    expect(httpPaths, [
-      '/me',
+    final progress = AiRunProgress();
+    addTearDown(progress.dispose);
+    final messages = <String?>[];
+    progress.addListener(() => messages.add(progress.value));
+    await progress.run(
+      () => api.request('/households/1/recipe-import', 'fixture', body: {}),
+    );
+    expect(messages, ['Checking draft… (12 s)', null]);
+    await api.request(
       '/households/1/recipe-import',
-      '/households/1/recipes/2/variation',
-    ]);
+      'fixture',
+      body: {'kind': 'answers', 'answers': []},
+    );
+    await api.request('/households/1/recipes/2/variation', 'fixture', body: {});
+    expect(httpPaths, ['/me']);
     final auth = frames.where((f) => f['type'] == 'auth').toList();
-    expect(auth.map((f) => f['scope']), ['household', 'timers', 'public']);
+    expect(auth.map((f) => f['scope']), [
+      'household',
+      'timers',
+      'public',
+      'ai',
+    ]);
     expect(auth.first['token'], 'fixture');
     final edit = frames.firstWhere(
       (f) => (f['body'] as Map?)?['client_save_id'] == 'stable',
@@ -149,6 +174,16 @@ void main() {
               }),
             );
           } else if (frame['type'] == 'request') {
+            if (isAiPath(frame['path'] as String)) {
+              peer.add(
+                jsonEncode({
+                  'type': 'progress',
+                  'id': frame['id'],
+                  'message': 'Checking draft…',
+                  'elapsed_seconds': 12,
+                }),
+              );
+            }
             peer.add(
               jsonEncode({'type': 'response', 'id': frame['id'], 'data': {}}),
             );

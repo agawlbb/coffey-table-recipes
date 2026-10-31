@@ -1,3 +1,5 @@
+import 'ai_progress.dart';
+
 import 'package:flutter/material.dart';
 
 import 'administration.dart';
@@ -12,6 +14,17 @@ class ParentCategories extends StatefulWidget {
 }
 
 class _ParentCategoriesState extends State<ParentCategories> {
+  final _aiProgress = AiRunProgress();
+  Future<Map<String, dynamic>> _progressRequest(
+    String path, {
+    Map<String, dynamic>? body,
+  }) => _aiProgress.run(() => widget.request(path, body: body));
+  @override
+  void dispose() {
+    _aiProgress.dispose();
+    super.dispose();
+  }
+
   List<Map<String, dynamic>> _categories = [];
   bool _busy = true;
   String? _error;
@@ -28,7 +41,10 @@ class _ParentCategoriesState extends State<ParentCategories> {
       _error = null;
     });
     try {
-      final data = await widget.request('/admin/parent-categories', body: body);
+      final data = await _progressRequest(
+        '/admin/parent-categories',
+        body: body,
+      );
       if (mounted) {
         setState(
           () => _categories = List<Map<String, dynamic>>.from(
@@ -131,7 +147,7 @@ class _ParentCategoriesState extends State<ParentCategories> {
       _error = null;
     });
     try {
-      await widget.request(
+      await _progressRequest(
         '/admin/parent-categories/${category['id']}/category-image',
         body: {},
       );
@@ -167,6 +183,7 @@ class _ParentCategoriesState extends State<ParentCategories> {
         child: Column(
           children: [
             if (_busy) const LinearProgressIndicator(),
+            AiProgressText(_aiProgress),
             FilledButton.icon(
               onPressed: _busy ? null : () => _edit(),
               icon: const Icon(Icons.add),

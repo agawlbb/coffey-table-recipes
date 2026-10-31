@@ -1,3 +1,5 @@
+import 'ai_progress.dart';
+
 import 'dart:async';
 import 'dart:convert';
 import 'dart:math';
@@ -29,6 +31,12 @@ class RecipeVariation extends StatefulWidget {
 }
 
 class _RecipeVariationState extends State<RecipeVariation> {
+  final _aiProgress = AiRunProgress();
+  Future<Map<String, dynamic>> _progressRequest(
+    String path,
+    Map<String, dynamic> body,
+  ) => _aiProgress.run(() => widget.request(path, body));
+
   final _changes = TextEditingController();
   final _answerFields = <TextEditingController>[];
   final _answers = <Map<String, String>>[];
@@ -63,6 +71,7 @@ class _RecipeVariationState extends State<RecipeVariation> {
 
   @override
   void dispose() {
+    _aiProgress.dispose();
     offlineStatus.removeListener(_connectionChanged);
     _changes.dispose();
     for (final field in _answerFields) {
@@ -75,7 +84,7 @@ class _RecipeVariationState extends State<RecipeVariation> {
     Map<String, dynamic> body,
     int generation,
   ) async {
-    final deadline = DateTime.now().add(const Duration(seconds: 150));
+    final deadline = DateTime.now().add(const Duration(seconds: 630));
     const delays = [3, 5, 8, 12, 15];
     for (var attempt = 0; ; attempt++) {
       try {
@@ -83,12 +92,10 @@ class _RecipeVariationState extends State<RecipeVariation> {
         if (remaining <= Duration.zero) {
           throw TimeoutException('Variation recovery deadline reached');
         }
-        return await widget
-            .request(
-              '/households/${widget.householdId}/recipes/${widget.parentRecipeId}/variation',
-              body,
-            )
-            .timeout(remaining);
+        return await _progressRequest(
+          '/households/${widget.householdId}/recipes/${widget.parentRecipeId}/variation',
+          body,
+        ).timeout(remaining);
       } catch (error) {
         // Only recover transport uncertainty or an existing worker. Explicit
         // provider failures (quota, validation or ai_timeout) need user action.
@@ -356,6 +363,7 @@ class _RecipeVariationState extends State<RecipeVariation> {
                         ),
                       ),
                     const SizedBox(height: 20),
+                    AiProgressText(_aiProgress),
                     FilledButton.icon(
                       onPressed: _busy || _reviewing || offlineStatus.value
                           ? null

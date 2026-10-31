@@ -1,3 +1,5 @@
+import 'ai_progress.dart';
+
 import 'dart:async';
 import 'dart:convert';
 import 'dart:math' as math;
@@ -17,6 +19,10 @@ bool isShoppingPath(String path) =>
         .hasMatch(path);
 
 /// AI generation and account provisioning retain their InMotion credentials.
+bool isAiPath(String path) => RegExp(
+  r'^/(?:households/[1-9][0-9]*/(?:recipe-import|recipe-photo|recipe-category|category-image|recipes/[1-9][0-9]*/variation)|admin/parent-categories(?:/[1-9][0-9]*/category-image)?)$',
+).hasMatch(Uri.parse(path).path);
+
 bool isVpsDataPath(String path) {
   final route = Uri.parse(path).path;
   return RegExp(r'^/recipes/[1-9][0-9]*$').hasMatch(route) ||
@@ -61,6 +67,7 @@ class ShoppingSocket extends ChangeNotifier {
   StreamSubscription<bool>? _network;
   Timer? _retry, _heartbeat, _renew;
   Completer<void>? _ready;
+  final _progress = <String, void Function(String, int)>{};
   final _pending = <String, Completer<Map<String, dynamic>>>{};
   Future<void> _incoming = Future.value();
   bool connected = false, _closed = false, _opening = false;
@@ -153,7 +160,15 @@ class ShoppingSocket extends ChangeNotifier {
       onTime?.call(message['server_time_ms'] as int);
     }
     final type = message['type'];
-    if (type == 'error') {
+    if (type == 'progress') {
+      final callback = _progress[message['id']];
+      if (callback != null && message['message'] is String) {
+        callback(
+          message['message'] as String,
+          message['elapsed_seconds'] as int? ?? 0,
+        );
+      }
+    } else if (type == 'error') {
       final details = message['error'] as Map?;
       final error = ApiException(
         message['status'] as int? ?? 503,
@@ -190,7 +205,12 @@ class ShoppingSocket extends ChangeNotifier {
     Map<String, dynamic>? body,
   }) async {
     if (_closed) throw StateError('Data connection closed');
-    if (scope == 'shopping'
+    if (scope == 'ai'
+        ? (!isAiPath(path) ||
+              (path.startsWith('/households/') &&
+                  !path.startsWith('/households/$household/')) ||
+              (path.startsWith('/admin/') && household.isNotEmpty))
+        : scope == 'shopping'
         ? (!path.startsWith('/households/$household/shopping-list') ||
               !isShoppingPath(path))
         : !isVpsDataPath(path) ||
@@ -211,13 +231,22 @@ class ShoppingSocket extends ChangeNotifier {
     final id = '${++_sequence}';
     final response = Completer<Map<String, dynamic>>();
     _pending[id] = response;
+    final progress = Zone.current[aiProgressZoneKey];
+    if (progress is void Function(String, int)) _progress[id] = progress;
     _send({'type': 'request', 'id': id, 'path': path, 'body': ?body});
     try {
       return await response.future.timeout(
-        Duration(seconds: scope == 'household' ? 90 : 20),
+        Duration(
+          seconds: scope == 'ai' || body?['source_type'] == 'blank'
+              ? 615
+              : scope == 'household'
+              ? 90
+              : 20,
+        ),
       );
     } finally {
       _pending.remove(id);
+      _progress.remove(id);
     }
   }
 
@@ -238,6 +267,7 @@ class ShoppingSocket extends ChangeNotifier {
       pending.completeError(error);
     }
     _pending.clear();
+    _progress.clear();
     if (!_closed) {
       notifyListeners();
       _retry?.cancel();

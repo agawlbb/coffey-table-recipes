@@ -1,3 +1,4 @@
+import 'ai_progress.dart';
 import 'child_mode.dart';
 
 import 'dart:convert';
@@ -103,6 +104,12 @@ class RecipeImport extends StatefulWidget {
 }
 
 class _RecipeImportState extends State<RecipeImport> {
+  final _aiProgress = AiRunProgress();
+  Future<Map<String, dynamic>> _progressRequest(
+    String path,
+    Map<String, dynamic> body,
+  ) => _aiProgress.run(() => widget.request(path, body));
+
   final _text = TextEditingController(), _url = TextEditingController();
   final _answerFields = <TextEditingController>[];
   String _kind = 'text';
@@ -175,6 +182,7 @@ class _RecipeImportState extends State<RecipeImport> {
 
   @override
   void dispose() {
+    _aiProgress.dispose();
     offlineStatus.removeListener(_connectionChanged);
     _text.dispose();
     _url.dispose();
@@ -345,7 +353,7 @@ class _RecipeImportState extends State<RecipeImport> {
         }
       }
       final data = await retryCommunication(
-        () => widget.request(
+        () => _progressRequest(
           '/households/${widget.householdId}/recipe-import',
           body,
         ),
@@ -494,7 +502,7 @@ class _RecipeImportState extends State<RecipeImport> {
       _error = null;
     });
     try {
-      final data = await widget.request(
+      final data = await _progressRequest(
         '/households/${widget.householdId}/recipe-blank',
         {},
       );
@@ -898,6 +906,7 @@ class _RecipeImportState extends State<RecipeImport> {
                     child: const Text('Return to review without changes'),
                   ),
                 ],
+                AiProgressText(_aiProgress),
                 FilledButton.icon(
                   onPressed: _busy || offlineStatus.value
                       ? null

@@ -1,3 +1,4 @@
+import 'ai_progress.dart';
 import 'child_mode.dart';
 
 import 'dart:convert';
@@ -49,6 +50,12 @@ class RecipeEditor extends StatefulWidget {
 }
 
 class _RecipeEditorState extends State<RecipeEditor> {
+  final _aiProgress = AiRunProgress();
+  Future<Map<String, dynamic>> _progressRequest(
+    String path,
+    Map<String, dynamic> body,
+  ) => _aiProgress.run(() => widget.save(path, body));
+
   final _form = GlobalKey<FormState>();
   late final Map<String, dynamic> _draft;
   bool get _blank => _draft['source_type'] == 'blank';
@@ -393,6 +400,7 @@ class _RecipeEditorState extends State<RecipeEditor> {
 
   @override
   void dispose() {
+    _aiProgress.dispose();
     offlineStatus.removeListener(_connectionChanged);
     for (final controller in _expansions.values) {
       controller.dispose();
@@ -799,7 +807,7 @@ class _RecipeEditorState extends State<RecipeEditor> {
       _error = null;
     });
     try {
-      final data = await widget.save(
+      final data = await _progressRequest(
         '/households/${widget.householdId}/recipes${_draft['id'] == null ? '' : '/${_draft['id']}'}',
         {
           ..._draft,
@@ -820,7 +828,7 @@ class _RecipeEditorState extends State<RecipeEditor> {
               ? <Map<String, dynamic>>[]
               : recipeRows(savedRecipe['category_assignments'])) {
         try {
-          await widget.save(
+          await _progressRequest(
             '/households/${widget.householdId}/category-image',
             {'category_id': category['category_id'].toString()},
           );
@@ -960,7 +968,7 @@ class _RecipeEditorState extends State<RecipeEditor> {
       _photoError = null;
     });
     try {
-      final data = await widget.save(
+      final data = await _progressRequest(
         '/households/${widget.householdId}/recipe-photo',
         {
           'recipe': {
@@ -2063,6 +2071,7 @@ class _RecipeEditorState extends State<RecipeEditor> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
+                    if (_saving) AiProgressText(_aiProgress),
                     Text(
                       _blank
                           ? (_draft['id'] == null
@@ -2372,6 +2381,7 @@ class _RecipeEditorState extends State<RecipeEditor> {
                             'AI image generation is disabled for this household. Ask the application administrator to enable it.',
                           ),
                         if (_picking) const LinearProgressIndicator(),
+                        if (_picking) AiProgressText(_aiProgress),
                         if (_photoError != null)
                           Padding(
                             padding: const EdgeInsets.only(top: 12),

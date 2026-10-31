@@ -2,6 +2,8 @@ import 'child_mode.dart';
 
 import 'dart:async';
 
+import 'ai_progress.dart';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -158,6 +160,7 @@ class RecipeBrowser extends StatefulWidget {
 
 class _RecipeBrowserState extends State<RecipeBrowser>
     with WidgetsBindingObserver {
+  final _aiProgress = AiRunProgress();
   final _search = TextEditingController();
   final List<Map<String, dynamic>> _recipes = [];
   int? _next;
@@ -193,6 +196,7 @@ class _RecipeBrowserState extends State<RecipeBrowser>
 
   @override
   void dispose() {
+    _aiProgress.dispose();
     WidgetsBinding.instance.removeObserver(this);
     localDataChanges.removeListener(_localChanged);
     offlineStatus.removeListener(_connectionChanged);
@@ -420,9 +424,11 @@ class _RecipeBrowserState extends State<RecipeBrowser>
     )) {
       if (!mounted || generation != _generation || childMode.value) return;
       try {
-        final image = await widget.save!(
-          '/households/${widget.householdId}/category-image',
-          {'category_id': category['id'].toString()},
+        final image = await _aiProgress.run(
+          () => widget.save!(
+            '/households/${widget.householdId}/category-image',
+            {'category_id': category['id'].toString()},
+          ),
         );
         if (!mounted || generation != _generation) return;
         setState(() => category['image_url'] = image['image_url']);
@@ -606,6 +612,7 @@ class _RecipeBrowserState extends State<RecipeBrowser>
       constraints: const BoxConstraints(maxWidth: 1100),
       child: Column(
         children: [
+          AiProgressText(_aiProgress),
           Padding(
             padding: const EdgeInsets.all(20),
             child: TextField(
