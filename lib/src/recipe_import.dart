@@ -52,9 +52,9 @@ class RecipeImportChoices extends StatelessWidget {
         ('website', 'Website', Icons.link),
         ('file', 'File', Icons.upload_file),
         ('camera', 'Camera', Icons.camera_alt_outlined),
-        if (includeBlank) ('blank', 'Blank recipe', Icons.note_add_outlined),
         if (includeBlank)
           ('ai_chat', 'Create a dish with AI', Icons.chat_bubble_outline),
+        if (includeBlank) ('blank', 'Blank recipe', Icons.note_add_outlined),
       ])
         if (actionButtons)
           OutlinedButton.icon(
