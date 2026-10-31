@@ -2,7 +2,9 @@
 
 Task branch: `fix/shared-shopping-checkoff`.
 Base: `origin/main` at `39a318bd77336f6ce2ed770d1f4aff6d46bbfe7f`.
-Keep this branch unmerged pending the user's instruction.
+The user authorized merging and removing working branches on 2026-10-31, after
+the account migration merge completed. The shopping branch was integrated with
+`main` at `f2dabd656315f0c2d3414c960ab64c192000c748` before final checks.
 
 The backend's `ShoppingListService::save` locks the household row while saving.
 `ShoppingListChanges::merge` applies changed fields by item ID, rather than row
@@ -47,3 +49,9 @@ Validation in the shared development container (Flutter 3.47.8):
 - `flutter test --no-pub test/shopping_list_test.dart`: all 16 passed, including local/remote delays, cancellation, remote-only pauses, and active-edit preservation.
 - Changed Dart files formatted; `dart analyze lib/src/shopping_list.dart test/shopping_list_test.dart`.
 - All eight GitHub workflows use `workflow_dispatch`; publishing this source branch does not trigger app builds or deployment.
+
+Final integration validation after the account migration merge:
+
+- `flutter test --no-pub test/shopping_list_test.dart test/shopping_list_drag_lifecycle_test.dart test/shopping_list_retry_test.dart test/shopping_list_sharing_test.dart test/shopping_list_cache_test.dart test/shopping_sync_request_test.dart test/child_mode_test.dart test/shopping_socket_test.dart test/backend_socket_test.dart`: all 64 passed.
+- `dart analyze lib/src/shopping_list.dart test/shopping_list_test.dart`: no issues.
+- No app build, release, or deployment was requested or performed.
