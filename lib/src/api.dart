@@ -77,17 +77,16 @@ String managedRecipeImageUrl(String value) {
       !['http', 'https'].contains(uri.scheme) ||
       !['coffeybean.com', 'www.coffeybean.com'].contains(uri.host) ||
       uri.hasPort ||
-      uri.userInfo.isNotEmpty ||
-      !RegExp(
-        r'^/CoffeyTableRecipes/media/recipes/(?:[a-f0-9]{48}\.(?:jpg|png|webp)|category-[1-9][0-9]*\.jpg)$',
-      ).hasMatch(uri.path)) {
+      uri.userInfo.isNotEmpty) {
     return value;
   }
-  return Uri(
-    scheme: 'https',
-    host: 'ctr.coffeybean.com',
-    path: uri.path.replaceFirst('/CoffeyTableRecipes', ''),
-  ).toString();
+  final match = RegExp(
+    r'^/CoffeyTableRecipes/media/(?:recipes|recipe-photos)/((?:[a-f0-9]{48}|[a-f0-9]{64})\.(?:jpg|png|webp)|category-[1-9][0-9]*\.jpg)$',
+  ).firstMatch(uri.path);
+  if (match == null) {
+    return value;
+  }
+  return 'https://ctr.coffeybean.com/media/recipes/${match.group(1)}';
 }
 
 bool isPublicRecipeRead(String path) =>

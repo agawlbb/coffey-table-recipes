@@ -20,6 +20,13 @@ void main() {
     ]) {
       expect(managedRecipeImageUrl(url), url);
     }
+    final legacy = '${List.filled(64, 'b').join()}.png';
+    expect(
+      managedRecipeImageUrl(
+        'https://coffeybean.com/CoffeyTableRecipes/media/recipe-photos/$legacy',
+      ),
+      'https://ctr.coffeybean.com/media/recipes/$legacy',
+    );
     expect(
       apiStorageNamespaceFor('https://example.test'),
       'https://example.test',
