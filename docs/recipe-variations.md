@@ -8,25 +8,39 @@ URLs within the batch, tolerates unavailable recipes/images, and stops queued
 work when the detail view is disposed or the app goes offline. It does not
 recursively follow links from the related recipes or match ordinary category tags.
 
-Each editable recipe detail has **Request variation**. Describe the changes,
-answer any AI follow-up questions, then use the existing import review editor.
-Only **Save** creates the new recipe. The chosen parent is fixed during review,
-and the parent recipe is never edited by this flow. Saved variations open
-immediately and display a Variation badge. The recipe browser shows one entry per
+Each editable recipe detail has **Request variation**. It opens the same
+conversational AI chat as **Create a dish with AI**, initialized with the current
+recipe. Before sending the first message, choose **Create a new variation**
+(the default) or **Edit this recipe**. The outcome stays fixed for the conversation
+and appears in the chat title. Both modes are available to all households,
+independently of AI image privileges. Discuss improvements, ask about likely
+effects, and explicitly accept desired changes; hypothetical questions do not
+apply changes automatically.
+
+Use **Review recipe** when ready, then the existing editor's **Save**. A new
+variation retains the chosen parent, never updates it, and opens after saving.
+Editing retains the current recipe's identity/revision, photographs, source and
+links, refreshes cooking content, and clears stale nutrition. Existing shared-edit
+confirmation and revision conflict protection still apply. The current detail
+refreshes after an edit. New variations retain the existing visual review of the parent cover: it is
+reused with attribution only when AI confirms it still represents the dish. Saved variations display a
+Variation badge. The recipe browser shows one entry per
 variation family. Next to the recipe title, a compact **Variations** menu lets the user
 switch to any live member of the family, including nested variations. Recipes
 without other family members show no dropdown.
 
-Cancel or Back in the prompt asks before discarding entered work. Cancel or Back
-in review uses the existing editor's discard confirmation and returns to the
-originating recipe. Cancelling while generation runs ignores its late response.
-If generation finishes behind the discard confirmation, Keep working leaves a
-Review variation button available. Network and service errors preserve inputs;
-retrying an unchanged request retains its identity. Editing the request after a
-failed attempt creates a fresh identity. Follow-up retries do not duplicate
-answers. A failed Save keeps the editor open and retains the import key.
+Cancel or Back in chat asks before discarding entered work. Cancelling review
+uses the editor's existing discard behavior and returns to chat. Network errors
+retain conversation and input; unchanged retries retain their turn identity.
+Late responses after leaving are ignored. A failed Save keeps the editor open
+and retains its import key. The old one-shot variation screen is replaced by the
+shared chat; its backend endpoint remains available to already installed apps.
 
 ## API contract
+
+The chat flow uses the VPS `recipe-chat` endpoint documented in the VPS README.
+The following older endpoint is retained for existing installed app versions.
+
 
 POST `/households/{household}/recipes/{parent}/variation` with:
 

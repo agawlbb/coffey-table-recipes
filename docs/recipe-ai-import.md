@@ -75,3 +75,61 @@ The conversational backend fix abb83db deployed successfully in Ubuntu Actions
 run 38913942056. Local web rebuilt successfully with connection/timeout messages;
 published main.dart.js matched the build. No hosted Flutter deployment or iOS
 build was triggered.
+
+
+## Conversational dish creation
+
+**Create a dish with AI** is an Add recipe import method available to every
+household; it does not depend on AI image privileges. It opens a messaging-style
+chat with labeled You/AI bubbles, a message composer, Send, and an AI thinking
+indicator. Users can develop a dish, ask for improvements, compare approaches,
+and discuss the effects of substitutions. Questions about hypothetical changes
+are discussion, not acceptance of those changes.
+
+AI keeps the currently agreed cooking specification separately from the visible
+conversation. Readiness exposes **Review recipe** without ending the chat. Only
+that explicit action standardizes the agreed dish through the existing importer;
+any remaining importer questions return to the chat. The normal review editor
+and **Save** remain the only way to create a recipe. Cancelling review returns to
+the conversation; a later message invalidates the previous prepared draft.
+
+All new backend functions are in `agawlbb/coffey-table-recipes-vps`, using
+`/households/{household}/recipe-chat` over the existing authenticated VPS AI
+WebSocket scope. Shared hosting has no new endpoints or AI functions. Private AI
+configuration is reused; no database migration, new credential or infrastructure
+is required. Chat requests bypass saved-recipe cache updates. Lost-response
+retries recover the same session/turn before a different message can be sent;
+definitive provider rejections allow editing the failed message. Conversations
+are private temporary working drafts, not a saved chat history or resumable inbox.
+
+Implementation branch: `feature/ai-dish-chat`, app base
+`0f5c38bd7dbf13027b750e4f58b59d7bf889c09c`, VPS base
+`1257a920f9c09e1c6ca0407ee3dbb0fc315895f9`. This feature remains unmerged until
+explicit user approval. Source publication does not deploy or build the app.
+
+
+### Feature validation — 2026-10-31
+
+- Changed Dart files formatted; affected-file analysis passed. Final chat/test
+  follow-up analysis also passed.
+- `flutter test --no-pub --concurrency=1 test/recipe_chat_test.dart`: 17 passed,
+  including messaging, hypothetical discussion, create/variation/edit save routes,
+  lost-response recovery, cancel/late-response handling, failed saves, retained
+  variation cover/explanation and enlarged-text/keyboard layout.
+- `flutter test --no-pub --concurrency=1 test/recipe_chat_test.dart test/recipe_variation_test.dart test/child_mode_test.dart`:
+  33 passed before the final cover/explanation follow-up; the final chat-only run
+  above covers that follow-up. Existing family and child-mode regressions remain.
+- `flutter test --no-pub --concurrency=1 test/recipe_import_test.dart test/recipe_import_methods_test.dart test/shared_recipe_import_test.dart test/recipe_editor_test.dart test/blank_recipe_detail_layout_test.dart`:
+  51 passed.
+- API, shopping-socket and offline-cache suites passed in the initial combined
+  run. That run exposed initial chat test/layout failures, corrected and verified
+  in the focused runs above. The full Flutter suite was not run.
+- VPS validation: 81 chat fixture checks, 92 existing variation checks, 294 import
+  preprocessing/validation checks, AI worker recovery/cancellation checks, PHP
+  syntax checks and 10 AI socket integration tests passed. Providers are mocked;
+  wire tests use disposable SQLite, including households without AI image access,
+  cross-household denial and preparation without saved-recipe mutations.
+- No paid/live-provider request, device run, app build, production-data change,
+  deployment, service restart, release or merge was performed. GitHub main moved
+  independently during implementation; this feature retains its recorded bases
+  and must be integrated/tested against main only when merging is authorized.

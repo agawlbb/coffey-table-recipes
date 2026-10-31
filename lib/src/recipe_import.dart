@@ -12,6 +12,7 @@ import 'package:image_picker/image_picker.dart';
 import 'api.dart';
 import 'offline_recipes.dart';
 import 'recipe_editor.dart';
+import 'recipe_chat.dart';
 import 'recipe_image_editor.dart';
 import 'shared_recipe_import.dart';
 
@@ -52,6 +53,8 @@ class RecipeImportChoices extends StatelessWidget {
         ('file', 'File', Icons.upload_file),
         ('camera', 'Camera', Icons.camera_alt_outlined),
         if (includeBlank) ('blank', 'Blank recipe', Icons.note_add_outlined),
+        if (includeBlank)
+          ('ai_chat', 'Create a dish with AI', Icons.chat_bubble_outline),
       ])
         if (actionButtons)
           OutlinedButton.icon(
@@ -73,7 +76,11 @@ class RecipeImportChoices extends StatelessWidget {
         else
           ChoiceChip(
             avatar: Icon(option.$3, size: 18),
-            label: Text(option.$2),
+            label: Text(
+              option.$2,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+            ),
             selected: option.$1 == selectedKind,
             onSelected: !enabled ? null : (_) => onSelected(option.$1),
           ),
@@ -154,6 +161,23 @@ class _RecipeImportState extends State<RecipeImport> {
       }
     } else {
       _recoverCamera();
+    }
+  }
+
+  Future<void> _createAiDish() async {
+    final saved = await Navigator.push<Map<String, dynamic>>(
+      context,
+      MaterialPageRoute(
+        builder: (_) => RecipeChat(
+          householdId: widget.householdId,
+          request: widget.request,
+        ),
+      ),
+    );
+    if (saved != null && mounted) {
+      setState(() => _leaving = true);
+      await WidgetsBinding.instance.endOfFrame;
+      if (mounted) Navigator.pop(context, saved);
     }
   }
 
@@ -708,6 +732,10 @@ class _RecipeImportState extends State<RecipeImport> {
                     enabled: !_busy,
                     selectedKind: _kind == 'description' ? 'text' : _kind,
                     onSelected: (kind) {
+                      if (kind == 'ai_chat') {
+                        _createAiDish();
+                        return;
+                      }
                       if (kind == 'blank') {
                         _createBlank();
                         return;

@@ -577,7 +577,8 @@ class _HouseholdPanelState extends State<HouseholdPanel>
   ) async {
     final data = await _request(path, body: body);
     // Generation returns an unsaved draft, not a replacement for its parent.
-    if (path.endsWith('/variation') ||
+    if (path.endsWith('/recipe-chat') ||
+        path.endsWith('/variation') ||
         path.contains('/meal-plan') ||
         path.contains('/shopping-list') ||
         path.contains('/restaurants')) {
