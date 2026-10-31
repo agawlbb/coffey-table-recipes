@@ -4,6 +4,40 @@ import 'package:http/testing.dart';
 import 'package:coffey_table_recipes/src/api.dart';
 
 void main() {
+  test('only owned cached image URLs move to the VPS', () {
+    final name = '${List.filled(48, 'a').join()}.jpg';
+    expect(
+      managedRecipeImageUrl(
+        'https://coffeybean.com/CoffeyTableRecipes/media/recipes/$name',
+      ),
+      'https://ctr.coffeybean.com/media/recipes/$name',
+    );
+    for (final url in [
+      'https://example.com/CoffeyTableRecipes/media/recipes/$name',
+      'https://coffeybean.com:444/CoffeyTableRecipes/media/recipes/$name',
+      'https://user@coffeybean.com/CoffeyTableRecipes/media/recipes/$name',
+      'https://coffeybean.com/other/$name',
+    ]) {
+      expect(managedRecipeImageUrl(url), url);
+    }
+    expect(
+      managedRecipeImageUrl(
+        'https://coffeybean.com/CoffeyTableRecipes/media/recipe-illustrations/crab-mushroom-wine-sauce-ai-v1.jpg',
+      ),
+      'https://ctr.coffeybean.com/media/recipes/crab-mushroom-wine-sauce-ai-v1.jpg',
+    );
+    final legacy = '${List.filled(64, 'b').join()}.png';
+    expect(
+      managedRecipeImageUrl(
+        'https://coffeybean.com/CoffeyTableRecipes/media/recipe-photos/$legacy',
+      ),
+      'https://ctr.coffeybean.com/media/recipes/$legacy',
+    );
+    expect(
+      apiStorageNamespaceFor('https://example.test'),
+      'https://example.test',
+    );
+  });
   test(
     'trusted server time is reported for calibrated original edit timestamps',
     () async {
@@ -203,10 +237,7 @@ void main() {
   });
 
   test('all platforms default to the hosted HTTPS API', () {
-    expect(
-      resolveApiBaseUrl(),
-      'https://coffeybean.com/CoffeyTableRecipes/api/v1',
-    );
+    expect(resolveApiBaseUrl(), 'https://ctr.coffeybean.com/api/v1');
   });
   test('an explicit API override supports local development', () {
     expect(

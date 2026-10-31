@@ -9,13 +9,19 @@ import 'offline_recipes.dart';
 String? recipeIdFromLink(String value) {
   final uri = Uri.tryParse(value);
   if (uri == null ||
+      (uri.hasScheme && !uri.hasAuthority) ||
+      uri.hasQuery ||
+      uri.hasFragment ||
       (uri.hasAuthority &&
-          (uri.scheme != 'https' || uri.host != 'coffeybean.com')) ||
-      uri.path != '/CoffeyTableRecipes/share.php') {
+          (uri.scheme != 'https' ||
+              uri.host != 'ctr.coffeybean.com' ||
+              uri.hasPort ||
+              uri.userInfo.isNotEmpty))) {
     return null;
   }
-  final id = uri.queryParameters['id'];
-  return id != null && RegExp(r'^[1-9][0-9]{0,18}$').hasMatch(id) ? id : null;
+  return RegExp(r'^/recipes/([1-9][0-9]{0,18})$')
+      .firstMatch(uri.path)
+      ?.group(1);
 }
 
 /// Public display never waits for Firebase or an identity-token refresh.
@@ -29,7 +35,7 @@ class SharedRecipeLink extends StatefulWidget {
 class _SharedRecipeLinkState extends State<SharedRecipeLink> {
   final _api = RecipeApi(baseUrl: apiBaseUrl);
   late final _cache = OfflineRecipes(
-    key: '$apiBaseUrl|public-recipes',
+    key: '$apiStorageNamespace|public-recipes',
     fetch: (path) => _api.request(path, ''),
     downloadLibrary: false,
   );

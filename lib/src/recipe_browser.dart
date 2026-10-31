@@ -992,7 +992,8 @@ class RecipePhoto extends StatelessWidget {
     }
     if (mobileOfflineEnabled) {
       return CachedNetworkImage(
-        imageUrl: url!,
+        imageUrl: managedRecipeImageUrl(url!),
+        cacheKey: url,
         cacheManager: recipePhotoCache,
         fit: fit,
         placeholder: (_, _) => placeholder,
@@ -1000,7 +1001,7 @@ class RecipePhoto extends StatelessWidget {
       );
     }
     return Image.network(
-      url!,
+      managedRecipeImageUrl(url!),
       fit: fit,
       errorBuilder: (_, error, stack) => placeholder,
     );
@@ -1480,9 +1481,16 @@ class _RecipeDetailState extends State<RecipeDetail> {
         },
         cacheImage: (url) async {
           if (mobileOfflineEnabled) {
-            await recipePhotoCache.getSingleFile(url);
+            await recipePhotoCache.getSingleFile(
+              managedRecipeImageUrl(url),
+              key: url,
+            );
           } else if (active()) {
-            await precacheImage(NetworkImage(url), context, onError: (_, _) {});
+            await precacheImage(
+              NetworkImage(managedRecipeImageUrl(url)),
+              context,
+              onError: (_, _) {},
+            );
           }
         },
       ),
