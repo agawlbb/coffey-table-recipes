@@ -7,8 +7,10 @@ The current UI is preserved. Child-mode PIN policy and account administration st
 on InMotion; the VPS checks the existing policy endpoint and fails closed if it is
 unavailable. MySQL remains on InMotion. See the VPS repository's
 [account setup and credential paths](https://github.com/agawlbb/coffey-table-recipes-vps/blob/feature/vps-account-auth/ACCOUNT-WEBSOCKET.md).
-This is source migration work; live deployment and mail delivery have not been
-verified. Earlier checkpoint notes below describe the original setup.
+The VPS branch and an Android test APK were deployed/delivered on 2026-10-31;
+see [test deployment evidence](account-test-deployment.md). SMTP authentication and
+Firebase lookup passed; fresh-user signup and actual inbox delivery remain device
+tests. Earlier checkpoint notes below describe the original setup.
 
 Branch validation: changed Dart files formatted; `flutter analyze --no-pub
 lib/src/api.dart lib/src/shopping_socket.dart test/backend_socket_test.dart` passed.
