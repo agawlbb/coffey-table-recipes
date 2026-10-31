@@ -2,6 +2,15 @@
 
 Release dates and changes are reconstructed from annotated Git tags, commit history, and project release records. Versions before 1.0 are demonstration releases; 1.0 marks the first usable release. Android retains the existing signing identity; iOS delivery and signing are recorded for each release.
 
+## 2.4.0 — 2026-10-31
+
+Build 40; tag `v2.4.0`.
+
+- Move recipe imports, clarification answers, variations, recipe images, category artwork and parent-category administration to authenticated VPS WebSockets. Keep signup and account administration on inMotion.
+- Show the current AI stage and elapsed seconds beside existing actions, keeping shopping, timers and heartbeats responsive during provider work. Preserve entered answers and existing review/save behavior.
+- Keep the AI connection alive through long runs and clarification, with bounded cancellation and reconnect behavior; mobile background connectivity still depends on the operating system.
+- Distribute signed Android releases to the existing Google Drive recipe app folder, verifying downloaded bytes before sending an informational release notice and trashing older authorized APKs.
+- Remove VPS APK metadata/download checks and the in-app update window. Android release notices have no download link or click action; recipients use their shared Drive folder.
 ## 2.3.0 — 2026-10-29
 
 Build 39; tag `v2.3.0`.
