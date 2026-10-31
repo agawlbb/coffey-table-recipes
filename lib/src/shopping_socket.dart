@@ -51,10 +51,13 @@ class ShoppingSocket extends ChangeNotifier {
   }) {
     _network = networkChanges?.distinct().listen((available) {
       if (available) {
-        reconnect();
+        // The first online event reports current state; it is not a network
+        // change. Do not cancel an opening socket or an in-flight write.
+        if (_networkAvailable != null) reconnect();
       } else {
         _lost();
       }
+      _networkAvailable = available;
     }, onError: (Object _) {}); // Socket retries still work without OS events.
   }
 
@@ -66,6 +69,7 @@ class ShoppingSocket extends ChangeNotifier {
   final void Function()? onReady;
   final WebSocketChannel Function(Uri) connect;
   final String url;
+  bool? _networkAvailable;
   WebSocketChannel? _channel;
   StreamSubscription<dynamic>? _subscription;
   StreamSubscription<bool>? _network;
@@ -232,7 +236,7 @@ class ShoppingSocket extends ChangeNotifier {
       Duration(seconds: scope == 'household' ? 90 : 20),
     );
     if (!connected) {
-      throw ApiException(503, 'Data synchronization disconnected.');
+      throw _connectionLost();
     }
     final id = '${++_sequence}';
     final response = Completer<Map<String, dynamic>>();
@@ -268,8 +272,7 @@ class ShoppingSocket extends ChangeNotifier {
     unawaited(_subscription?.cancel());
     unawaited(_channel?.sink.close());
     _channel = null;
-    final error =
-        failure ?? ApiException(503, 'Data synchronization disconnected.');
+    final error = failure ?? _connectionLost();
     if (!(_ready?.isCompleted ?? true)) _ready!.completeError(error);
     for (final pending in _pending.values) {
       pending.completeError(error);
@@ -285,6 +288,14 @@ class ShoppingSocket extends ChangeNotifier {
       );
     }
   }
+
+  ApiException _connectionLost() => ApiException(
+    503,
+    scope == 'account'
+        ? 'The connection to the account service was interrupted. Please try again.'
+        : 'Data synchronization disconnected.',
+    code: 'connection_lost',
+  );
 
   @override
   void dispose() {

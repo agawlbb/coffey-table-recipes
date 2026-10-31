@@ -40,19 +40,60 @@ abstract final class InvitationVerification {
 
   static final Map<String, Future<void>> _sent = {};
   static final Map<String, Future<void>> _attempts = {};
+  static final Map<String, Future<void>> _inFlight = {};
+  static final Map<String, DateTime> _resendAfter = {};
+  static const resendCooldown = Duration(seconds: 60);
+  @visibleForTesting
+  static DateTime Function() now = DateTime.now;
+  static Duration resendRemaining(String uid) {
+    final deadline = _resendAfter[uid];
+    final remaining = deadline?.difference(now()) ?? Duration.zero;
+    return remaining.isNegative ? Duration.zero : remaining;
+  }
+
+  @visibleForTesting
+  static void resetForTesting() {
+    _sent.clear();
+    _attempts.clear();
+    _inFlight.clear();
+    _resendAfter.clear();
+    now = DateTime.now;
+  }
+
   static final ValueNotifier<int> changes = ValueNotifier(0);
   // Observe an existing signup attempt without making a new send request.
   static Future<void>? attemptFor(String uid) => _attempts[uid];
   static Future<void> send(User user, {bool resend = false}) {
+    final running = _inFlight[user.uid];
+    if (running != null) return running;
+    final previous = _sent[user.uid];
+    if (!resend && previous != null) return previous;
+    final remaining = resendRemaining(user.uid);
+    if (remaining > Duration.zero) {
+      return Future.error(
+        ApiException(
+          429,
+          'Please wait before resending the verification email.',
+          code: 'verification_cooldown',
+          retryAfter: remaining,
+        ),
+      );
+    }
     if (resend) _sent.remove(user.uid);
-    final attempt = _sent.putIfAbsent(user.uid, () async {
+    final attempt = () async {
       try {
-        await delivery(user);
+        await Future<void>.sync(() => delivery(user));
       } catch (_) {
         _sent.remove(user.uid);
         rethrow;
+      } finally {
+        _resendAfter[user.uid] = now().add(resendCooldown);
+        _inFlight.remove(user.uid);
+        changes.value++;
       }
-    });
+    }();
+    _sent[user.uid] = attempt;
+    _inFlight[user.uid] = attempt;
     _attempts[user.uid] = attempt;
     changes.value++;
     return attempt;
