@@ -250,6 +250,47 @@ its original 2.3.0 code. Source removal remains on the feature branch.
 See [Android distribution change](android-updates.md) for source/removal checks,
 live hosting status and any remaining Drive authorization step.
 
+## 2.5.0 — conversational dish creation and completed VPS cutover
+
+The user accepted the AI dish-chat work, requested merging all accepted work and
+removing working branches, suppressed InMotion PHP/backend deployment, and
+requested web/Android/iOS release. The user separately confirmed that the static
+web app should still be published on InMotion. The accepted app/VPS feature
+branches were merged into main and deleted locally and remotely. App acceptance
+merge is `41761ebe32d913653a7b7641f1d8c6f3db1e98fd`; VPS main is
+`7d66c4dc49e650150df83843e4d91180578f5821`. Running backend source hashes match
+that VPS main, so no redundant restart or data/schema change is needed.
+
+Version 2.5.0/build 47 includes conversational dish creation and variation/edit
+review for all households, account and SQL child-mode migration to the VPS,
+VPS recipe links/media and native associations, shared shopping refinements,
+main-dishes-first meal planning and the Android timer-preferences startup repair.
+It supersedes Android test build 46 and the previous 2.4.0 release. See CHANGELOG.
+Release preparation uses the isolated `release/2.5.0` branch from fetched accepted
+main. App pushes/builds are manual-only; the VPS has no push deployment workflow.
+
+Local full Flutter analysis passed. The complete Flutter run passed 557 tests and
+found one outdated import-choice assertion; the new AI method is now included
+before Blank recipe, preserving the established blank-last order. After that
+bounded correction, affected-file analysis and all 29 tests in
+`flutter test --no-pub --concurrency=1 test/blank_recipe_test.dart test/recipe_chat_test.dart`
+passed. The full local suite was not repeated. Existing web/iOS build workflows
+perform their configured full checks on the tagged source. Previous deployed
+backend validation remains applicable because its implementation is unchanged.
+
+The InMotion repository is synchronized at
+`5dc9dd03568a38c619a808fc08fac30bd18aa8b1`, whose accepted merge uses `[skip ci]`.
+Its all-branches/all-tags push was already up to date and started no deployment.
+The last existing backend run remains `41194982790`; do not dispatch retirement,
+PHP upgrade, migration or configuration jobs as part of this release. Static
+web publication writes generated app assets only. MySQL and SMTP remain on
+InMotion. Existing encryption declarations remain accurate, no new cryptography
+was introduced, and existing tester/territory settings excluding France are
+retained. Package/source checks, actual signed identities and hosted associations,
+Google Drive verification/notification and TestFlight processing are recorded
+below after delivery. Physical-device native-link checks require an available
+device; none is attached to this development environment.
+
 ## 2.4.0 — VPS AI transport and Google Drive Android releases
 
 User requested stale local branch cleanup and all-platform release from main. After fetch/prune, live app and inMotion remotes contained only main. The deleted feature/vps-ai-websocket local branch was verified as an ancestor of canonical main and removed without discarding unique work; historical detached archives were preserved. Laptop integration copies fast-forwarded cleanly. Isolated task codex/release-2.4.0 began from fetched app main `573e51e7ce94174c851b9efa83b2a56bb78493ef`. The active backend task was coordinated with user permission and completed its integration, deployment and branch retirement before release publication; no overlapping source/signing job was found. All project local branches/tags are synchronized before immutable tagging.

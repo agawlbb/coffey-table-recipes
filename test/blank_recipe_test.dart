@@ -52,6 +52,7 @@ void main() {
       'Website',
       'File',
       'Camera',
+      'Create a dish with AI',
       'Blank recipe',
     ]);
   });

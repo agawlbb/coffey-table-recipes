@@ -2,6 +2,18 @@
 
 Release dates and changes are reconstructed from annotated Git tags, commit history, and project release records. Versions before 1.0 are demonstration releases; 1.0 marks the first usable release. Android retains the existing signing identity; iOS delivery and signing are recorded for each release.
 
+## 2.5.0 — 2026-10-31
+
+Build 47; tag `v2.5.0`.
+
+- Add **Create a dish with AI** for every household, with a messaging-style conversation for developing recipes, asking for improvements, and exploring how proposed changes affect cooking results. Keep hypothetical discussion separate from agreed changes; review and Save remain explicit.
+- Use the same conversational flow for **Request variation**, with a clear choice between a new linked variation and editing the existing recipe. Preserve variation title/language conventions, approved cover reuse, review explanations, and existing shared-edit and revision safeguards.
+- Move signup, household setup, verification email, invitations, SQL-backed child-mode policy and account administration to the VPS. Preserve account data and pending offline edits, and improve verification resend/reconnection handling.
+- Serve generated recipe links, public recipe pages, native app associations and owned recipe media from `ctr.coffeybean.com`. Resolve cached legacy photos and named illustrations through the VPS while retaining external image URLs.
+- Protect shared shopping edits when incoming changes alter the displayed list; keep newly checked items in place briefly before grouping them. Show main dishes first within each meal-planner date.
+- Fix Android release startup for timer preferences and verify the Kotlin JNI classes in signed APKs.
+- Keep the InMotion PHP endpoint-retirement deployment suppressed for this release. Persistent MySQL and SMTP remain on InMotion; the app uses the deployed VPS services.
+
 ## 2.4.0 — 2026-10-31
 
 Build 40; tag `v2.4.0`.
