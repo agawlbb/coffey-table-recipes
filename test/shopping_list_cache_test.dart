@@ -159,7 +159,6 @@ void main() {
         expect(items.single['department'], target);
         expect(items.single['checked'], false);
         expect(find.text('Produce'), findsNothing);
-        await tester.pump(const Duration(seconds: 2));
       }
       await tester.pumpWidget(const SizedBox());
       await tester.pumpWidget(screen(memoryCache(disk), request));

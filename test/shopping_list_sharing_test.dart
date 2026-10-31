@@ -62,12 +62,9 @@ void main() {
           ),
         );
         await tester.pumpAndSettle();
-        await tester.pump(const Duration(seconds: 2));
-        await tester.pumpAndSettle();
         await tester.enterText(find.byType(TextField), 'MILK');
         await tester.tap(find.byTooltip('Add item'));
         await tester.pump();
-        await tester.pump(const Duration(seconds: 2));
         final gesture = await tester.startGesture(
           tester.getCenter(find.text(movedName).last),
           kind: PointerDeviceKind.mouse,
@@ -81,8 +78,6 @@ void main() {
         await tester.pump();
         expect(writes, 1);
         first.complete();
-        await tester.pumpAndSettle();
-        await tester.pump(const Duration(seconds: 2));
         await tester.pumpAndSettle();
         expect(writes, 2);
         expect(
@@ -130,8 +125,6 @@ void main() {
         ),
       );
       await tester.pumpAndSettle();
-      await tester.pump(const Duration(seconds: 2));
-      await tester.pumpAndSettle();
       expect(find.byIcon(Icons.drag_handle), findsNothing);
       expect(find.byIcon(Icons.more_vert), findsNothing);
       final gesture = await tester.startGesture(
@@ -146,8 +139,6 @@ void main() {
       await gesture.moveBy(const Offset(0, 2));
       await tester.pump(const Duration(milliseconds: 300));
       await gesture.up();
-      await tester.pumpAndSettle();
-      await tester.pump(const Duration(seconds: 2));
       await tester.pumpAndSettle();
       expect(items.single['department'], 'Dairy & eggs');
       expect(
@@ -167,8 +158,6 @@ void main() {
         await nextDrag.moveBy(const Offset(0, 2));
         await tester.pump(const Duration(milliseconds: 300));
         await nextDrag.up();
-        await tester.pumpAndSettle();
-        await tester.pump(const Duration(seconds: 2));
         await tester.pumpAndSettle();
         expect(items.single['department'], department);
       }
@@ -205,8 +194,6 @@ void main() {
         ),
       );
       await tester.pumpAndSettle();
-      await tester.pump(const Duration(seconds: 2));
-      await tester.pumpAndSettle();
       for (final department in [
         'Dairy & eggs',
         'Produce',
@@ -225,8 +212,6 @@ void main() {
         await gesture.moveBy(const Offset(0, 2));
         await tester.pump(const Duration(milliseconds: 300));
         await gesture.up();
-        await tester.pumpAndSettle();
-        await tester.pump(const Duration(seconds: 2));
         await tester.pumpAndSettle();
         expect(
           items.firstWhere((item) => item['id'] == 'Apples')['department'],
@@ -268,8 +253,6 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
-    await tester.pump(const Duration(seconds: 2));
-    await tester.pumpAndSettle();
     for (final department in ['Dairy & eggs', 'Meat & seafood']) {
       final gesture = await tester.startGesture(
         tester.getCenter(find.text('Apples')),
@@ -291,12 +274,9 @@ void main() {
         greaterThan(tester.getTopLeft(find.text(department)).dy),
         reason: 'Pending-save drop into $department',
       );
-      await tester.pump(const Duration(seconds: 2));
     }
     expect(writes, hasLength(1));
     firstSave.complete();
-    await tester.pumpAndSettle();
-    await tester.pump(const Duration(seconds: 2));
     await tester.pumpAndSettle();
     expect(writes, hasLength(2));
     expect(saved.single['department'], 'Meat & seafood');
@@ -330,8 +310,6 @@ void main() {
         ),
       );
       await tester.pumpAndSettle();
-      await tester.pump(const Duration(seconds: 2));
-      await tester.pumpAndSettle();
       for (var attempt = 0; attempt < 3; attempt++) {
         final label = tester.getRect(find.text('A long shopping item label'));
         final row = tester.getRect(
@@ -356,8 +334,6 @@ void main() {
         await gesture.moveTo(target);
         await tester.pump(const Duration(milliseconds: 100));
         await gesture.up();
-        await tester.pumpAndSettle();
-        await tester.pump(const Duration(seconds: 2));
         await tester.pumpAndSettle();
         expect(saved.single['department'], department);
         expect(saved.single['checked'], false);
@@ -393,8 +369,6 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
-    await tester.pump(const Duration(seconds: 2));
-    await tester.pumpAndSettle();
     final list = tester.widget<ListView>(find.byType(ListView));
     final bounds = tester.getRect(find.byType(ListView));
     final gesture = await tester.startGesture(
@@ -409,8 +383,6 @@ void main() {
     await tester.pump(const Duration(milliseconds: 600));
     expect(list.controller!.offset, lessThan(downOffset));
     await gesture.cancel();
-    await tester.pumpAndSettle();
-    await tester.pump(const Duration(seconds: 2));
     await tester.pumpAndSettle();
     final stoppedOffset = list.controller!.offset;
     await tester.pump(const Duration(milliseconds: 300));
@@ -447,8 +419,6 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
-    await tester.pump(const Duration(seconds: 2));
-    await tester.pumpAndSettle();
     expect(find.text('Produce'), findsOneWidget);
     expect(find.text('Dairy & eggs'), findsOneWidget);
     expect(
@@ -472,8 +442,6 @@ void main() {
     await gesture.moveBy(const Offset(0, 2));
     await tester.pump(const Duration(milliseconds: 300));
     await gesture.up();
-    await tester.pumpAndSettle();
-    await tester.pump(const Duration(seconds: 2));
     await tester.pumpAndSettle();
     expect(items.map((i) => i['name']), [
       'Milk',
@@ -512,13 +480,9 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
-    await tester.pump(const Duration(seconds: 2));
-    await tester.pumpAndSettle();
     await tester.enterText(find.byType(TextField), 'Milk');
     await tester.pump();
     await tester.tap(find.byTooltip('Add item'));
-    await tester.pumpAndSettle();
-    await tester.pump(const Duration(seconds: 2));
     await tester.pumpAndSettle();
     expect(find.text('Pears'), findsOneWidget);
     expect(find.text('The shopping list changed. Try again.'), findsOneWidget);

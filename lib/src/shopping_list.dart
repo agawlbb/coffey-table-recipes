@@ -147,19 +147,13 @@ class _ShoppingListScreenState extends State<ShoppingListScreen>
   Timer? _displayPause;
 
   // A changed row can put a different item under an incoming tap. Only actual
-  // display changes restart the pause; revision-only polling must not do so.
+  // incoming display changes restart the pause; local saves never do so.
   void _pauseAfterDisplayChange(Object before) {
     if (before == jsonEncode([_items, _departments])) return;
     _displayPause?.cancel();
     _displayPause = Timer(const Duration(seconds: 2), () {
       if (mounted) setState(() => _displayPause = null);
     });
-  }
-
-  void _displayItems(List<Map<String, dynamic>> items) {
-    final before = jsonEncode([_items, _departments]);
-    _items = items;
-    _pauseAfterDisplayChange(before);
   }
 
   String get _path => '/households/${widget.householdId}/shopping-list';
@@ -410,7 +404,7 @@ class _ShoppingListScreenState extends State<ShoppingListScreen>
     setState(() {
       // In local-first mode the response confirms a durable device write,
       // not a server upload. Do not hide a deletion before that write finishes.
-      if (!widget.localFirst) _displayItems(items);
+      if (!widget.localFirst) _items = items;
       _saving = true;
       _error = null;
       _saveNotice = false;
@@ -461,9 +455,12 @@ class _ShoppingListScreenState extends State<ShoppingListScreen>
         _writes.removeAt(0);
         if (!write.done.isCompleted) write.done.complete(true);
       } catch (error) {
+        String? remoteBefore;
         if (error is ApiException && error.status == 409) {
           try {
+            final before = jsonEncode([_confirmedItems, _departments]);
             final data = await widget.request(_path);
+            remoteBefore = before;
             _departments =
                 (data['departments'] as List?)?.cast<String>() ?? _departments;
             _revision = data['revision'] as int;
@@ -481,7 +478,8 @@ class _ShoppingListScreenState extends State<ShoppingListScreen>
         _writes.clear();
         if (mounted) {
           setState(() {
-            _displayItems(_confirmedItems);
+            _items = _confirmedItems;
+            if (remoteBefore != null) _pauseAfterDisplayChange(remoteBefore);
             if (_connectionFailure(error)) _disconnected = true;
             if (error is ApiException &&
                 [401, 403, 404].contains(error.status)) {
@@ -509,7 +507,7 @@ class _ShoppingListScreenState extends State<ShoppingListScreen>
     }
     if (mounted) {
       setState(() {
-        _displayItems(_confirmedItems);
+        _items = _confirmedItems;
         _saving = false;
       });
     }

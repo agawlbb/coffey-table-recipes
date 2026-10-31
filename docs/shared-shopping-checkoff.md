@@ -12,10 +12,13 @@ two-device reproduction or proof that every backend failure is excluded.
 
 The app groups checked items below unchecked items. A refresh from another
 member can therefore put a different item where the user was about to tap.
-After an already displayed list's items or departments change, editing pauses
-for two seconds. This includes local changes, server confirmations that change
-the display, and conflict recovery. Initial loading remains usable immediately.
-Unchanged responses and revision-only changes do not restart the pause.
+When a refresh changes an already displayed list's items or departments, editing
+pauses for two seconds. A conflict recovery also pauses if the fetched state
+differs from the last confirmed state. Local edits, save acknowledgements
+(including automatically assigned departments), and failed-save rollbacks do
+not start a pause. Initial loading remains usable immediately. Unchanged
+responses, revision-only changes, and refresh echoes of local saves do not
+restart the pause.
 Checking, inline editing, adding, deleting checked items, and drag changes are
 blocked; scrolling and refreshing remain available. A refresh response is also
 ignored while a row is being held, matching the existing drag/edit protection.
@@ -25,13 +28,13 @@ Regression coverage simulates a remote check moving Eggs into Milk's former tap
 position, verifies that the incoming tap cannot write, checks disabled editing
 controls, verifies the two-second unlock, and confirms revision-only refreshes
 do not postpone unlocking. Both local-first and direct-request modes are tested.
-Existing consecutive and queued-drag tests now wait for the editing pause before
-starting another change.
+The tests also immediately check and uncheck after a local save and its refresh
+echo. Existing consecutive edits and queued drags run with their original timing.
 
-Validation in the shared development container (Flutter 3.47.8):
+Validation for the remote-only revision in the shared development container
+(Flutter 3.47.8):
 
-- `flutter test --no-pub test/shopping_list_test.dart test/shopping_list_drag_lifecycle_test.dart test/shopping_list_retry_test.dart test/shopping_list_sharing_test.dart`: 30 passed.
-- `flutter test --no-pub test/shopping_list_cache_test.dart test/shopping_sync_request_test.dart test/child_mode_test.dart`: synchronization and child-mode cases passed; two cache cases initially failed. The hold test needed to wait for the new pause between drags. The offline test caught draft input being disabled while disconnected; the field now preserves the previous offline behavior outside the display pause. Cache tests were rerun separately after those corrections.
-- Changed Dart files formatted and analyzed with no issues. The final correction only changes draft input availability while disconnected; connected-list checks remain applicable.
+- `flutter test --no-pub test/shopping_list_test.dart test/shopping_list_drag_lifecycle_test.dart test/shopping_list_retry_test.dart test/shopping_list_sharing_test.dart test/shopping_list_cache_test.dart test/shopping_sync_request_test.dart test/child_mode_test.dart`: all 51 existing cases passed. The two new timing cases were corrected to allow single-tap recognition to finish and verified in the focused rerun below.
+- `flutter test --no-pub test/shopping_list_test.dart`: all 10 passed, including both remote-only pause regressions.
+- Changed Dart files formatted; `dart analyze lib/src/shopping_list.dart test/shopping_list_test.dart`.
 - All eight GitHub workflows use `workflow_dispatch`; publishing this source branch does not trigger app builds or deployment.
-- Final `flutter test --no-pub test/shopping_list_cache_test.dart`: all 7 passed.

@@ -9,7 +9,7 @@ import 'package:coffey_table_recipes/src/shopping_list_cache.dart';
 void main() {
   for (final localFirst in [false, true]) {
     testWidgets(
-      'changed list pauses all edits for two seconds (localFirst=$localFirst)',
+      'only remote list changes pause edits (localFirst=$localFirst)',
       (tester) async {
         var items = <Map<String, dynamic>>[
           {
@@ -78,18 +78,24 @@ void main() {
         revision++;
         await tester.tap(find.byTooltip('Refresh'));
         await tester.pumpAndSettle();
-        await tester.pump(const Duration(milliseconds: 600));
+        await tester.pump(const Duration(seconds: 1));
         await tester.tap(find.text('Eggs'));
-        await tester.pump();
-        expect(writes, 0);
-        await tester.pump(const Duration(milliseconds: 400));
-        await tester.tap(find.text('Eggs'));
+        await tester.pump(const Duration(milliseconds: 350));
         await tester.pumpAndSettle();
         expect(writes, 1);
         expect(items.every((item) => item['checked'] == true), true);
-        // The user's own list change also starts a fresh pause.
-        expect(tester.widget<TextField>(find.byType(TextField)).enabled, false);
-        await tester.pump(const Duration(seconds: 2));
+        // Local acknowledgements and their later refresh echoes do not pause.
+        expect(tester.widget<TextField>(find.byType(TextField)).enabled, true);
+        await tester.tap(find.byTooltip('Refresh'));
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('Eggs'));
+        await tester.pump(const Duration(milliseconds: 350));
+        await tester.pumpAndSettle();
+        expect(writes, 2);
+        expect(
+          items.singleWhere((item) => item['id'] == 'eggs')['checked'],
+          false,
+        );
         expect(tester.widget<TextField>(find.byType(TextField)).enabled, true);
         await tester.pumpWidget(const SizedBox());
       },
@@ -126,8 +132,6 @@ void main() {
       'departments': ['Dairy'],
     });
     await tester.pumpAndSettle();
-    await tester.pump(const Duration(seconds: 2));
-    await tester.pumpAndSettle();
     expect(find.text('Milk'), findsNothing);
   });
   testWidgets('local deletion waits for durable device acknowledgement', (
@@ -153,8 +157,6 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
-    await tester.pump(const Duration(seconds: 2));
-    await tester.pumpAndSettle();
     await tester.tap(find.text('Remove checked off'));
     await tester.pump();
     expect(find.text('Milk'), findsOneWidget);
@@ -163,8 +165,6 @@ void main() {
       'departments': ['Dairy'],
       'items': [],
     });
-    await tester.pumpAndSettle();
-    await tester.pump(const Duration(seconds: 2));
     await tester.pumpAndSettle();
     expect(find.text('Milk'), findsNothing);
   });
@@ -202,11 +202,7 @@ void main() {
         ),
       );
       await tester.pumpAndSettle();
-      await tester.pump(const Duration(seconds: 2));
-      await tester.pumpAndSettle();
       await tester.tap(find.text('Remove checked off'));
-      await tester.pumpAndSettle();
-      await tester.pump(const Duration(seconds: 2));
       await tester.pumpAndSettle();
       expect(find.text('Milk'), findsOneWidget);
       expect(
@@ -243,14 +239,10 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
-    await tester.pump(const Duration(seconds: 2));
-    await tester.pumpAndSettle();
     Future<void> edit() async {
       await tester.tap(find.text(items.single['name'] as String));
       await tester.pump(const Duration(milliseconds: 80));
       await tester.tap(find.text(items.single['name'] as String));
-      await tester.pumpAndSettle();
-      await tester.pump(const Duration(seconds: 2));
       await tester.pumpAndSettle();
     }
 
@@ -261,8 +253,6 @@ void main() {
     expect(writes, 0);
     await tester.enterText(field, 'Whole milk');
     await tester.tap(find.byTooltip('Save item'));
-    await tester.pumpAndSettle();
-    await tester.pump(const Duration(seconds: 2));
     await tester.pumpAndSettle();
     expect(items.single, {
       'id': 'milk',
@@ -275,28 +265,20 @@ void main() {
     await tester.enterText(field, '   ');
     await tester.tap(find.byTooltip('Save item'));
     await tester.pumpAndSettle();
-    await tester.pump(const Duration(seconds: 2));
-    await tester.pumpAndSettle();
     expect(items.single['name'], 'Whole milk');
     expect(writes, 1);
     await edit();
     await tester.enterText(field, 'Oat milk');
     await tester.tap(find.byTooltip('Add item'));
     await tester.pumpAndSettle();
-    await tester.pump(const Duration(seconds: 2));
-    await tester.pumpAndSettle();
     expect(items.single['name'], 'Oat milk');
     await edit();
     await tester.testTextInput.receiveAction(TextInputAction.next);
-    await tester.pumpAndSettle();
-    await tester.pump(const Duration(seconds: 2));
     await tester.pumpAndSettle();
     final note = find.byKey(const ValueKey('note-milk'));
     expect(tester.widget<TextField>(note).focusNode!.hasFocus, isTrue);
     await tester.enterText(note, 'For Joe · 3 bottles');
     await tester.testTextInput.receiveAction(TextInputAction.done);
-    await tester.pumpAndSettle();
-    await tester.pump(const Duration(seconds: 2));
     await tester.pumpAndSettle();
     expect(items.single['name'], 'Oat milk');
     expect(items.single['department'], 'Dairy');
@@ -305,8 +287,6 @@ void main() {
     await edit();
     await tester.enterText(note, '');
     await tester.tap(find.byTooltip('Save item'));
-    await tester.pumpAndSettle();
-    await tester.pump(const Duration(seconds: 2));
     await tester.pumpAndSettle();
     expect(items.single['note'], '');
     expect(find.text('For Joe · 3 bottles'), findsNothing);
@@ -339,15 +319,11 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
-    await tester.pump(const Duration(seconds: 2));
-    await tester.pumpAndSettle();
     final add = find.byWidgetPredicate(
       (widget) => widget is IconButton && widget.tooltip == 'Add item',
     );
     expect(tester.widget<IconButton>(add).onPressed, isNotNull);
     await tester.tap(add);
-    await tester.pumpAndSettle();
-    await tester.pump(const Duration(seconds: 2));
     await tester.pumpAndSettle();
     expect(items, isEmpty);
     await tester.enterText(find.byType(TextField), 'Apples');
@@ -359,8 +335,6 @@ void main() {
     expect((addRect.center.dy - fieldRect.center.dy).abs(), lessThan(1));
     expect(find.text('Add item'), findsNothing);
     await tester.tap(add);
-    await tester.pumpAndSettle();
-    await tester.pump(const Duration(seconds: 2));
     await tester.pumpAndSettle();
     expect(items.single['name'], 'Apples');
     expect(tester.takeException(), isNull);
@@ -394,14 +368,10 @@ void main() {
         ),
       );
       await tester.pumpAndSettle();
-      await tester.pump(const Duration(seconds: 2));
-      await tester.pumpAndSettle();
       expect(find.text('Our table'), findsNothing);
       await tester.enterText(find.byType(TextField), 'Milk');
       await tester.pump();
       await tester.tap(find.byTooltip('Add item'));
-      await tester.pumpAndSettle();
-      await tester.pump(const Duration(seconds: 2));
       await tester.pumpAndSettle();
       await tester.scrollUntilVisible(
         find.text('Milk'),
@@ -417,8 +387,6 @@ void main() {
       await tester.tap(find.text('Milk'));
       await tester.pump(const Duration(milliseconds: 350));
       await tester.pumpAndSettle();
-      await tester.pump(const Duration(seconds: 2));
-      await tester.pumpAndSettle();
       final text = tester.widget<Text>(find.text('Milk'));
       expect(text.style?.decoration, TextDecoration.lineThrough);
       expect(items.single['checked'], true);
@@ -432,8 +400,6 @@ void main() {
       await tester.tap(find.text('Milk'));
       await tester.pump(const Duration(milliseconds: 350));
       await tester.pumpAndSettle();
-      await tester.pump(const Duration(seconds: 2));
-      await tester.pumpAndSettle();
       expect(find.byType(AlertDialog), findsNothing);
       expect(find.text('Shopping item'), findsNothing);
       expect(items.single['department'], '');
@@ -441,11 +407,7 @@ void main() {
       await tester.tap(find.text('Milk'));
       await tester.pump(const Duration(milliseconds: 350));
       await tester.pumpAndSettle();
-      await tester.pump(const Duration(seconds: 2));
-      await tester.pumpAndSettle();
       await tester.tap(find.text('Remove checked off'));
-      await tester.pumpAndSettle();
-      await tester.pump(const Duration(seconds: 2));
       await tester.pumpAndSettle();
       expect(items, isEmpty);
       await tester.pumpWidget(const SizedBox());
@@ -480,12 +442,8 @@ void main() {
         ),
       );
       await tester.pumpAndSettle();
-      await tester.pump(const Duration(seconds: 2));
-      await tester.pumpAndSettle();
       await tester.enterText(find.byType(TextField), 'GreenOnions');
       await tester.tap(find.byTooltip('Add item'));
-      await tester.pumpAndSettle();
-      await tester.pump(const Duration(seconds: 2));
       await tester.pumpAndSettle();
       expect(find.text('GreenOnions'), findsOneWidget);
       expect(
@@ -537,8 +495,6 @@ void main() {
         ),
       );
       await tester.pumpAndSettle();
-      await tester.pump(const Duration(seconds: 2));
-      await tester.pumpAndSettle();
       expect(
         tester.getTopLeft(find.text('Apples')).dx,
         greaterThan(tester.getTopLeft(find.text('Produce')).dx),
@@ -550,8 +506,6 @@ void main() {
       await tester.tap(find.text('Apples'));
       await tester.pump(const Duration(milliseconds: 350));
       await tester.pumpAndSettle();
-      await tester.pump(const Duration(seconds: 2));
-      await tester.pumpAndSettle();
       expect(
         tester.getTopLeft(find.text('Apples')).dy,
         greaterThan(tester.getTopLeft(find.text('Butter')).dy),
@@ -559,8 +513,6 @@ void main() {
       expect(items.first['department'], 'Produce');
       await tester.tap(find.text('Butter'));
       await tester.pump(const Duration(milliseconds: 350));
-      await tester.pumpAndSettle();
-      await tester.pump(const Duration(seconds: 2));
       await tester.pumpAndSettle();
       for (final name in ['Apples', 'Butter']) {
         expect(
@@ -580,8 +532,6 @@ void main() {
       await tester.pump(const Duration(milliseconds: 100));
       await move.up();
       await tester.pumpAndSettle();
-      await tester.pump(const Duration(seconds: 2));
-      await tester.pumpAndSettle();
       expect(items.every((i) => i['checked'] == true), true);
       expect(items.singleWhere((i) => i['id'] == 'a')['department'], 'Produce');
       expect(items.singleWhere((i) => i['id'] == 'b')['department'], 'Dairy');
@@ -590,8 +540,6 @@ void main() {
       expect(find.text('Apples'), findsOneWidget);
       await tester.tap(find.text('Apples'));
       await tester.pump(const Duration(milliseconds: 350));
-      await tester.pumpAndSettle();
-      await tester.pump(const Duration(seconds: 2));
       await tester.pumpAndSettle();
       expect(find.text('Produce'), findsOneWidget);
       expect(
