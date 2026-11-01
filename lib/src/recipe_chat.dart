@@ -38,7 +38,6 @@ class _RecipeChatState extends State<RecipeChat>
   late final _inputFocus = FocusNode(onKeyEvent: _handleKey);
   int _tab = 0;
   String _workingRecipe = '', _previousRecipe = '';
-  bool _recipeChanged = false;
   final _progress = AiRunProgress();
   final _messages = <({bool user, String text})>[];
   late final String _session = _identity();
@@ -46,11 +45,12 @@ class _RecipeChatState extends State<RecipeChat>
       ? RecipeChatOutcome.create
       : RecipeChatOutcome.variation;
   int _revision = 0;
-  bool _busy = false, _leaving = false, _reviewing = false;
+  bool _busy = false, _leaving = false, _saving = false;
   bool _closing = false, _retryRequired = false, _choosingOutcome = false;
   String? _error;
   Map<String, dynamic>? _attempt;
   Map<String, dynamic>? _draft;
+  Map<String, dynamic>? _saveAttempt;
 
   String _identity() {
     final random = Random.secure();
@@ -64,15 +64,19 @@ class _RecipeChatState extends State<RecipeChat>
       ? 'Create a dish with AI'
       : 'Refine recipe with AI';
 
-  Future<void> _startReview() async {
+  Future<void> _startSave() async {
     if (_busy ||
-        _reviewing ||
+        _saving ||
         _choosingOutcome ||
         _leaving ||
         _workingRecipe.trim().isEmpty ||
         _input.text.trim().isNotEmpty ||
         offlineStatus.value ||
         childMode.value) {
+      return;
+    }
+    if (_saveAttempt != null) {
+      await _saveDraft();
       return;
     }
     if (_attempt?['action'] == 'prepare') {
@@ -107,7 +111,7 @@ class _RecipeChatState extends State<RecipeChat>
       _outcome = outcome;
     }
     if (_draft != null) {
-      await _review();
+      await _saveDraft();
     } else {
       await _submit(prepare: true);
     }
@@ -148,7 +152,7 @@ class _RecipeChatState extends State<RecipeChat>
     }
     if (event is KeyDownEvent) {
       if (HardwareKeyboard.instance.isShiftPressed) {
-        if (!_busy && !_reviewing && !_retryRequired) {
+        if (!_busy && !_saving && !_retryRequired && _saveAttempt == null) {
           final selection = _input.selection;
           final start = selection.isValid
               ? selection.start
@@ -221,8 +225,9 @@ class _RecipeChatState extends State<RecipeChat>
   }
 
   Future<void> _submit({bool prepare = false}) async {
-    if (_busy ||
-        _reviewing ||
+    if (_saveAttempt != null ||
+        _busy ||
+        _saving ||
         _choosingOutcome ||
         _leaving ||
         childMode.value ||
@@ -315,8 +320,7 @@ class _RecipeChatState extends State<RecipeChat>
         if (!prepare || draft == null) {
           _messages.add((user: false, text: message));
         }
-        _recipeChanged = recipeText != _workingRecipe;
-        if (_recipeChanged) _previousRecipe = _workingRecipe;
+        if (recipeText != _workingRecipe) _previousRecipe = _workingRecipe;
         _workingRecipe = recipeText;
         _revision = revision;
         _draft = draft == null
@@ -329,7 +333,7 @@ class _RecipeChatState extends State<RecipeChat>
       });
       if (prepare && draft == null) _selectTab(0);
       _scrollToLatest();
-      if (draft != null && !_closing) await _review();
+      if (draft != null && !_closing) await _saveDraft();
     } catch (error) {
       if (mounted && !_leaving) {
         setState(() {
@@ -357,29 +361,79 @@ class _RecipeChatState extends State<RecipeChat>
     }
   }
 
-  Future<void> _review() async {
-    if (_draft == null || _reviewing || _leaving || childMode.value) return;
-    setState(() => _reviewing = true);
-    final saved = await Navigator.push<Map<String, dynamic>>(
-      context,
-      MaterialPageRoute(
-        builder: (_) => RecipeEditor(
-          recipe: _draft!['recipe'] as Map<String, dynamic>,
-          householdId: widget.householdId,
-          save: widget.request,
-          variationParentTitle: _outcome == RecipeChatOutcome.variation
-              ? widget.recipeTitle
-              : null,
-          variationChangeDescription: _outcome == RecipeChatOutcome.variation
-              ? _draft!['change_description'] as String?
-              : null,
-        ),
-      ),
-    );
-    if (!mounted || _leaving) return;
-    setState(() => _reviewing = false);
-    if (saved != null) {
-      await _leave(saved);
+  Future<void> _saveDraft() async {
+    if (_draft == null || _saving || _leaving || childMode.value) return;
+    setState(() {
+      _saving = true;
+      _error = null;
+    });
+    try {
+      if (_saveAttempt == null) {
+        final recipe =
+            jsonDecode(jsonEncode(_draft!['recipe'])) as Map<String, dynamic>;
+        recipe.remove('confirm_shared_edit');
+        if (recipe['id'] != null &&
+            (int.tryParse('${recipe['household_count']}') ?? 1) > 1) {
+          final confirmed = await showDialog<bool>(
+            context: context,
+            builder: (context) => AlertDialog(
+              title: const Text('Save recipe changes?'),
+              content: const Text(
+                'This recipe may be shared across households. Your changes update the same recipe in every household that has added it.',
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context, false),
+                  child: const Text('Cancel'),
+                ),
+                FilledButton(
+                  onPressed: () => Navigator.pop(context, true),
+                  child: const Text('Save for all households'),
+                ),
+              ],
+            ),
+          );
+          if (confirmed != true || !mounted) return;
+          recipe['confirm_shared_edit'] = true;
+        }
+        // Reuse one immutable body/receipt after an uncertain save response.
+        setState(
+          () => _saveAttempt = {...recipe, 'client_save_id': _identity()},
+        );
+      }
+      final recipe = _saveAttempt!;
+      final response = await widget.request(
+        '/households/${widget.householdId}/recipes${recipe['id'] == null ? '' : '/${recipe['id']}'}',
+        recipe,
+      );
+      final saved = response['recipe'];
+      if (saved is! Map<String, dynamic> ||
+          saved['id'] == null ||
+          saved['title'] is! String) {
+        throw ApiException(
+          502,
+          'The save response was incomplete. Tap Save to retry.',
+        );
+      }
+      if (mounted && !_leaving) await _leave(saved);
+    } catch (error) {
+      if (mounted && !_leaving) {
+        setState(() {
+          if (error is ApiException &&
+              [400, 401, 403, 404, 409, 422].contains(error.status)) {
+            _saveAttempt = null;
+            if (error.code == 'shared_confirmation_required') {
+              (_draft!['recipe'] as Map<String, dynamic>)['household_count'] =
+                  2;
+            }
+          }
+          _error = error is ApiException
+              ? error.message
+              : 'Could not confirm the save. Tap Save to retry.';
+        });
+      }
+    } finally {
+      if (mounted && !_leaving) setState(() => _saving = false);
     }
   }
 
@@ -391,7 +445,7 @@ class _RecipeChatState extends State<RecipeChat>
   }
 
   Future<void> _close() async {
-    if (_leaving || _closing) return;
+    if (_leaving || _closing || _saving) return;
     if (_messages.isNotEmpty || _input.text.trim().isNotEmpty || _busy) {
       _closing = true;
       final discard = await showDialog<bool>(
@@ -458,8 +512,9 @@ class _RecipeChatState extends State<RecipeChat>
     }
     final canSend =
         !_busy &&
-        !_reviewing &&
+        !_saving &&
         !_choosingOutcome &&
+        _saveAttempt == null &&
         !offlineStatus.value &&
         _input.text.trim().isNotEmpty;
     return PopScope(
@@ -509,11 +564,6 @@ class _RecipeChatState extends State<RecipeChat>
                                 liveRegion: true,
                                 child: _bubble(false, 'AI is thinking…'),
                               ),
-                            if (_recipeChanged && _workingRecipe.isNotEmpty)
-                              TextButton(
-                                onPressed: () => _selectTab(1),
-                                child: const Text('View changes'),
-                              ),
                             if (_attempt?['action'] != 'prepare')
                               AiProgressText(_progress),
                             if (offlineStatus.value)
@@ -526,7 +576,8 @@ class _RecipeChatState extends State<RecipeChat>
                       ],
                     ),
                   ),
-                  if (_busy && _attempt?['action'] == 'prepare')
+                  if ((_busy && _attempt?['action'] == 'prepare') ||
+                      (_saving && _saveAttempt != null))
                     Padding(
                       padding: const EdgeInsets.all(12),
                       child: Row(
@@ -543,7 +594,9 @@ class _RecipeChatState extends State<RecipeChat>
                               child: ValueListenableBuilder<String?>(
                                 valueListenable: _progress,
                                 builder: (_, message, _) => Text(
-                                  message ?? 'Opening recipe for review…',
+                                  _saving
+                                      ? 'Saving recipe…'
+                                      : (message ?? 'Preparing recipe…'),
                                 ),
                               ),
                             ),
@@ -579,15 +632,15 @@ class _RecipeChatState extends State<RecipeChat>
                               onPressed:
                                   _busy ||
                                       _choosingOutcome ||
-                                      _reviewing ||
+                                      _saving ||
                                       offlineStatus.value ||
                                       _input.text.trim().isNotEmpty ||
                                       (_retryRequired &&
                                           _attempt?['action'] != 'prepare')
                                   ? null
-                                  : _startReview,
-                              icon: const Icon(Icons.rate_review_outlined),
-                              label: const Text('Review and save'),
+                                  : _startSave,
+                              icon: const Icon(Icons.save_outlined),
+                              label: const Text('Save'),
                             ),
                           ),
                       ],
@@ -618,7 +671,8 @@ class _RecipeChatState extends State<RecipeChat>
                               focusNode: _inputFocus,
                               readOnly:
                                   _busy ||
-                                  _reviewing ||
+                                  _saving ||
+                                  _saveAttempt != null ||
                                   _choosingOutcome ||
                                   _retryRequired,
                               keyboardType: TextInputType.multiline,

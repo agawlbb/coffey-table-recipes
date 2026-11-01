@@ -1225,6 +1225,27 @@ class _HouseholdPanelState extends State<HouseholdPanel>
         _planning = false;
         _recipeRefresh++;
       });
+      if (saved['source_type'] == 'ai_created') {
+        await Navigator.push<void>(
+          context,
+          MaterialPageRoute(
+            builder: (_) => RecipeDetail(
+              householdId: householdId,
+              recipeId: saved['id'].toString(),
+              title: saved['title'] as String,
+              request: (path) => _request(path),
+              cachedRequest: _cachedRead,
+              localRead: _local?.readView,
+              save: _saveRecipe,
+              menuBuilder: _buildMenu,
+              onViewMealPlan: _openMealPlan,
+              onChanged: () {
+                if (mounted) setState(() => _recipeRefresh++);
+              },
+            ),
+          ),
+        );
+      }
     }
   }
 
