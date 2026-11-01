@@ -14,9 +14,9 @@ const shoppingSocketUrl = String.fromEnvironment(
   defaultValue: 'wss://ctr.coffeybean.com/shopping',
 );
 
-bool isShoppingPath(String path) =>
-    RegExp(r'^/households/[1-9][0-9]*/shopping-list(?:/sync-request)?$')
-        .hasMatch(path);
+bool isShoppingPath(String path) => RegExp(
+  r'^/households/[1-9][0-9]*/shopping-list(?:/sync-request|/photos(?:/[a-f0-9]{64})?)?$',
+).hasMatch(path);
 
 /// Account setup has no household selection and requires a Firebase ID token.
 bool isAccountPath(String path) => RegExp(
@@ -32,7 +32,7 @@ bool isVpsDataPath(String path) {
   return RegExp(r'^/recipes/[1-9][0-9]*$').hasMatch(route) ||
       RegExp(r'^/me/(?:timers|timer-devices(?:/remove)?)$').hasMatch(route) ||
       RegExp(
-        r'^/households/[1-9][0-9]*/(?:snapshot|name|people(?:/me/name)?|restaurants|recipe-blank|shopping-list(?:/sync-request)?|meal-plan(?:/(?:ingredients|history|pairings/[1-9][0-9]*))?|recipes(?:/deleted|/[1-9][0-9]*(?:/(?:edit-options|share|favorites|attach|delete|restore))?)?)$',
+        r'^/households/[1-9][0-9]*/(?:snapshot|name|people(?:/me/name)?|restaurants|recipe-blank|shopping-list(?:/sync-request|/photos(?:/[a-f0-9]{64})?)?|meal-plan(?:/(?:ingredients|history|pairings/[1-9][0-9]*))?|recipes(?:/deleted|/[1-9][0-9]*(?:/(?:edit-options|share|favorites|attach|delete|restore))?)?)$',
       ).hasMatch(route);
 }
 

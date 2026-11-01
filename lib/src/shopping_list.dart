@@ -2,6 +2,7 @@ import 'child_mode.dart';
 
 import 'dart:async';
 import 'dart:convert';
+import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/gestures.dart';
@@ -10,6 +11,7 @@ import 'api.dart';
 import 'local_data.dart';
 import 'shopping_item_id.dart';
 import 'shopping_list_cache.dart';
+import 'shopping_photo.dart';
 
 const shoppingDepartments = [
   'Other',
@@ -40,10 +42,12 @@ class ShoppingListScreen extends StatefulWidget {
     this.cache,
     this.localFirst = false,
     this.requestSynchronization,
+    this.pickPhoto,
   });
   final String householdId;
   final String householdName;
   final ShoppingRequest request;
+  final Future<Uint8List?> Function(ShoppingPhotoSource)? pickPhoto;
   final bool embedded;
   final bool active;
   final ShoppingListCache? cache;
@@ -64,19 +68,27 @@ class _ShoppingListScreenState extends State<ShoppingListScreen>
   final _noteFocus = FocusNode();
   final _editGroup = Object();
   String? _editingId;
+  String _editPhoto = '';
+  bool _photoBusy = false;
+  String? _photoError;
 
   void _editFocusChanged() {
     scheduleMicrotask(() {
-      if (mounted && !_editFocus.hasFocus && !_noteFocus.hasFocus) {
+      if (mounted &&
+          !_photoBusy &&
+          !_editFocus.hasFocus &&
+          !_noteFocus.hasFocus) {
         _finishEditing();
       }
     });
   }
 
   void _startEditing(Map<String, dynamic> item) {
-    if (childMode.value || _displayPause != null) return;
+    if (childMode.value || _displayPause != null || _photoBusy) return;
     if (_heldItemId == item['id']) return;
     _finishEditing();
+    _editPhoto = item['photo'] as String? ?? '';
+    _photoError = null;
     _editName.text = item['name'] as String;
     _editNote.text = item['note'] as String? ?? '';
     _editName.selection = TextSelection(
@@ -89,16 +101,19 @@ class _ShoppingListScreenState extends State<ShoppingListScreen>
 
   void _finishEditing() {
     final id = _editingId;
-    if (id == null) return;
+    if (id == null || _photoBusy) return;
     final name = _editName.text.trim();
     final note = _editNote.text.trim();
+    final photo = _editPhoto;
     setState(() => _editingId = null);
     _editFocus.unfocus();
     _noteFocus.unfocus();
     final item = _items.where((i) => i['id'] == id).firstOrNull;
     if (item == null ||
         name.isEmpty ||
-        (name == item['name'] && note == (item['note'] ?? ''))) {
+        (name == item['name'] &&
+            note == (item['note'] ?? '') &&
+            photo == (item['photo'] ?? ''))) {
       return;
     }
     _save([
@@ -108,10 +123,88 @@ class _ShoppingListScreenState extends State<ShoppingListScreen>
                 ...i,
                 'name': name,
                 if (note.isNotEmpty || i.containsKey('note')) 'note': note,
+                if (photo.isNotEmpty || i.containsKey('photo')) 'photo': photo,
               }
             : i,
     ]);
   }
+
+  Future<void> _attachPhoto() async {
+    if (_photoBusy || _editingId == null || childMode.value) return;
+    final id = _editingId;
+    setState(() {
+      _photoBusy = true;
+      _photoError = null;
+    });
+    try {
+      final source = await showModalBottomSheet<ShoppingPhotoSource>(
+        context: context,
+        builder: (context) => SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ListTile(
+                leading: const Icon(Icons.camera_alt_outlined),
+                title: const Text('Camera'),
+                onTap: () => Navigator.pop(context, ShoppingPhotoSource.camera),
+              ),
+              ListTile(
+                leading: const Icon(Icons.folder_open),
+                title: const Text('Choose file'),
+                onTap: () => Navigator.pop(context, ShoppingPhotoSource.file),
+              ),
+              ListTile(
+                leading: const Icon(Icons.content_paste),
+                title: const Text('Paste image'),
+                onTap: () =>
+                    Navigator.pop(context, ShoppingPhotoSource.clipboard),
+              ),
+            ],
+          ),
+        ),
+      );
+      if (source == null || !mounted) return;
+      final bytes =
+          await (widget.pickPhoto?.call(source) ??
+              pickShoppingPhoto(context, source));
+      if (bytes == null || !mounted || _editingId != id || childMode.value) {
+        return;
+      }
+      if (bytes.length > 5 * 1024 * 1024) {
+        throw const FormatException('Choose an image of at most 5 MB.');
+      }
+      final result = await widget.request(
+        '$_path/photos',
+        body: {'image_base64': base64Encode(bytes)},
+      );
+      final photo = result['photo'];
+      if (photo is! String || !RegExp(r'^[a-f0-9]{64}$').hasMatch(photo)) {
+        throw const FormatException(
+          'The photo could not be saved. Please try again.',
+        );
+      }
+      if (mounted && _editingId == id) setState(() => _editPhoto = photo);
+    } catch (error) {
+      if (mounted && _editingId == id) {
+        setState(
+          () => _photoError = error is FormatException ? error.message : 'Could not attach the photo. Check permissions and your connection, then try again.',
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _photoBusy = false);
+        if (_editingId == id) _noteFocus.requestFocus();
+      }
+    }
+  }
+
+  Future<void> _viewPhoto(String photo) => Navigator.of(context).push<void>(
+    MaterialPageRoute(
+      builder: (_) => ShoppingPhotoViewer(
+        load: () => widget.request('$_path/photos/$photo'),
+      ),
+    ),
+  );
 
   List<Map<String, dynamic>> _items = [];
   List<Map<String, dynamic>> _confirmedItems = [];
@@ -346,6 +439,7 @@ class _ShoppingListScreenState extends State<ShoppingListScreen>
                   return wanted['id'] == saved['id'] &&
                       wanted['name'] == saved['name'] &&
                       (wanted['note'] ?? '') == (saved['note'] ?? '') &&
+                      (wanted['photo'] ?? '') == (saved['photo'] ?? '') &&
                       wanted['checked'] == saved['checked'] &&
                       (wanted['department'] == saved['department'] ||
                           (!knownIds.contains(wanted['id']) &&
@@ -831,11 +925,51 @@ class _ShoppingListScreenState extends State<ShoppingListScreen>
                             ),
                             IconButton(
                               tooltip: 'Save item',
-                              onPressed: _finishEditing,
+                              onPressed: _photoBusy ? null : _finishEditing,
                               icon: const Icon(Icons.check),
                             ),
                           ],
                         ),
+                        Wrap(
+                          spacing: 8,
+                          crossAxisAlignment: WrapCrossAlignment.center,
+                          children: [
+                            TextButton.icon(
+                              onPressed: _photoBusy ? null : _attachPhoto,
+                              icon: const Icon(
+                                Icons.add_photo_alternate_outlined,
+                              ),
+                              label: Text(
+                                _photoBusy
+                                    ? 'Attaching photo…'
+                                    : _editPhoto.isEmpty
+                                    ? 'Attach photo'
+                                    : 'Replace photo',
+                              ),
+                            ),
+                            if (_editPhoto.isNotEmpty) ...[
+                              TextButton(
+                                onPressed: _photoBusy
+                                    ? null
+                                    : () => _viewPhoto(_editPhoto),
+                                child: const Text('View photo'),
+                              ),
+                              TextButton(
+                                onPressed: _photoBusy
+                                    ? null
+                                    : () => setState(() => _editPhoto = ''),
+                                child: const Text('Remove photo'),
+                              ),
+                            ],
+                          ],
+                        ),
+                        if (_photoError != null)
+                          Text(
+                            _photoError!,
+                            style: TextStyle(
+                              color: Theme.of(context).colorScheme.error,
+                            ),
+                          ),
                       ],
                     ),
                   ),
@@ -883,6 +1017,20 @@ class _ShoppingListScreenState extends State<ShoppingListScreen>
                                 style: Theme.of(context).textTheme.bodySmall
                                     ?.copyWith(color: colors.onSurfaceVariant),
                               ),
+                            ),
+                          if ((item['photo'] as String? ?? '').isNotEmpty)
+                            TextButton(
+                              style: TextButton.styleFrom(
+                                padding: EdgeInsets.zero,
+                                minimumSize: const Size(48, 48),
+                                textStyle: Theme.of(context)
+                                    .textTheme
+                                    .bodySmall,
+                                alignment: Alignment.centerLeft,
+                              ),
+                              onPressed: () =>
+                                  _viewPhoto(item['photo'] as String),
+                              child: const Text('View photo'),
                             ),
                         ],
                       ),

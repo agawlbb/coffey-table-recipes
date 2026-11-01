@@ -510,3 +510,74 @@ Focused validation: shopping list editor, retry, cache, drag lifecycle/sharing
 and local-data outbox tests; affected-file Dart analysis; PHP shopping_lists.php
 fixtures cover household sharing, legacy omission, clearing, validation and
 re-adding the name without its former note. Local web rebuild explicitly requested.
+
+
+Shopping-item photos (2026-11-01): double-tap an item to use **Attach photo**
+from the existing Item/Note editor. Choose Camera, Choose file, or Paste image.
+Each entry has one shared household photo; Replace photo and Remove photo use
+the same editor. Done, the save checkmark, or leaving the editor saves its photo
+reference along with text edits. Opening a picker suspends focus-loss saving;
+canceling or a failed upload preserves the existing photo and pending text.
+
+A small **View photo** link below the note opens a zoomable viewer without
+checking off the item. Viewing is available in child mode; editing stays hidden.
+The viewer has a retry action when the photo cannot be fetched. Attaching and
+viewing require a connection; this does not add offline photo downloads.
+
+Files may be JPEG, PNG or WebP, up to 5 MiB and 24 megapixels. Camera capture uses
+the existing image picker. Native image paste uses the stable `pasteboard`
+plugin (read access only; its Android file-sharing provider is unnecessary).
+Web paste offers a dedicated dialog with a clipboard button and browser Paste /
+Ctrl+V / Command+V support; its paste listener is removed when the dialog closes.
+Clipboard access is requested only after choosing Paste image.
+
+The VPS backend stores normalized, orientation-corrected JPEGs privately and
+returns an immutable `photo` reference. List snapshots, caches and queued edits
+carry that reference, never image bytes. Photo fetches bypass the metadata-only
+local mirror. Household membership is checked for every photo operation. Older
+clients omitting `photo` preserve an existing attachment; an explicit empty string
+clears it. New entries do not inherit a deleted entry's photo through department
+associations. Home Assistant can preserve the reference but cannot upload/read
+image bytes.
+
+Task branches: `feature/shopping-item-photo` in Flutter and VPS repositories,
+based on Flutter `9c840e26b3b61bbdcb7f0938986e6bcb3d006f6c` and VPS
+`b8c0b24f9c04981f1604f52ddc13244b9a3007e2`. No main merge, application build,
+release or deployment is included. Native camera/clipboard and browser permission
+smoke checks await an explicitly authorized app build. Backend rollout requires
+its updated runtime image with GD and EXIF before publishing the source.
+
+
+Photo validation used the shared development container:
+
+- Focused editor/cache/outbox checks and the new attachment tests cover camera,
+  file and clipboard selection; replace/remove; cancellation while focus changes;
+  upload failure preserving pending text; child-mode viewing; viewer retry;
+  clipboard absence/size limits; metadata cache restart; and independent queued
+  photo/checkoff merging.
+- `flutter test --no-pub --reporter expanded` exercised 500 passing tests before
+  its runner stalled while loading `sharing_timers_test.dart`. It had two failures:
+  the new viewer retry callback (fixed), and the unrelated invitation-label test.
+  Only this task's verified stalled process was interrupted.
+- A continuation invocation tested the seven remaining/affected files:
+  `flutter test --no-pub --reporter expanded test/shopping_list_photo_test.dart
+  test/child_mode_test.dart test/email_access_test.dart
+  test/meal_plan_ingredient_review_test.dart test/recipe_communication_test.dart
+  test/recipe_source_links_test.dart test/sharing_timers_test.dart`.
+  All 78 passed, including all five photo tests. Already completed files were
+  not repeated. This completes test-file coverage without claiming an entirely
+  green full-suite invocation.
+- The remaining failure, `invitation entry selects signup and prefills email`
+  in `test/invitations_test.dart`, was reproduced with that exact test on an
+  untouched `origin/main` worktree at `9c840e2`. It expects “Your name” although
+  accepted main now labels the field “Full name”. This task leaves the unrelated
+  account UI and test unchanged.
+- Changed Dart files were formatted and analyzed, including the conditional web
+  paste helper. `git diff --check` passed. No app build, device camera/clipboard
+  run, production-data test, or deployment was performed. Backend validation and
+  its runtime prerequisite are recorded in `SHOPPING-PHOTOS.md` on the paired
+  VPS branch (`589dfbe`).
+
+Push-trigger review: all tracked Flutter GitHub workflows use
+`workflow_dispatch`; a source push to this task branch does not build or deploy
+an application. Main integration remains pending explicit user instruction.
