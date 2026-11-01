@@ -4,6 +4,7 @@ import 'meal_plan_actions.dart';
 import 'restaurant_manager.dart';
 import 'sync_notifications.dart';
 import 'account_menu.dart';
+import 'recipe_menu.dart';
 
 import 'dart:async';
 import 'dart:convert';
@@ -303,41 +304,52 @@ class _HouseholdPanelState extends State<HouseholdPanel>
       ? null
       : _people.where((person) => person['user_id'] == _userId).firstOrNull;
 
-  Future<void> _changeTableName() async {
+  Future<void> _changeName() async {
     if (childMode.value) return;
-    final person = _ownPerson;
-    final householdId = _selected;
-    if (person == null || householdId == null) return;
     final name = await showDialog<String>(
       context: context,
       builder: (_) => _NameDialog(
-        title: 'Change name at the table',
-        label: 'Your name at the table',
-        initialName: person['display_name'] as String,
+        title: 'Change name',
+        label: 'Your name',
+        initialName: _name,
       ),
     );
     if (!mounted || name == null) return;
     setState(() => _accountBusy = true);
     try {
-      final data = await _request(
-        '/households/$householdId/people/me/name',
-        body: {'display_name': name},
-      );
+      final data = await _request('/me/name', body: {'display_name': name});
       if (!mounted) return;
-      setState(
-        () => person['display_name'] = (data['person'] as Map)['display_name'],
-      );
-      ScaffoldMessenger.of(context).hideCurrentSnackBar();
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Your name at the table updated.')),
-      );
+      final savedName = (data['user'] as Map)['display_name'] as String;
+      setState(() {
+        _displayName = savedName;
+        _recipeRefresh++;
+        _personName.text = savedName;
+        for (final person in _people) {
+          if (person['user_id'] == _userId) person['display_name'] = savedName;
+        }
+      });
+      _settingsChanges.value++;
+      if (_local != null) {
+        unawaited(
+          _local!
+              .refresh('/me', force: true)
+              .catchError((Object _) => <String, dynamic>{}),
+        );
+        unawaited(
+          _syncLibrary(_households.map((h) => h['id'] as String).toList())
+              .catchError((Object _) {}),
+        );
+      }
+      ScaffoldMessenger.of(context)
+          .showSnackBar(const SnackBar(content: Text('Name updated.')));
     } catch (error) {
       if (mounted) {
-        ScaffoldMessenger.of(context).hideCurrentSnackBar();
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
-              error is ApiException ? error.message : 'Could not update your name at the table. Please try again.',
+              error is ApiException
+                  ? error.message
+                  : 'Could not update your name. Please try again.',
             ),
           ),
         );
@@ -347,38 +359,12 @@ class _HouseholdPanelState extends State<HouseholdPanel>
     }
   }
 
-  Future<void> _changeDisplayName() async {
-    if (childMode.value) return;
-    final name = await showDialog<String>(
-      context: context,
-      builder: (_) => _NameDialog(
-        title: 'Change account display name',
-        label: 'Account display name',
-        initialName: _displayName ?? widget.user.displayName ?? '',
-      ),
-    );
-    if (!mounted || name == null) return;
-    setState(() => _accountBusy = true);
-    try {
-      await widget.user.updateDisplayName(name);
-      if (!mounted) return;
-      setState(() => _displayName = name);
-      ScaffoldMessenger.of(context)
-          .showSnackBar(const SnackBar(content: Text('Display name updated.')));
-    } catch (_) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text(
-              'Could not update your display name. Please try again.',
-            ),
-          ),
-        );
-      }
-    } finally {
-      if (mounted) setState(() => _accountBusy = false);
-    }
-  }
+  String get _name =>
+      _displayName ??
+      _ownPerson?['display_name'] as String? ??
+      widget.user.displayName ??
+      widget.user.email ??
+      'Your account';
 
   Future<void> _logOut() async {
     final confirmed = await showDialog<bool>(
@@ -677,6 +663,7 @@ class _HouseholdPanelState extends State<HouseholdPanel>
       _busy = true;
       _error = null;
     });
+    _settingsChanges.value++;
     try {
       await action();
     } catch (error) {
@@ -690,6 +677,7 @@ class _HouseholdPanelState extends State<HouseholdPanel>
         setState(() {
           _busy = false;
         });
+        _settingsChanges.value++;
         _sharedRecipeChanged();
       }
     }
@@ -874,6 +862,8 @@ class _HouseholdPanelState extends State<HouseholdPanel>
         await _refreshChildPolicy();
       }
       _userId = (data['user'] as Map?)?['id'] as String?;
+      _displayName = (data['user'] as Map?)?['display_name'] as String?;
+      if (_displayName != null) _personName.text = _displayName!;
       _administrator =
           (data['user'] as Map?)?['account_role'] == 'administrator';
       final households = List<Map<String, dynamic>>.from(
@@ -1033,6 +1023,7 @@ class _HouseholdPanelState extends State<HouseholdPanel>
           _syncLibrary(_households.map((h) => h['id'] as String).toList()),
         );
       }
+      _displayName = _personName.text.trim();
       await _loadPeople();
     });
   }
@@ -1293,6 +1284,25 @@ class _HouseholdPanelState extends State<HouseholdPanel>
                             });
                           },
                   ),
+                  const Divider(),
+                  ListTile(
+                    leading: const Icon(Icons.settings_outlined),
+                    title: const Text('Settings'),
+                    onTap: () {
+                      Navigator.of(menuContext).pop();
+                      _openSettings();
+                      if (!_busy) _perform(_loadPeople);
+                    },
+                  ),
+                  if (_administrator && !childMode.value)
+                    ListTile(
+                      leading: const Icon(Icons.admin_panel_settings_outlined),
+                      title: const Text('Administration'),
+                      onTap: () {
+                        Navigator.of(menuContext).pop();
+                        _openAdministration();
+                      },
+                    ),
                 ],
               ),
             ),
@@ -1303,51 +1313,148 @@ class _HouseholdPanelState extends State<HouseholdPanel>
     );
   }
 
-  @override
-  Widget build(BuildContext context) {
-    childModeOf(context);
-    if (_local != null &&
-        (_databaseChecking ||
-            _households.any((h) => !_readyHouseholds.contains(h['id'])))) {
-      return Scaffold(
-        appBar: AppBar(title: const Text('Downloading database')),
-        body: Center(
-          child: Padding(
-            padding: const EdgeInsets.all(24),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Text('Saving your household data on this device'),
-                const SizedBox(height: 20),
-                LinearProgressIndicator(value: _databaseFraction),
-                const SizedBox(height: 12),
-                Text(_databaseProgress),
-                if (_databaseError != null) ...[
-                  const SizedBox(height: 16),
-                  Text(_databaseError!),
-                ],
-                TextButton(
-                  onPressed: _librarySync != null
-                      ? null
-                      : () => unawaited(
-                          _syncLibrary(
-                            _households.map((h) => h['id'] as String).toList(),
+  final _settingsChanges = ValueNotifier<int>(0);
+
+  Future<void> _openSettings() async {
+    await Navigator.of(context).push<void>(
+      MaterialPageRoute(
+        builder: (routeContext) => ValueListenableBuilder<int>(
+          valueListenable: _settingsChanges,
+          builder: (_, value, child) => Scaffold(
+            appBar: AppBar(
+              title: const Text('Settings'),
+              leading: const RecipeMenuLeading(),
+              leadingWidth: 96,
+            ),
+            drawer: _buildMenu(routeContext),
+            body: Center(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 720),
+                child: ListView(
+                  padding: const EdgeInsets.all(16),
+                  children: [
+                    ListTile(
+                      title: Text(
+                        _households
+                                    .where((h) => h['id'] == _selected)
+                                    .firstOrNull?['name']
+                                as String? ??
+                            'Household',
+                      ),
+                    ),
+                    ListTile(
+                      leading: const Icon(Icons.people_outline),
+                      title: const Text('Household & people'),
+                      trailing: const Icon(Icons.chevron_right),
+                      onTap: () => Navigator.of(routeContext).push<void>(
+                        MaterialPageRoute(
+                          builder: (_) => ValueListenableBuilder<int>(
+                            valueListenable: _settingsChanges,
+                            builder: (context, value, child) => Scaffold(
+                              appBar: AppBar(
+                                title: const Text('Household & people'),
+                                leading: const RecipeMenuLeading(),
+                                leadingWidth: 96,
+                              ),
+                              drawer: _buildMenu(context),
+                              body: Center(
+                                child: ConstrainedBox(
+                                  constraints: const BoxConstraints(
+                                    maxWidth: 720,
+                                  ),
+                                  child: ListView(
+                                    padding: const EdgeInsets.all(16),
+                                    children: [_householdSettings(context)],
+                                  ),
+                                ),
+                              ),
+                            ),
                           ),
                         ),
-                  child: const Text('Retry download'),
+                      ),
+                    ),
+                    ..._householdControls(routeContext),
+                    if (NativeTimers.supported && !childMode.value) ...[
+                      const Divider(),
+                      const ListTile(title: Text('This device')),
+                      ListTile(
+                        leading: const Icon(Icons.alarm_outlined),
+                        title: const Text('Cooking timers'),
+                        trailing: const Icon(Icons.chevron_right),
+                        onTap: () => Navigator.of(routeContext).push<void>(
+                          MaterialPageRoute(
+                            builder: (_) => const TimerSettings(),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ],
                 ),
-              ],
+              ),
             ),
           ),
         ),
-      );
-    }
+      ),
+    );
+  }
+
+  List<Widget> _householdControls(BuildContext context) {
+    childModeOf(context);
+    final selected = _households.where((h) => h['id'] == _selected).firstOrNull;
+    return [
+      ListTile(
+        contentPadding: EdgeInsets.zero,
+        leading: const Icon(Icons.category_outlined),
+        title: const Text('Shopping list departments'),
+        trailing: const Icon(Icons.chevron_right),
+        enabled: selected != null && !_busy && !childMode.value,
+        onTap: selected == null || _busy || childMode.value
+            ? null
+            : () async {
+                final householdId = _selected!;
+                await Navigator.push<void>(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => ShoppingDepartmentsScreen(
+                      menuBuilder: _buildMenu,
+                      householdId: householdId,
+                      request: (path, {body}) => _request(path, body: body),
+                    ),
+                  ),
+                );
+                if (mounted) setState(() => _shoppingRefresh++);
+              },
+      ),
+      ListTile(
+        contentPadding: EdgeInsets.zero,
+        leading: const Icon(Icons.restaurant_outlined),
+        title: const Text('Manage restaurants'),
+        trailing: const Icon(Icons.chevron_right),
+        enabled: selected != null && !_busy && !childMode.value,
+        onTap: selected == null || _busy || childMode.value
+            ? null
+            : () => Navigator.push<void>(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => RestaurantManager(
+                    householdId: _selected!,
+                    request: (path) => _request(path),
+                    save: _saveRecipe,
+                  ),
+                ),
+              ),
+      ),
+    ];
+  }
+
+  Widget _householdSettings(BuildContext context) {
+    childModeOf(context);
     final selected = _households.where((h) => h['id'] == _selected).firstOrNull;
     final canAdd =
         !childMode.value &&
         selected != null &&
         ['owner', 'admin'].contains(selected['role']);
-    final settings = Card(
+    return Card(
       child: Padding(
         padding: const EdgeInsets.all(24),
         child: Column(
@@ -1382,9 +1489,7 @@ class _HouseholdPanelState extends State<HouseholdPanel>
               TextField(
                 controller: _personName,
                 maxLength: 200,
-                decoration: const InputDecoration(
-                  labelText: 'Your name at the table',
-                ),
+                decoration: const InputDecoration(labelText: 'Your name'),
               ),
               FilledButton(
                 onPressed: childMode.value ? null : _create,
@@ -1456,15 +1561,6 @@ class _HouseholdPanelState extends State<HouseholdPanel>
                       ],
                     ],
                   ),
-                  trailing: person == _ownPerson
-                      ? IconButton(
-                          tooltip: 'Change name at the table',
-                          onPressed: _busy || _accountBusy || childMode.value
-                              ? null
-                              : _changeTableName,
-                          icon: const Icon(Icons.edit_outlined),
-                        )
-                      : null,
                 ),
               if (!_busy && _people.isEmpty)
                 const Text('No people have been added yet.'),
@@ -1478,61 +1574,54 @@ class _HouseholdPanelState extends State<HouseholdPanel>
                   label: const Text('Add household member'),
                 ),
               ],
-              const SizedBox(height: 24),
-              const Divider(),
-              ListTile(
-                contentPadding: EdgeInsets.zero,
-                leading: const Icon(Icons.category_outlined),
-                title: const Text('Shopping list departments'),
-                trailing: const Icon(Icons.chevron_right),
-                enabled: selected != null && !_busy && !childMode.value,
-                onTap: selected == null || _busy || childMode.value
-                    ? null
-                    : () async {
-                        final householdId = _selected!;
-                        await Navigator.push<void>(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) => ShoppingDepartmentsScreen(
-                              menuBuilder: _buildMenu,
-                              householdId: householdId,
-                              request: (path, {body}) =>
-                                  _request(path, body: body),
-                            ),
-                          ),
-                        );
-                        if (mounted) setState(() => _shoppingRefresh++);
-                      },
-              ),
-              ListTile(
-                contentPadding: EdgeInsets.zero,
-                leading: const Icon(Icons.restaurant_outlined),
-                title: const Text('Manage restaurants'),
-                trailing: const Icon(Icons.chevron_right),
-                enabled: selected != null && !_busy && !childMode.value,
-                onTap: selected == null || _busy || childMode.value
-                    ? null
-                    : () => Navigator.push<void>(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) => RestaurantManager(
-                            householdId: _selected!,
-                            request: (path) => _request(path),
-                            save: _saveRecipe,
-                          ),
-                        ),
-                      ),
-              ),
             ],
           ],
         ),
       ),
     );
-    final name =
-        _displayName ??
-        widget.user.displayName ??
-        widget.user.email ??
-        'Your account';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    childModeOf(context);
+    if (_local != null &&
+        (_databaseChecking ||
+            _households.any((h) => !_readyHouseholds.contains(h['id'])))) {
+      return Scaffold(
+        appBar: AppBar(title: const Text('Downloading database')),
+        body: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Text('Saving your household data on this device'),
+                const SizedBox(height: 20),
+                LinearProgressIndicator(value: _databaseFraction),
+                const SizedBox(height: 12),
+                Text(_databaseProgress),
+                if (_databaseError != null) ...[
+                  const SizedBox(height: 16),
+                  Text(_databaseError!),
+                ],
+                TextButton(
+                  onPressed: _librarySync != null
+                      ? null
+                      : () => unawaited(
+                          _syncLibrary(
+                            _households.map((h) => h['id'] as String).toList(),
+                          ),
+                        ),
+                  child: const Text('Retry download'),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+    final selected = _households.where((h) => h['id'] == _selected).firstOrNull;
+    final name = _name;
     return Scaffold(
       appBar: AppBar(
         title: Text(
@@ -1561,9 +1650,6 @@ class _HouseholdPanelState extends State<HouseholdPanel>
             name: name,
             email: widget.user.email,
             enabled: !_accountBusy,
-            canEditTableName: !_busy && _ownPerson != null,
-            showTimers: NativeTimers.supported,
-            administrator: _administrator,
             onSelected: (value) {
               if (value == 'childMode') {
                 changeChildMode(context, (body) async {
@@ -1587,26 +1673,8 @@ class _HouseholdPanelState extends State<HouseholdPanel>
                   return result;
                 });
               }
-              if (value == 'timers') {
-                Navigator.of(context).push(
-                  MaterialPageRoute<void>(
-                    builder: (_) => const TimerSettings(),
-                  ),
-                );
-              }
-              if (value == 'name') _changeDisplayName();
-              if (value == 'tableName') _changeTableName();
-              if (value == 'administration') _openAdministration();
+              if (value == 'name') _changeName();
               if (value == 'logout') _logOut();
-              if (value == 'household') {
-                setState(() {
-                  mealPlanNotices.dismiss();
-                  _settings = true;
-                  _planning = false;
-                  _shopping = false;
-                });
-                if (!_busy) _perform(_loadPeople);
-              }
             },
           ),
         ],
@@ -1671,7 +1739,7 @@ class _HouseholdPanelState extends State<HouseholdPanel>
                     constraints: const BoxConstraints(maxWidth: 720),
                     child: ListView(
                       padding: const EdgeInsets.all(16),
-                      children: [settings],
+                      children: [_householdSettings(context)],
                     ),
                   ),
                 ),

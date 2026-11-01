@@ -1,4 +1,9 @@
 import 'package:coffey_table_recipes/src/account_menu.dart';
+import 'package:coffey_table_recipes/src/account_panel.dart';
+import 'package:coffey_table_recipes/src/child_mode.dart';
+
+import 'home_design_test.dart' show TestUser;
+
 import 'package:coffey_table_recipes/src/native_timers.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -21,9 +26,6 @@ void main() {
               AccountMenu(
                 name: 'Alex with a long display name',
                 email: 'long.email.address@example.test',
-                canEditTableName: true,
-                showTimers: true,
-                administrator: true,
                 onSelected: (value) => action = value,
               ),
             ],
@@ -32,26 +34,87 @@ void main() {
       ),
     );
     for (final entry in {
-      'Account display name': 'name',
-      'Name at the table': 'tableName',
-      'Household & people': 'household',
+      'Change name': 'name',
       'Child mode: Off': 'childMode',
-      'Timer settings': 'timers',
-      'Administration': 'administration',
       'Log out': 'logout',
     }.entries) {
       await tester.tap(find.byTooltip('User menu'));
       await tester.pumpAndSettle();
       expect(tester.takeException(), isNull);
-      expect(
-        tester.getTopLeft(find.text('Child mode: Off')).dy,
-        greaterThan(tester.getTopLeft(find.text('Household & people')).dy),
-      );
       await tester.tap(find.text(entry.key));
       await tester.pumpAndSettle();
       expect(action, entry.value);
     }
   });
+
+  for (final restricted in [false, true]) {
+    testWidgets('settings and administration respect child mode: $restricted', (
+      tester,
+    ) async {
+      addTearDown(() => childMode.value = false);
+      await tester.pumpWidget(
+        MaterialApp(
+          home: HouseholdPanel(
+            user: TestUser(),
+            request: (path, {body}) async {
+              if (path == '/me') {
+                return {
+                  'user': {
+                    'id': '42',
+                    'account_role': 'administrator',
+                    'child_mode': restricted,
+                  },
+                  'households': [
+                    {'id': '2', 'name': 'Family', 'role': 'owner'},
+                  ],
+                };
+              }
+              if (path.endsWith('/people')) return {'people': []};
+              return {'recipes': [], 'next_offset': null};
+            },
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.byTooltip('User menu'));
+      await tester.pumpAndSettle();
+      expect(find.text('Household & people'), findsNothing);
+      expect(find.text('Administration'), findsNothing);
+      expect(find.text('Timer settings'), findsNothing);
+      final change = tester.widget<PopupMenuItem<String>>(
+        find.ancestor(
+          of: find.text('Change name'),
+          matching: find.byType(PopupMenuItem<String>),
+        ),
+      );
+      expect(change.enabled, !restricted);
+      expect(
+        find.text('Child mode: ${restricted ? 'On' : 'Off'}'),
+        findsOneWidget,
+      );
+      await tester.tap(find.text('Log out'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Cancel'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byTooltip('Open navigation menu'));
+      await tester.pumpAndSettle();
+      expect(
+        find.text('Administration'),
+        restricted ? findsNothing : findsOneWidget,
+      );
+      await tester.tap(find.text('Settings'));
+      await tester.pumpAndSettle();
+      final departments = tester.widget<ListTile>(
+        find.widgetWithText(ListTile, 'Shopping list departments'),
+      );
+      expect(departments.enabled, !restricted);
+      expect(
+        find.text('Cooking timers'),
+        !restricted && NativeTimers.supported ? findsOneWidget : findsNothing,
+      );
+      expect(tester.takeException(), isNull);
+    });
+  }
 
   testWidgets(
     'tone selection only persists on Save and failed saves retain current tone',

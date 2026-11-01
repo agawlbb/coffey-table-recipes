@@ -192,7 +192,7 @@ void main() {
     );
   }
   for (final role in ['user', 'administrator']) {
-    testWidgets('administration menu for $role', (tester) async {
+    testWidgets('administration drawer entry for $role', (tester) async {
       await tester.pumpWidget(
         MaterialApp(
           home: HouseholdPanel(
@@ -210,7 +210,7 @@ void main() {
         ),
       );
       await tester.pumpAndSettle();
-      await tester.tap(find.byTooltip('User menu'));
+      await tester.tap(find.byTooltip('Open navigation menu'));
       await tester.pumpAndSettle();
       expect(
         find.text('Administration'),

@@ -62,9 +62,9 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.text('Apples'), findsOneWidget);
       expect(find.byTooltip('Open navigation menu'), findsOneWidget);
-      await tester.tap(find.byTooltip('User menu'));
+      await tester.tap(find.byTooltip('Open navigation menu'));
       await tester.pumpAndSettle();
-      await tester.tap(find.text('Household & people'));
+      await tester.tap(find.text('Settings'));
       await tester.pumpAndSettle();
       await tester.tap(find.text('Shopping list departments'));
       await tester.pumpAndSettle();

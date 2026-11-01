@@ -93,7 +93,7 @@ void main() {
         await tester.tap(find.text('Blank recipes only'));
         await tester.tap(find.text('Favorite'));
         await tester.pumpAndSettle();
-        await tester.tap(find.text('Joe'));
+        await tester.tap(find.text('Joe').last);
         await tester.tap(find.text('Apply'));
         await tester.pumpAndSettle();
         expect(Uri.parse(paths.last).queryParameters['blank'], '1');
@@ -109,6 +109,26 @@ void main() {
             expect(find.byType(CookingMode), findsOneWidget);
             expect(find.byTooltip('Open navigation menu'), findsOneWidget);
           }
+        }
+        await tester.tap(find.byTooltip('Open navigation menu'));
+        await tester.pumpAndSettle();
+        await tester.tap(find.widgetWithText(ListTile, 'Settings'));
+        await tester.pumpAndSettle();
+        expect(find.text('Shopping list departments'), findsOneWidget);
+        expect(find.text('Manage restaurants'), findsOneWidget);
+        await tester.pageBack();
+        await tester.pumpAndSettle();
+        if (destination == 'detail') {
+          expect(find.byType(RecipeDetail), findsOneWidget);
+        }
+        if (destination == 'cooking') {
+          expect(find.byType(CookingMode), findsOneWidget);
+        }
+        if (destination == 'browser') {
+          expect(
+            tester.widget<TextField>(find.byType(TextField)).controller!.text,
+            'soup',
+          );
         }
         await tester.tap(find.byTooltip('Open navigation menu'));
         await tester.pumpAndSettle();
