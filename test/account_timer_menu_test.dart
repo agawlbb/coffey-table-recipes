@@ -34,7 +34,7 @@ void main() {
       ),
     );
     for (final entry in {
-      'Change name': 'name',
+      'Full name': 'name',
       'Child mode: Off': 'childMode',
       'Log out': 'logout',
     }.entries) {
@@ -78,12 +78,12 @@ void main() {
       await tester.pumpAndSettle();
       await tester.tap(find.byTooltip('User menu'));
       await tester.pumpAndSettle();
-      expect(find.text('Household & people'), findsNothing);
+      expect(find.text('Household members'), findsNothing);
       expect(find.text('Administration'), findsNothing);
       expect(find.text('Timer settings'), findsNothing);
       final change = tester.widget<PopupMenuItem<String>>(
         find.ancestor(
-          of: find.text('Change name'),
+          of: find.text('Full name'),
           matching: find.byType(PopupMenuItem<String>),
         ),
       );

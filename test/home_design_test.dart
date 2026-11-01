@@ -55,21 +55,21 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('one name edits the account and household person together', (
+  testWidgets('full name and household display name save independently', (
     tester,
   ) async {
-    final user = TestUser();
-    var tableName = 'Alex at dinner';
+    var fullName = 'Alex Example';
+    var displayName = 'Alex';
     var fail = false;
     final writes = <String>[];
     await tester.pumpWidget(
       MaterialApp(
         home: HouseholdPanel(
-          user: user,
+          user: TestUser(),
           request: (path, {body}) async {
             if (path == '/me') {
               return {
-                'user': {'id': '42'},
+                'user': {'id': '42', 'display_name': fullName},
                 'households': [
                   {'id': '2', 'name': 'Coffey', 'role': 'member'},
                 ],
@@ -77,12 +77,19 @@ void main() {
             }
             if (path == '/me/name') {
               writes.add(path);
-              if (fail) throw Exception('offline');
-              tableName = body!['display_name'] as String;
+              fullName = body!['display_name'] as String;
               return {
-                'user': {
-                  'id': '42',
-                  'display_name': tableName,
+                'user': {'id': '42', 'display_name': fullName},
+              };
+            }
+            if (path == '/households/2/people/7/name') {
+              writes.add(path);
+              if (fail) throw Exception('offline');
+              displayName = body!['display_name'] as String;
+              return {
+                'person': {
+                  'id': '7',
+                  'display_name': displayName,
                   'user_id': '42',
                 },
               };
@@ -90,7 +97,7 @@ void main() {
             if (path.endsWith('/people')) {
               return {
                 'people': [
-                  {'id': '7', 'display_name': tableName, 'user_id': '42'},
+                  {'id': '7', 'display_name': displayName, 'user_id': '42'},
                   {'id': '8', 'display_name': 'Sam', 'user_id': null},
                 ],
               };
@@ -103,54 +110,125 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.byTooltip('User menu'));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Change name'));
+    await tester.tap(find.text('Full name'));
     await tester.pumpAndSettle();
     expect(
       tester.widget<TextFormField>(find.byType(TextFormField)).controller!.text,
-      'Alex at dinner',
+      'Alex Example',
     );
     await tester.enterText(find.byType(TextFormField), '');
     await tester.tap(find.text('Save'));
     await tester.pumpAndSettle();
     expect(find.text('Enter a name.'), findsOneWidget);
     expect(writes, isEmpty);
-    await tester.enterText(find.byType(TextFormField), '  Lex  ');
+    await tester.enterText(find.byType(TextFormField), '  Alexander Example  ');
     await tester.tap(find.text('Save'));
     await tester.pumpAndSettle();
-    expect(tableName, 'Lex');
-    expect(find.text('L'), findsOneWidget);
-    expect(writes, ['/me/name']);
+    expect(fullName, 'Alexander Example');
+    expect(displayName, 'Alex');
     await tester.tap(find.byTooltip('Open navigation menu'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Settings'));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Household & people'));
+    expect(find.text('Full name'), findsNothing);
+    await tester.tap(find.text('Household members'));
     await tester.pumpAndSettle();
+    expect(find.text('Alex'), findsOneWidget);
+    await tester.tap(find.byTooltip('Edit display name'));
+    await tester.pumpAndSettle();
+    expect(
+      tester.widget<TextFormField>(find.byType(TextFormField)).controller!.text,
+      'Alex',
+    );
+    await tester.enterText(find.byType(TextFormField), '  Lex  ');
+    await tester.tap(find.text('Save'));
+    await tester.pumpAndSettle();
+    expect(displayName, 'Lex');
+    expect(fullName, 'Alexander Example');
     expect(find.text('Lex'), findsOneWidget);
-    expect(find.text('Sam'), findsOneWidget);
-    await tester.pageBack();
-    await tester.pumpAndSettle();
-    await tester.pageBack();
-    await tester.pumpAndSettle();
     fail = true;
-    await tester.tap(find.byTooltip('User menu'));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('Change name'));
+    await tester.tap(find.byTooltip('Edit display name'));
     await tester.pumpAndSettle();
     await tester.enterText(find.byType(TextFormField), 'Unsaved');
     await tester.tap(find.text('Save'));
     await tester.pumpAndSettle();
-    expect(find.text('L'), findsOneWidget);
-    expect(
-      find.text('Could not update your name. Please try again.'),
-      findsOneWidget,
-    );
+    expect(displayName, 'Lex');
+    expect(find.text('Lex'), findsOneWidget);
+    expect(find.text('Retry'), findsOneWidget);
+    expect(writes, [
+      '/me/name',
+      '/households/2/people/7/name',
+      '/households/2/people/7/name',
+    ]);
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('user menu saves display name and confirms logout', (
-    tester,
-  ) async {
+  for (final role in ['owner', 'admin', 'member', 'child']) {
+    testWidgets('household display name edit permissions for $role', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: HouseholdPanel(
+            user: TestUser(),
+            request: (path, {body}) async {
+              if (path == '/me') {
+                return {
+                  'user': {'id': '42', 'child_mode': role == 'child'},
+                  'households': [
+                    {
+                      'id': '2',
+                      'name': 'Family',
+                      'role': role == 'child' ? 'member' : role,
+                    },
+                  ],
+                };
+              }
+              if (path.endsWith('/people')) {
+                return {
+                  'people': [
+                    {'id': '7', 'display_name': 'Me', 'user_id': '42'},
+                    {
+                      'id': '8',
+                      'display_name': 'Child',
+                      'user_id': '43',
+                      'child_mode': true,
+                    },
+                    {'id': '9', 'display_name': 'Other adult', 'user_id': '44'},
+                    {'id': '10', 'display_name': 'Unlinked', 'user_id': null},
+                  ],
+                };
+              }
+              return {'recipes': [], 'next_offset': null};
+            },
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.byTooltip('Open navigation menu'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Settings'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Household members'));
+      await tester.pumpAndSettle();
+      for (final name in ['Me', 'Child', 'Other adult', 'Unlinked']) {
+        final editable =
+            role != 'child' &&
+            (name == 'Me' ||
+                (name == 'Child' && ['owner', 'admin'].contains(role)));
+        expect(
+          find.descendant(
+            of: find.widgetWithText(ListTile, name),
+            matching: find.byTooltip('Edit display name'),
+          ),
+          editable ? findsOneWidget : findsNothing,
+        );
+      }
+      expect(tester.takeException(), isNull);
+    });
+  }
+
+  testWidgets('user menu saves full name and confirms logout', (tester) async {
     final user = TestUser();
     var logoutCount = 0;
     await tester.pumpWidget(
@@ -172,7 +250,7 @@ void main() {
     await tester.tap(find.byTooltip('User menu'));
     await tester.pumpAndSettle();
     expect(find.text('alex@example.test'), findsOneWidget);
-    await tester.tap(find.text('Change name'));
+    await tester.tap(find.text('Full name'));
     await tester.pumpAndSettle();
     await tester.enterText(find.byType(TextFormField), '  Jamie  ');
     await tester.tap(find.text('Save'));
@@ -240,7 +318,7 @@ void main() {
       await tester.pumpAndSettle();
       await tester.tap(find.text('Settings'));
       await tester.pumpAndSettle();
-      await tester.tap(find.text('Household & people'));
+      await tester.tap(find.text('Household members'));
       await tester.pumpAndSettle();
       expect(find.text('Alex'), findsOneWidget);
       expect(find.text('Sam'), findsOneWidget);
@@ -332,7 +410,7 @@ void main() {
         );
         await tester.pumpAndSettle();
         expect(find.text('Family soup'), findsOneWidget);
-        expect(find.text('People at your table'), findsNothing);
+        expect(find.text('Household members'), findsNothing);
         expect(find.text('Your household'), findsNothing);
         expect(find.byType(Image), findsNothing);
         expect(find.byTooltip('User menu'), findsOneWidget);
@@ -343,7 +421,7 @@ void main() {
         await tester.pumpAndSettle();
         await tester.tap(find.text('Settings'));
         await tester.pumpAndSettle();
-        await tester.tap(find.text('Household & people'));
+        await tester.tap(find.text('Household members'));
         await tester.pumpAndSettle();
         expect(find.text('Coffey'), findsOneWidget);
         expect(find.byType(DropdownButtonFormField<String>), findsNothing);
@@ -364,7 +442,7 @@ void main() {
         await tester.pumpAndSettle();
         await tester.tap(find.text('Settings'));
         await tester.pumpAndSettle();
-        await tester.tap(find.text('Household & people'));
+        await tester.tap(find.text('Household members'));
         await tester.pumpAndSettle();
         expect(find.text('Other household'), findsNothing);
         expect(paths.any((path) => path.startsWith('/households/3/')), isFalse);

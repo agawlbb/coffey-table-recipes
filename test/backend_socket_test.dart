@@ -138,6 +138,8 @@ void main() {
     await api.request('/households/1/recipes/2/variation', 'fixture', body: {});
     for (final path in [
       '/households',
+      '/me/name',
+      '/households/1/people/2/name',
       '/me/verification-email',
       '/me/child-mode',
       '/admin/users/2/reset-child-mode',

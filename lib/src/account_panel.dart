@@ -300,17 +300,13 @@ class _HouseholdPanelState extends State<HouseholdPanel>
     );
   }
 
-  Map<String, dynamic>? get _ownPerson => _userId == null
-      ? null
-      : _people.where((person) => person['user_id'] == _userId).firstOrNull;
-
   Future<void> _changeName() async {
     if (childMode.value) return;
     final name = await showDialog<String>(
       context: context,
       builder: (_) => _NameDialog(
-        title: 'Change name',
-        label: 'Your name',
+        title: 'Full name',
+        label: 'Full name',
         initialName: _name,
       ),
     );
@@ -322,11 +318,6 @@ class _HouseholdPanelState extends State<HouseholdPanel>
       final savedName = (data['user'] as Map)['display_name'] as String;
       setState(() {
         _displayName = savedName;
-        _recipeRefresh++;
-        _personName.text = savedName;
-        for (final person in _people) {
-          if (person['user_id'] == _userId) person['display_name'] = savedName;
-        }
       });
       _settingsChanges.value++;
       if (_local != null) {
@@ -334,10 +325,6 @@ class _HouseholdPanelState extends State<HouseholdPanel>
           _local!
               .refresh('/me', force: true)
               .catchError((Object _) => <String, dynamic>{}),
-        );
-        unawaited(
-          _syncLibrary(_households.map((h) => h['id'] as String).toList())
-              .catchError((Object _) {}),
         );
       }
       ScaffoldMessenger.of(context)
@@ -359,9 +346,45 @@ class _HouseholdPanelState extends State<HouseholdPanel>
     }
   }
 
+  bool _canEditMember(Map<String, dynamic> person) {
+    if (childMode.value || person['user_id'] == null) return false;
+    if (person['user_id'] == _userId) return true;
+    final selected = _households.where((h) => h['id'] == _selected).firstOrNull;
+    final isChild =
+        _peopleChildModes[person['id']] ?? person['child_mode'] == true;
+    return isChild && ['owner', 'admin'].contains(selected?['role']);
+  }
+
+  Future<void> _changeMemberName(
+    BuildContext pageContext,
+    Map<String, dynamic> person,
+  ) async {
+    if (!_canEditMember(person) || _selected == null) return;
+    final householdId = _selected!;
+    final name = await showDialog<String>(
+      context: pageContext,
+      builder: (_) => _NameDialog(
+        title: 'Display name',
+        label: 'Display name',
+        initialName: person['display_name'] as String,
+      ),
+    );
+    if (!mounted || name == null || !_canEditMember(person)) return;
+    await _perform(() async {
+      final result = await _request(
+        '/households/$householdId/people/${person['id']}/name',
+        body: {'display_name': name},
+      );
+      person['display_name'] = (result['person'] as Map)['display_name'];
+      if (mounted) setState(() => _recipeRefresh++);
+      if (_local != null) {
+        unawaited(_syncLibrary([householdId]).catchError((Object _) {}));
+      }
+    });
+  }
+
   String get _name =>
       _displayName ??
-      _ownPerson?['display_name'] as String? ??
       widget.user.displayName ??
       widget.user.email ??
       'Your account';
@@ -863,7 +886,9 @@ class _HouseholdPanelState extends State<HouseholdPanel>
       }
       _userId = (data['user'] as Map?)?['id'] as String?;
       _displayName = (data['user'] as Map?)?['display_name'] as String?;
-      if (_displayName != null) _personName.text = _displayName!;
+      if (_displayName != null && _households.isEmpty) {
+        _personName.text = _displayName!;
+      }
       _administrator =
           (data['user'] as Map?)?['account_role'] == 'administrator';
       final households = List<Map<String, dynamic>>.from(
@@ -1023,7 +1048,6 @@ class _HouseholdPanelState extends State<HouseholdPanel>
           _syncLibrary(_households.map((h) => h['id'] as String).toList()),
         );
       }
-      _displayName = _personName.text.trim();
       await _loadPeople();
     });
   }
@@ -1340,40 +1364,54 @@ class _HouseholdPanelState extends State<HouseholdPanel>
                                     .firstOrNull?['name']
                                 as String? ??
                             'Household',
+                        style: Theme.of(routeContext).textTheme.titleMedium
+                            ?.copyWith(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 18,
+                            ),
                       ),
                     ),
-                    ListTile(
-                      leading: const Icon(Icons.people_outline),
-                      title: const Text('Household & people'),
-                      trailing: const Icon(Icons.chevron_right),
-                      onTap: () => Navigator.of(routeContext).push<void>(
-                        MaterialPageRoute(
-                          builder: (_) => ValueListenableBuilder<int>(
-                            valueListenable: _settingsChanges,
-                            builder: (context, value, child) => Scaffold(
-                              appBar: AppBar(
-                                title: const Text('Household & people'),
-                                leading: const RecipeMenuLeading(),
-                                leadingWidth: 96,
-                              ),
-                              drawer: _buildMenu(context),
-                              body: Center(
-                                child: ConstrainedBox(
-                                  constraints: const BoxConstraints(
-                                    maxWidth: 720,
-                                  ),
-                                  child: ListView(
-                                    padding: const EdgeInsets.all(16),
-                                    children: [_householdSettings(context)],
+                    Padding(
+                      padding: const EdgeInsets.only(left: 24),
+                      child: Column(
+                        children: [
+                          ListTile(
+                            leading: const Icon(Icons.people_outline),
+                            title: const Text('Household members'),
+                            trailing: const Icon(Icons.chevron_right),
+                            onTap: () => Navigator.of(routeContext).push<void>(
+                              MaterialPageRoute(
+                                builder: (_) => ValueListenableBuilder<int>(
+                                  valueListenable: _settingsChanges,
+                                  builder: (context, value, child) => Scaffold(
+                                    appBar: AppBar(
+                                      title: const Text('Household members'),
+                                      leading: const RecipeMenuLeading(),
+                                      leadingWidth: 96,
+                                    ),
+                                    drawer: _buildMenu(context),
+                                    body: Center(
+                                      child: ConstrainedBox(
+                                        constraints: const BoxConstraints(
+                                          maxWidth: 720,
+                                        ),
+                                        child: ListView(
+                                          padding: const EdgeInsets.all(16),
+                                          children: [
+                                            _householdSettings(context),
+                                          ],
+                                        ),
+                                      ),
+                                    ),
                                   ),
                                 ),
                               ),
                             ),
                           ),
-                        ),
+                          ..._householdControls(routeContext),
+                        ],
                       ),
                     ),
-                    ..._householdControls(routeContext),
                     if (NativeTimers.supported && !childMode.value) ...[
                       const Divider(),
                       const ListTile(title: Text('This device')),
@@ -1403,7 +1441,6 @@ class _HouseholdPanelState extends State<HouseholdPanel>
     final selected = _households.where((h) => h['id'] == _selected).firstOrNull;
     return [
       ListTile(
-        contentPadding: EdgeInsets.zero,
         leading: const Icon(Icons.category_outlined),
         title: const Text('Shopping list departments'),
         trailing: const Icon(Icons.chevron_right),
@@ -1426,7 +1463,6 @@ class _HouseholdPanelState extends State<HouseholdPanel>
               },
       ),
       ListTile(
-        contentPadding: EdgeInsets.zero,
         leading: const Icon(Icons.restaurant_outlined),
         title: const Text('Manage restaurants'),
         trailing: const Icon(Icons.chevron_right),
@@ -1489,7 +1525,7 @@ class _HouseholdPanelState extends State<HouseholdPanel>
               TextField(
                 controller: _personName,
                 maxLength: 200,
-                decoration: const InputDecoration(labelText: 'Your name'),
+                decoration: const InputDecoration(labelText: 'Display name'),
               ),
               FilledButton(
                 onPressed: childMode.value ? null : _create,
@@ -1517,10 +1553,6 @@ class _HouseholdPanelState extends State<HouseholdPanel>
                 ],
               ),
               const SizedBox(height: 20),
-              Text(
-                'People at your table',
-                style: Theme.of(context).textTheme.titleMedium,
-              ),
               for (final person in _people)
                 ListTile(
                   contentPadding: EdgeInsets.zero,
@@ -1542,6 +1574,15 @@ class _HouseholdPanelState extends State<HouseholdPanel>
                                 : () => _invitePerson(person),
                           ),
                   ),
+                  trailing: _canEditMember(person)
+                      ? IconButton(
+                          tooltip: 'Edit display name',
+                          icon: const Icon(Icons.edit_outlined),
+                          onPressed: _busy || _accountBusy
+                              ? null
+                              : () => _changeMemberName(context, person),
+                        )
+                      : null,
                   title: Row(
                     children: [
                       Flexible(child: Text(person['display_name'] as String)),
@@ -1630,7 +1671,7 @@ class _HouseholdPanelState extends State<HouseholdPanel>
               : _shopping
               ? 'Shopping list'
               : _settings
-              ? 'Household & people'
+              ? 'Household members'
               : 'Recipes',
         ),
         actions: [

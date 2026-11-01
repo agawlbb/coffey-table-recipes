@@ -115,7 +115,7 @@ class AccountMenu extends StatelessWidget {
         const PopupMenuDivider(),
         action(
           'name',
-          'Change name',
+          'Full name',
           Icons.person_outline,
           enabled: !childMode.value,
         ),

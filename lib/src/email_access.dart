@@ -170,7 +170,7 @@ class _EmailAccessState extends State<EmailAccess> {
                 controller: _name,
                 enabled: !_busy,
                 maxLength: 200,
-                decoration: const InputDecoration(labelText: 'Your name'),
+                decoration: const InputDecoration(labelText: 'Full name'),
                 validator: (value) => value == null || value.trim().isEmpty
                     ? 'Enter your name.'
                     : null,
