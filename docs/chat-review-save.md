@@ -38,3 +38,10 @@ existing authorized credential returned completed structured ingredients/steps
 in 4.1 seconds (not a timing guarantee). No production recipes or provider output
 were logged by that probe. No app build, release or main merge is authorized by
 this repair. Physical iOS/Bluetooth keyboard checks remain pending.
+
+
+Backend preparation/error repair source `8df3346` was deployed and verified
+healthy on 2026-11-01. Existing installed clients retain their fixed-mode
+protocol. These app UI changes are committed on the feature branch but require
+a new authorized app build before they appear on a device. No build was made
+for this repair. Both repositories remain unmerged.
