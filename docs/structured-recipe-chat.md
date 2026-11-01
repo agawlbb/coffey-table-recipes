@@ -47,3 +47,13 @@ normalized successfully in a read-only deployed runtime check without AI/data
 writes. The current test client can use the faster backend flow. No new app
 package was built; these app source changes remain on the task branch. Both
 main heads are unchanged and all earlier task branches remain intact.
+
+
+## Authorized Android test build 50
+
+The user requested another Android test APK once implementation was complete.
+Reserve base build 49 so the existing test workflow's +1 produces build 50,
+newer than delivered test build 49. The existing version label remains
+`2.5.0-account-test`. Existing 39 focused checks/analysis cover this source; only
+the build reservation and documentation change for packaging. No main merge,
+release, web or iOS build is requested.
