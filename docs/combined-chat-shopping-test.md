@@ -19,3 +19,17 @@ Build uses the existing manually dispatched Android workflow and signing
 identity. Test package goes to the existing Drive recipe app folder, verified
 by downloaded SHA-256. No release tag, automatic update notification or removal
 of older packages. Main integration remains pending explicit acceptance.
+
+Delivery verified:
+
+- Source e1359c7aefd23856a88a3ee556be1e69b8029593; Android workflow
+  https://github.com/agawlbb/coffey-table-recipes/actions/runs/41341347214 passed.
+- Version 2.5.0-account-test, build 51; existing certificate
+  f8de933f14b9bb4b3191a94aedc8637972c5ab224565f6abd7808f8038d12097.
+- Signing/package/provenance, JNI and hosted Android app links passed workflow checks.
+- SHA-256 035ad468c59b48702fda3a41292e6ffe40f22ac60f49273f86aa9338bc112f2a
+  matched the downloaded Drive upload.
+- https://drive.google.com/file/d/1660oAEifJ9CfOgdYWugOdzFXggU5XJXR/view
+- Combined affected-file analysis passed (nine Dart files).
+- Paired VPS source 7541c5a deployed and smoke checked, recorded at f305221.
+- Main untouched; both features remain unmerged. No prior APK removal or notifications.
