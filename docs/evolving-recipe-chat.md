@@ -53,3 +53,30 @@ The existing signed Android workflow adds one to the pubspec build for tests.
 Reserve base build 48 here so the resulting test APK is build 49, newer than
 the previously delivered test build 48. The workflow retains its existing
 `2.5.0-account-test` version label. This is not a release or a main merge.
+
+
+### Verified test delivery — 2026-11-01
+
+Backend feature source `f31481216d1a75a833ca127a37567f4b1cdade79` was deployed
+and verified healthy; the VPS branch records configuration/source hash checks.
+Android source: `5d93d05e499ce0f23c8b4ef7648c19f29daf4a31`.
+[Build job](https://github.com/agawlbb/coffey-table-recipes/actions/runs/41323418141)
+compiled and signed successfully but failed during app-link validation because
+the GitHub runner could not resolve the association hostname. The preserved
+signed APK was downloaded without rebuilding. The exact workflow verification
+Python was extracted and rerun in the dev container at that source commit.
+It passed package/version/build, non-debuggable release mode, original signing
+certificate, required Android timer JNI classes, and live hosted app links.
+The CI job remains failed; successful independent verification is recorded here.
+
+- Version: `2.5.0-account-test`, build **49**.
+- Uploaded filename: `CoffeyTableRecipes-2.5.0-account-test-build49-5d93d05.apk`.
+- SHA-256: `5d82fe7e6cce6f30a351c80bc8e51111e556aafdd8a9b2b64bb73afbf2660b06`.
+- Certificate SHA-256: `f8de933f14b9bb4b3191a94aedc8637972c5ab224565f6abd7808f8038d12097`.
+- [Download verified test APK](https://drive.google.com/file/d/1VxT9IHHOtZxzQoW2h8nj7pNYu1CnA0v6/view).
+
+The configured Drive folder was used, and uploaded bytes were downloaded and
+their SHA-256 matched. Existing visible file IDs were preserved; no files were
+removed, sharing changed, or release notification sent. No APK/update metadata
+is publicly hosted on the VPS. Both task branches remain unmerged; no web or
+iOS builds, release tag, InMotion deployment or device installation is included.
