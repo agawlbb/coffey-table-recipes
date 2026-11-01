@@ -38,3 +38,12 @@ protection, history/preference bounds, legacy recovery and actual token accounti
 have focused PHP and real-socket coverage. Live provider testing used only a
 synthetic recipe and no production recipe/context. No app build, release, web
 deployment or main integration is part of this feature implementation.
+
+
+VPS structured-chat source `5342aa0` was deployed and verified healthy on
+2026-11-01. Its source/private-configuration hashes, CPU policy, public health
+and invalid-token authentication checks passed. An existing authorized recipe
+normalized successfully in a read-only deployed runtime check without AI/data
+writes. The current test client can use the faster backend flow. No new app
+package was built; these app source changes remain on the task branch. Both
+main heads are unchanged and all earlier task branches remain intact.
