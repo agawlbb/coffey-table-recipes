@@ -46,13 +46,16 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
-    final choices = tester.widgetList<ChoiceChip>(find.byType(ChoiceChip));
-    expect(choices.map((chip) => (chip.label as Text).data).toList(), [
+    final choices = find.descendant(
+      of: find.byType(RecipeImportChoices),
+      matching: find.byType(Text),
+    );
+    expect(tester.widgetList<Text>(choices).map((text) => text.data).toList(), [
       'Text',
       'Website',
       'File',
       'Camera',
-      'Create a dish with AI',
+      'Create with AI',
       'Blank recipe',
     ]);
   });
@@ -87,10 +90,18 @@ void main() {
       expect(importer.initialKind, kind);
       expect(importer.blankRecipe?['id'], '9');
       expect(
-        tester
-            .widget<ChoiceChip>(find.widgetWithText(ChoiceChip, labels[kind]!))
-            .selected,
-        isTrue,
+        tester.getSemantics(find.widgetWithText(MergeSemantics, labels[kind]!)),
+        matchesSemantics(
+          isButton: true,
+          hasEnabledState: true,
+          isEnabled: true,
+          hasSelectedState: true,
+          isSelected: true,
+          hasTapAction: true,
+          hasFocusAction: true,
+          isFocusable: true,
+          label: labels[kind]!,
+        ),
       );
     });
   }

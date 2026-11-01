@@ -1,7 +1,15 @@
 # Add recipe
 
-The left navigation menu's Add recipe opens text/description, website, upload,
-and camera options for the selected household. An online connection is required.
+The left navigation menu's Add recipe opens text, website, file, camera,
+Create with AI, and blank-recipe options for the selected household. The text
+field accepts both pasted recipes and descriptions of how a dish is made; no
+separate description mode is needed. Both use the existing AI text importer
+and its clarification/review flow. Text sources are labeled Pasted text.
+
+The source choices use equal-sized icon buttons with a selected-state highlight.
+Labels can wrap, and narrow layouts or larger accessibility text use one column.
+The form starts near the top and follows the app's existing theme.
+An online connection is required.
 Available website recipe pictures are included in the review draft as the cover
 with website credit. They can be cropped, rotated, replaced or removed before
 Save. Pictures remain in memory across clarification questions and their bytes
@@ -188,3 +196,22 @@ was merged into main. No release tag, web/iOS build or hosted Flutter deployment
 was made. Physical-device installation, OS link-resolution and a signed-in live AI
 conversation remain unverified; source/widget/wire and deployment checks are
 recorded above. Install the signed test APK over the existing app to retain data.
+
+
+2026-11-01 add-recipe layout validation: 70 distinct focused widget tests passed
+across import, method selection, AI chat, blank recipes/layout, browser entry,
+and shared imports. The initial seven-file run exposed label-finder and selected
+semantics assertions; the button semantics were merged and the label finder was
+restricted to its label. The affected three files were rerun; its two remaining
+failures were fixed-position expectations at larger text sizes, replaced with
+app-bar/heading-relative spacing checks. The final four layout cases all pass.
+
+Commands (using the existing development container):
+
+- `flutter test --no-pub test/recipe_import_test.dart test/recipe_import_methods_test.dart test/recipe_chat_test.dart test/blank_recipe_test.dart test/blank_recipe_detail_layout_test.dart test/recipe_browser_add_recipe_test.dart test/shared_recipe_import_test.dart`
+- `flutter test --no-pub test/recipe_import_test.dart test/blank_recipe_test.dart test/blank_recipe_detail_layout_test.dart`
+- `flutter test --no-pub test/recipe_import_test.dart --plain-name 'source buttons fit'`
+- `flutter analyze --no-pub lib/src/recipe_import.dart lib/src/blank_recipe_detail.dart test/recipe_import_test.dart test/blank_recipe_test.dart test/recipe_chat_test.dart` (no issues)
+
+Changed Dart files were formatted. No full suite, app build, live AI request,
+release, or deployment was performed. Task base: `58c3ea0` from `origin/main`.

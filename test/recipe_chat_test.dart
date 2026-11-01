@@ -237,7 +237,7 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Create a dish with AI'));
+    await tester.tap(find.text('Create with AI'));
     await tester.pumpAndSettle();
     expect(find.byType(RecipeChat), findsOneWidget);
     expect(find.text('Save will create a new recipe.'), findsOneWidget);

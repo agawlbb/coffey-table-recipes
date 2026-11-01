@@ -24,68 +24,73 @@ class RecipeImportChoices extends StatelessWidget {
     this.selectedKind,
     this.includeBlank = false,
     this.enabled = true,
-    this.actionButtons = false,
   });
   final ValueChanged<String> onSelected;
   final String? selectedKind;
   final bool includeBlank;
   final bool enabled;
-  final bool actionButtons;
   @override
-  Widget build(BuildContext context) => GridView(
-    gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-      crossAxisCount:
-          actionButtons &&
-              MediaQuery.textScalerOf(context).scale(14) > 18 &&
-              MediaQuery.sizeOf(context).width < 600
-          ? 1
-          : 2,
-      mainAxisExtent: actionButtons ? 54 : 48,
-      crossAxisSpacing: actionButtons ? 12 : 8,
-      mainAxisSpacing: actionButtons ? 12 : 8,
-    ),
-    shrinkWrap: true,
-    physics: const NeverScrollableScrollPhysics(),
-    children: [
-      for (final option in [
-        ('text', 'Text', Icons.notes),
-        ('website', 'Website', Icons.link),
-        ('file', 'File', Icons.upload_file),
-        ('camera', 'Camera', Icons.camera_alt_outlined),
-        if (includeBlank)
-          ('ai_chat', 'Create a dish with AI', Icons.chat_bubble_outline),
-        if (includeBlank) ('blank', 'Blank recipe', Icons.note_add_outlined),
-      ])
-        if (actionButtons)
-          OutlinedButton.icon(
-            onPressed: enabled ? () => onSelected(option.$1) : null,
-            style: OutlinedButton.styleFrom(
-              alignment: Alignment.centerLeft,
-              padding: const EdgeInsets.symmetric(horizontal: 12),
-              backgroundColor: Theme.of(context).colorScheme.surface,
-              side: BorderSide(
-                color: Theme.of(context).colorScheme.outlineVariant,
-              ),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    final textScaler = MediaQuery.textScalerOf(context);
+    return LayoutBuilder(
+      builder: (context, constraints) => GridView(
+        padding: EdgeInsets.zero,
+        gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+          crossAxisCount:
+              constraints.maxWidth < 340 ||
+                  (textScaler.scale(14) > 18 && constraints.maxWidth < 600)
+              ? 1
+              : 2,
+          mainAxisExtent: 32 + textScaler.scale(16) * 2,
+          crossAxisSpacing: 12,
+          mainAxisSpacing: 12,
+        ),
+        shrinkWrap: true,
+        physics: const NeverScrollableScrollPhysics(),
+        children: [
+          for (final option in [
+            ('text', 'Text', Icons.notes),
+            ('website', 'Website', Icons.link),
+            ('file', 'File', Icons.upload_file),
+            ('camera', 'Camera', Icons.camera_alt_outlined),
+            if (includeBlank)
+              ('ai_chat', 'Create with AI', Icons.auto_awesome_outlined),
+            if (includeBlank)
+              ('blank', 'Blank recipe', Icons.note_add_outlined),
+          ])
+            MergeSemantics(
+              child: Semantics(
+                selected: option.$1 == selectedKind,
+                child: OutlinedButton.icon(
+                  onPressed: enabled ? () => onSelected(option.$1) : null,
+                  style: OutlinedButton.styleFrom(
+                    alignment: Alignment.centerLeft,
+                    padding: const EdgeInsets.symmetric(horizontal: 12),
+                    foregroundColor: option.$1 == selectedKind
+                        ? colors.onPrimaryContainer
+                        : colors.primary,
+                    backgroundColor: option.$1 == selectedKind
+                        ? colors.primaryContainer
+                        : colors.surface,
+                    side: BorderSide(
+                      color: option.$1 == selectedKind
+                          ? colors.primary
+                          : colors.outlineVariant,
+                    ),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                  ),
+                  icon: Icon(option.$3, size: 20),
+                  label: Text(option.$2, maxLines: 2),
+                ),
               ),
             ),
-            icon: Icon(option.$3, size: 20),
-            label: Text(option.$2, maxLines: 1, softWrap: false),
-          )
-        else
-          ChoiceChip(
-            avatar: Icon(option.$3, size: 18),
-            label: Text(
-              option.$2,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-            ),
-            selected: option.$1 == selectedKind,
-            onSelected: !enabled ? null : (_) => onSelected(option.$1),
-          ),
-    ],
-  );
+        ],
+      ),
+    );
+  }
 }
 
 class RecipeImport extends StatefulWidget {
@@ -315,9 +320,7 @@ class _RecipeImportState extends State<RecipeImport> {
         'supports_related_imports': true,
         if (_requiresMethodChoice && _methodSelection != null)
           'method_selection': _methodSelection,
-        'kind': _draft == null || _editingSource
-            ? (_kind == 'description' ? 'text' : _kind)
-            : 'answers',
+        'kind': _draft == null || _editingSource ? _kind : 'answers',
       };
       if (_draft != null && !_editingSource) {
         if (_answerFields.any((c) => c.text.trim().isEmpty)) {
@@ -340,10 +343,8 @@ class _RecipeImportState extends State<RecipeImport> {
               },
           ],
         });
-      } else if (_kind == 'text' || _kind == 'description') {
-        body['input_source'] = _kind == 'description'
-            ? 'written_description'
-            : 'pasted_text';
+      } else if (_kind == 'text') {
+        body['input_source'] = 'pasted_text';
         if (_text.text.trim().isEmpty) {
           throw const FormatException(
             'Paste a recipe or describe how you make your dish.',
@@ -701,7 +702,8 @@ class _RecipeImportState extends State<RecipeImport> {
         ],
         leading: BackButton(onPressed: _busy ? null : _close),
       ),
-      body: Center(
+      body: Align(
+        alignment: Alignment.topCenter,
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 720),
           child: SingleChildScrollView(
@@ -710,7 +712,6 @@ class _RecipeImportState extends State<RecipeImport> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                const SizedBox(height: 12),
                 if (_retryingImport)
                   const Padding(
                     padding: EdgeInsets.symmetric(vertical: 12),
@@ -726,11 +727,15 @@ class _RecipeImportState extends State<RecipeImport> {
                     ),
                   ),
                 if (_draft == null || _editingSource) ...[
+                  Text(
+                    'Choose a starting point',
+                    style: Theme.of(context).textTheme.titleMedium,
+                  ),
                   const SizedBox(height: 16),
                   RecipeImportChoices(
                     includeBlank: widget.blankRecipe == null,
                     enabled: !_busy,
-                    selectedKind: _kind == 'description' ? 'text' : _kind,
+                    selectedKind: _kind,
                     onSelected: (kind) {
                       if (kind == 'ai_chat') {
                         _createAiDish();
@@ -747,21 +752,8 @@ class _RecipeImportState extends State<RecipeImport> {
                       });
                     },
                   ),
-                  if (_kind == 'text' || _kind == 'description')
-                    CheckboxListTile(
-                      contentPadding: EdgeInsets.zero,
-                      title: const Text('Describe how I make a dish'),
-                      value: _kind == 'description',
-                      onChanged: _busy
-                          ? null
-                          : (value) => setState(
-                              () => _kind = value == true
-                                  ? 'description'
-                                  : 'text',
-                            ),
-                    ),
-                  const SizedBox(height: 16),
-                  if (_kind == 'text' || _kind == 'description')
+                  const SizedBox(height: 24),
+                  if (_kind == 'text')
                     TextField(
                       controller: _text,
                       onTapOutside: (_) => FocusScope.of(context).unfocus(),
@@ -779,13 +771,10 @@ class _RecipeImportState extends State<RecipeImport> {
                           }) => currentLength < 54000
                           ? null
                           : Text('$currentLength/$maxLength'),
-                      decoration: InputDecoration(
+                      decoration: const InputDecoration(
                         alignLabelWithHint: true,
-                        labelText: _kind == 'description'
-                            ? 'How do you make it?'
-                            : 'Paste your recipe',
-                        hintText: 'For example: I sauté onions in butter, add rice and broth, then simmer…',
-                        border: OutlineInputBorder(),
+                        labelText: 'Recipe or description',
+                        hintText: 'Paste a recipe or describe how you make your dish.',
                       ),
                     ),
                   if (_kind == 'website')

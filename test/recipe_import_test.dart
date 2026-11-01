@@ -6,6 +6,7 @@ import 'package:http/http.dart' as http;
 import 'package:coffey_table_recipes/src/api.dart';
 import 'package:coffey_table_recipes/src/recipe_import.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:image_picker/image_picker.dart';
 
@@ -27,6 +28,77 @@ Map<String, dynamic> draft(List<String> questions) => {
 };
 
 void main() {
+  for (final layout in [
+    (width: 320.0, scale: 1.0, columns: 1),
+    (width: 393.0, scale: 1.0, columns: 2),
+    (width: 393.0, scale: 2.0, columns: 1),
+    (width: 900.0, scale: 2.0, columns: 2),
+  ]) {
+    testWidgets(
+      'source buttons fit at ${layout.width} with text ${layout.scale}',
+      (tester) async {
+        tester.view.physicalSize = Size(layout.width, 1000);
+        tester.view.devicePixelRatio = 1;
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
+        await tester.pumpWidget(
+          MaterialApp(
+            builder: (context, child) => MediaQuery(
+              data: MediaQuery.of(context)
+                  .copyWith(textScaler: TextScaler.linear(layout.scale)),
+              child: child!,
+            ),
+            home: RecipeImport(
+              householdId: '2',
+              request: (_, body) async => {},
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+        final buttons = find.descendant(
+          of: find.byType(RecipeImportChoices),
+          matching: find.byType(OutlinedButton),
+        );
+        expect(buttons, findsNWidgets(6));
+        final size = tester.getSize(buttons.first);
+        for (final button in buttons.evaluate()) {
+          final finder = find.byWidget(button.widget);
+          expect(tester.getSize(finder), size);
+          expect(
+            find.descendant(of: finder, matching: find.byType(Icon)),
+            findsOneWidget,
+          );
+          final label = find.descendant(
+            of: find.descendant(of: finder, matching: find.byType(Text)),
+            matching: find.byType(RichText),
+          );
+          expect(
+            tester.renderObject<RenderParagraph>(label).didExceedMaxLines,
+            isFalse,
+          );
+        }
+        final first = tester.getRect(buttons.at(0));
+        final second = tester.getRect(buttons.at(1));
+        final heading = tester.getRect(find.text('Choose a starting point'));
+        expect(heading.top, tester.getRect(find.byType(AppBar)).bottom + 20);
+        expect(first.top, heading.bottom + 16);
+        if (layout.columns == 2) {
+          expect(first.top, second.top);
+        } else {
+          expect(second.top, greaterThan(first.bottom));
+        }
+        await tester.ensureVisible(buttons.at(1));
+        await tester.tap(buttons.at(1));
+        await tester.pumpAndSettle();
+        expect(
+          find.widgetWithText(TextField, 'Recipe website link'),
+          findsOneWidget,
+        );
+        expect(tester.takeException(), isNull);
+      },
+    );
+  }
+
   testWidgets(
     'temporary import failure retries without losing clarification answers',
     (tester) async {
@@ -249,7 +321,7 @@ void main() {
       expect(submitted?['url'], url);
     });
   }
-  testWidgets('written description sends a distinct source label', (
+  testWidgets('written description uses the unified text input', (
     tester,
   ) async {
     var called = false;
@@ -260,15 +332,15 @@ void main() {
           request: (_, body) async {
             called = true;
             expect(body['kind'], 'text');
-            expect(body['input_source'], 'written_description');
+            expect(body['input_source'], 'pasted_text');
+            expect(body['text'], 'I make soup');
             return draft(['How much water?']);
           },
         ),
       ),
     );
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Describe how I make a dish').last);
-    await tester.pumpAndSettle();
+    expect(find.byType(CheckboxListTile), findsNothing);
     await tester.enterText(find.byType(TextField).first, 'I make soup');
     await tester.ensureVisible(
       find.textContaining(RegExp(r'^(Prepare recipe|Continue)$')),
@@ -312,7 +384,7 @@ void main() {
       await tester.tap(find.text('Start import'));
       await tester.pumpAndSettle();
       await tester.enterText(
-        find.widgetWithText(TextField, 'Paste your recipe'),
+        find.widgetWithText(TextField, 'Recipe or description'),
         'Soup with water',
       );
       await tester.ensureVisible(

@@ -164,7 +164,6 @@ class BlankRecipeDetail extends StatelessWidget {
                       ),
                       const SizedBox(height: 16),
                       RecipeImportChoices(
-                        actionButtons: true,
                         enabled: !offline && !childMode.value,
                         onSelected: onImport!,
                       ),
