@@ -24,6 +24,7 @@ Map<String, dynamic> chatReply(
       : 'Removing eggs makes a thinner soup. I updated the working recipe.',
   'ready': ready,
   'recipe_text': recipeText,
+  'working_recipe': chatRecipe(),
   'revision': revision,
   if (recipe != null) 'draft': {'recipe': recipe, 'questions': []},
 };
@@ -178,47 +179,47 @@ void main() {
     },
   );
 
-  testWidgets('variation review retains approved cover and cooking explanation', (
-    tester,
-  ) async {
-    const image =
-        'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADElEQVR4nGNoaGgAAAMEAYFL09IQAAAAAElFTkSuQmCC';
-    await openChat(tester, (_, body) async {
-      final response = chatReply(
-        (body['revision'] as int) + 1,
-        recipe: body['action'] == 'prepare'
-            ? {
-                ...chatRecipe(variation: true),
-                'photos': [
-                  {
-                    'id': 'new-cover',
-                    'image_base64': image,
-                    'is_cover': 1,
-                    'attribution': 'Original photographer',
-                  },
-                ],
-              }
-            : null,
+  testWidgets(
+    'variation review preserves a supplied photo and cooking explanation',
+    (tester) async {
+      const image =
+          'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADElEQVR4nGNoaGgAAAMEAYFL09IQAAAAAElFTkSuQmCC';
+      await openChat(tester, (_, body) async {
+        final response = chatReply(
+          (body['revision'] as int) + 1,
+          recipe: body['action'] == 'prepare'
+              ? {
+                  ...chatRecipe(variation: true),
+                  'photos': [
+                    {
+                      'id': 'new-cover',
+                      'image_base64': image,
+                      'is_cover': 1,
+                      'attribution': 'Original photographer',
+                    },
+                  ],
+                }
+              : null,
+        );
+        if (response['draft'] != null) {
+          response['draft']['change_description'] = 'Kept the eggs for structure and reused the representative cover.';
+        }
+        return response;
+      }, existing: true);
+      await send(tester, 'Improve the soup');
+      await tester.tap(find.text('Review and save'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Save as a new variation'));
+      await tester.pumpAndSettle();
+      final editor = tester.widget<RecipeEditor>(find.byType(RecipeEditor));
+      expect(editor.variationChangeDescription, contains('structure'));
+      expect((editor.recipe['photos'] as List).single['image_base64'], image);
+      expect(
+        (editor.recipe['photos'] as List).single['attribution'],
+        'Original photographer',
       );
-      if (response['draft'] != null) {
-        response['draft']['change_description'] =
-            'Kept the eggs for structure and reused the representative cover.';
-      }
-      return response;
-    }, existing: true);
-    await send(tester, 'Improve the soup');
-    await tester.tap(find.text('Review and save'));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('Save as a new variation'));
-    await tester.pumpAndSettle();
-    final editor = tester.widget<RecipeEditor>(find.byType(RecipeEditor));
-    expect(editor.variationChangeDescription, contains('structure'));
-    expect((editor.recipe['photos'] as List).single['image_base64'], image);
-    expect(
-      (editor.recipe['photos'] as List).single['attribution'],
-      'Original photographer',
-    );
-  });
+    },
+  );
 
   test('chat routes exclusively through the VPS AI scope', () {
     expect(isAiPath('/households/2/recipe-chat'), isTrue);
@@ -769,7 +770,7 @@ void main() {
       await tester.tap(find.text('Review and save'));
       await tester.pump();
       expect(find.byType(CircularProgressIndicator), findsOneWidget);
-      expect(find.text('Preparing recipe for review…'), findsOneWidget);
+      expect(find.text('Opening recipe for review…'), findsOneWidget);
       expect(calls, 2);
       await tester.tap(find.text('Chat').first);
       await tester.pump(const Duration(milliseconds: 300));
@@ -839,4 +840,40 @@ void main() {
       expect(find.byType(RecipeEditor), findsOneWidget);
     },
   );
+  testWidgets(
+    'a missing structured draft is rejected without losing the request',
+    (tester) async {
+      await openChat(
+        tester,
+        (_, _) async => chatReply(1)..remove('working_recipe'),
+      );
+      await send(tester, 'Make soup');
+      expect(find.textContaining('incomplete reply'), findsOneWidget);
+      expect(
+        tester.widget<TextField>(find.byType(TextField)).controller!.text,
+        'Make soup',
+      );
+      expect(find.byType(RecipeEditor), findsNothing);
+    },
+  );
+  testWidgets('local missing-field guidance returns from recipe view to chat', (
+    tester,
+  ) async {
+    await openChat(tester, (_, body) async {
+      if (body['action'] == 'prepare') {
+        return chatReply(2, ready: false)
+          ..['message'] = 'Please add cooking steps.';
+      }
+      return chatReply(1, ready: false);
+    });
+    await send(tester, 'Start soup');
+    await tester.tap(find.text('Working recipe'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Review and save'));
+    await tester.pumpAndSettle();
+    expect(find.text('Please add cooking steps.'), findsOneWidget);
+    expect(find.byType(TextField), findsOneWidget);
+    expect(tester.widget<TabBar>(find.byType(TabBar)).controller!.index, 0);
+    expect(find.byType(RecipeEditor), findsNothing);
+  });
 }

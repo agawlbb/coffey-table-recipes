@@ -30,7 +30,9 @@ class RecipeChat extends StatefulWidget {
   State<RecipeChat> createState() => _RecipeChatState();
 }
 
-class _RecipeChatState extends State<RecipeChat> {
+class _RecipeChatState extends State<RecipeChat>
+    with SingleTickerProviderStateMixin {
+  late final TabController _tabs;
   final _input = TextEditingController();
   final _scroll = ScrollController();
   late final _inputFocus = FocusNode(onKeyEvent: _handleKey);
@@ -118,6 +120,7 @@ class _RecipeChatState extends State<RecipeChat> {
   @override
   void initState() {
     super.initState();
+    _tabs = TabController(length: 2, vsync: this);
     offlineStatus.addListener(_changed);
     _input.addListener(_changed);
     _inputFocus.addListener(_changed);
@@ -130,6 +133,7 @@ class _RecipeChatState extends State<RecipeChat> {
   @override
   void dispose() {
     offlineStatus.removeListener(_changed);
+    _tabs.dispose();
     _inputFocus.dispose();
     _input.dispose();
     _scroll.dispose();
@@ -167,6 +171,7 @@ class _RecipeChatState extends State<RecipeChat> {
   }
 
   void _selectTab(int tab) {
+    _tabs.animateTo(tab);
     if (tab == 1) _inputFocus.unfocus();
     setState(() => _tab = tab);
   }
@@ -267,7 +272,12 @@ class _RecipeChatState extends State<RecipeChat> {
       final ready = response['ready'];
       final draft = response['draft'];
       final recipeText = response['recipe_text'];
-      if (recipeText is! String ||
+      final workingRecipe = response['working_recipe'];
+      if (workingRecipe is! Map<String, dynamic> ||
+          workingRecipe['title'] is! String ||
+          workingRecipe['ingredients'] is! List ||
+          workingRecipe['steps'] is! List ||
+          recipeText is! String ||
           message is! String ||
           message.trim().isEmpty ||
           revision is! int ||
@@ -319,6 +329,7 @@ class _RecipeChatState extends State<RecipeChat> {
         _busy = false;
         if (!prepare) _input.clear();
       });
+      if (prepare && draft == null) _selectTab(0);
       _scrollToLatest();
       if (draft != null && !_closing) await _review();
     } catch (error) {
@@ -458,218 +469,200 @@ class _RecipeChatState extends State<RecipeChat> {
       onPopInvokedWithResult: (didPop, _) {
         if (!didPop) _close();
       },
-      child: DefaultTabController(
-        length: 2,
-        child: Scaffold(
-          resizeToAvoidBottomInset: true,
-          appBar: AppBar(
-            title: Text(_title),
-            leading: BackButton(onPressed: _close),
-            bottom: TabBar(
-              onTap: _selectTab,
-              tabs: const [
-                Tab(text: 'Chat'),
-                Tab(text: 'Working recipe'),
-              ],
-            ),
+      child: Scaffold(
+        resizeToAvoidBottomInset: true,
+        appBar: AppBar(
+          title: Text(_title),
+          leading: BackButton(onPressed: _close),
+          bottom: TabBar(
+            controller: _tabs,
+            onTap: _selectTab,
+            tabs: const [
+              Tab(text: 'Chat'),
+              Tab(text: 'Working recipe'),
+            ],
           ),
-          body: SafeArea(
-            child: Center(
-              child: ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 760),
-                child: Column(
-                  children: [
-                    Expanded(
-                      child: IndexedStack(
-                        index: _tab,
-                        children: [
-                          ListView(
-                            controller: _scroll,
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 16,
-                              vertical: 8,
-                            ),
-                            keyboardDismissBehavior:
-                                ScrollViewKeyboardDismissBehavior.onDrag,
-                            children: [
-                              Padding(
-                                padding: const EdgeInsets.fromLTRB(
-                                  16,
-                                  8,
-                                  16,
-                                  8,
-                                ),
-                                child: Column(
-                                  crossAxisAlignment:
-                                      CrossAxisAlignment.stretch,
-                                  children: [Text(_outcomeHelp)],
-                                ),
-                              ),
-                              _bubble(
-                                false,
-                                widget.recipeId == null
-                                    ? 'What would you like to make? Describe your dish, or ask me to help develop one. We can explore ideas and discuss how changes would affect it.'
-                                    : 'What would you like to improve about ${widget.recipeTitle ?? 'this recipe'}? Ask for suggestions, explore a change, or tell me what to adjust. We’ll try changes in the working draft as we discuss them. Say ‘just explain’ to leave it unchanged.',
-                              ),
-                              for (final message in _messages)
-                                _bubble(message.user, message.text),
-                              if (_busy && _attempt?['action'] == 'message')
-                                _bubble(true, _attempt!['message'] as String),
-                              if (_busy && _attempt?['action'] == 'message')
-                                Semantics(
-                                  liveRegion: true,
-                                  child: _bubble(false, 'AI is thinking…'),
-                                ),
-                              if (_recipeChanged && _workingRecipe.isNotEmpty)
-                                Builder(
-                                  builder: (tabContext) => TextButton(
-                                    onPressed: () {
-                                      DefaultTabController.of(tabContext)
-                                          .animateTo(1);
-                                      _selectTab(1);
-                                    },
-                                    child: const Text('View changes'),
-                                  ),
-                                ),
-                              if (_attempt?['action'] != 'prepare')
-                                AiProgressText(_progress),
-                              if (offlineStatus.value)
-                                const Text(
-                                  'Connect to the internet to continue chatting.',
-                                ),
-                            ],
+        ),
+        body: SafeArea(
+          child: Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 760),
+              child: Column(
+                children: [
+                  Expanded(
+                    child: IndexedStack(
+                      index: _tab,
+                      children: [
+                        ListView(
+                          controller: _scroll,
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 8,
                           ),
-                          _workingRecipeView(),
-                        ],
-                      ),
-                    ),
-                    if (_busy && _attempt?['action'] == 'prepare')
-                      Padding(
-                        padding: const EdgeInsets.all(12),
-                        child: Row(
+                          keyboardDismissBehavior:
+                              ScrollViewKeyboardDismissBehavior.onDrag,
                           children: [
-                            const SizedBox(
-                              width: 20,
-                              height: 20,
-                              child: CircularProgressIndicator(strokeWidth: 2),
-                            ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: Semantics(
-                                liveRegion: true,
-                                child: ValueListenableBuilder<String?>(
-                                  valueListenable: _progress,
-                                  builder: (_, message, _) => Text(
-                                    message ?? 'Preparing recipe for review…',
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    if (_error != null)
-                      ConstrainedBox(
-                        constraints: const BoxConstraints(maxHeight: 100),
-                        child: SingleChildScrollView(
-                          padding: const EdgeInsets.symmetric(horizontal: 16),
-                          child: Semantics(
-                            liveRegion: true,
-                            child: Text(
-                              _error!,
-                              style: TextStyle(
-                                color: Theme.of(context).colorScheme.error,
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 16),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          if (_workingRecipe.trim().isNotEmpty)
                             Padding(
-                              padding: const EdgeInsets.symmetric(vertical: 8),
-                              child: OutlinedButton.icon(
-                                onPressed:
-                                    _busy ||
-                                        _choosingOutcome ||
-                                        _reviewing ||
-                                        offlineStatus.value ||
-                                        _input.text.trim().isNotEmpty ||
-                                        (_retryRequired &&
-                                            _attempt?['action'] != 'prepare')
-                                    ? null
-                                    : _startReview,
-                                icon: const Icon(Icons.rate_review_outlined),
-                                label: const Text('Review and save'),
+                              padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.stretch,
+                                children: [Text(_outcomeHelp)],
                               ),
                             ),
-                        ],
-                      ),
-                    ),
-                    if (_tab == 0)
-                      Padding(
-                        // The app's floating keyboard-dismiss control occupies the
-                        // lower right while the software keyboard is visible.
-                        padding: EdgeInsets.fromLTRB(
-                          12,
-                          12,
-                          MediaQuery.viewInsetsOf(context).bottom > 0 ? 68 : 12,
-                          12 +
-                              (Theme.of(context).platform ==
-                                          TargetPlatform.iOS &&
-                                      _inputFocus.hasFocus
-                                  ? (64 -
-                                            MediaQuery.viewInsetsOf(context)
-                                                .bottom)
-                                        .clamp(0, 64)
-                                        .toDouble()
-                                  : 0),
+                            _bubble(
+                              false,
+                              widget.recipeId == null
+                                  ? 'What would you like to make? Describe your dish, or ask me to help develop one. We can explore ideas and discuss how changes would affect it.'
+                                  : 'What would you like to improve about ${widget.recipeTitle ?? 'this recipe'}? Ask for suggestions, explore a change, or tell me what to adjust. We’ll try changes in the working draft as we discuss them. Say ‘just explain’ to leave it unchanged.',
+                            ),
+                            for (final message in _messages)
+                              _bubble(message.user, message.text),
+                            if (_busy && _attempt?['action'] == 'message')
+                              _bubble(true, _attempt!['message'] as String),
+                            if (_busy && _attempt?['action'] == 'message')
+                              Semantics(
+                                liveRegion: true,
+                                child: _bubble(false, 'AI is thinking…'),
+                              ),
+                            if (_recipeChanged && _workingRecipe.isNotEmpty)
+                              TextButton(
+                                onPressed: () => _selectTab(1),
+                                child: const Text('View changes'),
+                              ),
+                            if (_attempt?['action'] != 'prepare')
+                              AiProgressText(_progress),
+                            if (offlineStatus.value)
+                              const Text(
+                                'Connect to the internet to continue chatting.',
+                              ),
+                          ],
                         ),
-                        child: Row(
-                          crossAxisAlignment: CrossAxisAlignment.end,
-                          children: [
-                            Expanded(
-                              child: TextField(
-                                controller: _input,
-                                focusNode: _inputFocus,
-                                readOnly:
-                                    _busy ||
-                                    _reviewing ||
-                                    _choosingOutcome ||
-                                    _retryRequired,
-                                keyboardType: TextInputType.multiline,
-                                textInputAction: TextInputAction.send,
-                                onEditingComplete: () {},
-                                onSubmitted: (_) => _submit(),
-                                minLines: 1,
-                                maxLines: 4,
-                                maxLength: 4000,
-                                textCapitalization:
-                                    TextCapitalization.sentences,
-                                decoration: const InputDecoration(
-                                  labelText: 'Message AI',
-                                  hintText:
-                                      'Ask a question or describe a change…',
-                                  border: OutlineInputBorder(),
-                                  counterText: '',
+                        _workingRecipeView(),
+                      ],
+                    ),
+                  ),
+                  if (_busy && _attempt?['action'] == 'prepare')
+                    Padding(
+                      padding: const EdgeInsets.all(12),
+                      child: Row(
+                        children: [
+                          const SizedBox(
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Semantics(
+                              liveRegion: true,
+                              child: ValueListenableBuilder<String?>(
+                                valueListenable: _progress,
+                                builder: (_, message, _) => Text(
+                                  message ?? 'Opening recipe for review…',
                                 ),
                               ),
                             ),
-                            const SizedBox(width: 8),
-                            IconButton.filled(
-                              onPressed: canSend ? () => _submit() : null,
-                              tooltip: 'Send',
-                              icon: const Icon(Icons.send),
+                          ),
+                        ],
+                      ),
+                    ),
+                  if (_error != null)
+                    ConstrainedBox(
+                      constraints: const BoxConstraints(maxHeight: 100),
+                      child: SingleChildScrollView(
+                        padding: const EdgeInsets.symmetric(horizontal: 16),
+                        child: Semantics(
+                          liveRegion: true,
+                          child: Text(
+                            _error!,
+                            style: TextStyle(
+                              color: Theme.of(context).colorScheme.error,
                             ),
-                          ],
+                          ),
                         ),
                       ),
-                  ],
-                ),
+                    ),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        if (_workingRecipe.trim().isNotEmpty)
+                          Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 8),
+                            child: OutlinedButton.icon(
+                              onPressed:
+                                  _busy ||
+                                      _choosingOutcome ||
+                                      _reviewing ||
+                                      offlineStatus.value ||
+                                      _input.text.trim().isNotEmpty ||
+                                      (_retryRequired &&
+                                          _attempt?['action'] != 'prepare')
+                                  ? null
+                                  : _startReview,
+                              icon: const Icon(Icons.rate_review_outlined),
+                              label: const Text('Review and save'),
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+                  if (_tab == 0)
+                    Padding(
+                      // The app's floating keyboard-dismiss control occupies the
+                      // lower right while the software keyboard is visible.
+                      padding: EdgeInsets.fromLTRB(
+                        12,
+                        12,
+                        MediaQuery.viewInsetsOf(context).bottom > 0 ? 68 : 12,
+                        12 +
+                            (Theme.of(context).platform == TargetPlatform.iOS &&
+                                    _inputFocus.hasFocus
+                                ? (64 - MediaQuery.viewInsetsOf(context).bottom)
+                                      .clamp(0, 64)
+                                      .toDouble()
+                                : 0),
+                      ),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.end,
+                        children: [
+                          Expanded(
+                            child: TextField(
+                              controller: _input,
+                              focusNode: _inputFocus,
+                              readOnly:
+                                  _busy ||
+                                  _reviewing ||
+                                  _choosingOutcome ||
+                                  _retryRequired,
+                              keyboardType: TextInputType.multiline,
+                              textInputAction: TextInputAction.send,
+                              onEditingComplete: () {},
+                              onSubmitted: (_) => _submit(),
+                              minLines: 1,
+                              maxLines: 4,
+                              maxLength: 4000,
+                              textCapitalization: TextCapitalization.sentences,
+                              decoration: const InputDecoration(
+                                labelText: 'Message AI',
+                                hintText:
+                                    'Ask a question or describe a change…',
+                                border: OutlineInputBorder(),
+                                counterText: '',
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          IconButton.filled(
+                            onPressed: canSend ? () => _submit() : null,
+                            tooltip: 'Send',
+                            icon: const Icon(Icons.send),
+                          ),
+                        ],
+                      ),
+                    ),
+                ],
               ),
             ),
           ),
