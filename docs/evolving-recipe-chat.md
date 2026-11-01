@@ -43,3 +43,13 @@ switching, highlighting, and existing review/save safeguards.
 No physical iPhone/iPad or Bluetooth keyboard was available; actual OS accessory
 behavior still needs device verification. No app builds, release, deployment,
 main merge, database changes or live paid AI calls are included.
+
+
+## Authorized backend deployment and Android test build
+
+The user requested deploying this branch's VPS backend and a test Android APK,
+without main integration. Backend source is `f31481216d1a75a833ca127a37567f4b1cdade79`.
+The existing signed Android workflow adds one to the pubspec build for tests.
+Reserve base build 48 here so the resulting test APK is build 49, newer than
+the previously delivered test build 48. The workflow retains its existing
+`2.5.0-account-test` version label. This is not a release or a main merge.
