@@ -80,3 +80,18 @@ and their SHA-256 matched. All existing visible Drive file IDs were retained;
 no APKs were removed, sharing changed, or release notification sent. No APK
 is publicly hosted on the VPS. No main merge, release tag, web/iOS build or
 device installation is included. Both feature repositories remain unmerged.
+
+
+## Remove instructional filler
+
+Removed the chat's workflow-explanation banner and canned opening instructions.
+The chat starts empty, with Message AI identifying the input. Working recipe uses
+the concise empty state No recipe yet. Successful review does not add a redundant
+chat announcement; actual missing-field questions and errors remain visible.
+AGENTS.md now explicitly requires intuitive controls and prohibits unsolicited
+instructional filler. No backend, app build, release or main merge is included.
+
+Validation for the copy cleanup: `flutter test --no-pub --concurrency=1
+test/recipe_chat_test.dart` passed all 30 checks. Changed Dart files were
+formatted and focused analysis reported no issues. Existing tests were updated
+for the empty initial chat; no cosmetic-only test cases were added.

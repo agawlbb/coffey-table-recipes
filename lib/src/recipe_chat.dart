@@ -64,10 +64,6 @@ class _RecipeChatState extends State<RecipeChat>
       ? 'Create a dish with AI'
       : 'Refine recipe with AI';
 
-  String get _outcomeHelp => widget.recipeId == null
-      ? 'Save will create a new recipe.'
-      : 'Refine the working draft, then choose a new variation or update the original when reviewing.';
-
   Future<void> _startReview() async {
     if (_busy ||
         _reviewing ||
@@ -181,7 +177,7 @@ class _RecipeChatState extends State<RecipeChat>
       return const Center(
         child: Padding(
           padding: EdgeInsets.all(24),
-          child: Text('Your working recipe will appear here as you chat.'),
+          child: Text('No recipe yet.'),
         ),
       );
     }
@@ -316,7 +312,9 @@ class _RecipeChatState extends State<RecipeChat>
       }
       setState(() {
         if (!prepare) _messages.add((user: true, text: text));
-        _messages.add((user: false, text: message));
+        if (!prepare || draft == null) {
+          _messages.add((user: false, text: message));
+        }
         _recipeChanged = recipeText != _workingRecipe;
         if (_recipeChanged) _previousRecipe = _workingRecipe;
         _workingRecipe = recipeText;
@@ -502,19 +500,6 @@ class _RecipeChatState extends State<RecipeChat>
                           keyboardDismissBehavior:
                               ScrollViewKeyboardDismissBehavior.onDrag,
                           children: [
-                            Padding(
-                              padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.stretch,
-                                children: [Text(_outcomeHelp)],
-                              ),
-                            ),
-                            _bubble(
-                              false,
-                              widget.recipeId == null
-                                  ? 'What would you like to make? Describe your dish, or ask me to help develop one. We can explore ideas and discuss how changes would affect it.'
-                                  : 'What would you like to improve about ${widget.recipeTitle ?? 'this recipe'}? Ask for suggestions, explore a change, or tell me what to adjust. We’ll try changes in the working draft as we discuss them. Say ‘just explain’ to leave it unchanged.',
-                            ),
                             for (final message in _messages)
                               _bubble(message.user, message.text),
                             if (_busy && _attempt?['action'] == 'message')
@@ -646,8 +631,6 @@ class _RecipeChatState extends State<RecipeChat>
                               textCapitalization: TextCapitalization.sentences,
                               decoration: const InputDecoration(
                                 labelText: 'Message AI',
-                                hintText:
-                                    'Ask a question or describe a change…',
                                 border: OutlineInputBorder(),
                                 counterText: '',
                               ),

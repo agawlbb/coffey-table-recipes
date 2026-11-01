@@ -246,8 +246,7 @@ void main() {
     await tester.tap(find.text('Create with AI'));
     await tester.pumpAndSettle();
     expect(find.byType(RecipeChat), findsOneWidget);
-    expect(find.text('Save will create a new recipe.'), findsOneWidget);
-    expect(find.text('AI'), findsOneWidget);
+    expect(find.text('AI'), findsNothing);
     expect(calls, 0);
   });
 
