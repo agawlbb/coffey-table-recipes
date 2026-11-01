@@ -83,6 +83,36 @@ void main() {
   });
 
   test(
+    'photo reads bypass snapshot-only metadata and do not store image bytes',
+    () async {
+      final path = '$list/photos/${'a' * 64}';
+      var reads = 0;
+      final data = LocalData(
+        key: 'photo-test',
+        snapshotOnly: true,
+        fetch: (requested) async {
+          expect(requested, path);
+          reads++;
+          return {'image_base64': 'image-data'};
+        },
+        send: (_, body) async => {},
+        readStore: (key) async => disk[key],
+        writeStore: (key, value) async {
+          disk[key] = value;
+        },
+      );
+      stores.add(data);
+      expect((await data.request(path))['image_base64'], 'image-data');
+      expect(reads, 1);
+      expect(data.mirrors(list), true);
+      expect(data.mirrors(path), false);
+      expect(data.canSave('$list/photos'), false);
+      expect(await data.cached(path), isNull);
+      expect(disk.values.any((value) => value.contains('image-data')), false);
+    },
+  );
+
+  test(
     'VPS cutover keeps unsent changes in the existing account namespace',
     () async {
       const oldBase = 'https://coffeybean.com/CoffeyTableRecipes/api/v1';
@@ -114,11 +144,15 @@ void main() {
   );
 
   test(
-    'shopping notes survive offline restart and upload with the entry',
+    'shopping notes and photo references survive offline restart and upload',
     () async {
       final first = store();
       await first.request(list);
-      final noted = {...item('Deodorant'), 'note': 'For Joe · 3 bottles'};
+      final noted = {
+        ...item('Deodorant'),
+        'note': 'For Joe · 3 bottles',
+        'photo': 'a' * 64,
+      };
       await first.save(list, {
         'revision': 1,
         'items': [noted],
@@ -131,9 +165,11 @@ void main() {
         send: (path, body) async {
           uploaded = true;
           expect(body['items'][0]['note'], 'For Joe · 3 bottles');
+          expect(body['items'][0]['photo'], 'a' * 64);
           return {'revision': 2, 'items': body['items'], 'departments': []};
         },
       );
+      expect((await restarted.cached(list))!['items'][0]['photo'], 'a' * 64);
       expect(
         (await restarted.cached(list))!['items'][0]['note'],
         'For Joe · 3 bottles',

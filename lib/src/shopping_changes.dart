@@ -31,7 +31,7 @@ Map<String, dynamic> overlayShoppingChanges(
         continue;
       }
       final edits = <String, dynamic>{
-        for (final field in ['name', 'note', 'checked', 'department'])
+        for (final field in ['name', 'note', 'photo', 'checked', 'department'])
           if (entry.value.containsKey(field) &&
               entry.value[field] != previous[field])
             field: entry.value[field],

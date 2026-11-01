@@ -395,10 +395,12 @@ class LocalData extends ChangeNotifier {
   }
 
   bool mirrors(String path) =>
-      path == '/me' ||
-      RegExp(
-        r'^/households/[^/]+/(recipes|people|shopping-list|restaurants|meal-plan)(/[^?]+)?(\?.*)?$',
-      ).hasMatch(path);
+      !RegExp(r'^/households/[^/]+/shopping-list/photos(?:/|$)')
+          .hasMatch(Uri.parse(path).path) &&
+      (path == '/me' ||
+          RegExp(
+            r'^/households/[^/]+/(recipes|people|shopping-list|restaurants|meal-plan)(/[^?]+)?(\?.*)?$',
+          ).hasMatch(path));
 
   bool _under(String path, String prefix) {
     path = Uri.parse(path).path;
