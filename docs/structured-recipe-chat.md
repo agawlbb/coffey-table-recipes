@@ -57,3 +57,26 @@ newer than delivered test build 49. The existing version label remains
 `2.5.0-account-test`. Existing 39 focused checks/analysis cover this source; only
 the build reservation and documentation change for packaging. No main merge,
 release, web or iOS build is requested.
+
+
+### Verified Android test delivery — 2026-11-01
+
+[Android build job](https://github.com/agawlbb/coffey-table-recipes/actions/runs/41336231037)
+passed for immutable app source `3e7c1d99420697fc3c8e64751f8350961e3277f2`.
+The workflow verified the existing app identity, version/build, non-debuggable
+release mode, original signing certificate, required Android timer JNI classes
+and hosted Android app links. Downloaded artifact bytes matched the workflow
+SHA-256 and its source/build/certificate report. Existing focused source
+validation remains valid; packaging changed only the version reservation.
+
+- Version `2.5.0-account-test`, build **50**.
+- Filename: `CoffeyTableRecipes-2.5.0-account-test-build50-3e7c1d9.apk`.
+- SHA-256: `807966c8467b3ff127ca18179fc916d65f296aad6bec4423c90aa98c0e5f1194`.
+- Signing certificate SHA-256: `f8de933f14b9bb4b3191a94aedc8637972c5ab224565f6abd7808f8038d12097`.
+- [Download verified Android test APK](https://drive.google.com/file/d/1YO7LEXn4ATDb7XmMsE43HXE-EVknal9z/view).
+
+The configured recipe app Drive folder was used. Uploaded bytes were downloaded
+and their SHA-256 matched. All existing visible Drive file IDs were retained;
+no APKs were removed, sharing changed, or release notification sent. No APK
+is publicly hosted on the VPS. No main merge, release tag, web/iOS build or
+device installation is included. Both feature repositories remain unmerged.
