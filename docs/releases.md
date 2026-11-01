@@ -787,3 +787,20 @@ Household authentication, recipe categories and browsing, recipe details, cookin
 ### iOS build 2
 
 The iOS follow-up uses `0.1.0+2` and tag `v0.1.0-ios.2`; the initial `v0.1.0` tag remains immutable. Web and Android build 1 remain the published initial demo. The iOS workflow requires its Firebase client values and inserts the Google callback URL scheme during the build, keeping local client configuration outside source control. Sideloadly signing and on-device authentication must be verified separately.
+
+## 2.6.0 — accepted recipe chat and shopping pictures
+
+Release preparation on 2026-11-01: version 2.6.0/build 52 integrates accepted
+chat-direct-save and shopping-item-photo history. Main integration and cleanup
+were explicitly requested. Unrelated photo-optimization and repository-rules
+branches are preserved separately. InMotion PHP/backend deployment stays
+suppressed; web publication on InMotion remains authorized.
+
+Full local analysis passed. A full local Flutter run reached 70 passes before
+its compiler was killed by the 1.5 GiB development-container limit; no complete
+local suite is claimed. All eight invitations tests passed after updating the
+stale test-only “Your name” expectation to the existing “Full name” label.
+Earlier focused integration validation covered all 32 chat scenarios plus
+20 import and four account scenarios. Full-suite release validation is performed
+by the existing web and iOS workflows before their build/publication steps.
+VPS backend integration/validation is recorded in RELEASE-2.6.0.md there.
