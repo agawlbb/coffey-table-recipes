@@ -10,17 +10,20 @@ import 'package:coffey_table_recipes/src/recipe_editor.dart';
 import 'package:coffey_table_recipes/src/recipe_import.dart';
 import 'package:coffey_table_recipes/src/shopping_socket.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 Map<String, dynamic> chatReply(
   int revision, {
   bool ready = true,
   Map<String, dynamic>? recipe,
+  String recipeText = 'Egg soup\n\nIngredients\n2 eggs\n2 cups water\n\nMethod\n1. Simmer for 2 minutes.',
 }) => {
   'message': revision == 1
       ? 'We can make a savory egg soup.'
-      : 'Removing eggs would thin the soup. I have kept them for now.',
+      : 'Removing eggs makes a thinner soup. I updated the working recipe.',
   'ready': ready,
+  'recipe_text': recipeText,
   'revision': revision,
   if (recipe != null) 'draft': {'recipe': recipe, 'questions': []},
 };
@@ -270,7 +273,7 @@ void main() {
       await send(tester, 'What if I remove the eggs?');
       expect(find.text('Create a savory egg soup'), findsOneWidget);
       expect(find.text('What if I remove the eggs?'), findsOneWidget);
-      expect(find.textContaining('kept them for now'), findsOneWidget);
+      expect(find.textContaining('updated the working recipe'), findsOneWidget);
       expect(find.byType(RecipeEditor), findsNothing);
       expect(
         (calls.first['body'] as Map)['request_id'],
@@ -579,4 +582,173 @@ void main() {
       expect(tester.takeException(), isNull);
     },
   );
+  testWidgets(
+    'recipe tab updates separately, highlights revisions and retains input',
+    (tester) async {
+      var calls = 0;
+      const revised =
+          'Ginger soup\n\nIngredients\n2 eggs\n1 tsp ginger\n\nMethod\n1. Simmer with ginger.';
+      await openChat(tester, (_, body) async {
+        expect(body['draft_view'], isTrue);
+        calls++;
+        return calls == 1 ? chatReply(1) : chatReply(2, recipeText: revised);
+      });
+      await send(tester, 'Make soup');
+      expect(find.textContaining('2 cups water'), findsNothing);
+      await tester.enterText(find.byType(TextField), 'What if I add ginger?');
+      await tester.pump();
+      await tester.tap(find.text('Working recipe'));
+      await tester.pumpAndSettle();
+      expect(
+        find.textContaining('2 cups water', findRichText: true),
+        findsOneWidget,
+      );
+      await tester.tap(find.text('Chat').first);
+      await tester.pumpAndSettle();
+      expect(
+        tester.widget<TextField>(find.byType(TextField)).controller!.text,
+        'What if I add ginger?',
+      );
+      await tester.tap(find.byTooltip('Send'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('View changes'));
+      await tester.pumpAndSettle();
+      expect(
+        find.textContaining('1 tsp ginger', findRichText: true),
+        findsOneWidget,
+      );
+      final text = tester.widget<SelectableText>(
+        find.byType(SelectableText).last,
+      );
+      final spans = text.textSpan!.children!.cast<TextSpan>();
+      expect(
+        spans
+            .firstWhere((s) => s.text == '1 tsp ginger\n')
+            .style!
+            .backgroundColor,
+        isNotNull,
+      );
+      expect(find.byType(RecipeEditor), findsNothing);
+      expect(calls, 2);
+    },
+  );
+
+  testWidgets('keyboard Send submits once and preserves failed input', (
+    tester,
+  ) async {
+    final pending = Completer<Map<String, dynamic>>();
+    var calls = 0;
+    await openChat(tester, (_, _) {
+      calls++;
+      return pending.future;
+    });
+    await tester.enterText(find.byType(TextField), 'Make soup');
+    await tester.testTextInput.receiveAction(TextInputAction.send);
+    await tester.pump();
+    await tester.testTextInput.receiveAction(TextInputAction.send);
+    expect(calls, 1);
+    pending.completeError(
+      ApiException(503, 'Try again', code: 'ai_unavailable'),
+    );
+    await tester.pumpAndSettle();
+    expect(
+      tester.widget<TextField>(find.byType(TextField)).controller!.text,
+      'Make soup',
+    );
+  });
+
+  testWidgets(
+    'hardware Enter sends, Shift Enter inserts newline, composing Enter does not send',
+    (tester) async {
+      var calls = 0;
+      await openChat(tester, (_, _) async {
+        calls++;
+        return chatReply(calls);
+      });
+      await tester.enterText(find.byType(TextField), 'Make');
+      await tester.sendKeyDownEvent(LogicalKeyboardKey.shiftLeft);
+      await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+      await tester.sendKeyUpEvent(LogicalKeyboardKey.shiftLeft);
+      await tester.pump();
+      final controller = tester
+          .widget<TextField>(find.byType(TextField))
+          .controller!;
+      expect(controller.text, 'Make\n');
+      expect(calls, 0);
+      controller.value = const TextEditingValue(
+        text: 'Soup',
+        selection: TextSelection.collapsed(offset: 4),
+        composing: TextRange(start: 0, end: 4),
+      );
+      await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+      expect(calls, 0);
+      controller.value = const TextEditingValue(
+        text: 'Soup',
+        selection: TextSelection.collapsed(offset: 4),
+      );
+      await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+      await tester.pumpAndSettle();
+      expect(calls, 1);
+    },
+  );
+
+  for (final scenario in [
+    (name: 'iPhone keyboard', size: Size(390, 844), inset: 320.0),
+    (name: 'compact enlarged chat', size: Size(360, 800), inset: 300.0),
+    (name: 'iPad landscape keyboard', size: Size(1024, 768), inset: 350.0),
+    (name: 'iPad Bluetooth suggestion bar', size: Size(1024, 768), inset: 0.0),
+    (name: 'iPad reported accessory inset', size: Size(768, 1024), inset: 44.0),
+  ]) {
+    testWidgets(
+      '${scenario.name} keeps composer and Send clear of obstruction',
+      (tester) async {
+        tester.view.physicalSize = scenario.size;
+        tester.view.devicePixelRatio = 1;
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
+        addTearDown(tester.view.resetViewInsets);
+        await tester.pumpWidget(
+          MaterialApp(
+            theme: ThemeData(platform: TargetPlatform.iOS),
+            builder: (context, child) => MediaQuery(
+              data: MediaQuery.of(context).copyWith(
+                textScaler: TextScaler.linear(
+                  scenario.name == 'compact enlarged chat' ? 1.8 : 1,
+                ),
+              ),
+              child: child!,
+            ),
+            home: RecipeChat(
+              householdId: '2',
+              request: (_, _) async => chatReply(1),
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+        await tester.enterText(find.byType(TextField), 'Make soup');
+        tester.view.viewInsets = FakeViewPadding(bottom: scenario.inset);
+        await tester.pumpAndSettle();
+        final bottom =
+            scenario.size.height - (scenario.inset < 64 ? 64 : scenario.inset);
+        expect(
+          tester.getBottomRight(find.byType(TextField)).dy,
+          lessThanOrEqualTo(bottom),
+        );
+        expect(
+          tester.getBottomRight(find.byTooltip('Send')).dy,
+          lessThanOrEqualTo(bottom),
+        );
+        if (scenario.inset > 0) {
+          expect(
+            tester.getBottomRight(find.byTooltip('Send')).dx,
+            lessThanOrEqualTo(scenario.size.width - 64),
+          );
+        }
+        await tester.tap(find.byTooltip('Send'));
+        await tester.pumpAndSettle();
+        expect(find.text('We can make a savory egg soup.'), findsOneWidget);
+        expect(tester.takeException(), isNull);
+      },
+    );
+  }
 }

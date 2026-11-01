@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:math';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import 'ai_progress.dart';
 import 'api.dart';
@@ -32,6 +33,10 @@ class RecipeChat extends StatefulWidget {
 class _RecipeChatState extends State<RecipeChat> {
   final _input = TextEditingController();
   final _scroll = ScrollController();
+  late final _inputFocus = FocusNode(onKeyEvent: _handleKey);
+  int _tab = 0;
+  String _workingRecipe = '', _previousRecipe = '';
+  bool _recipeChanged = false;
   final _progress = AiRunProgress();
   final _messages = <({bool user, String text})>[];
   late final String _session = _identity();
@@ -71,6 +76,7 @@ class _RecipeChatState extends State<RecipeChat> {
     super.initState();
     offlineStatus.addListener(_changed);
     _input.addListener(_changed);
+    _inputFocus.addListener(_changed);
   }
 
   void _changed() {
@@ -80,10 +86,81 @@ class _RecipeChatState extends State<RecipeChat> {
   @override
   void dispose() {
     offlineStatus.removeListener(_changed);
+    _inputFocus.dispose();
     _input.dispose();
     _scroll.dispose();
     _progress.dispose();
     super.dispose();
+  }
+
+  KeyEventResult _handleKey(FocusNode node, KeyEvent event) {
+    if (event.logicalKey != LogicalKeyboardKey.enter &&
+        event.logicalKey != LogicalKeyboardKey.numpadEnter) {
+      return KeyEventResult.ignored;
+    }
+    // Let the input method finish composition before treating Enter as Send.
+    if (_input.value.composing.isValid && !_input.value.composing.isCollapsed) {
+      return KeyEventResult.ignored;
+    }
+    if (event is KeyDownEvent) {
+      if (HardwareKeyboard.instance.isShiftPressed) {
+        if (!_busy && !_reviewing && !_retryRequired) {
+          final selection = _input.selection;
+          final start = selection.isValid
+              ? selection.start
+              : _input.text.length;
+          final end = selection.isValid ? selection.end : start;
+          _input.value = TextEditingValue(
+            text: _input.text.replaceRange(start, end, '\n'),
+            selection: TextSelection.collapsed(offset: start + 1),
+          );
+        }
+      } else {
+        _submit();
+      }
+    }
+    return KeyEventResult.handled;
+  }
+
+  void _selectTab(int tab) {
+    if (tab == 1) _inputFocus.unfocus();
+    setState(() => _tab = tab);
+  }
+
+  Widget _workingRecipeView() {
+    if (_workingRecipe.isEmpty) {
+      return const Center(
+        child: Padding(
+          padding: EdgeInsets.all(24),
+          child: Text('Your working recipe will appear here as you chat.'),
+        ),
+      );
+    }
+    final previousLines = _previousRecipe.split('\n').toSet();
+    return SingleChildScrollView(
+      key: const PageStorageKey('working-recipe'),
+      padding: const EdgeInsets.all(16),
+      child: SelectableText.rich(
+        TextSpan(
+          children: [
+            for (final line in _workingRecipe.split('\n'))
+              TextSpan(
+                text: '$line\n',
+                style:
+                    _previousRecipe.isNotEmpty &&
+                        line.trim().isNotEmpty &&
+                        !previousLines.contains(line)
+                    ? TextStyle(
+                        backgroundColor: Theme.of(context)
+                            .colorScheme
+                            .secondaryContainer,
+                      )
+                    : null,
+              ),
+          ],
+        ),
+      ),
+    );
   }
 
   void _scrollToLatest() {
@@ -118,6 +195,7 @@ class _RecipeChatState extends State<RecipeChat> {
         'revision': _revision,
         'mode': _outcome.name,
         'action': action,
+        'draft_view': true,
         'message': prepare ? '' : text,
         if (widget.recipeId != null) 'recipe_id': widget.recipeId,
       };
@@ -139,7 +217,9 @@ class _RecipeChatState extends State<RecipeChat> {
       final revision = response['revision'];
       final ready = response['ready'];
       final draft = response['draft'];
-      if (message is! String ||
+      final recipeText = response['recipe_text'];
+      if (recipeText is! String ||
+          message is! String ||
           message.trim().isEmpty ||
           revision is! int ||
           revision != _revision + 1 ||
@@ -178,6 +258,9 @@ class _RecipeChatState extends State<RecipeChat> {
       setState(() {
         if (!prepare) _messages.add((user: true, text: text));
         _messages.add((user: false, text: message));
+        _recipeChanged = recipeText != _workingRecipe;
+        if (_recipeChanged) _previousRecipe = _workingRecipe;
+        _workingRecipe = recipeText;
         _revision = revision;
         _ready = ready;
         _draft = draft == null
@@ -326,151 +409,215 @@ class _RecipeChatState extends State<RecipeChat> {
       onPopInvokedWithResult: (didPop, _) {
         if (!didPop) _close();
       },
-      child: Scaffold(
-        appBar: AppBar(
-          title: Text(_title),
-          leading: BackButton(onPressed: _close),
-        ),
-        body: SafeArea(
-          child: Center(
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 760),
-              child: Column(
-                children: [
-                  Expanded(
-                    child: ListView(
-                      controller: _scroll,
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 16,
-                        vertical: 8,
-                      ),
-                      keyboardDismissBehavior:
-                          ScrollViewKeyboardDismissBehavior.onDrag,
-                      children: [
-                        Padding(
-                          padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.stretch,
+      child: DefaultTabController(
+        length: 2,
+        child: Scaffold(
+          resizeToAvoidBottomInset: true,
+          appBar: AppBar(
+            title: Text(_title),
+            leading: BackButton(onPressed: _close),
+            bottom: TabBar(
+              onTap: _selectTab,
+              tabs: const [
+                Tab(text: 'Chat'),
+                Tab(text: 'Working recipe'),
+              ],
+            ),
+          ),
+          body: SafeArea(
+            child: Center(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 760),
+                child: Column(
+                  children: [
+                    Expanded(
+                      child: IndexedStack(
+                        index: _tab,
+                        children: [
+                          ListView(
+                            controller: _scroll,
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 16,
+                              vertical: 8,
+                            ),
+                            keyboardDismissBehavior:
+                                ScrollViewKeyboardDismissBehavior.onDrag,
                             children: [
-                              if (widget.recipeId != null &&
-                                  _revision == 0 &&
-                                  !_busy &&
-                                  _attempt == null)
-                                DropdownButtonFormField<RecipeChatOutcome>(
-                                  initialValue: _outcome,
-                                  isExpanded: true,
-                                  decoration: const InputDecoration(
-                                    labelText: 'What should this chat produce?',
-                                  ),
-                                  items: const [
-                                    DropdownMenuItem(
-                                      value: RecipeChatOutcome.variation,
-                                      child: Text('Create a new variation'),
-                                    ),
-                                    DropdownMenuItem(
-                                      value: RecipeChatOutcome.edit,
-                                      child: Text('Edit this recipe'),
-                                    ),
-                                  ],
-                                  onChanged: (value) {
-                                    if (value != null) {
-                                      setState(() => _outcome = value);
-                                    }
-                                  },
+                              Padding(
+                                padding: const EdgeInsets.fromLTRB(
+                                  16,
+                                  8,
+                                  16,
+                                  8,
                                 ),
-                              Text(_outcomeHelp),
+                                child: Column(
+                                  crossAxisAlignment:
+                                      CrossAxisAlignment.stretch,
+                                  children: [
+                                    if (widget.recipeId != null &&
+                                        _revision == 0 &&
+                                        !_busy &&
+                                        _attempt == null)
+                                      DropdownButtonFormField<
+                                        RecipeChatOutcome
+                                      >(
+                                        initialValue: _outcome,
+                                        isExpanded: true,
+                                        decoration: const InputDecoration(
+                                          labelText:
+                                              'What should this chat produce?',
+                                        ),
+                                        items: const [
+                                          DropdownMenuItem(
+                                            value: RecipeChatOutcome.variation,
+                                            child: Text(
+                                              'Create a new variation',
+                                            ),
+                                          ),
+                                          DropdownMenuItem(
+                                            value: RecipeChatOutcome.edit,
+                                            child: Text('Edit this recipe'),
+                                          ),
+                                        ],
+                                        onChanged: (value) {
+                                          if (value != null) {
+                                            setState(() => _outcome = value);
+                                          }
+                                        },
+                                      ),
+                                    Text(_outcomeHelp),
+                                  ],
+                                ),
+                              ),
+                              _bubble(
+                                false,
+                                widget.recipeId == null
+                                    ? 'What would you like to make? Describe your dish, or ask me to help develop one. We can explore ideas and discuss how changes would affect it.'
+                                    : 'What would you like to improve about ${widget.recipeTitle ?? 'this recipe'}? Ask for suggestions, explore a change, or tell me what to adjust. We’ll try changes in the working draft as we discuss them. Say ‘just explain’ to leave it unchanged.',
+                              ),
+                              for (final message in _messages)
+                                _bubble(message.user, message.text),
+                              if (_busy && _attempt?['action'] == 'message')
+                                _bubble(true, _attempt!['message'] as String),
+                              if (_busy)
+                                Semantics(
+                                  liveRegion: true,
+                                  child: _bubble(false, 'AI is thinking…'),
+                                ),
+                              if (_recipeChanged && _workingRecipe.isNotEmpty)
+                                Builder(
+                                  builder: (tabContext) => TextButton(
+                                    onPressed: () {
+                                      DefaultTabController.of(tabContext)
+                                          .animateTo(1);
+                                      _selectTab(1);
+                                    },
+                                    child: const Text('View changes'),
+                                  ),
+                                ),
+                              AiProgressText(_progress),
+                              if (offlineStatus.value)
+                                const Text(
+                                  'Connect to the internet to continue chatting.',
+                                ),
+                              if (_error != null)
+                                Semantics(
+                                  liveRegion: true,
+                                  child: Text(
+                                    _error!,
+                                    style: TextStyle(
+                                      color: Theme.of(context)
+                                          .colorScheme
+                                          .error,
+                                    ),
+                                  ),
+                                ),
                             ],
                           ),
-                        ),
-                        _bubble(
-                          false,
-                          widget.recipeId == null
-                              ? 'What would you like to make? Describe your dish, or ask me to help develop one. We can explore ideas and discuss how changes would affect it.'
-                              : 'What would you like to improve about ${widget.recipeTitle ?? 'this recipe'}? Ask for suggestions, explore a change, or tell me what to adjust. Asking about an option won’t apply it automatically.',
-                        ),
-                        for (final message in _messages)
-                          _bubble(message.user, message.text),
-                        if (_busy && _attempt?['action'] == 'message')
-                          _bubble(true, _attempt!['message'] as String),
-                        if (_busy)
-                          Semantics(
-                            liveRegion: true,
-                            child: _bubble(false, 'AI is thinking…'),
-                          ),
-                        AiProgressText(_progress),
-                        if (offlineStatus.value)
-                          const Text(
-                            'Connect to the internet to continue chatting.',
-                          ),
-                        if (_error != null)
-                          Semantics(
-                            liveRegion: true,
-                            child: Text(
-                              _error!,
-                              style: TextStyle(
-                                color: Theme.of(context).colorScheme.error,
+                          _workingRecipeView(),
+                        ],
+                      ),
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          if (_ready)
+                            Padding(
+                              padding: const EdgeInsets.symmetric(vertical: 8),
+                              child: OutlinedButton.icon(
+                                onPressed:
+                                    _busy ||
+                                        offlineStatus.value ||
+                                        _input.text.trim().isNotEmpty
+                                    ? null
+                                    : _draft != null
+                                    ? _review
+                                    : () => _submit(prepare: true),
+                                icon: const Icon(Icons.rate_review_outlined),
+                                label: const Text('Review recipe'),
                               ),
                             ),
-                          ),
-                      ],
+                        ],
+                      ),
                     ),
-                  ),
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 16),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        if (_ready)
-                          Padding(
-                            padding: const EdgeInsets.symmetric(vertical: 8),
-                            child: OutlinedButton.icon(
-                              onPressed:
-                                  _busy ||
-                                      offlineStatus.value ||
-                                      _input.text.trim().isNotEmpty
-                                  ? null
-                                  : _draft != null
-                                  ? _review
-                                  : () => _submit(prepare: true),
-                              icon: const Icon(Icons.rate_review_outlined),
-                              label: const Text('Review recipe'),
-                            ),
-                          ),
-                      ],
-                    ),
-                  ),
-                  Padding(
-                    padding: const EdgeInsets.all(12),
-                    child: Row(
-                      crossAxisAlignment: CrossAxisAlignment.end,
-                      children: [
-                        Expanded(
-                          child: TextField(
-                            controller: _input,
-                            enabled: !_busy && !_reviewing,
-                            readOnly: _retryRequired,
-                            minLines: 1,
-                            maxLines: 4,
-                            maxLength: 4000,
-                            textCapitalization: TextCapitalization.sentences,
-                            decoration: const InputDecoration(
-                              labelText: 'Message AI',
-                              hintText: 'Ask a question or describe a change…',
-                              border: OutlineInputBorder(),
-                              counterText: '',
-                            ),
-                          ),
+                    if (_tab == 0)
+                      Padding(
+                        // The app's floating keyboard-dismiss control occupies the
+                        // lower right while the software keyboard is visible.
+                        padding: EdgeInsets.fromLTRB(
+                          12,
+                          12,
+                          MediaQuery.viewInsetsOf(context).bottom > 0 ? 68 : 12,
+                          12 +
+                              (Theme.of(context).platform ==
+                                          TargetPlatform.iOS &&
+                                      _inputFocus.hasFocus
+                                  ? (64 -
+                                            MediaQuery.viewInsetsOf(context)
+                                                .bottom)
+                                        .clamp(0, 64)
+                                        .toDouble()
+                                  : 0),
                         ),
-                        const SizedBox(width: 8),
-                        IconButton.filled(
-                          onPressed: canSend ? () => _submit() : null,
-                          tooltip: 'Send',
-                          icon: const Icon(Icons.send),
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.end,
+                          children: [
+                            Expanded(
+                              child: TextField(
+                                controller: _input,
+                                focusNode: _inputFocus,
+                                readOnly: _busy || _reviewing || _retryRequired,
+                                keyboardType: TextInputType.multiline,
+                                textInputAction: TextInputAction.send,
+                                onEditingComplete: () {},
+                                onSubmitted: (_) => _submit(),
+                                minLines: 1,
+                                maxLines: 4,
+                                maxLength: 4000,
+                                textCapitalization:
+                                    TextCapitalization.sentences,
+                                decoration: const InputDecoration(
+                                  labelText: 'Message AI',
+                                  hintText:
+                                      'Ask a question or describe a change…',
+                                  border: OutlineInputBorder(),
+                                  counterText: '',
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            IconButton.filled(
+                              onPressed: canSend ? () => _submit() : null,
+                              tooltip: 'Send',
+                              icon: const Icon(Icons.send),
+                            ),
+                          ],
                         ),
-                      ],
-                    ),
-                  ),
-                ],
+                      ),
+                  ],
+                ),
               ),
             ),
           ),
