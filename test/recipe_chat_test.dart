@@ -597,7 +597,7 @@ void main() {
       expect(find.textContaining('2 cups water'), findsNothing);
       await tester.enterText(find.byType(TextField), 'What if I add ginger?');
       await tester.pump();
-      await tester.tap(find.text('Working recipe'));
+      await tester.tap(find.text('Draft recipe'));
       await tester.pumpAndSettle();
       expect(
         find.textContaining('2 cups water', findRichText: true),
@@ -764,7 +764,7 @@ void main() {
       });
       await send(tester, 'Make soup');
       expect(find.text('Review and save'), findsOneWidget);
-      await tester.tap(find.text('Working recipe'));
+      await tester.tap(find.text('Draft recipe'));
       await tester.pumpAndSettle();
       await tester.tap(find.text('Review and save'));
       await tester.pump();
@@ -818,7 +818,7 @@ void main() {
         return chatReply(2, recipe: chatRecipe(id: '10'));
       }, existing: true);
       await send(tester, 'Improve soup');
-      await tester.tap(find.text('Working recipe'));
+      await tester.tap(find.text('Draft recipe'));
       await tester.pumpAndSettle();
       await tester.tap(find.text('Review and save'));
       await tester.pumpAndSettle();
@@ -866,7 +866,7 @@ void main() {
       return chatReply(1, ready: false);
     });
     await send(tester, 'Start soup');
-    await tester.tap(find.text('Working recipe'));
+    await tester.tap(find.text('Draft recipe'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Review and save'));
     await tester.pumpAndSettle();

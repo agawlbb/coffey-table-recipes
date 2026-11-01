@@ -477,7 +477,7 @@ class _RecipeChatState extends State<RecipeChat>
             onTap: _selectTab,
             tabs: const [
               Tab(text: 'Chat'),
-              Tab(text: 'Working recipe'),
+              Tab(text: 'Draft recipe'),
             ],
           ),
         ),
