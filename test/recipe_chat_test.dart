@@ -114,14 +114,14 @@ void main() {
         };
       });
       await send(tester, 'Make soup');
-      await tester.tap(find.text('Review recipe'));
+      await tester.tap(find.text('Review and save'));
       await tester.pumpAndSettle();
       await tester.tap(find.text('Cancel'));
       await tester.pumpAndSettle();
       expect(find.text('Make soup'), findsOneWidget);
       expect(find.byType(RecipeEditor), findsNothing);
       expect(saves, 0);
-      await tester.tap(find.text('Review recipe'));
+      await tester.tap(find.text('Review and save'));
       await tester.pumpAndSettle();
       expect(chatCalls, 2);
       await tester.tap(find.text('Save recipe'));
@@ -168,10 +168,10 @@ void main() {
         return chatReply(2, recipe: chatRecipe());
       });
       await send(tester, 'Make soup');
-      await tester.tap(find.text('Review recipe'));
+      await tester.tap(find.text('Review and save'));
       await tester.pumpAndSettle();
       expect(find.byType(RecipeEditor), findsNothing);
-      await tester.tap(find.text('Review recipe'));
+      await tester.tap(find.text('Review and save'));
       await tester.pumpAndSettle();
       expect(attempts[0], attempts[1]);
       expect(find.byType(RecipeEditor), findsOneWidget);
@@ -207,7 +207,9 @@ void main() {
       return response;
     }, existing: true);
     await send(tester, 'Improve the soup');
-    await tester.tap(find.text('Review recipe'));
+    await tester.tap(find.text('Review and save'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Save as a new variation'));
     await tester.pumpAndSettle();
     final editor = tester.widget<RecipeEditor>(find.byType(RecipeEditor));
     expect(editor.variationChangeDescription, contains('structure'));
@@ -269,7 +271,7 @@ void main() {
       expect(find.text('You'), findsOneWidget);
       expect(find.text('We can make a savory egg soup.'), findsOneWidget);
       expect(find.byType(RecipeEditor), findsNothing);
-      expect(find.text('Review recipe'), findsOneWidget);
+      expect(find.text('Review and save'), findsOneWidget);
       await send(tester, 'What if I remove the eggs?');
       expect(find.text('Create a savory egg soup'), findsOneWidget);
       expect(find.text('What if I remove the eggs?'), findsOneWidget);
@@ -281,7 +283,7 @@ void main() {
       );
       expect((calls.last['body'] as Map)['revision'], 1);
       await tester.pump();
-      await tester.tap(find.text('Review recipe'));
+      await tester.tap(find.text('Review and save'));
       await tester.pumpAndSettle();
       expect(find.byType(RecipeEditor), findsOneWidget);
       expect(calls.length, 3);
@@ -317,33 +319,31 @@ void main() {
             'recipe': {...body, 'id': edit ? '10' : '11'},
           };
         }, existing: true);
-        if (edit) {
-          await tester.tap(
-            find.byType(DropdownButtonFormField<RecipeChatOutcome>),
-          );
-          await tester.pumpAndSettle();
-          await tester.tap(find.text('Edit this recipe').last);
-          await tester.pumpAndSettle();
-        }
         expect(
-          find.text(
-            edit ? 'Save will update Original soup.' : 'Save will create a linked variation. The original recipe stays unchanged.',
-          ),
-          findsOneWidget,
+          find.byType(DropdownButtonFormField<RecipeChatOutcome>),
+          findsNothing,
         );
         await send(tester, 'Make it richer');
-        expect(
-          (calls.first['body'] as Map)['mode'],
-          edit ? 'edit' : 'variation',
-        );
+        expect((calls.first['body'] as Map)['mode'], 'existing');
         expect((calls.first['body'] as Map)['recipe_id'], '10');
         expect(
           find.byType(DropdownButtonFormField<RecipeChatOutcome>),
           findsNothing,
         );
         await tester.pump();
-        await tester.tap(find.text('Review recipe'));
+        await tester.tap(find.text('Review and save'));
         await tester.pumpAndSettle();
+        expect(find.text('How should this recipe be saved?'), findsOneWidget);
+        await tester.tap(
+          find.text(
+            edit ? 'Update the existing recipe' : 'Save as a new variation',
+          ),
+        );
+        await tester.pumpAndSettle();
+        expect(
+          (calls.last['body'] as Map)['save_as'],
+          edit ? 'edit' : 'variation',
+        );
         final editor = tester.widget<RecipeEditor>(find.byType(RecipeEditor));
         expect(editor.recipe['id'], edit ? '10' : isNull);
         await tester.tap(find.text('Save recipe'));
@@ -420,17 +420,17 @@ void main() {
       expect(
         tester
             .widget<OutlinedButton>(
-              find.widgetWithText(OutlinedButton, 'Review recipe'),
+              find.widgetWithText(OutlinedButton, 'Review and save'),
             )
             .onPressed,
         isNull,
       );
       await tester.enterText(find.byType(TextField), '');
       await tester.pump();
-      await tester.tap(find.text('Review recipe'));
+      await tester.tap(find.text('Review and save'));
       await tester.pumpAndSettle();
       expect(find.byType(RecipeEditor), findsNothing);
-      expect(find.text('Review recipe'), findsNothing);
+      expect(find.text('Review and save'), findsOneWidget);
       expect(find.text('Make soup'), findsOneWidget);
     },
   );
@@ -457,7 +457,7 @@ void main() {
       );
       expect(calls, 1);
       await tester.tap(find.byType(BackButton));
-      await tester.pumpAndSettle();
+      await tester.pump(const Duration(milliseconds: 300));
       await tester.tap(find.text('Discard'));
       await tester.pumpAndSettle();
       pending.complete(chatReply(1));
@@ -480,10 +480,10 @@ void main() {
       );
       await send(tester, 'Make soup');
       await tester.pump();
-      await tester.tap(find.text('Review recipe'));
+      await tester.tap(find.text('Review and save'));
       await tester.pump();
       await tester.tap(find.byType(BackButton));
-      await tester.pumpAndSettle();
+      await tester.pump(const Duration(milliseconds: 300));
       pending.complete(chatReply(2, recipe: chatRecipe()));
       await tester.pumpAndSettle();
       expect(find.text('Discard recipe chat?'), findsOneWidget);
@@ -491,7 +491,7 @@ void main() {
       await tester.tap(find.text('Keep chatting'));
       await tester.pumpAndSettle();
       await tester.pump();
-      await tester.tap(find.text('Review recipe'));
+      await tester.tap(find.text('Review and save'));
       await tester.pumpAndSettle();
       expect(find.byType(RecipeEditor), findsOneWidget);
     },
@@ -751,4 +751,92 @@ void main() {
       },
     );
   }
+  testWidgets(
+    'a working draft can be reviewed while AI readiness is false, with progress on either tab',
+    (tester) async {
+      final pending = Completer<Map<String, dynamic>>();
+      var calls = 0;
+      await openChat(tester, (_, body) async {
+        calls++;
+        return body['action'] == 'prepare'
+            ? pending.future
+            : chatReply(1, ready: false);
+      });
+      await send(tester, 'Make soup');
+      expect(find.text('Review and save'), findsOneWidget);
+      await tester.tap(find.text('Working recipe'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Review and save'));
+      await tester.pump();
+      expect(find.byType(CircularProgressIndicator), findsOneWidget);
+      expect(find.text('Preparing recipe for review…'), findsOneWidget);
+      expect(calls, 2);
+      await tester.tap(find.text('Chat').first);
+      await tester.pump(const Duration(milliseconds: 300));
+      expect(find.byType(CircularProgressIndicator), findsOneWidget);
+      pending.complete(chatReply(2, recipe: chatRecipe()));
+      await tester.pumpAndSettle();
+      expect(find.byType(RecipeEditor), findsOneWidget);
+      expect(find.byType(CircularProgressIndicator), findsNothing);
+    },
+  );
+
+  testWidgets(
+    'cancel save destination keeps chat and draft without preparing',
+    (tester) async {
+      var calls = 0;
+      await openChat(tester, (_, body) async {
+        calls++;
+        return chatReply(1);
+      }, existing: true);
+      await send(tester, 'Improve soup');
+      await tester.tap(find.text('Review and save'));
+      await tester.pumpAndSettle();
+      expect(calls, 1);
+      await tester.tapAt(const Offset(5, 5));
+      await tester.pumpAndSettle();
+      expect(find.text('Improve soup'), findsOneWidget);
+      expect(find.text('Review and save'), findsOneWidget);
+      expect(calls, 1);
+    },
+  );
+
+  testWidgets(
+    'preparation failure on recipe tab keeps draft and destination for retry',
+    (tester) async {
+      final attempts = <Map<String, dynamic>>[];
+      await openChat(tester, (_, body) async {
+        if (body['action'] == 'message') return chatReply(1, ready: false);
+        attempts.add(Map.from(body));
+        if (attempts.length == 1) {
+          throw ApiException(
+            502,
+            'Could not prepare your working recipe for review. Your chat and draft are still here.',
+            code: 'invalid_ai_reply',
+          );
+        }
+        return chatReply(2, recipe: chatRecipe(id: '10'));
+      }, existing: true);
+      await send(tester, 'Improve soup');
+      await tester.tap(find.text('Working recipe'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Review and save'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Update the existing recipe'));
+      await tester.pumpAndSettle();
+      expect(
+        find.textContaining('chat and draft are still here'),
+        findsOneWidget,
+      );
+      expect(
+        find.textContaining('2 cups water', findRichText: true),
+        findsOneWidget,
+      );
+      await tester.tap(find.text('Review and save'));
+      await tester.pumpAndSettle();
+      expect(attempts[0], attempts[1]);
+      expect(attempts.last['save_as'], 'edit');
+      expect(find.byType(RecipeEditor), findsOneWidget);
+    },
+  );
 }
