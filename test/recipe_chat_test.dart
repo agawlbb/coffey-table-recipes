@@ -10,17 +10,21 @@ import 'package:coffey_table_recipes/src/recipe_editor.dart';
 import 'package:coffey_table_recipes/src/recipe_import.dart';
 import 'package:coffey_table_recipes/src/shopping_socket.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 Map<String, dynamic> chatReply(
   int revision, {
   bool ready = true,
   Map<String, dynamic>? recipe,
+  String recipeText = 'Egg soup\n\nIngredients\n2 eggs\n2 cups water\n\nMethod\n1. Simmer for 2 minutes.',
 }) => {
   'message': revision == 1
       ? 'We can make a savory egg soup.'
-      : 'Removing eggs would thin the soup. I have kept them for now.',
+      : 'Removing eggs makes a thinner soup. I updated the working recipe.',
   'ready': ready,
+  'recipe_text': recipeText,
+  'working_recipe': chatRecipe(),
   'revision': revision,
   if (recipe != null) 'draft': {'recipe': recipe, 'questions': []},
 };
@@ -111,14 +115,14 @@ void main() {
         };
       });
       await send(tester, 'Make soup');
-      await tester.tap(find.text('Review recipe'));
+      await tester.tap(find.text('Review and save'));
       await tester.pumpAndSettle();
       await tester.tap(find.text('Cancel'));
       await tester.pumpAndSettle();
       expect(find.text('Make soup'), findsOneWidget);
       expect(find.byType(RecipeEditor), findsNothing);
       expect(saves, 0);
-      await tester.tap(find.text('Review recipe'));
+      await tester.tap(find.text('Review and save'));
       await tester.pumpAndSettle();
       expect(chatCalls, 2);
       await tester.tap(find.text('Save recipe'));
@@ -165,55 +169,57 @@ void main() {
         return chatReply(2, recipe: chatRecipe());
       });
       await send(tester, 'Make soup');
-      await tester.tap(find.text('Review recipe'));
+      await tester.tap(find.text('Review and save'));
       await tester.pumpAndSettle();
       expect(find.byType(RecipeEditor), findsNothing);
-      await tester.tap(find.text('Review recipe'));
+      await tester.tap(find.text('Review and save'));
       await tester.pumpAndSettle();
       expect(attempts[0], attempts[1]);
       expect(find.byType(RecipeEditor), findsOneWidget);
     },
   );
 
-  testWidgets('variation review retains approved cover and cooking explanation', (
-    tester,
-  ) async {
-    const image =
-        'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADElEQVR4nGNoaGgAAAMEAYFL09IQAAAAAElFTkSuQmCC';
-    await openChat(tester, (_, body) async {
-      final response = chatReply(
-        (body['revision'] as int) + 1,
-        recipe: body['action'] == 'prepare'
-            ? {
-                ...chatRecipe(variation: true),
-                'photos': [
-                  {
-                    'id': 'new-cover',
-                    'image_base64': image,
-                    'is_cover': 1,
-                    'attribution': 'Original photographer',
-                  },
-                ],
-              }
-            : null,
+  testWidgets(
+    'variation review preserves a supplied photo and cooking explanation',
+    (tester) async {
+      const image =
+          'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADElEQVR4nGNoaGgAAAMEAYFL09IQAAAAAElFTkSuQmCC';
+      await openChat(tester, (_, body) async {
+        final response = chatReply(
+          (body['revision'] as int) + 1,
+          recipe: body['action'] == 'prepare'
+              ? {
+                  ...chatRecipe(variation: true),
+                  'photos': [
+                    {
+                      'id': 'new-cover',
+                      'image_base64': image,
+                      'is_cover': 1,
+                      'attribution': 'Original photographer',
+                    },
+                  ],
+                }
+              : null,
+        );
+        if (response['draft'] != null) {
+          response['draft']['change_description'] = 'Kept the eggs for structure and reused the representative cover.';
+        }
+        return response;
+      }, existing: true);
+      await send(tester, 'Improve the soup');
+      await tester.tap(find.text('Review and save'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Save as a new variation'));
+      await tester.pumpAndSettle();
+      final editor = tester.widget<RecipeEditor>(find.byType(RecipeEditor));
+      expect(editor.variationChangeDescription, contains('structure'));
+      expect((editor.recipe['photos'] as List).single['image_base64'], image);
+      expect(
+        (editor.recipe['photos'] as List).single['attribution'],
+        'Original photographer',
       );
-      if (response['draft'] != null) {
-        response['draft']['change_description'] =
-            'Kept the eggs for structure and reused the representative cover.';
-      }
-      return response;
-    }, existing: true);
-    await send(tester, 'Improve the soup');
-    await tester.tap(find.text('Review recipe'));
-    await tester.pumpAndSettle();
-    final editor = tester.widget<RecipeEditor>(find.byType(RecipeEditor));
-    expect(editor.variationChangeDescription, contains('structure'));
-    expect((editor.recipe['photos'] as List).single['image_base64'], image);
-    expect(
-      (editor.recipe['photos'] as List).single['attribution'],
-      'Original photographer',
-    );
-  });
+    },
+  );
 
   test('chat routes exclusively through the VPS AI scope', () {
     expect(isAiPath('/households/2/recipe-chat'), isTrue);
@@ -240,8 +246,7 @@ void main() {
     await tester.tap(find.text('Create with AI'));
     await tester.pumpAndSettle();
     expect(find.byType(RecipeChat), findsOneWidget);
-    expect(find.text('Save will create a new recipe.'), findsOneWidget);
-    expect(find.text('AI'), findsOneWidget);
+    expect(find.text('AI'), findsNothing);
     expect(calls, 0);
   });
 
@@ -266,11 +271,11 @@ void main() {
       expect(find.text('You'), findsOneWidget);
       expect(find.text('We can make a savory egg soup.'), findsOneWidget);
       expect(find.byType(RecipeEditor), findsNothing);
-      expect(find.text('Review recipe'), findsOneWidget);
+      expect(find.text('Review and save'), findsOneWidget);
       await send(tester, 'What if I remove the eggs?');
       expect(find.text('Create a savory egg soup'), findsOneWidget);
       expect(find.text('What if I remove the eggs?'), findsOneWidget);
-      expect(find.textContaining('kept them for now'), findsOneWidget);
+      expect(find.textContaining('updated the working recipe'), findsOneWidget);
       expect(find.byType(RecipeEditor), findsNothing);
       expect(
         (calls.first['body'] as Map)['request_id'],
@@ -278,7 +283,7 @@ void main() {
       );
       expect((calls.last['body'] as Map)['revision'], 1);
       await tester.pump();
-      await tester.tap(find.text('Review recipe'));
+      await tester.tap(find.text('Review and save'));
       await tester.pumpAndSettle();
       expect(find.byType(RecipeEditor), findsOneWidget);
       expect(calls.length, 3);
@@ -314,33 +319,31 @@ void main() {
             'recipe': {...body, 'id': edit ? '10' : '11'},
           };
         }, existing: true);
-        if (edit) {
-          await tester.tap(
-            find.byType(DropdownButtonFormField<RecipeChatOutcome>),
-          );
-          await tester.pumpAndSettle();
-          await tester.tap(find.text('Edit this recipe').last);
-          await tester.pumpAndSettle();
-        }
         expect(
-          find.text(
-            edit ? 'Save will update Original soup.' : 'Save will create a linked variation. The original recipe stays unchanged.',
-          ),
-          findsOneWidget,
+          find.byType(DropdownButtonFormField<RecipeChatOutcome>),
+          findsNothing,
         );
         await send(tester, 'Make it richer');
-        expect(
-          (calls.first['body'] as Map)['mode'],
-          edit ? 'edit' : 'variation',
-        );
+        expect((calls.first['body'] as Map)['mode'], 'existing');
         expect((calls.first['body'] as Map)['recipe_id'], '10');
         expect(
           find.byType(DropdownButtonFormField<RecipeChatOutcome>),
           findsNothing,
         );
         await tester.pump();
-        await tester.tap(find.text('Review recipe'));
+        await tester.tap(find.text('Review and save'));
         await tester.pumpAndSettle();
+        expect(find.text('How should this recipe be saved?'), findsOneWidget);
+        await tester.tap(
+          find.text(
+            edit ? 'Update the existing recipe' : 'Save as a new variation',
+          ),
+        );
+        await tester.pumpAndSettle();
+        expect(
+          (calls.last['body'] as Map)['save_as'],
+          edit ? 'edit' : 'variation',
+        );
         final editor = tester.widget<RecipeEditor>(find.byType(RecipeEditor));
         expect(editor.recipe['id'], edit ? '10' : isNull);
         await tester.tap(find.text('Save recipe'));
@@ -417,17 +420,17 @@ void main() {
       expect(
         tester
             .widget<OutlinedButton>(
-              find.widgetWithText(OutlinedButton, 'Review recipe'),
+              find.widgetWithText(OutlinedButton, 'Review and save'),
             )
             .onPressed,
         isNull,
       );
       await tester.enterText(find.byType(TextField), '');
       await tester.pump();
-      await tester.tap(find.text('Review recipe'));
+      await tester.tap(find.text('Review and save'));
       await tester.pumpAndSettle();
       expect(find.byType(RecipeEditor), findsNothing);
-      expect(find.text('Review recipe'), findsNothing);
+      expect(find.text('Review and save'), findsOneWidget);
       expect(find.text('Make soup'), findsOneWidget);
     },
   );
@@ -454,7 +457,7 @@ void main() {
       );
       expect(calls, 1);
       await tester.tap(find.byType(BackButton));
-      await tester.pumpAndSettle();
+      await tester.pump(const Duration(milliseconds: 300));
       await tester.tap(find.text('Discard'));
       await tester.pumpAndSettle();
       pending.complete(chatReply(1));
@@ -477,10 +480,10 @@ void main() {
       );
       await send(tester, 'Make soup');
       await tester.pump();
-      await tester.tap(find.text('Review recipe'));
+      await tester.tap(find.text('Review and save'));
       await tester.pump();
       await tester.tap(find.byType(BackButton));
-      await tester.pumpAndSettle();
+      await tester.pump(const Duration(milliseconds: 300));
       pending.complete(chatReply(2, recipe: chatRecipe()));
       await tester.pumpAndSettle();
       expect(find.text('Discard recipe chat?'), findsOneWidget);
@@ -488,7 +491,7 @@ void main() {
       await tester.tap(find.text('Keep chatting'));
       await tester.pumpAndSettle();
       await tester.pump();
-      await tester.tap(find.text('Review recipe'));
+      await tester.tap(find.text('Review and save'));
       await tester.pumpAndSettle();
       expect(find.byType(RecipeEditor), findsOneWidget);
     },
@@ -579,4 +582,297 @@ void main() {
       expect(tester.takeException(), isNull);
     },
   );
+  testWidgets(
+    'recipe tab updates separately, highlights revisions and retains input',
+    (tester) async {
+      var calls = 0;
+      const revised =
+          'Ginger soup\n\nIngredients\n2 eggs\n1 tsp ginger\n\nMethod\n1. Simmer with ginger.';
+      await openChat(tester, (_, body) async {
+        expect(body['draft_view'], isTrue);
+        calls++;
+        return calls == 1 ? chatReply(1) : chatReply(2, recipeText: revised);
+      });
+      await send(tester, 'Make soup');
+      expect(find.textContaining('2 cups water'), findsNothing);
+      await tester.enterText(find.byType(TextField), 'What if I add ginger?');
+      await tester.pump();
+      await tester.tap(find.text('Working recipe'));
+      await tester.pumpAndSettle();
+      expect(
+        find.textContaining('2 cups water', findRichText: true),
+        findsOneWidget,
+      );
+      await tester.tap(find.text('Chat').first);
+      await tester.pumpAndSettle();
+      expect(
+        tester.widget<TextField>(find.byType(TextField)).controller!.text,
+        'What if I add ginger?',
+      );
+      await tester.tap(find.byTooltip('Send'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('View changes'));
+      await tester.pumpAndSettle();
+      expect(
+        find.textContaining('1 tsp ginger', findRichText: true),
+        findsOneWidget,
+      );
+      final text = tester.widget<SelectableText>(
+        find.byType(SelectableText).last,
+      );
+      final spans = text.textSpan!.children!.cast<TextSpan>();
+      expect(
+        spans
+            .firstWhere((s) => s.text == '1 tsp ginger\n')
+            .style!
+            .backgroundColor,
+        isNotNull,
+      );
+      expect(find.byType(RecipeEditor), findsNothing);
+      expect(calls, 2);
+    },
+  );
+
+  testWidgets('keyboard Send submits once and preserves failed input', (
+    tester,
+  ) async {
+    final pending = Completer<Map<String, dynamic>>();
+    var calls = 0;
+    await openChat(tester, (_, _) {
+      calls++;
+      return pending.future;
+    });
+    await tester.enterText(find.byType(TextField), 'Make soup');
+    await tester.testTextInput.receiveAction(TextInputAction.send);
+    await tester.pump();
+    await tester.testTextInput.receiveAction(TextInputAction.send);
+    expect(calls, 1);
+    pending.completeError(
+      ApiException(503, 'Try again', code: 'ai_unavailable'),
+    );
+    await tester.pumpAndSettle();
+    expect(
+      tester.widget<TextField>(find.byType(TextField)).controller!.text,
+      'Make soup',
+    );
+  });
+
+  testWidgets(
+    'hardware Enter sends, Shift Enter inserts newline, composing Enter does not send',
+    (tester) async {
+      var calls = 0;
+      await openChat(tester, (_, _) async {
+        calls++;
+        return chatReply(calls);
+      });
+      await tester.enterText(find.byType(TextField), 'Make');
+      await tester.sendKeyDownEvent(LogicalKeyboardKey.shiftLeft);
+      await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+      await tester.sendKeyUpEvent(LogicalKeyboardKey.shiftLeft);
+      await tester.pump();
+      final controller = tester
+          .widget<TextField>(find.byType(TextField))
+          .controller!;
+      expect(controller.text, 'Make\n');
+      expect(calls, 0);
+      controller.value = const TextEditingValue(
+        text: 'Soup',
+        selection: TextSelection.collapsed(offset: 4),
+        composing: TextRange(start: 0, end: 4),
+      );
+      await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+      expect(calls, 0);
+      controller.value = const TextEditingValue(
+        text: 'Soup',
+        selection: TextSelection.collapsed(offset: 4),
+      );
+      await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+      await tester.pumpAndSettle();
+      expect(calls, 1);
+    },
+  );
+
+  for (final scenario in [
+    (name: 'iPhone keyboard', size: Size(390, 844), inset: 320.0),
+    (name: 'compact enlarged chat', size: Size(360, 800), inset: 300.0),
+    (name: 'iPad landscape keyboard', size: Size(1024, 768), inset: 350.0),
+    (name: 'iPad Bluetooth suggestion bar', size: Size(1024, 768), inset: 0.0),
+    (name: 'iPad reported accessory inset', size: Size(768, 1024), inset: 44.0),
+  ]) {
+    testWidgets(
+      '${scenario.name} keeps composer and Send clear of obstruction',
+      (tester) async {
+        tester.view.physicalSize = scenario.size;
+        tester.view.devicePixelRatio = 1;
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
+        addTearDown(tester.view.resetViewInsets);
+        await tester.pumpWidget(
+          MaterialApp(
+            theme: ThemeData(platform: TargetPlatform.iOS),
+            builder: (context, child) => MediaQuery(
+              data: MediaQuery.of(context).copyWith(
+                textScaler: TextScaler.linear(
+                  scenario.name == 'compact enlarged chat' ? 1.8 : 1,
+                ),
+              ),
+              child: child!,
+            ),
+            home: RecipeChat(
+              householdId: '2',
+              request: (_, _) async => chatReply(1),
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+        await tester.enterText(find.byType(TextField), 'Make soup');
+        tester.view.viewInsets = FakeViewPadding(bottom: scenario.inset);
+        await tester.pumpAndSettle();
+        final bottom =
+            scenario.size.height - (scenario.inset < 64 ? 64 : scenario.inset);
+        expect(
+          tester.getBottomRight(find.byType(TextField)).dy,
+          lessThanOrEqualTo(bottom),
+        );
+        expect(
+          tester.getBottomRight(find.byTooltip('Send')).dy,
+          lessThanOrEqualTo(bottom),
+        );
+        if (scenario.inset > 0) {
+          expect(
+            tester.getBottomRight(find.byTooltip('Send')).dx,
+            lessThanOrEqualTo(scenario.size.width - 64),
+          );
+        }
+        await tester.tap(find.byTooltip('Send'));
+        await tester.pumpAndSettle();
+        expect(find.text('We can make a savory egg soup.'), findsOneWidget);
+        expect(tester.takeException(), isNull);
+      },
+    );
+  }
+  testWidgets(
+    'a working draft can be reviewed while AI readiness is false, with progress on either tab',
+    (tester) async {
+      final pending = Completer<Map<String, dynamic>>();
+      var calls = 0;
+      await openChat(tester, (_, body) async {
+        calls++;
+        return body['action'] == 'prepare'
+            ? pending.future
+            : chatReply(1, ready: false);
+      });
+      await send(tester, 'Make soup');
+      expect(find.text('Review and save'), findsOneWidget);
+      await tester.tap(find.text('Working recipe'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Review and save'));
+      await tester.pump();
+      expect(find.byType(CircularProgressIndicator), findsOneWidget);
+      expect(find.text('Opening recipe for review…'), findsOneWidget);
+      expect(calls, 2);
+      await tester.tap(find.text('Chat').first);
+      await tester.pump(const Duration(milliseconds: 300));
+      expect(find.byType(CircularProgressIndicator), findsOneWidget);
+      pending.complete(chatReply(2, recipe: chatRecipe()));
+      await tester.pumpAndSettle();
+      expect(find.byType(RecipeEditor), findsOneWidget);
+      expect(find.byType(CircularProgressIndicator), findsNothing);
+    },
+  );
+
+  testWidgets(
+    'cancel save destination keeps chat and draft without preparing',
+    (tester) async {
+      var calls = 0;
+      await openChat(tester, (_, body) async {
+        calls++;
+        return chatReply(1);
+      }, existing: true);
+      await send(tester, 'Improve soup');
+      await tester.tap(find.text('Review and save'));
+      await tester.pumpAndSettle();
+      expect(calls, 1);
+      await tester.tapAt(const Offset(5, 5));
+      await tester.pumpAndSettle();
+      expect(find.text('Improve soup'), findsOneWidget);
+      expect(find.text('Review and save'), findsOneWidget);
+      expect(calls, 1);
+    },
+  );
+
+  testWidgets(
+    'preparation failure on recipe tab keeps draft and destination for retry',
+    (tester) async {
+      final attempts = <Map<String, dynamic>>[];
+      await openChat(tester, (_, body) async {
+        if (body['action'] == 'message') return chatReply(1, ready: false);
+        attempts.add(Map.from(body));
+        if (attempts.length == 1) {
+          throw ApiException(
+            502,
+            'Could not prepare your working recipe for review. Your chat and draft are still here.',
+            code: 'invalid_ai_reply',
+          );
+        }
+        return chatReply(2, recipe: chatRecipe(id: '10'));
+      }, existing: true);
+      await send(tester, 'Improve soup');
+      await tester.tap(find.text('Working recipe'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Review and save'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Update the existing recipe'));
+      await tester.pumpAndSettle();
+      expect(
+        find.textContaining('chat and draft are still here'),
+        findsOneWidget,
+      );
+      expect(
+        find.textContaining('2 cups water', findRichText: true),
+        findsOneWidget,
+      );
+      await tester.tap(find.text('Review and save'));
+      await tester.pumpAndSettle();
+      expect(attempts[0], attempts[1]);
+      expect(attempts.last['save_as'], 'edit');
+      expect(find.byType(RecipeEditor), findsOneWidget);
+    },
+  );
+  testWidgets(
+    'a missing structured draft is rejected without losing the request',
+    (tester) async {
+      await openChat(
+        tester,
+        (_, _) async => chatReply(1)..remove('working_recipe'),
+      );
+      await send(tester, 'Make soup');
+      expect(find.textContaining('incomplete reply'), findsOneWidget);
+      expect(
+        tester.widget<TextField>(find.byType(TextField)).controller!.text,
+        'Make soup',
+      );
+      expect(find.byType(RecipeEditor), findsNothing);
+    },
+  );
+  testWidgets('local missing-field guidance returns from recipe view to chat', (
+    tester,
+  ) async {
+    await openChat(tester, (_, body) async {
+      if (body['action'] == 'prepare') {
+        return chatReply(2, ready: false)
+          ..['message'] = 'Please add cooking steps.';
+      }
+      return chatReply(1, ready: false);
+    });
+    await send(tester, 'Start soup');
+    await tester.tap(find.text('Working recipe'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Review and save'));
+    await tester.pumpAndSettle();
+    expect(find.text('Please add cooking steps.'), findsOneWidget);
+    expect(find.byType(TextField), findsOneWidget);
+    expect(tester.widget<TabBar>(find.byType(TabBar)).controller!.index, 0);
+    expect(find.byType(RecipeEditor), findsNothing);
+  });
 }
