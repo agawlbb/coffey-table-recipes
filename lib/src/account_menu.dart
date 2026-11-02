@@ -12,18 +12,12 @@ class AccountMenu extends StatelessWidget {
     this.email,
     required this.onSelected,
     this.enabled = true,
-    this.canEditTableName = false,
-    this.showTimers = false,
-    this.administrator = false,
   });
 
   final String name;
   final String? email;
   final ValueChanged<String> onSelected;
   final bool enabled;
-  final bool canEditTableName;
-  final bool showTimers;
-  final bool administrator;
 
   @override
   Widget build(BuildContext context) {
@@ -121,30 +115,16 @@ class AccountMenu extends StatelessWidget {
         const PopupMenuDivider(),
         action(
           'name',
-          'Account display name',
+          'Full name',
           Icons.person_outline,
           enabled: !childMode.value,
         ),
-        action(
-          'tableName',
-          'Name at the table',
-          Icons.badge_outlined,
-          enabled: canEditTableName && !childMode.value,
-        ),
-        action('household', 'Household & people', Icons.people_outline),
+        const PopupMenuDivider(),
         action(
           'childMode',
           childMode.value ? 'Child mode: On' : 'Child mode: Off',
           Icons.lock_outline,
         ),
-        if (showTimers && !childMode.value)
-          action('timers', 'Timer settings', Icons.alarm_outlined),
-        if (administrator && !childMode.value)
-          action(
-            'administration',
-            'Administration',
-            Icons.admin_panel_settings_outlined,
-          ),
         const PopupMenuDivider(),
         action('logout', 'Log out', Icons.logout),
       ],

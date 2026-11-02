@@ -43,6 +43,18 @@ Widget screen(
 );
 
 void main() {
+  test('photo references survive cache restart and invalid references are rejected', () async {
+    final disk = <String, String>{};
+    final cache = memoryCache(disk);
+    final data = snapshot(3, 'Milk');
+    (data['items'] as List).first['photo'] = 'a' * 64;
+    await cache.save(data);
+    expect((await memoryCache(disk).read())!['items'][0]['photo'], 'a' * 64);
+    (data['items'] as List).first['photo'] = 'https://other.test/image';
+    await cache.save(data);
+    expect(await memoryCache(disk).read(), isNull);
+  });
+
   test(
     'cache is scoped and handles malformed or unavailable storage',
     () async {

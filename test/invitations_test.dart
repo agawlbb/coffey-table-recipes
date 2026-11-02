@@ -114,7 +114,7 @@ void main() {
         ),
       ),
     );
-    expect(find.widgetWithText(TextFormField, 'Your name'), findsOneWidget);
+    expect(find.widgetWithText(TextFormField, 'Full name'), findsOneWidget);
     expect(find.text('val+test@example.test'), findsOneWidget);
     final returned = InvitationEntry(
       Uri.parse(InvitationEntry.verificationReturnUrl(entry.email)),

@@ -45,6 +45,11 @@ class ShoppingListCache {
             (item.containsKey('note') &&
                 (item['note'] is! String ||
                     (item['note'] as String).length > 500)) ||
+            (item.containsKey('photo') &&
+                (item['photo'] is! String ||
+                    (item['photo'] != '' &&
+                        !RegExp(r'^[a-f0-9]{64}$')
+                            .hasMatch(item['photo'] as String)))) ||
             item['checked'] is! bool ||
             item['department'] is! String ||
             (item['department'] != '' &&

@@ -56,15 +56,15 @@ void main() {
       await tester.pumpAndSettle();
       await tester.tap(find.byTooltip('Open navigation menu'));
       await tester.pumpAndSettle();
-      expect(find.text('Household & people'), findsNothing);
+      expect(find.text('Household members'), findsNothing);
       expect(find.text('Shopping list departments'), findsNothing);
       await tester.tap(find.text('Shopping list'));
       await tester.pumpAndSettle();
       expect(find.text('Apples'), findsOneWidget);
       expect(find.byTooltip('Open navigation menu'), findsOneWidget);
-      await tester.tap(find.byTooltip('User menu'));
+      await tester.tap(find.byTooltip('Open navigation menu'));
       await tester.pumpAndSettle();
-      await tester.tap(find.text('Household & people'));
+      await tester.tap(find.text('Settings'));
       await tester.pumpAndSettle();
       await tester.tap(find.text('Shopping list departments'));
       await tester.pumpAndSettle();
@@ -77,7 +77,7 @@ void main() {
       expect(find.byType(BackButton), findsOneWidget);
       await tester.tap(find.byTooltip('Open navigation menu'));
       await tester.pumpAndSettle();
-      expect(find.text('Household & people').hitTestable(), findsNothing);
+      expect(find.text('Household members').hitTestable(), findsNothing);
       expect(
         find.text('Shopping list departments').hitTestable(),
         findsNothing,

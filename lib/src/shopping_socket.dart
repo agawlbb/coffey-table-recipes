@@ -14,13 +14,13 @@ const shoppingSocketUrl = String.fromEnvironment(
   defaultValue: 'wss://ctr.coffeybean.com/shopping',
 );
 
-bool isShoppingPath(String path) =>
-    RegExp(r'^/households/[1-9][0-9]*/shopping-list(?:/sync-request)?$')
-        .hasMatch(path);
+bool isShoppingPath(String path) => RegExp(
+  r'^/households/[1-9][0-9]*/shopping-list(?:/sync-request|/photos(?:/[a-f0-9]{64})?)?$',
+).hasMatch(path);
 
 /// Account setup has no household selection and requires a Firebase ID token.
 bool isAccountPath(String path) => RegExp(
-  r'^/(?:me(?:/verification-email|/child-mode)?|admin/(?:users|households|households/[1-9][0-9]*/ai-images|(?:users|people|firebase)/[A-Za-z0-9_-]{1,128}/delete|users/[1-9][0-9]*/reset-child-mode)|households|households/[1-9][0-9]*/home-assistant-connections(?:/[a-f0-9]{64})?|households/[1-9][0-9]*/people/[1-9][0-9]*/invitations|invitations/[1-9][0-9]*/respond)$',
+  r'^/(?:me(?:/name|/verification-email|/child-mode)?|admin/(?:users|households|households/[1-9][0-9]*/ai-images|(?:users|people|firebase)/[A-Za-z0-9_-]{1,128}/delete|users/[1-9][0-9]*/reset-child-mode)|households|households/[1-9][0-9]*/home-assistant-connections(?:/[a-f0-9]{64})?|households/[1-9][0-9]*/people/[1-9][0-9]*/(?:invitations|name)|invitations/[1-9][0-9]*/respond)$',
 ).hasMatch(Uri.parse(path).path);
 
 bool isAiPath(String path) => RegExp(
@@ -32,7 +32,7 @@ bool isVpsDataPath(String path) {
   return RegExp(r'^/recipes/[1-9][0-9]*$').hasMatch(route) ||
       RegExp(r'^/me/(?:timers|timer-devices(?:/remove)?)$').hasMatch(route) ||
       RegExp(
-        r'^/households/[1-9][0-9]*/(?:snapshot|name|people(?:/me/name)?|restaurants|recipe-blank|shopping-list(?:/sync-request)?|meal-plan(?:/(?:ingredients|history|pairings/[1-9][0-9]*))?|recipes(?:/deleted|/[1-9][0-9]*(?:/(?:edit-options|share|favorites|attach|delete|restore))?)?)$',
+        r'^/households/[1-9][0-9]*/(?:snapshot|name|people(?:/me/name)?|restaurants|recipe-blank|shopping-list(?:/sync-request|/photos(?:/[a-f0-9]{64})?)?|meal-plan(?:/(?:ingredients|history|pairings/[1-9][0-9]*))?|recipes(?:/deleted|/[1-9][0-9]*(?:/(?:edit-options|share|favorites|attach|delete|restore))?)?)$',
       ).hasMatch(route);
 }
 

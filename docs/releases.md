@@ -787,3 +787,54 @@ Household authentication, recipe categories and browsing, recipe details, cookin
 ### iOS build 2
 
 The iOS follow-up uses `0.1.0+2` and tag `v0.1.0-ios.2`; the initial `v0.1.0` tag remains immutable. Web and Android build 1 remain the published initial demo. The iOS workflow requires its Firebase client values and inserts the Google callback URL scheme during the build, keeping local client configuration outside source control. Sideloadly signing and on-device authentication must be verified separately.
+
+## 2.6.0 — accepted recipe chat and shopping pictures
+
+Release preparation on 2026-11-01: version 2.6.0/build 52 integrates accepted
+chat-direct-save and shopping-item-photo history. Main integration and cleanup
+were explicitly requested. Unrelated photo-optimization and repository-rules
+branches are preserved separately. InMotion PHP/backend deployment stays
+suppressed; web publication on InMotion remains authorized.
+
+Full local analysis passed. A full local Flutter run reached 70 passes before
+its compiler was killed by the 1.5 GiB development-container limit; no complete
+local suite is claimed. All eight invitations tests passed after updating the
+stale test-only “Your name” expectation to the existing “Full name” label.
+Earlier focused integration validation covered all 32 chat scenarios plus
+20 import and four account scenarios. Full-suite release validation is performed
+by the existing web and iOS workflows before their build/publication steps.
+VPS backend integration/validation is recorded in RELEASE-2.6.0.md there.
+
+Verified delivery:
+
+- Immutable source: `b260ce67a23b54938f6f71b291d04162c9ca645e`, tag `v2.6.0`.
+- Web: [deployment 41348738474](https://github.com/agawlbb/coffey-table-recipes/actions/runs/41348738474)
+  passed full analysis and all **590 Flutter tests**, built and published to
+  InMotion. Public `/CoffeyTableRecipes/app/version.json` confirms 2.6.0/build 52
+  and the exact tagged source. No PHP/backend deployment to InMotion ran.
+- Android: [build 41348736649](https://github.com/agawlbb/coffey-table-recipes/actions/runs/41348736649)
+  passed original-certificate, package/version/provenance, JNI and hosted app-link
+  checks. APK SHA-256 is
+  `56861f5a98cc7daefd91be2b4f1f542722c8f70556905ea16b7fcf26c30ff3d5`.
+  The downloaded Drive upload matched. [Verified APK](https://drive.google.com/file/d/1oxANPJ4VG16Wu9HK4Z98TaYdFCBKRKKr/view).
+  The release publisher sent the informational notification. No older matching
+  release APK needed removal; unrelated/test packages and signed iOS packages remain.
+- iOS: [signed upload 41348740399](https://github.com/agawlbb/coffey-table-recipes/actions/runs/41348740399)
+  passed all **590 Flutter tests**, signing/profile checks for app, share extension
+  and timer widget, and production APNs/hosted association verification against
+  the exported signed app. All targets are 2.6.0/build 52. Exported IPA SHA-256:
+  `18a0055df7dbd3f1e835045d5b854a652a4d99653cdea57c8ba1866c299d14af`.
+- [Apple verification 41350497223](https://github.com/agawlbb/coffey-table-recipes/actions/runs/41350497223)
+  confirms build `0d0042e4-291f-4840-b9b5-4061e2c113b6`: `VALID`,
+  `usesNonExemptEncryption:false`, `IN_BETA_TESTING`, available to the existing
+  **Family testers** internal group. Existing France exclusions were retained;
+  no testers or territories were added.
+- VPS backend main contains the accepted changes, with deployment/source checks
+  already recorded there. Public health and both association endpoints return 200.
+- All merged chat/shopping feature and combined-test branches were removed locally
+  and remotely. The temporary release branch is removed after this record merges.
+  Unrelated `task/explicit-main-approval` (app) and `task/photo-optimization` (VPS)
+  remain synchronized and unmerged; their unique work has not been discarded.
+- No physical-device cold/warm recipe-link resolution or browser UI smoke run
+  was available in this environment. Native association/package checks and hosted
+  asset/version verification passed; these are not device acceptance claims.

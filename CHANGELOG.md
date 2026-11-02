@@ -2,6 +2,18 @@
 
 Release dates and changes are reconstructed from annotated Git tags, commit history, and project release records. Versions before 1.0 are demonstration releases; 1.0 marks the first usable release. Android retains the existing signing identity; iOS delivery and signing are recorded for each release.
 
+## 2.6.0 — 2026-11-01
+
+Build 52; tag `v2.6.0`.
+
+- Keep an evolving **Draft recipe** beside conversational AI chat. Apply discussed changes immediately, evaluate the whole recipe for both direct and “what if” requests, and explain the cooking effects using relevant remembered preferences.
+- Save the agreed draft directly into the recipe viewer without an editor/review step or another AI cooking request. Choose variation versus edit when saving; variations copy the original picture. Preserve shared-edit confirmation and safe save retries.
+- Remember each user's cooking preferences and household-scoped family preferences in the VPS database, with corrections and requests to forget carried into future chats.
+- Improve phone and iPad chat input with keyboard Send/Enter, Shift+Enter for new lines, and clearance for software keyboards and Bluetooth suggestion bars.
+- Attach, replace, remove and view household-shared pictures on shopping items, with private uploads, image normalization, and preservation across queued edits and older clients.
+- Simplify household settings navigation and use **Full name** consistently.
+- Keep backend hosting and the persistent recipe database on the VPS; publish the web app on InMotion. No InMotion PHP/backend deployment.
+
 ## 2.5.0 — 2026-10-31
 
 Build 47; tag `v2.5.0`.
