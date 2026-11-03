@@ -460,6 +460,7 @@ class CookingSessions extends ChangeNotifier with WidgetsBindingObserver {
         ...?result[action],
         'action_id': action,
         'cancelled': body['cancelled'],
+        'extension_seconds': body['extension_seconds'] ?? 0,
         if (body['deadline_ms'] != null) 'deadline_ms': body['deadline_ms'],
       };
     }
@@ -486,10 +487,15 @@ class CookingSessions extends ChangeNotifier with WidgetsBindingObserver {
     final timer = (s['timers'] as List? ?? [])
         .where((t) => '${t['action_id']}' == action)
         .firstOrNull;
+    final local = NativeTimers.active.value
+        .where((row) => row['key'] == key)
+        .firstOrNull;
     final uid = _uid;
     final generation = _generation;
     final body = {
       'action_id': action,
+      'extension_seconds': (local?['extension_seconds'] as num?)?.toInt() ?? 0,
+      if (local?['extending'] == true) 'extend': true,
       'cancelled': deadline == null,
       'deadline_ms': deadline
           ?.add(Duration(milliseconds: _serverOffset))

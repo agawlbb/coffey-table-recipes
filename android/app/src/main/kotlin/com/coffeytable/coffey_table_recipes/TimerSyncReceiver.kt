@@ -97,17 +97,18 @@ object TimerSyncNative {
         val key = "remote:$id"
         val cancelled = data.optString("cancelled") in listOf("1", "true")
         val deadline = data.getLong("deadline_ms") - p.getLong("clockOffset", 0L)
-        if (cancelled || deadline <= System.currentTimeMillis()) {
+        val extension = data.optInt("extension_seconds", 0)
+        if (cancelled || (deadline <= System.currentTimeMillis() && extension <= 0)) {
             RecipeTimers.cancel(c, key)
         } else {
             check(Build.VERSION.SDK_INT < 33 || c.checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED)
             val rows = RecipeTimers.rows(c)
             val old = rows.optJSONObject(key)
             val title = data.getString("title")
-            if (old == null || old.optLong("deadline") != deadline || old.optString("title") != title) {
-                rows.put(key, JSONObject().put("deadline", deadline).put("title", title).put("tone", RecipeTimers.tone(c)))
+            if (old == null || old.optLong("deadline") != deadline || old.optString("title") != title || old.optInt("extension_seconds", 0) != extension) {
+                rows.put(key, JSONObject().put("deadline", deadline).put("title", title).put("tone", RecipeTimers.tone(c)).put("extension_seconds", extension))
                 RecipeTimers.save(c, rows)
-                try { RecipeTimers.schedule(c, key, deadline) } catch (error: Exception) {
+                try { if (deadline > System.currentTimeMillis()) RecipeTimers.schedule(c, key, deadline) } catch (error: Exception) {
                     if (old == null) rows.remove(key) else rows.put(key, old)
                     RecipeTimers.save(c, rows); throw error
                 }

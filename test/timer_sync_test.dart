@@ -71,6 +71,7 @@ void main() {
             'title': 'Soup · Simmer',
             'deadline_ms': body['deadline_ms'] ?? old?['deadline_ms'],
             'cancelled': body['cancelled'],
+            'extension_seconds': body['extension_seconds'] ?? 0,
             'revision': (old?['revision'] ?? 0) + 1,
           },
         ];
@@ -201,6 +202,36 @@ void main() {
     expect(writes[0]['operation_id'], writes[1]['operation_id']);
     expect(state['timers'][0]['revision'], 1);
   });
+  test(
+    'session timer outbox preserves range metadata and consumes an extension',
+    () async {
+      offline = true;
+      final key = 'remote:session:${state['id']}:2';
+      final deadline = DateTime.now().add(const Duration(minutes: 1));
+      await NativeTimers.schedule(key, deadline, 'Soup', extensionSeconds: 120);
+      await sync.refresh();
+      expect(sync.timers('${state['id']}').single['extension_seconds'], 120);
+      sync.dispose();
+      sync = CookingSessions(
+        request: request,
+        installation: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+      );
+      await sync.start();
+      offline = false;
+      await sync.refresh();
+      expect(writes.single['extension_seconds'], 120);
+      expect(state['timers'][0]['extension_seconds'], 120);
+      await NativeTimers.extend(
+        key,
+        now: deadline.add(const Duration(seconds: 1)),
+      );
+      await sync.refresh();
+      expect(writes.last['extend'], isTrue);
+      expect(writes.last['extension_seconds'], 0);
+      expect(writes.last['revision'], 1);
+      expect(state['timers'][0]['extension_seconds'], 0);
+    },
+  );
   test('ending removes session and carries cancellation state', () async {
     await sync.end('${state['id']}');
     expect(sync.sessions, isEmpty);

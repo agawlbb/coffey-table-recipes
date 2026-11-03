@@ -3,6 +3,26 @@ import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   test(
+    'recipe ranges display both bounds and fixed times remain unchanged',
+    () {
+      expect(
+        formatRecipeTimeRange({
+          'duration_seconds': 180,
+          'duration_max_seconds': 300,
+        }),
+        '3–5 min',
+      );
+      expect(
+        formatRecipeTimeRange({
+          'duration_seconds': '10800',
+          'duration_max_seconds': '12600',
+        }),
+        '3 hr–3 hr 30 min',
+      );
+      expect(formatRecipeTimeRange({'duration_seconds': 180}), '3 min');
+    },
+  );
+  test(
     'durations display hours minutes and seconds without a raw second count',
     () {
       expect(formatRecipeTime(125), '2 min 5 sec');

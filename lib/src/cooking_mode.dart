@@ -336,12 +336,35 @@ class _CookingModeState extends State<CookingMode>
     _timerBusy = true;
     try {
       if (_timers.containsKey(id)) {
+        final sessionTimer = widget.sessionId == null
+            ? null
+            : _sessions
+                  .timers(widget.sessionId!)
+                  .where((t) => '${t['action_id']}' == id)
+                  .firstOrNull;
+        final running =
+            NativeTimers.active.value
+                .where((r) => r['key'] == _timerKey(id))
+                .firstOrNull ??
+            {
+              'deadline': _timers[id]!.millisecondsSinceEpoch,
+              'extension_seconds': sessionTimer?['extension_seconds'] ?? 0,
+            };
+        final extension = NativeTimers.remainingExtension(
+          running,
+          now: widget.now(),
+        );
         final action = await showDialog<String>(
           context: context,
           builder: (context) => AlertDialog(
             title: const Text('Cooking timer'),
             content: Text(_remaining(_timers[id]!)),
             actions: [
+              if (extension > 0)
+                FilledButton(
+                  onPressed: () => Navigator.pop(context, 'extend'),
+                  child: Text('Add ${formatRecipeTime(extension)}'),
+                ),
               TextButton(
                 onPressed: () => Navigator.pop(context),
                 child: const Text('Keep timer'),
@@ -358,6 +381,28 @@ class _CookingModeState extends State<CookingMode>
           ),
         );
         if (!mounted || action == null) return;
+        if (action == 'extend') {
+          if (widget.sessionId != null && !NativeTimers.supported) {
+            await _sessions.change(widget.sessionId!, 'timer', {
+              'action_id': id,
+              'cancelled': false,
+              'extend': true,
+              'extension_seconds': 0,
+              'deadline_ms': _sessions.now
+                  .add(Duration(seconds: extension))
+                  .millisecondsSinceEpoch,
+              'revision': sessionTimer?['revision'] ?? 0,
+            });
+          } else {
+            await NativeTimers.extend(_timerKey(id), now: widget.now());
+          }
+          if (widget.sessionId != null) {
+            _sessionChanged();
+          } else {
+            await _restoreTimers();
+          }
+          return;
+        }
         if (action == 'cancel') {
           if (widget.sessionId != null && !NativeTimers.supported) {
             await _sessions.change(widget.sessionId!, 'timer', {
@@ -414,6 +459,14 @@ class _CookingModeState extends State<CookingMode>
         seconds = changed;
       }
       final deadline = widget.now().add(Duration(seconds: seconds));
+      final recipeAction = _rows('actions')
+          .where((a) => '${a['id']}' == id)
+          .firstOrNull;
+      final extra = recipeAction == null
+          ? 0
+          : (recipeSeconds(recipeAction['duration_max_seconds']) ?? seconds) -
+                seconds;
+      final extensionSeconds = _timers.containsKey(id) || extra < 0 ? 0 : extra;
       final actionLabel = _rows('actions')
           .where((action) => '${action['id']}' == id)
           .firstOrNull?['label'];
@@ -421,6 +474,7 @@ class _CookingModeState extends State<CookingMode>
         await _sessions.change(widget.sessionId!, 'timer', {
           'action_id': id,
           'cancelled': false,
+          'extension_seconds': extensionSeconds,
           'deadline_ms': _sessions.now
               .add(Duration(seconds: seconds))
               .millisecondsSinceEpoch,
@@ -435,6 +489,7 @@ class _CookingModeState extends State<CookingMode>
           _timerKey(id),
           deadline,
           '${widget.recipe['title'] ?? 'Cooking timer'}${actionLabel == null ? '' : ' · $actionLabel'}',
+          extensionSeconds: extensionSeconds,
         );
       }
       if (mounted) setState(() => _timers[id] = deadline);
@@ -622,7 +677,7 @@ class _CookingModeState extends State<CookingMode>
                                       label: Text(
                                         _timers.containsKey('${action['id']}')
                                             ? '${_remaining(_timers['${action['id']}']!)} · Cancel'
-                                            : '${action['label'] ?? 'Start timer'} · ${formatRecipeTime(action['duration_seconds'])}',
+                                            : '${action['label'] ?? 'Start timer'} · ${formatRecipeTimeRange(action)}',
                                       ),
                                     )
                                   : Text(

@@ -77,6 +77,32 @@ Future<void> section(WidgetTester tester, String label) async {
 }
 
 void main() {
+  testWidgets('saving preserves a reviewed timer range', (tester) async {
+    final ranged = recipe();
+    ranged['actions'][0]['duration_max_seconds'] = 180;
+    Map<String, dynamic>? saved;
+    await tester.pumpWidget(
+      MaterialApp(
+        home: RecipeEditor(
+          recipe: ranged,
+          householdId: '2',
+          save: (_, body) async {
+            saved = body;
+            return body;
+          },
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.byTooltip('Go to steps & actions'));
+    await tester.pumpAndSettle();
+    expect(find.text('Timer: Simmer timer · 1–3 min'), findsOneWidget);
+    await tester.tap(find.text('Save recipe'));
+    await tester.pumpAndSettle();
+    expect(saved!['actions'][0]['duration_seconds'], 60);
+    expect(saved!['actions'][0]['duration_max_seconds'], 180);
+  });
+
   testWidgets('groups are visible and focused edits cancel atomically', (
     tester,
   ) async {
@@ -436,10 +462,7 @@ void main() {
     );
     await tester.tap(find.text('Done'));
     await tester.pumpAndSettle();
-    expect(
-      find.text('Unsaved changes'),
-      findsOneWidget,
-    );
+    expect(find.text('Unsaved changes'), findsOneWidget);
     await tester.ensureVisible(find.byTooltip('Go to steps & actions'));
     await tester.tap(find.byTooltip('Go to steps & actions'));
     await tester.pumpAndSettle();

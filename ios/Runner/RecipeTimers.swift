@@ -105,18 +105,18 @@ enum RecipeTimers {
                         var saved = rows
                         if #available(iOS 26.0, *) {
                             let ids = Set(try AlarmManager.shared.alarms.map { $0.id.uuidString })
-                            for (key, row) in saved where row["mode"] as? String == "alarmkit" && !ids.contains(row["id"] as? String ?? "") {
+                            for (key, row) in saved where row["mode"] as? String == "alarmkit" && !ids.contains(row["id"] as? String ?? "") && ((row["extension_seconds"] as? NSNumber)?.intValue ?? 0) <= 0 {
                                 saved.removeValue(forKey: key); await endActivity(key)
                             }
                             rows = saved
                         }
-                        result(saved.map { ["key": $0.key, "deadline": $0.value["deadline"] ?? 0, "title": $0.value["title"] ?? "Cooking timer"] })
+                        result(saved.map { ["key": $0.key, "deadline": $0.value["deadline"] ?? 0, "title": $0.value["title"] ?? "Cooking timer", "extension_seconds": $0.value["extension_seconds"] ?? 0] })
                     case "cancel":
                         guard let key = args["key"] as? String else { throw failure("Missing timer.") }
                         try await serializedSync { try await cancel(key) }; result(nil)
                     case "schedule":
                         guard let key = args["key"] as? String, let deadline = args["deadline"] as? NSNumber, let title = args["title"] as? String else { throw failure("Missing timer details.") }
-                        try await serializedSync { try await schedule(key, deadline.doubleValue, title) }; result(nil)
+                        try await serializedSync { try await schedule(key, deadline.doubleValue, title, (args["extension_seconds"] as? NSNumber)?.intValue ?? 0) }; result(nil)
                     default: result(FlutterMethodNotImplemented)
                     }
                 } catch { result(FlutterError(code: "timer", message: error.localizedDescription, details: nil)) }
@@ -124,7 +124,7 @@ enum RecipeTimers {
         }
     }
     static func failure(_ text: String) -> NSError { NSError(domain: "RecipeTimer", code: 1, userInfo: [NSLocalizedDescriptionKey: text]) }
-    static func schedule(_ key: String, _ milliseconds: Double, _ title: String) async throws {
+    static func schedule(_ key: String, _ milliseconds: Double, _ title: String, _ extensionSeconds: Int = 0) async throws {
         let date = Date(timeIntervalSince1970: milliseconds / 1000)
         guard date > Date() else { throw failure("Choose a future timer deadline.") }
         let old = rows[key]
@@ -146,7 +146,7 @@ enum RecipeTimers {
             let pending = await center.pendingNotificationRequests()
             guard pending.count < 60 else { throw failure("Too many pending timers. Cancel a timer first.") }
             let content = UNMutableNotificationContent()
-            content.title = title; content.body = "Time is up"; content.userInfo = ["recipeTimer": true]
+            content.title = title; content.body = extensionSeconds > 0 ? "Time is up — open to add the remaining time" : "Time is up"; content.userInfo = ["recipeTimer": true]
             content.sound = UNNotificationSound(named: UNNotificationSoundName(rawValue: tone.isEmpty ? "default.wav" : tone))
             let request = UNNotificationRequest(identifier: id.uuidString, content: content, trigger: UNTimeIntervalNotificationTrigger(timeInterval: max(1, date.timeIntervalSinceNow), repeats: false))
             try await center.add(request)
@@ -159,7 +159,7 @@ enum RecipeTimers {
             }
         }
         var saved = rows
-        saved[key] = ["id": id.uuidString, "deadline": milliseconds, "title": title, "mode": mode]
+        saved[key] = ["id": id.uuidString, "deadline": milliseconds, "title": title, "mode": mode, "extension_seconds": extensionSeconds]
         rows = saved
         await endActivity(key)
         if #available(iOS 16.2, *), ActivityAuthorizationInfo().areActivitiesEnabled {
@@ -239,7 +239,8 @@ extension RecipeTimers {
         guard version > current else { return }
         let key = "remote:" + id
         let cancelled = ["1", "true"].contains(String(describing: data["cancelled"] ?? ""))
-        if cancelled || deadline <= Date().timeIntervalSince1970 * 1000 {
+        let extensionSeconds = Int(String(describing: data["extension_seconds"] ?? "0")) ?? 0
+        if cancelled || (deadline <= Date().timeIntervalSince1970 * 1000 && extensionSeconds <= 0) {
             try await cancel(key)
         } else {
             let settings = await UNUserNotificationCenter.current().notificationSettings()
@@ -249,8 +250,15 @@ extension RecipeTimers {
             }
             let title = data["title"] as? String ?? "Cooking timer"
             let old = rows[key]
-            if (old?["deadline"] as? NSNumber)?.doubleValue != deadline || old?["title"] as? String != title {
-                try await schedule(key, deadline, title)
+            if (old?["deadline"] as? NSNumber)?.doubleValue != deadline || old?["title"] as? String != title || ((old?["extension_seconds"] as? NSNumber)?.intValue ?? 0) != extensionSeconds {
+                if deadline > Date().timeIntervalSince1970 * 1000 {
+                    try await schedule(key, deadline, title, extensionSeconds)
+                } else {
+                    try await cancel(key)
+                    var saved = rows
+                    saved[key] = ["deadline": deadline, "title": title, "extension_seconds": extensionSeconds]
+                    rows = saved
+                }
             }
         }
         versions[id] = NSNumber(value: version)

@@ -102,3 +102,35 @@ configuration returned HTTP 200 and the cooking socket rejected an invalid token
 with status 401. No production sessions or notifications were created for testing.
 Both source branches remain separate from main. The app still needs an explicitly
 authorized build/release and physical-device background alarm acceptance.
+
+## Timer-range integration — 2026-11-03
+
+Merged `task/timer-ranges` into `task/cooking-sessions`: app source `4c4f2bb`
+and companion backend source `b6f8c1d`. Both task histories are preserved; main
+is unchanged. The retired account-wide Flutter timer coordinator stays removed.
+
+Range timers still start at the minimum and offer the remainder once. Session
+snapshots, durable local timer operations and silent native updates now preserve
+`extension_seconds`; extension operations carry their consumption flag through
+the session endpoint. Server revisions and operation IDs prevent two devices
+from consuming the same remainder. Manual timer changes/cancellation clear the
+remainder. Native session/account guards and server-clock adjustment are retained.
+Expired unused ranges can be restored without replaying an alarm. Web cooking
+uses the same session extension rules.
+
+This integration changes source only. It does not run database maintenance,
+build packages, deploy either app/backend, or integrate into main. Earlier hosted
+publication records above describe their respective source revisions.
+
+Changed Dart files were formatted, complete-project `flutter analyze --no-pub`
+passed, and the following command passed all **114 tests**:
+
+```sh
+flutter test --no-pub --concurrency=1 --reporter expanded test/recipe_time_test.dart test/timer_sync_test.dart test/recipe_import_test.dart test/recipe_chat_test.dart test/recipe_variation_test.dart test/recipe_editor_test.dart test/timer_visibility_preview_test.dart test/cooking_mode_test.dart test/recipe_timer_navigation_test.dart test/sharing_timers_test.dart test/cooking_sessions_test.dart test/recipe_menu_navigation_test.dart test/backend_socket_test.dart test/account_timer_menu_test.dart
+```
+
+The new session regression verifies range metadata survives offline queuing and
+restart, and that extending clears it. Companion fixtures verify replay and
+competing-extension rejection. The merge affects bounded timer, recipe import/
+editor and session paths; the earlier full Flutter suite was not repeated.
+Native source was reviewed; no native build or physical-device test was run.
