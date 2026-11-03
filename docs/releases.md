@@ -893,3 +893,51 @@ VPS photo optimization is included. InMotion PHP deployment remains deferred.
   Base repositories and managed chat workspaces remain. Both backend repositories
   and the app are synchronized with their existing GitHub origins; only main
   branches and historical release tags remain.
+
+## 2.7.1 — cooking navigation and controls
+
+Release 2026-11-03, version 2.7.1/build 56. The user accepted the cooking/shopping
+controls and requested main integration, temporary-worktree cleanup and release
+on all three platforms. When the displayed cooking session ends, return to the
+recipe browser and remove its cooking/detail/overlay routes. Ending a covered
+session removes it without interrupting the active screen. This release also
+includes the fixed cooking header, shared connected icon, Stop sheet dismissal,
+viewer-only shopping photo deletion and guarded swipe-to-end session controls.
+
+- Immutable tag `v2.7.1`, source
+  `bb100a4d1eb5787f23dcda8d96ccdf86014d19d0`, is merged into canonical main.
+  The changelog and version are included in the tag.
+- Full `flutter analyze --no-pub` passed. All **613 tests** passed in the isolated
+  full `flutter test --no-pub --concurrency=1 --reporter expanded` release run.
+  Focused navigation/session validation passed all 20 tests before that run.
+- [Web 41623665527](https://github.com/agawlbb/coffey-table-recipes/actions/runs/41623665527)
+  passed analysis and all 613 tests, then deployed and verified public metadata
+  and asset hashes. Independent public metadata confirms 2.7.1/build 56 and the
+  exact tagged commit.
+- [Android 41623661942](https://github.com/agawlbb/coffey-table-recipes/actions/runs/41623661942)
+  passed source, package/version, original signing identity, timer JNI and hosted
+  association checks. Independent `apksigner` and actual-certificate
+  `tool/verify-app-links.py` checks passed. APK SHA-256:
+  `fdd4b4c6b400626134aded7b69ee467e719a249c73e2c813bde9cf6640938b9d`.
+  [Verified APK in Drive](https://drive.google.com/file/d/1z35sbaCz7wuYi018LfWPwCuSfqAeVX-3/view).
+  `tool/publish-android.py` verified the downloaded upload, sent the informational
+  release notification, and trashed only `CoffeyTableRecipes-2.7.0-build54.apk`.
+  Existing test APKs, signed iOS packages and unrelated files were retained.
+- [Signed iOS archive 41622457779](https://github.com/agawlbb/coffey-table-recipes/actions/runs/41622457779)
+  passed all 613 tests and verified app, share extension and timer widget
+  signatures/profiles at 2.7.1/build 56. Production APNs, App Group, encryption
+  declarations and hosted universal-link association were checked against the
+  signed app. The retained IPA checksum matches its verification report:
+  `9114628b6d2c99ff19fa8b01d19952effe4ed3e42cc783c25b954d6b54141c53`.
+- VPS main includes the accepted swipe-ending permission adjustment. Existing
+  deployment source remains current, with public health passing. Cooking-session
+  authorization/cancellation and data-socket tests passed again before merge.
+  InMotion PHP main remains unchanged; its deferred deployment was preserved.
+- No physical devices were available for cold/warm installed-app link resolution
+  or background alarm checks. Native signing and hosted associations passed;
+  device behavior remains a manual check.
+- Apple upload/processing verification is pending at this checkpoint. Final
+  TestFlight delivery is recorded below once verified.
+- The app and VPS temporary worktrees are archived privately with per-file and
+  archive SHA-256 checks before removal. Managed chat workspaces, base repositories,
+  immutable release tags, historical evidence and signed packages are preserved.
