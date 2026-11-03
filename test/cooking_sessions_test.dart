@@ -20,6 +20,38 @@ class _WakeRecorder extends WakelockPlusMacOSPlugin {
 }
 
 void main() {
+  testWidgets(
+    'cooking communication failures stay silent; actionable errors remain',
+    (tester) async {
+      late BuildContext context;
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: Builder(
+              builder: (value) {
+                context = value;
+                return const SizedBox();
+              },
+            ),
+          ),
+        ),
+      );
+      cookingError(
+        context,
+        ApiException(
+          503,
+          'Data synchronization disconnected.',
+          code: 'connection_lost',
+        ),
+      );
+      await tester.pump();
+      expect(find.byType(SnackBar), findsNothing);
+      cookingError(context, ApiException(422, 'Choose a person.'));
+      await tester.pump();
+      expect(find.text('Choose a person.'), findsOneWidget);
+    },
+  );
+
   for (final ending in ['local', 'remote', 'expiry']) {
     testWidgets(
       '$ending end returns to browser through recipe and timer dialog',
@@ -238,7 +270,7 @@ void main() {
     );
     await tester.drag(find.byType(Dismissible), const Offset(700, 0));
     await tester.pumpAndSettle();
-    expect(find.text('Unavailable'), findsOneWidget);
+    expect(find.byType(SnackBar), findsNothing);
     expect(service.sessions, hasLength(1));
     expect(find.text('Soup'), findsOneWidget);
     await tester.pumpWidget(const SizedBox());

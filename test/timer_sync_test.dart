@@ -115,6 +115,41 @@ void main() {
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
         .setMockMethodCallHandler(NativeTimers.channel, null);
   });
+  test(
+    'failed device registration does not skip initial session refresh',
+    () async {
+      final accounts = StreamController<String?>();
+      final refreshed = Completer<void>();
+      final service = CookingSessions(
+        accountChanges: accounts.stream,
+        registerDevice: () async => throw ApiException(503, 'Disconnected'),
+        request: (path, {body}) async {
+          if (!refreshed.isCompleted) refreshed.complete();
+          return {
+            'sessions': [state],
+          };
+        },
+      );
+      await service.start();
+      accounts.add('test-user');
+      await refreshed.future;
+      await Future<void>.delayed(Duration.zero);
+      expect(service.sessions.single['id'], state['id']);
+      expect(service.error, isNull);
+      service.dispose();
+      await accounts.close();
+    },
+  );
+
+  test('background disconnect stays silent and refresh recovers', () async {
+    offline = true;
+    await sync.refresh();
+    expect(sync.error, isNull);
+    offline = false;
+    await sync.refresh();
+    expect(sync.sessions.single['id'], state['id']);
+  });
+
   test('declined session remains available to join and joined sessions stop prompting', () async {
     state = cookingFixture(joined: []);
     await sync.accept({

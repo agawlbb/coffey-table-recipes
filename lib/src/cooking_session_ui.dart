@@ -11,13 +11,11 @@ WidgetBuilder? cookingMenuBuilder;
 VoidCallback? cookingRecipeBrowser;
 
 void cookingError(BuildContext context, Object error) {
-  if (!context.mounted) return;
+  if (!context.mounted || isTemporaryCommunicationFailure(error)) return;
   ScaffoldMessenger.of(context).showSnackBar(
     SnackBar(
       content: Text(
-        error is ApiException
-            ? error.message
-            : 'Could not update cooking. Check your connection.',
+        error is ApiException ? error.message : 'Could not update cooking.',
       ),
     ),
   );

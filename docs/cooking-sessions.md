@@ -163,3 +163,28 @@ publicly hosted on the VPS. No release tag, main integration, iOS/web build or
 hosted Flutter deployment was performed. The source version was not changed;
 the workflow supplied the test version/build override. Physical-device and
 multi-device background alarm behavior remain for testing with this APK.
+
+## Silent communication failures (2026-11-03)
+
+Task `fix/cooking-sync-status` starts at canonical main `ce1b527`.
+The cooking-session introduction (`af2965c`) routed background coordinator errors
+into the account panel's global snackbar listener. Socket disconnects therefore
+produced a startup notification, and cooking actions could display the same
+transport error. Temporary communication failures now bypass the user-facing
+error state and cooking snackbar helper. Existing household connection indicators
+remain unchanged; validation and local alarm errors remain visible. Timer-device
+registration failure no longer prevents the initial cooking-session refresh.
+
+The repeated device disconnect itself has not been reproduced or explained.
+Deployed server.php and DataSocket.php hashes match the backend checkout, and
+available backend logs contain lifecycle events without a corresponding failure.
+This change must not be described as a confirmed repair of the disconnect cause.
+
+Validation: the six-file focused run passed 45 tests and failed the prior snackbar
+expectation in the failed-session-end test. After updating that expectation and
+adding registration-failure coverage, the affected timer_sync_test.dart and
+cooking_sessions_test.dart suites passed all 27 tests. The other 20 focused tests
+(cooking_mode_test.dart, account_timer_menu_test.dart, shopping_socket_test.dart,
+backend_socket_test.dart) passed in the initial run. Changed Dart files were
+formatted; scoped analysis and diff whitespace review passed. No build, release,
+backend change or deployment was performed.

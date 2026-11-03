@@ -42,9 +42,11 @@ class CookingSessions extends ChangeNotifier with WidgetsBindingObserver {
     this._preferences,
     String? installation,
     this._accountChanges,
+    this._registerDevice,
   }) : _testRequest = request,
        installation = installation ?? '';
   final CookingRequest? _testRequest;
+  final Future<void> Function()? _registerDevice;
   final Stream<String?>? _accountChanges;
   String? _lastToken;
   final SharedPreferencesAsync? _preferences;
@@ -157,10 +159,8 @@ class CookingSessions extends ChangeNotifier with WidgetsBindingObserver {
   }
 
   void _failed(Object e) {
-    if (_disposed) return;
-    error = e is ApiException
-        ? e.message
-        : 'Cooking sync paused. Check your connection.';
+    if (_disposed || isTemporaryCommunicationFailure(e)) return;
+    error = e is ApiException ? e.message : 'Could not update cooking.';
     notifyListeners();
   }
 
@@ -207,7 +207,12 @@ class CookingSessions extends ChangeNotifier with WidgetsBindingObserver {
                 .map((e) => Map<String, dynamic>.from(e))
                 .toList();
 
-      await _register();
+      try {
+        await _register();
+      } catch (e) {
+        if (generation == _generation) _failed(e);
+      }
+      if (generation != _generation) return;
       await refresh();
     } catch (e) {
       if (generation == _generation) _failed(e);
@@ -240,6 +245,7 @@ class CookingSessions extends ChangeNotifier with WidgetsBindingObserver {
   }
 
   Future<void> _register() async {
+    if (_registerDevice != null) return _registerDevice();
     if (_uid == null || !NativeTimers.supported || _testRequest != null) return;
     String? token;
     try {
