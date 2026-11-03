@@ -838,3 +838,58 @@ Verified delivery:
 - No physical-device cold/warm recipe-link resolution or browser UI smoke run
   was available in this environment. Native association/package checks and hosted
   asset/version verification passed; these are not device acceptance claims.
+
+## 2.7.0 — cooking sessions and timer notification actions
+
+Released 2026-11-03, version 2.7.0/build 54. Cooking sessions and timer ranges,
+including the bottom-of-menu session list and direct “Share with” selection,
+are accepted into main. Expired notifications offer the remaining ranged time;
+Stop clears the cooking timer and synchronizes other joined devices. Accepted
+VPS photo optimization is included. InMotion PHP deployment remains deferred.
+
+- Immutable tag `v2.7.0` points to verified source
+  `4f2eb0a6b4370059794eedab6631f7cf80a22e8c`, included in main. Main also preserves
+  an earlier integration-only merge with no source differences.
+- Full `flutter analyze --no-pub` passed. Isolated full
+  `flutter test --no-pub --concurrency=1 --reporter expanded` passed **600 tests**;
+  the earlier memory-interrupted attempt is not counted. Focused checks passed
+  all 32 cooking-session, notification, timer and menu regression tests.
+- [Web deployment 41566239364](https://github.com/agawlbb/coffey-table-recipes/actions/runs/41566239364)
+  passed all **600 tests**, analysis, asset hashes and public deployment metadata.
+  Public version.json independently confirms 2.7.0/build 54 and the tagged source.
+- [Signed iOS archive 41563197897](https://github.com/agawlbb/coffey-table-recipes/actions/runs/41563197897)
+  verifies all three targets, App Store profiles, production APNs, App Group,
+  export compliance and hosted universal-link association against the signed app.
+  Retained IPA SHA-256:
+  `6c3eace85b71bdd22510dec9dfcbfe70f05478a57a6f8b697f1664844a3fc11d`.
+  [Upload 41566253985](https://github.com/agawlbb/coffey-table-recipes/actions/runs/41566253985)
+  reverified and uploaded that exact artifact, without rebuilding it.
+- [Apple verification 41566552353](https://github.com/agawlbb/coffey-table-recipes/actions/runs/41566552353)
+  confirms build `d725ab8d-6b5a-419a-aa41-fd1a83e34b53`: `VALID`,
+  `usesNonExemptEncryption:false`, `IN_BETA_TESTING`, available to the existing
+  **Family testers** internal group. No testers or territories were added;
+  existing France exclusions remain unchanged.
+- VPS backend accepted source `7c1cfd3` was deployed with the existing script;
+  service restart, socket, CPU policy and public health passed. Validation and
+  deployment evidence are recorded in COOKING-SESSIONS.md in the VPS repository.
+- Completed worktree source, private configuration and release packages were
+  archived privately with verified hashes before removal. Recovery evidence and
+  immutable tags are retained; no published history was rewritten.
+- No physical devices were available for notification/background behavior or
+  cold/warm recipe-link resolution. Native compilation, signing, hosted
+  associations and automated behavior checks passed; device behavior remains
+  a manual follow-up.
+- [Android release build 41566237220](https://github.com/agawlbb/coffey-table-recipes/actions/runs/41566237220)
+  passed source/version, original certificate, JNI and hosted assetlinks checks.
+  Downloaded APK SHA-256:
+  `92f00b96c86153138b8df1f292e7fc991904d7bdd3a28f9226a9434bf2b8c055`.
+  `tool/publish-android.py` verified the downloaded Drive bytes and sent the
+  informational release notification. No older matching release filenames needed
+  removal; test packages, signed iOS packages and unrelated files remain.
+  [Verified Android APK](https://drive.google.com/file/d/1tlxQ_l0cL6Ij1BZS0VzJyhsFOg4_LTLc/view).
+- All completed app and VPS working branches are removed after verifying ancestry
+  in canonical main. Twenty-two completed temporary worktrees are removed after
+  privately archiving their source, configuration and packages with hash checks.
+  Base repositories and managed chat workspaces remain. Both backend repositories
+  and the app are synchronized with their existing GitHub origins; only main
+  branches and historical release tags remain.
