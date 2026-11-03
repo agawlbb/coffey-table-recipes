@@ -758,7 +758,10 @@ class _RecipeEditorState extends State<RecipeEditor> {
       final actions = _rows('actions').where((a) => a['step_id'] == step['id']);
       final invalid = actions.any(
         (a) => ['timer', 'rest'].contains(a['action_type'])
-            ? (recipeSeconds(a['duration_seconds']) ?? 0) <= 0
+            ? (recipeSeconds(a['duration_seconds']) ?? 0) <= 0 ||
+                  (a['duration_max_seconds'] != null &&
+                      (recipeSeconds(a['duration_max_seconds']) ?? -1) <
+                          (recipeSeconds(a['duration_seconds']) ?? 0))
             : [
                     'appliance_temperature',
                     'internal_temperature',
@@ -1180,6 +1183,13 @@ class _RecipeEditorState extends State<RecipeEditor> {
                     if (required && part == 'seconds' && total() <= 0) {
                       return 'Enter a duration greater than zero';
                     }
+                    if (key == 'duration_max_seconds' &&
+                        part == 'seconds' &&
+                        parts.values.any((v) => v != null) &&
+                        total() <
+                            (recipeSeconds(row['duration_seconds']) ?? 0)) {
+                      return 'Maximum must be at least the duration';
+                    }
                     return null;
                   },
                   changed: (value) => _change(() {
@@ -1307,6 +1317,7 @@ class _RecipeEditorState extends State<RecipeEditor> {
               'internal_temperature',
             ].contains(value);
             row['duration_seconds'] = timed ? 60 : null;
+            row['duration_max_seconds'] = null;
             row['temperature_value'] = null;
             row['temperature_unit'] = temperature ? 'F' : null;
           }
@@ -1712,6 +1723,8 @@ class _RecipeEditorState extends State<RecipeEditor> {
                   'Duration',
                   required: ['timer', 'rest'].contains(row['action_type']),
                 ),
+              if (['timer', 'rest'].contains(row['action_type']))
+                _timeFields(row, 'duration_max_seconds', 'Maximum duration'),
               if ([
                     'appliance_temperature',
                     'internal_temperature',
@@ -1829,7 +1842,7 @@ class _RecipeEditorState extends State<RecipeEditor> {
     }
     final seconds = int.tryParse('${action['duration_seconds']}');
     if (seconds != null) {
-      details.add(formatRecipeTime(seconds));
+      details.add(formatRecipeTimeRange(action));
     }
     if (action['temperature_value'] != null) {
       details.add(

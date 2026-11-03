@@ -2068,7 +2068,7 @@ class _RecipeDetailState extends State<RecipeDetail> {
                             [
                               if (action['label'] != null) '${action['label']}',
                               if (action['duration_seconds'] != null)
-                                formatRecipeTime(action['duration_seconds']),
+                                formatRecipeTimeRange(action),
                               if (action['temperature_value'] != null)
                                 '${recipeValue(action['temperature_value'])}°${action['temperature_unit']}',
                               if (action['label'] == null &&

@@ -140,12 +140,23 @@ class _CookingModeState extends State<CookingMode> with WidgetsBindingObserver {
     _timerBusy = true;
     try {
       if (_timers.containsKey(id)) {
+        final running = NativeTimers.active.value
+            .where((r) => r['key'] == _timerKey(id))
+            .firstOrNull;
+        final extension = running == null
+            ? 0
+            : NativeTimers.remainingExtension(running, now: widget.now());
         final action = await showDialog<String>(
           context: context,
           builder: (context) => AlertDialog(
             title: const Text('Cooking timer'),
             content: Text(_remaining(_timers[id]!)),
             actions: [
+              if (extension > 0)
+                FilledButton(
+                  onPressed: () => Navigator.pop(context, 'extend'),
+                  child: Text('Add ${formatRecipeTime(extension)}'),
+                ),
               TextButton(
                 onPressed: () => Navigator.pop(context),
                 child: const Text('Keep timer'),
@@ -162,6 +173,11 @@ class _CookingModeState extends State<CookingMode> with WidgetsBindingObserver {
           ),
         );
         if (!mounted || action == null) return;
+        if (action == 'extend') {
+          await NativeTimers.extend(_timerKey(id), now: widget.now());
+          await _restoreTimers();
+          return;
+        }
         if (action == 'cancel') {
           await NativeTimers.cancel(_timerKey(id));
           if (mounted) setState(() => _timers.remove(id));
@@ -206,6 +222,13 @@ class _CookingModeState extends State<CookingMode> with WidgetsBindingObserver {
         seconds = changed;
       }
       final deadline = widget.now().add(Duration(seconds: seconds));
+      final recipeAction = _rows('actions')
+          .where((a) => '${a['id']}' == id)
+          .firstOrNull;
+      final extra = recipeAction == null
+          ? 0
+          : (recipeSeconds(recipeAction['duration_max_seconds']) ?? seconds) -
+                seconds;
       final actionLabel = _rows('actions')
           .where((action) => '${action['id']}' == id)
           .firstOrNull?['label'];
@@ -213,6 +236,7 @@ class _CookingModeState extends State<CookingMode> with WidgetsBindingObserver {
         _timerKey(id),
         deadline,
         '${widget.recipe['title'] ?? 'Cooking timer'}${actionLabel == null ? '' : ' · $actionLabel'}',
+        extensionSeconds: _timers.containsKey(id) || extra < 0 ? 0 : extra,
       );
       if (mounted) setState(() => _timers[id] = deadline);
       _tick();
@@ -394,7 +418,7 @@ class _CookingModeState extends State<CookingMode> with WidgetsBindingObserver {
                                     label: Text(
                                       _timers.containsKey('${action['id']}')
                                           ? '${_remaining(_timers['${action['id']}']!)} · Cancel'
-                                          : '${action['label'] ?? 'Start timer'} · ${formatRecipeTime(action['duration_seconds'])}',
+                                          : '${action['label'] ?? 'Start timer'} · ${formatRecipeTimeRange(action)}',
                                     ),
                                   )
                                 : Text(

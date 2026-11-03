@@ -1,4 +1,5 @@
 import 'package:coffey_table_recipes/src/cooking_mode.dart';
+import 'package:coffey_table_recipes/src/native_timers.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -68,6 +69,77 @@ void main() {
       },
     );
   }
+
+  testWidgets(
+    'range timers start at the minimum and offer the remainder on expiry',
+    (tester) async {
+      var now = DateTime.now();
+      final start = now;
+      final schedules = <Map<String, dynamic>>[];
+      NativeTimers.active.value = [];
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(NativeTimers.channel, (call) async {
+            if (call.method == 'list') {
+              return schedules.isEmpty ? [] : [schedules.last];
+            }
+            if (call.method == 'schedule') {
+              schedules.add(Map<String, dynamic>.from(call.arguments as Map));
+            }
+            return null;
+          });
+      await tester.pumpWidget(
+        MaterialApp(
+          home: CookingMode(
+            now: () => now,
+            recipe: {
+              'id': 'r',
+              'title': 'Soup',
+              'steps': [
+                {'id': 's', 'instruction': 'Simmer 3 to 5 minutes.'},
+              ],
+              'actions': [
+                {
+                  'id': 'a',
+                  'step_id': 's',
+                  'duration_seconds': 180,
+                  'duration_max_seconds': 300,
+                  'label': 'Simmer',
+                },
+              ],
+            },
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      await tester.ensureVisible(find.text('Simmer · 3–5 min'));
+      await tester.tap(find.text('Simmer · 3–5 min'));
+      await tester.pump();
+      expect(
+        schedules.single['deadline'],
+        start.add(const Duration(minutes: 3)).millisecondsSinceEpoch,
+      );
+      expect(schedules.single['extension_seconds'], 120);
+      now = start.add(const Duration(seconds: 181));
+      await tester.pump(const Duration(seconds: 1));
+      await tester.tap(find.textContaining('Time is up').last);
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Add 2 min'));
+      await tester.pumpAndSettle();
+      expect(schedules, hasLength(2));
+      expect(
+        schedules.last['deadline'],
+        now.add(const Duration(minutes: 2)).millisecondsSinceEpoch,
+      );
+      expect(schedules.last['extension_seconds'], 0);
+      now = now.add(const Duration(seconds: 121));
+      await tester.pump(const Duration(seconds: 1));
+      await tester.tap(find.textContaining('Time is up').last);
+      await tester.pumpAndSettle();
+      expect(find.text('Add 2 min'), findsNothing);
+      await tester.pumpWidget(const SizedBox());
+      NativeTimers.active.value = [];
+    },
+  );
 
   testWidgets('cooking tracks progress, opens ingredients and runs a timer', (
     tester,

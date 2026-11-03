@@ -148,7 +148,12 @@ void main() {
     () async {
       offline = true;
       final deadline = DateTime.now().add(const Duration(minutes: 10));
-      await NativeTimers.schedule('42:step', deadline, 'Soup');
+      await NativeTimers.schedule(
+        '42:step',
+        deadline,
+        'Soup',
+        extensionSeconds: 120,
+      );
       expect(
         NativeTimers.active.value.single['deadline'],
         deadline.millisecondsSinceEpoch,
@@ -165,6 +170,7 @@ void main() {
       await create();
       expect(published, hasLength(1));
       expect(published.single['deadline_ms'], deadline.millisecondsSinceEpoch);
+      expect(published.single['extension_seconds'], 120);
       expect(published.single['revision'], 0);
       expect(published.single['timer_id'], endsWith(':42:step'));
       expect(
@@ -175,6 +181,26 @@ void main() {
       );
     },
   );
+
+  test('extending a shared expired range queues its identity and consumes the remainder', () async {
+    revisions['origin:42:step'] = 3;
+    NativeTimers.active.value = [
+      {
+        'key': 'remote:origin:42:step',
+        'title': 'Soup',
+        'deadline': DateTime.now()
+            .subtract(const Duration(seconds: 1))
+            .millisecondsSinceEpoch,
+        'extension_seconds': 120,
+      },
+    ];
+    await NativeTimers.extend('remote:origin:42:step');
+    await sync.syncNow();
+    expect(published.single['timer_id'], 'origin:42:step');
+    expect(published.single['revision'], 3);
+    expect(published.single['extend'], true);
+    expect(published.single['extension_seconds'], 0);
+  });
 
   test(
     'cancellation of received timer retains its shared identity and revision',

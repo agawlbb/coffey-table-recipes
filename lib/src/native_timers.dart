@@ -31,13 +31,16 @@ class NativeTimers {
   static Future<void> schedule(
     String key,
     DateTime deadline,
-    String title,
-  ) async {
+    String title, {
+    int extensionSeconds = 0,
+    bool extending = false,
+  }) async {
     if (supported) {
       await channel.invokeMethod<void>('schedule', {
         'key': key,
         'deadline': deadline.millisecondsSinceEpoch,
         'title': title,
+        'extension_seconds': extensionSeconds,
       });
       _revision++;
       active.value = [
@@ -46,6 +49,8 @@ class NativeTimers {
           'key': key,
           'deadline': deadline.millisecondsSinceEpoch,
           'title': title,
+          'extending': extending,
+          'extension_seconds': extensionSeconds,
         },
       ];
       try {
@@ -54,6 +59,36 @@ class NativeTimers {
         timerSync.status.value =
             'Timer started locally. Sharing could not be queued.';
       }
+    }
+  }
+
+  static final Set<String> _extending = {};
+
+  static int remainingExtension(Map<String, dynamic> row, {DateTime? now}) {
+    final deadline = row['deadline'] as num?;
+    if (deadline == null ||
+        deadline > (now ?? DateTime.now()).millisecondsSinceEpoch) {
+      return 0;
+    }
+    return (row['extension_seconds'] as num?)?.toInt() ?? 0;
+  }
+
+  static Future<void> extend(String key, {DateTime? now}) async {
+    if (!_extending.add(key)) return;
+    try {
+      final row = active.value.where((r) => r['key'] == key).firstOrNull;
+      final seconds = row == null ? 0 : remainingExtension(row, now: now);
+      if (seconds <= 0) {
+        throw StateError('The remaining time is no longer available.');
+      }
+      await schedule(
+        key,
+        (now ?? DateTime.now()).add(Duration(seconds: seconds)),
+        '${row!['title'] ?? 'Cooking timer'}',
+        extending: true,
+      );
+    } finally {
+      _extending.remove(key);
     }
   }
 

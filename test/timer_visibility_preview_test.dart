@@ -92,6 +92,62 @@ void main() {
     variant: TargetPlatformVariant.only(TargetPlatform.android),
   );
 
+  testWidgets(
+    'expired ranges offer the remainder once and retain it on failure',
+    (tester) async {
+      final rows = <Map<String, dynamic>>[
+        {
+          'key': 'range',
+          'title': 'Soup',
+          'deadline': DateTime.now()
+              .subtract(const Duration(seconds: 1))
+              .millisecondsSinceEpoch,
+          'extension_seconds': 120,
+        },
+      ];
+      var fail = true;
+      final schedules = <Map<String, dynamic>>[];
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(NativeTimers.channel, (call) async {
+            if (call.method == 'list') return rows;
+            if (call.method == 'schedule') {
+              if (fail) throw PlatformException(code: 'permission');
+              final args = Map<String, dynamic>.from(call.arguments as Map);
+              schedules.add(args);
+              rows
+                ..clear()
+                ..add(args);
+            }
+            return null;
+          });
+      await NativeTimers.restore();
+      await tester.pumpWidget(
+        const MaterialApp(home: Scaffold(body: RunningTimersSheet())),
+      );
+      expect(find.text('Add 2 min'), findsOneWidget);
+      await tester.tap(find.text('Add 2 min'));
+      await tester.pump();
+      expect(NativeTimers.active.value.single['extension_seconds'], 120);
+      expect(find.text('Add 2 min'), findsOneWidget);
+      fail = false;
+      await tester.tap(find.text('Add 2 min'));
+      await tester.pump();
+      expect(schedules, hasLength(1));
+      expect(schedules.single['extension_seconds'], 0);
+      expect(
+        (schedules.single['deadline'] as int) -
+            DateTime.now().millisecondsSinceEpoch,
+        closeTo(120000, 1000),
+      );
+      await NativeTimers.restore();
+      expect(NativeTimers.active.value.single['extension_seconds'], 0);
+      expect(find.text('Add 2 min'), findsNothing);
+      await expectLater(NativeTimers.extend('range'), throwsStateError);
+      await tester.pumpWidget(const SizedBox());
+    },
+    variant: TargetPlatformVariant.only(TargetPlatform.android),
+  );
+
   testWidgets('an older restore cannot erase a newly scheduled timer', (
     tester,
   ) async {

@@ -29,3 +29,12 @@ state recovery. Retain these tests when changing the controls. Run the affected
 timer test files for source validation, following the focused-validation rules
 in `AGENTS.md`; builds, device installation and distribution require
 separate explicit authorization.
+
+Recipe timers can store a minimum and maximum. A 3–5 minute timer starts at
+3 minutes. When it expires, **Add 2 min** appears in the app-wide timer bar,
+the timer sheet and the cooking timer dialog. Accepting runs those additional
+2 minutes once; its next expiry has the ordinary stop/change controls. Manual
+changes clear the unused extension. Fixed timers retain their current behavior.
+Android/iOS native storage and account synchronization retain the unused time
+across restarts. Notifications can direct users back to the app; the additional
+time is chosen in the app. See [range implementation and inventory](timer-ranges.md).

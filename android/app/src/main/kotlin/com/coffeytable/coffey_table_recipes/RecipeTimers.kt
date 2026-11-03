@@ -77,7 +77,7 @@ object RecipeTimers {
                     }
                     "list" -> {
                         val all = rows(activity)
-                        result.success(all.keys().asSequence().map { key -> mapOf("key" to key, "deadline" to all.getJSONObject(key).getLong("deadline"), "title" to all.getJSONObject(key).optString("title", "Cooking timer")) }.toList())
+                        result.success(all.keys().asSequence().map { key -> mapOf("key" to key, "deadline" to all.getJSONObject(key).getLong("deadline"), "title" to all.getJSONObject(key).optString("title", "Cooking timer"), "extension_seconds" to all.getJSONObject(key).optInt("extension_seconds", 0)) }.toList())
                     }
                     "schedule" -> {
                         val manager = activity.getSystemService(AlarmManager::class.java)
@@ -93,7 +93,7 @@ object RecipeTimers {
                             require(deadline > System.currentTimeMillis())
                             val all = rows(activity)
                             val previous = all.optJSONObject(key)
-                            all.put(key, JSONObject().put("deadline", deadline).put("title", call.argument<String>("title")).put("tone", tone(activity)))
+                            all.put(key, JSONObject().put("deadline", deadline).put("title", call.argument<String>("title")).put("tone", tone(activity)).put("extension_seconds", call.argument<Number>("extension_seconds")?.toInt() ?: 0))
                             save(activity, all)
                             try { schedule(activity, key, deadline) } catch (e: Exception) {
                                 if (previous == null) all.remove(key) else all.put(key, previous)
@@ -158,7 +158,7 @@ class RecipeTimerService : Service() {
         if (Build.VERSION.SDK_INT >= 26) manager.createNotificationChannel(NotificationChannel("cooking_alarms", "Cooking alarms", NotificationManager.IMPORTANCE_HIGH).apply { setSound(null, null) })
         val stopIntent = PendingIntent.getService(this, 0, Intent(this, RecipeTimerService::class.java).setAction("stop").setData(Uri.parse("recipe-timer://stop/"+Uri.encode(key))).putExtra("key",key), PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
         val builder = if (Build.VERSION.SDK_INT >= 26) Notification.Builder(this,"cooking_alarms") else Notification.Builder(this)
-        val notification = builder.setSmallIcon(android.R.drawable.ic_lock_idle_alarm).setContentTitle(row.optString("title", "Cooking timer")).setContentText("Time is up")
+        val notification = builder.setSmallIcon(android.R.drawable.ic_lock_idle_alarm).setContentTitle(row.optString("title", "Cooking timer")).setContentText(if (row.optInt("extension_seconds", 0) > 0) "Time is up — open to add the remaining time" else "Time is up")
             .setCategory(Notification.CATEGORY_ALARM).setOngoing(true).addAction(Notification.Action.Builder(null, "Stop", stopIntent).build()).build()
         startForeground(8101, notification)
         manager.notify(key,1,notification)

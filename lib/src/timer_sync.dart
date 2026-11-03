@@ -255,6 +255,11 @@ class TimerSync with WidgetsBindingObserver {
     final id = key.startsWith('remote:')
         ? key.substring(7)
         : '$_installation:$key';
+    final local = NativeTimers.active.value
+        .where((row) => row['key'] == key)
+        .firstOrNull;
+    final extending = local?['extending'] == true;
+    final extension = (local?['extension_seconds'] as num?)?.toInt() ?? 0;
     await _storage(() async {
       if (_uid != uid) return;
       final pending = await _outbox(uid);
@@ -263,6 +268,8 @@ class TimerSync with WidgetsBindingObserver {
         'installation_id': _installation,
         'operation_id': randomId(),
         'cancelled': deadline == null,
+        'extension_seconds': extension,
+        if (extending) 'extend': true,
         if (deadline != null) 'deadline_ms': deadline.millisecondsSinceEpoch,
         'title': ?title,
       });
@@ -301,7 +308,8 @@ class TimerSync with WidgetsBindingObserver {
       final operation = pending.first;
       final deadline = operation['deadline_ms'] as int?;
       if (deadline == null ||
-          deadline > DateTime.now().millisecondsSinceEpoch) {
+          deadline > DateTime.now().millisecondsSinceEpoch ||
+          (operation['extension_seconds'] as num? ?? 0) > 0) {
         final revision =
             await NativeTimers.channel.invokeMethod<int>('syncRevision', {
               'timer_id': operation['timer_id'],
