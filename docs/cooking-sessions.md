@@ -134,3 +134,32 @@ restart, and that extending clears it. Companion fixtures verify replay and
 competing-extension rejection. The merge affects bounded timer, recipe import/
 editor and session paths; the earlier full Flutter suite was not repeated.
 Native source was reviewed; no native build or physical-device test was run.
+
+## Signed Android test APK — 2026-11-03
+
+The user explicitly requested deployment of the merged backend if needed and a
+test Android APK. Backend implementation `4d2f1f0` was required and deployed; all
+68 checked hosted source/bin/association/entry/lock files matched. Read-only
+health and invalid-authentication probes passed. Deployment verification is
+recorded in backend task commit `96ba5df`.
+
+[Android test workflow](https://github.com/agawlbb/coffey-table-recipes/actions/runs/41558069132) succeeded on exact app source
+`4ba9b88ec2de9d476f1d35b6db1688677ff18503`. Existing test-build mode produced package
+`com.coffeytable.coffey_table_recipes`, version `2.6.0-account-test`, build **53**.
+Android release/native compilation, original signing identity, non-debuggable
+status, required timer-preference JNI classes and hosted app links passed CI.
+Independent local `apksigner`, `aapt`, checksum and actual-certificate app-link
+checks also passed.
+
+- Delivered filename: `CoffeyTableRecipes-2.6.0-cooking-sessions-test-build53.apk`.
+- APK SHA-256: `ba0586034122942d46d3edab7c360046f93e4f1921bfc9912de8354f88942946`.
+- Certificate SHA-256: `f8de933f14b9bb4b3191a94aedc8637972c5ab224565f6abd7808f8038d12097`.
+- [Verified Drive test APK](https://drive.google.com/file/d/1sEgy2EKjNnVDmDn6S79UrXiGVg6H0MIO/view). Uploaded bytes were downloaded and
+  their SHA-256 matched. All existing Drive packages were retained; no release
+  announcement was sent and sharing settings were unchanged.
+
+The usual private recipe-app folder was used; no APK or update metadata was
+publicly hosted on the VPS. No release tag, main integration, iOS/web build or
+hosted Flutter deployment was performed. The source version was not changed;
+the workflow supplied the test version/build override. Physical-device and
+multi-device background alarm behavior remain for testing with this APK.
