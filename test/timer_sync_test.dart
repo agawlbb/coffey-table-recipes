@@ -232,6 +232,41 @@ void main() {
       expect(state['timers'][0]['extension_seconds'], 0);
     },
   );
+  test('native notification actions are durable, idempotent and account/device scoped', () async {
+    final operation = {
+      'account_uid': null,
+      'installation_id': sync.installation,
+      'session_id': state['id'],
+      'operation_id': 'eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee',
+      'body': {
+        'action_id': '2',
+        'cancelled': true,
+        'revision': 0,
+        'extension_seconds': 0,
+        'expected_deadline_ms': 1800000000000,
+      },
+    };
+    offline = true;
+    await sync.importNativeActions([
+      {...operation, 'account_uid': 'another-user'},
+      {...operation, 'installation_id': 'another-device'},
+    ]);
+    expect(sync.timers('${state['id']}'), isEmpty);
+    await sync.importNativeActions([operation, operation]);
+    expect(sync.timers('${state['id']}').single['cancelled'], isTrue);
+    sync.dispose();
+    sync = CookingSessions(
+      request: request,
+      installation: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+    );
+    await sync.start();
+    offline = false;
+    await sync.refresh();
+    expect(writes, hasLength(1));
+    expect(writes.single['operation_id'], operation['operation_id']);
+    expect(writes.single['expected_deadline_ms'], 1800000000000);
+    expect(state['timers'][0]['extension_seconds'], 0);
+  });
   test('ending removes session and carries cancellation state', () async {
     await sync.end('${state['id']}');
     expect(sync.sessions, isEmpty);

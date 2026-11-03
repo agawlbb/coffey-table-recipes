@@ -49,6 +49,7 @@ object TimerSyncNative {
         val uid = args["account_uid"] as String
         val receive = args["receive_timers"] as Boolean
         val switched = p.getString("uid", "") != uid
+        TimerActions.configure(c, uid)
         if (args["guard_only"] == true && !switched) return
         val revisions = JSONObject(p.getString("revisions", "{}")!!)
         val sessions = if (args.containsKey("session_ids")) (args["session_ids"] as List<*>).filterIsInstance<String>().toSet() else if (switched) emptySet<String>() else p.getStringSet("sessions", emptySet())!!

@@ -130,7 +130,11 @@ class CookingSessions extends ChangeNotifier with WidgetsBindingObserver {
     NativeTimers.onLocalChange = timerChanged;
     if (NativeTimers.supported) {
       NativeTimers.channel.setMethodCallHandler((call) async {
-        if (call.method == 'changed') await NativeTimers.restore();
+        if (call.method == 'changed') {
+          await _readNativeActions();
+          await NativeTimers.restore();
+          unawaited(refresh());
+        }
         if (call.method == 'tokenChanged') await refresh();
       });
     }
@@ -333,10 +337,50 @@ class CookingSessions extends ChangeNotifier with WidgetsBindingObserver {
     await NativeTimers.restore();
   }
 
+  Future<void> importNativeActions(List<Map<String, dynamic>> actions) async {
+    final generation = _generation;
+    var changed = false;
+    for (final action in actions) {
+      if (action['account_uid'] != _uid ||
+          action['installation_id'] != installation) {
+        continue;
+      }
+      if (_outbox.any((o) => o['operation_id'] == action['operation_id'])) {
+        continue;
+      }
+      _outbox.add({
+        'session_id': action['session_id'],
+        'operation_id': action['operation_id'],
+        'body': Map<String, dynamic>.from(action['body'] as Map),
+      });
+      changed = true;
+    }
+    if (changed) {
+      await _saveOutbox(_uid);
+      if (generation == _generation) notifyListeners();
+    }
+  }
+
+  Future<void> _readNativeActions() async {
+    if (!NativeTimers.supported || _testRequest != null || _uid == null) return;
+    final generation = _generation;
+    final rows =
+        await NativeTimers.channel.invokeListMethod<dynamic>(
+          'pendingActions',
+        ) ??
+        [];
+    if (generation != _generation) return;
+    await importNativeActions(
+      rows.map((r) => Map<String, dynamic>.from(r as Map)).toList(),
+    );
+    await NativeTimers.channel.invokeMethod<void>('syncActions');
+  }
+
   Future<void> refresh() async {
     if (!available) return;
     final generation = _generation;
     try {
+      await _readNativeActions();
       final data = await _request('/me/cooking-sessions');
       if (generation != _generation) return;
       await accept(data);
@@ -552,6 +596,12 @@ class CookingSessions extends ChangeNotifier with WidgetsBindingObserver {
         if (generation != _generation) return;
         _outbox.remove(op);
         await _saveOutbox(uid);
+        if (NativeTimers.supported && _testRequest == null) {
+          await NativeTimers.channel.invokeMethod<void>('acknowledgeAction', {
+            'account_uid': uid,
+            'operation_id': op['operation_id'],
+          });
+        }
         if (generation == _generation) {
           await accept({'sessions': List<Map<String, dynamic>>.from(sessions)});
         }

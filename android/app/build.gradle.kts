@@ -70,4 +70,6 @@ flutter {
 dependencies {
     implementation(platform("com.google.firebase:firebase-bom:34.19.0"))
     implementation("com.google.firebase:firebase-messaging")
+    implementation("com.google.firebase:firebase-auth")
+    implementation("com.squareup.okhttp3:okhttp:4.12.0")
 }

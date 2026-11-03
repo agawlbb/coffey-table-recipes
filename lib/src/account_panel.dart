@@ -1348,7 +1348,6 @@ class _HouseholdPanelState extends State<HouseholdPanel>
                     leading: Icon(Icons.local_dining_outlined),
                     title: Text('Coffey Table'),
                   ),
-                  CookingSessionMenu(menuBuilder: _buildMenu),
                   const Divider(),
                   ListTile(
                     leading: const Icon(Icons.menu_book_outlined),
@@ -1414,6 +1413,7 @@ class _HouseholdPanelState extends State<HouseholdPanel>
                         _openAdministration();
                       },
                     ),
+                  CookingSessionMenu(menuBuilder: _buildMenu),
                 ],
               ),
             ),

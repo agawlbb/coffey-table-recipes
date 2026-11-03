@@ -1,3 +1,6 @@
+import 'package:coffey_table_recipes/src/api.dart';
+import 'package:shared_preferences_platform_interface/in_memory_shared_preferences_async.dart';
+import 'package:shared_preferences_platform_interface/shared_preferences_async_platform_interface.dart';
 import 'package:wakelock_plus/wakelock_plus.dart';
 import 'package:coffey_table_recipes/src/cooking_mode.dart';
 import 'package:coffey_table_recipes/src/cooking_session_ui.dart';
@@ -60,6 +63,7 @@ void main() {
       await tester.longPress(find.text('Soup'));
       await tester.pumpAndSettle();
       expect(find.text('Alex'), findsOneWidget);
+      expect(find.text('Share with'), findsOneWidget);
       expect(find.text('Share'), findsNothing);
       await tester.tap(find.text('Alex'));
       await tester.pumpAndSettle();
@@ -184,6 +188,72 @@ void main() {
       await tester.tap(find.byTooltip('Open navigation menu'));
       await tester.pumpAndSettle();
       expect(find.text('Cooking sessions'), findsOneWidget);
+      await tester.pumpWidget(const SizedBox());
+      await tester.pumpAndSettle();
+    },
+  );
+  testWidgets(
+    'notification Stop clears expired cooking control and stale snapshots cannot restore it',
+    (tester) async {
+      SharedPreferencesAsyncPlatform.instance =
+          InMemorySharedPreferencesAsync.empty();
+      final state = cookingFixture();
+      final deadline = DateTime.now()
+          .subtract(const Duration(seconds: 1))
+          .millisecondsSinceEpoch;
+      state['timers'] = [
+        {
+          'action_id': '2',
+          'deadline_ms': deadline,
+          'cancelled': false,
+          'extension_seconds': 120,
+          'revision': 1,
+        },
+      ];
+      final service = CookingSessions(
+        installation: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+        request: (path, {body}) async {
+          throw ApiException(503, 'Offline');
+        },
+      );
+      addTearDown(service.dispose);
+      await service.accept({
+        'sessions': [state],
+      });
+      await tester.pumpWidget(
+        MaterialApp(
+          home: CookingMode(
+            recipe: Map<String, dynamic>.from(state['recipe'] as Map),
+            sessionId: '${state['id']}',
+            sessions: service,
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(find.textContaining('Time is up'), findsOneWidget);
+      await service.importNativeActions([
+        {
+          'account_uid': null,
+          'installation_id': service.installation,
+          'session_id': state['id'],
+          'operation_id': 'ffffffffffffffffffffffffffffffff',
+          'body': {
+            'action_id': '2',
+            'cancelled': true,
+            'revision': 1,
+            'extension_seconds': 0,
+            'expected_deadline_ms': deadline,
+          },
+        },
+      ]);
+      await tester.pump();
+      expect(find.textContaining('Time is up'), findsNothing);
+      expect(find.text('Simmer · 1 min'), findsOneWidget);
+      await service.accept({
+        'sessions': [state],
+      });
+      await tester.pump();
+      expect(find.textContaining('Time is up'), findsNothing);
       await tester.pumpWidget(const SizedBox());
       await tester.pumpAndSettle();
     },

@@ -288,7 +288,11 @@ class _CookingModeState extends State<CookingMode>
   }
 
   void _nativeTimersChanged() {
-    if (!mounted || widget.sessionId != null) return;
+    if (!mounted) return;
+    if (widget.sessionId != null) {
+      _sessionChanged();
+      return;
+    }
     final prefix = '${widget.recipe['id']}:';
     setState(() {
       _timers.clear();

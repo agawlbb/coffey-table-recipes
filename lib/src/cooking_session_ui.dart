@@ -146,6 +146,7 @@ class CookingSessionMenu extends StatelessWidget {
         builder: (sheet) => ListView(
           shrinkWrap: true,
           children: [
+            const ListTile(title: Text('Share with')),
             if (people.isEmpty)
               const ListTile(title: Text('No other household members')),
             for (final person in people)
