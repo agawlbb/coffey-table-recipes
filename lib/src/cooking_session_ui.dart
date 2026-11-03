@@ -8,6 +8,7 @@ import 'cooking_mode.dart';
 import 'cooking_sessions.dart';
 
 WidgetBuilder? cookingMenuBuilder;
+VoidCallback? cookingRecipeBrowser;
 
 void cookingError(BuildContext context, Object error) {
   if (!context.mounted) return;

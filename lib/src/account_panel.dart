@@ -504,6 +504,7 @@ class _HouseholdPanelState extends State<HouseholdPanel>
     sharedRecipeInbox.removeListener(_sharedRecipeChanged);
     cookingSessions.removeListener(_cookingChanged);
     cookingMenuBuilder = null;
+    cookingRecipeBrowser = null;
     connectedHouseholds.value = {};
     _mirrorTimer?.cancel();
     for (final socket in _shoppingSockets.values) {
@@ -1326,6 +1327,19 @@ class _HouseholdPanelState extends State<HouseholdPanel>
     navigator.popUntil((route) => route.isFirst);
   }
 
+  void _openRecipeBrowser() {
+    if (!mounted) return;
+    mealPlanNotices.dismiss();
+    Navigator.of(context).popUntil((route) => route.isFirst);
+    setState(() {
+      _settings = false;
+      _shopping = false;
+      _planning = false;
+      _recipeRefresh++;
+      _rememberSection('recipes');
+    });
+  }
+
   void _openMealPlan() {
     _rememberSection('planner');
     mealPlanNotices.dismiss();
@@ -1341,6 +1355,7 @@ class _HouseholdPanelState extends State<HouseholdPanel>
   Widget _buildMenu(BuildContext menuContext) {
     final selected = _households.where((h) => h['id'] == _selected).firstOrNull;
     cookingMenuBuilder = _buildMenu;
+    cookingRecipeBrowser = _openRecipeBrowser;
     return Drawer(
       child: SafeArea(
         child: Column(

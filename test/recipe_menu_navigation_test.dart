@@ -13,7 +13,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'home_design_test.dart' show TestUser;
 
 void main() {
-  for (final destination in ['browser', 'detail', 'cooking']) {
+  for (final destination in ['browser', 'detail', 'cooking', 'ended cooking']) {
     testWidgets(
       'Recipes from $destination returns to root and clears every filter',
       (tester) async {
@@ -118,7 +118,7 @@ void main() {
           await tester.pump();
           expect(find.byIcon(Icons.cloud_done), findsNothing);
           expect(find.byTooltip('Open navigation menu'), findsOneWidget);
-          if (destination == 'cooking') {
+          if (destination == 'cooking' || destination == 'ended cooking') {
             await tester.tap(find.text('Start cooking'));
             await tester.pumpAndSettle();
             expect(find.byType(CookingMode), findsOneWidget);
@@ -127,6 +127,24 @@ void main() {
         }
         await tester.tap(find.byTooltip('Open navigation menu'));
         await tester.pumpAndSettle();
+        if (destination == 'ended cooking') {
+          await sessions.accept({'sessions': []});
+          await tester.pumpAndSettle();
+          expect(find.byType(CookingMode), findsNothing);
+          expect(find.byType(RecipeDetail), findsNothing);
+          expect(find.byType(RecipeBrowser), findsOneWidget);
+          expect(
+            find.widgetWithText(ListTile, 'Cooking sessions'),
+            findsNothing,
+          );
+          expect(
+            Navigator.of(tester.element(find.byType(RecipeBrowser))).canPop(),
+            false,
+          );
+          await tester.pumpWidget(const SizedBox());
+          await tester.pumpAndSettle();
+          return;
+        }
         await tester.tap(find.widgetWithText(ListTile, 'Settings'));
         await tester.pumpAndSettle();
         expect(find.text('Shopping list departments'), findsOneWidget);

@@ -20,6 +20,120 @@ class _WakeRecorder extends WakelockPlusMacOSPlugin {
 }
 
 void main() {
+  for (final ending in ['local', 'remote', 'expiry']) {
+    testWidgets(
+      '$ending end returns to browser through recipe and timer dialog',
+      (tester) async {
+        final state = cookingFixture();
+        final service = CookingSessions(
+          installation: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+          request: (path, {body}) async => {
+            'session': {...state, 'ended_at': path.endsWith('/end') ? 1 : null},
+          },
+        );
+        addTearDown(service.dispose);
+        final navigator = GlobalKey<NavigatorState>();
+        await service.accept({
+          'sessions': [state],
+        });
+        await tester.pumpWidget(
+          MaterialApp(
+            navigatorKey: navigator,
+            navigatorObservers: [cookingRouteObserver],
+            home: const Scaffold(body: Text('Recipe browser')),
+          ),
+        );
+        navigator.currentState!.push(
+          MaterialPageRoute<void>(
+            builder: (_) => const Scaffold(body: Text('Recipe viewer')),
+          ),
+        );
+        await tester.pumpAndSettle();
+        navigator.currentState!.push(
+          MaterialPageRoute<void>(
+            builder: (_) => CookingMode(
+              recipe: Map<String, dynamic>.from(state['recipe'] as Map),
+              sessionId: '${state['id']}',
+              sessions: service,
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+        if (ending != 'local') {
+          final context = tester.element(find.byType(CookingMode));
+          showDialog<void>(
+            context: context,
+            builder: (_) => const AlertDialog(title: Text('Timer dialog')),
+          );
+          await tester.pumpAndSettle();
+        }
+        if (ending == 'local') {
+          await tester.ensureVisible(find.text('End cooking session'));
+          await tester.tap(find.text('End cooking session'));
+        } else {
+          await service.accept({
+            'sessions': [],
+            if (ending == 'expiry')
+              'ended_sessions': [
+                {...state, 'ended_at': 1},
+              ],
+          });
+        }
+        await tester.pumpAndSettle();
+        expect(find.text('Recipe browser'), findsOneWidget);
+        expect(find.byType(CookingMode), findsNothing);
+        expect(find.text('Recipe viewer'), findsNothing);
+        expect(find.text('Timer dialog'), findsNothing);
+        expect(navigator.currentState!.canPop(), false);
+        await tester.pumpWidget(const SizedBox());
+      },
+    );
+  }
+
+  testWidgets('ending a covered cooking session preserves the active screen', (
+    tester,
+  ) async {
+    final state = cookingFixture();
+    final service = CookingSessions(
+      request: (path, {body}) async => {'session': state},
+    );
+    addTearDown(service.dispose);
+    await service.accept({
+      'sessions': [state],
+    });
+    final navigator = GlobalKey<NavigatorState>();
+    await tester.pumpWidget(
+      MaterialApp(
+        navigatorKey: navigator,
+        navigatorObservers: [cookingRouteObserver],
+        home: const Scaffold(body: Text('Recipe browser')),
+      ),
+    );
+    navigator.currentState!.push(
+      MaterialPageRoute<void>(
+        builder: (_) => CookingMode(
+          recipe: Map<String, dynamic>.from(state['recipe'] as Map),
+          sessionId: '${state['id']}',
+          sessions: service,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    navigator.currentState!.push(
+      MaterialPageRoute<void>(
+        builder: (_) => const Scaffold(body: Text('Another dish')),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await service.accept({'sessions': []});
+    await tester.pumpAndSettle();
+    expect(find.text('Another dish'), findsOneWidget);
+    navigator.currentState!.pop();
+    await tester.pumpAndSettle();
+    expect(find.text('Recipe browser'), findsOneWidget);
+    expect(find.byType(CookingMode), findsNothing);
+    await tester.pumpWidget(const SizedBox());
+  });
   for (final scenario in [
     (count: 0, timer: 'none', confirms: false),
     (count: 2, timer: 'none', confirms: false),

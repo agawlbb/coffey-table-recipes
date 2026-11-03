@@ -55,13 +55,20 @@ class _CookingModeState extends State<CookingMode>
       _closing = true;
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted && _route != null) {
-          if (_route!.isCurrent) {
-            Navigator.maybePop(context);
+          if (_routeVisible) {
+            final openBrowser = cookingRecipeBrowser;
+            if (openBrowser != null) {
+              openBrowser();
+            } else {
+              Navigator.of(context).popUntil((route) => route.isFirst);
+            }
           } else {
             Navigator.of(context).removeRoute(_route!);
           }
         }
       });
+      // Session notifications can arrive with no animation or pending frame.
+      WidgetsBinding.instance.ensureVisualUpdate();
       return;
     }
     setState(() {

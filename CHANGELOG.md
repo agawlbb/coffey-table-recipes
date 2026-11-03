@@ -2,6 +2,16 @@
 
 Release dates and changes are reconstructed from annotated Git tags, commit history, and project release records. Versions before 1.0 are demonstration releases; 1.0 marks the first usable release. Android retains the existing signing identity; iOS delivery and signing are recorded for each release.
 
+## 2.7.1 — 2026-11-03
+
+Build 56; tag `v2.7.1`.
+
+- Return to the recipe browser when the displayed cooking session ends locally, remotely or through expiry, removing the ended screen and its overlays.
+- Keep the recipe title and screen-awake control above the cooking progress line while steps scroll below; show the existing connection icon on recipe and cooking screens.
+- Close the timer sheet after Stop succeeds, including when other timers remain.
+- Delete shopping-item photos from the photo viewer while preserving the shopping item and syncing the change.
+- End cooking sessions by swiping their menu entries, with confirmation for partial progress or timers and a timer-cancellation warning. Allow accessible sessions to be ended without joining that device.
+
 ## 2.7.0 — 2026-11-03
 
 Build 54; tag `v2.7.0`.

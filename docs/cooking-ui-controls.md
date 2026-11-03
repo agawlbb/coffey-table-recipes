@@ -69,3 +69,17 @@ timer-preference JNI checks and hosted app links. Independent `apksigner`,
 The source version is unchanged; the existing workflow supplied the test
 version/build override. No release tag, main integration, web deployment or
 iOS build was performed. Physical-device checks remain for this test package.
+
+## Accepted completion and 2.7.1 preparation — 2026-11-03
+
+The user accepted this work and requested main integration, temporary-worktree
+cleanup and a three-platform release. Version 2.7.1/build 56 includes the controls
+above and a correction for ending the displayed session: clear the cooking,
+recipe-detail and overlay routes, select Recipes and show the recipe browser.
+Ending a covered session removes that route without interrupting the active
+screen. Ensure a frame is scheduled even when only session data changed.
+
+Full analysis passed. The 20 focused cooking-session/navigation tests passed,
+including local end, remote end, expiry, a timer dialog, an open drawer on the
+real account screen, and ending a covered session. The full release suite and
+platform delivery evidence are recorded separately after completion.
