@@ -1,4 +1,9 @@
-# Account timer mirroring
+# Historical account timer mirroring
+
+This document records the retired account-wide timer-sharing implementation and
+its release evidence. Cooking sessions replace that flow; see
+[cooking-sessions.md](cooking-sessions.md) for current behavior.
+
 
 Timer settings has a per-installation, per-account **Receive timers from other
 devices** switch, off by default. Sign-in and notification/alarm permissions are

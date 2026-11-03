@@ -1,3 +1,5 @@
+import 'cooking_sessions.dart';
+import 'cooking_session_ui.dart';
 import 'child_mode.dart';
 
 import 'dart:async';
@@ -19,16 +21,187 @@ class CookingMode extends StatefulWidget {
     required this.recipe,
     this.now = DateTime.now,
     this.menuBuilder,
+    this.sessionId,
+    this.sessions,
   });
   final Map<String, dynamic> recipe;
   final WidgetBuilder? menuBuilder;
+  final String? sessionId;
+  final CookingSessions? sessions;
   final DateTime Function() now;
   @override
   State<CookingMode> createState() => _CookingModeState();
 }
 
-class _CookingModeState extends State<CookingMode> with WidgetsBindingObserver {
+class _CookingModeState extends State<CookingMode>
+    with WidgetsBindingObserver, RouteAware {
+  static _CookingModeState? _wakeOwner;
   final Set<String> _completed = {};
+  final Map<String, GlobalKey> _stepKeys = {};
+  CookingSessions get _sessions => widget.sessions ?? cookingSessions;
+  PageRoute<dynamic>? _route;
+  bool _positioned = false,
+      _routeVisible = true,
+      _stepBusy = false,
+      _closing = false;
+  Map<String, dynamic>? get _session =>
+      widget.sessionId == null ? null : _sessions.session(widget.sessionId!);
+  void _sessionChanged() {
+    if (!mounted || widget.sessionId == null) return;
+    final s = _session;
+    if (s == null) {
+      if (_closing) return;
+      _closing = true;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted && _route != null) {
+          if (_route!.isCurrent) {
+            Navigator.maybePop(context);
+          } else {
+            Navigator.of(context).removeRoute(_route!);
+          }
+        }
+      });
+      return;
+    }
+    setState(() {
+      _completed
+        ..clear()
+        ..addAll((s['completed'] as List? ?? []).map((e) => '$e'));
+      _timers.clear();
+      for (final timer in _sessions.timers(widget.sessionId!)) {
+        if (timer['cancelled'] != true) {
+          _timers['${timer['action_id']}'] = widget.now().add(
+            Duration(
+              milliseconds:
+                  (timer['deadline_ms'] as num).toInt() -
+                  _sessions.now.millisecondsSinceEpoch,
+            ),
+          );
+        }
+      }
+    });
+    _tick();
+    if (!_positioned) {
+      _positioned = true;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        final first = _rows('steps')
+            .where((s) => !_completed.contains('${s['id']}'))
+            .firstOrNull;
+        final target = first == null
+            ? _endKey.currentContext
+            : _stepKeys['${first['id']}']?.currentContext;
+        if (target != null) Scrollable.ensureVisible(target, alignment: 0);
+      });
+    }
+  }
+
+  final _endKey = GlobalKey();
+  void _presence(bool open) {
+    if (widget.sessionId != null) {
+      unawaited(
+        _sessions.presence(widget.sessionId!, open).catchError((Object _) {}),
+      );
+    }
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final route = ModalRoute.of(context);
+    if (route is PageRoute && route != _route) {
+      cookingRouteObserver.unsubscribe(this);
+      _route = route;
+      cookingRouteObserver.subscribe(this, route);
+    }
+  }
+
+  @override
+  void didPush() {
+    _routeVisible = true;
+    _presence(true);
+  }
+
+  @override
+  void didPopNext() {
+    _routeVisible = true;
+    _presence(true);
+    _syncWake();
+  }
+
+  @override
+  void didPushNext() {
+    _routeVisible = false;
+    _presence(false);
+    _syncWake();
+  }
+
+  @override
+  void didPop() {
+    _routeVisible = false;
+    _presence(false);
+  }
+
+  Future<void> _check(String step, bool checked) async {
+    if (_stepBusy) return;
+    if (widget.sessionId == null) {
+      setState(() {
+        if (checked) {
+          _completed.add(step);
+        } else {
+          _completed.remove(step);
+        }
+      });
+      return;
+    }
+    _stepBusy = true;
+    try {
+      await _sessions.check(widget.sessionId!, step, checked);
+    } catch (e) {
+      if (mounted) cookingError(context, e);
+      await _sessions.refresh();
+    } finally {
+      _stepBusy = false;
+    }
+  }
+
+  Future<void> _end() async {
+    if (widget.sessionId == null) {
+      Navigator.pop(context);
+      return;
+    }
+    if (_sessions
+        .timers(widget.sessionId!)
+        .any(
+          (t) =>
+              t['cancelled'] != true &&
+              (t['deadline_ms'] as num) > _sessions.now.millisecondsSinceEpoch,
+        )) {
+      final confirmed = await showDialog<bool>(
+        context: context,
+        builder: (dialog) => AlertDialog(
+          title: const Text('End session and cancel timers?'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialog, false),
+              child: const Text('Keep cooking'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(dialog, true),
+              child: const Text('End session'),
+            ),
+          ],
+        ),
+      );
+      if (confirmed != true || !mounted) return;
+    }
+    try {
+      await _sessions.end(widget.sessionId!);
+    } catch (e) {
+      if (mounted) cookingError(context, e);
+    }
+  }
+
   final Map<String, DateTime> _timers = {};
   Timer? _ticker;
   bool _keepAwake = true;
@@ -46,12 +219,24 @@ class _CookingModeState extends State<CookingMode> with WidgetsBindingObserver {
       NativeTimers.active.addListener(_nativeTimersChanged);
     }
     _syncWake();
-    _restoreTimers();
+    if (widget.sessionId != null) {
+      _sessions.addListener(_sessionChanged);
+      _sessionChanged();
+    } else {
+      _restoreTimers();
+    }
   }
 
   void _syncWake() {
     _wakeQueue = _wakeQueue.then((_) async {
-      final enable = mounted && _keepAwake && _foreground;
+      final enable = mounted && _keepAwake && _foreground && _routeVisible;
+      if (enable) {
+        _wakeOwner = this;
+      } else if (_wakeOwner != this) {
+        return;
+      } else {
+        _wakeOwner = null;
+      }
       try {
         await WakelockPlus.toggle(enable: enable);
       } catch (_) {
@@ -63,17 +248,26 @@ class _CookingModeState extends State<CookingMode> with WidgetsBindingObserver {
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     _foreground = state == AppLifecycleState.resumed;
-    if (_foreground) _restoreTimers();
+    if (_foreground && widget.sessionId == null) _restoreTimers();
     _syncWake();
   }
 
   @override
   void dispose() {
+    cookingRouteObserver.unsubscribe(this);
+    _sessions.removeListener(_sessionChanged);
     WidgetsBinding.instance.removeObserver(this);
     NativeTimers.active.removeListener(_nativeTimersChanged);
     _ticker?.cancel();
     // Queue release after any in-flight enable request.
-    _wakeQueue.then((_) => WakelockPlus.disable()).catchError((Object _) {});
+    _wakeQueue
+        .then((_) async {
+          if (_wakeOwner == this) {
+            _wakeOwner = null;
+            await WakelockPlus.disable();
+          }
+        })
+        .catchError((Object _) {});
     super.dispose();
   }
 
@@ -84,7 +278,9 @@ class _CookingModeState extends State<CookingMode> with WidgetsBindingObserver {
     return formatRecipeTime(seconds, clock: true);
   }
 
-  String _timerKey(String id) => '${widget.recipe['id']}:$id';
+  String _timerKey(String id) => widget.sessionId == null
+      ? '${widget.recipe['id']}:$id'
+      : 'remote:session:${widget.sessionId}:$id';
   void _tick() {
     _ticker ??= Timer.periodic(const Duration(seconds: 1), (_) {
       if (mounted && _timers.isNotEmpty) setState(() {});
@@ -92,7 +288,7 @@ class _CookingModeState extends State<CookingMode> with WidgetsBindingObserver {
   }
 
   void _nativeTimersChanged() {
-    if (!mounted) return;
+    if (!mounted || widget.sessionId != null) return;
     final prefix = '${widget.recipe['id']}:';
     setState(() {
       _timers.clear();
@@ -163,7 +359,19 @@ class _CookingModeState extends State<CookingMode> with WidgetsBindingObserver {
         );
         if (!mounted || action == null) return;
         if (action == 'cancel') {
-          await NativeTimers.cancel(_timerKey(id));
+          if (widget.sessionId != null && !NativeTimers.supported) {
+            await _sessions.change(widget.sessionId!, 'timer', {
+              'action_id': id,
+              'cancelled': true,
+              'revision':
+                  (_session?['timers'] as List? ?? [])
+                      .where((t) => '${t['action_id']}' == id)
+                      .firstOrNull?['revision'] ??
+                  0,
+            });
+          } else {
+            await NativeTimers.cancel(_timerKey(id));
+          }
           if (mounted) setState(() => _timers.remove(id));
           return;
         }
@@ -209,11 +417,26 @@ class _CookingModeState extends State<CookingMode> with WidgetsBindingObserver {
       final actionLabel = _rows('actions')
           .where((action) => '${action['id']}' == id)
           .firstOrNull?['label'];
-      await NativeTimers.schedule(
-        _timerKey(id),
-        deadline,
-        '${widget.recipe['title'] ?? 'Cooking timer'}${actionLabel == null ? '' : ' · $actionLabel'}',
-      );
+      if (widget.sessionId != null && !NativeTimers.supported) {
+        await _sessions.change(widget.sessionId!, 'timer', {
+          'action_id': id,
+          'cancelled': false,
+          'deadline_ms': _sessions.now
+              .add(Duration(seconds: seconds))
+              .millisecondsSinceEpoch,
+          'revision':
+              (_session?['timers'] as List? ?? [])
+                  .where((t) => '${t['action_id']}' == id)
+                  .firstOrNull?['revision'] ??
+              0,
+        });
+      } else {
+        await NativeTimers.schedule(
+          _timerKey(id),
+          deadline,
+          '${widget.recipe['title'] ?? 'Cooking timer'}${actionLabel == null ? '' : ' · $actionLabel'}',
+        );
+      }
       if (mounted) setState(() => _timers[id] = deadline);
       _tick();
     } catch (error) {
@@ -305,11 +528,15 @@ class _CookingModeState extends State<CookingMode> with WidgetsBindingObserver {
     final steps = _rows('steps');
     final actions = _rows('actions');
     return Scaffold(
-      drawer: widget.menuBuilder?.call(context),
+      drawer: (widget.menuBuilder ?? cookingMenuBuilder)?.call(context),
       appBar: AppBar(
         title: const Text('Cooking mode'),
-        leadingWidth: widget.menuBuilder == null ? null : 96,
-        leading: widget.menuBuilder == null ? null : const RecipeMenuLeading(),
+        leadingWidth: (widget.menuBuilder ?? cookingMenuBuilder) == null
+            ? null
+            : 96,
+        leading: (widget.menuBuilder ?? cookingMenuBuilder) == null
+            ? null
+            : const RecipeMenuLeading(),
       ),
       bottomNavigationBar: SafeArea(
         child: Padding(
@@ -324,103 +551,110 @@ class _CookingModeState extends State<CookingMode> with WidgetsBindingObserver {
       body: Center(
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 850),
-          child: ListView(
+          child: SingleChildScrollView(
             padding: const EdgeInsets.all(24),
-            children: [
-              Text(
-                widget.recipe['title'] as String,
-                style: Theme.of(context).textTheme.headlineMedium,
-              ),
-              const SizedBox(height: 12),
-              Text('${_completed.length} of ${steps.length} steps completed'),
-              const SizedBox(height: 8),
-              LinearProgressIndicator(
-                value: steps.isEmpty ? 0 : _completed.length / steps.length,
-              ),
-              SwitchListTile(
-                contentPadding: EdgeInsets.zero,
-                title: const Text('Keep screen awake'),
-                value: _keepAwake,
-                onChanged: (value) {
-                  setState(() {
-                    _keepAwake = value;
-                  });
-                  _syncWake();
-                },
-              ),
-              const SizedBox(height: 16),
-              for (final step in steps)
-                Card(
-                  child: Padding(
-                    padding: const EdgeInsets.all(20),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        CheckboxListTile(
-                          contentPadding: EdgeInsets.zero,
-                          controlAffinity: ListTileControlAffinity.leading,
-                          title: Text(
-                            'Step ${step['position']}${step['section_title']?.toString().trim().isNotEmpty == true ? ' · ${step['section_title']}' : ''}',
-                            style: Theme.of(context).textTheme.titleLarge,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Text(
+                  widget.recipe['title'] as String,
+                  style: Theme.of(context).textTheme.headlineMedium,
+                ),
+                const SizedBox(height: 12),
+                Text('${_completed.length} of ${steps.length} steps completed'),
+                const SizedBox(height: 8),
+                LinearProgressIndicator(
+                  value: steps.isEmpty ? 0 : _completed.length / steps.length,
+                ),
+                SwitchListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: const Text('Keep screen awake'),
+                  value: _keepAwake,
+                  onChanged: (value) {
+                    setState(() {
+                      _keepAwake = value;
+                    });
+                    _syncWake();
+                  },
+                ),
+                const SizedBox(height: 16),
+                for (final step in steps)
+                  Card(
+                    key: _stepKeys.putIfAbsent(
+                      '${step['id']}',
+                      () => GlobalKey(),
+                    ),
+                    child: Padding(
+                      padding: const EdgeInsets.all(20),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          CheckboxListTile(
+                            contentPadding: EdgeInsets.zero,
+                            controlAffinity: ListTileControlAffinity.leading,
+                            title: Text(
+                              'Step ${step['position']}${step['section_title']?.toString().trim().isNotEmpty == true ? ' · ${step['section_title']}' : ''}',
+                              style: Theme.of(context).textTheme.titleLarge,
+                            ),
+                            value: _completed.contains('${step['id']}'),
+                            onChanged: (value) =>
+                                _check('${step['id']}', value == true),
                           ),
-                          value: _completed.contains('${step['id']}'),
-                          onChanged: (value) => setState(() {
-                            if (value == true) {
-                              _completed.add('${step['id']}');
-                            } else {
-                              _completed.remove('${step['id']}');
-                            }
-                          }),
-                        ),
-                        Text(
-                          step['instruction'] as String,
-                          style: const TextStyle(fontSize: 22, height: 1.6),
-                        ),
-                        for (final action in actions.where(
-                          (a) => a['step_id'] == step['id'],
-                        ))
-                          Padding(
-                            padding: const EdgeInsets.only(top: 16),
-                            child:
-                                action['duration_seconds'] != null &&
-                                    (action['duration_seconds'] as num) > 0
-                                ? OutlinedButton.icon(
-                                    onPressed: () => _timer(
-                                      '${action['id']}',
-                                      (action['duration_seconds'] as num)
-                                          .toInt(),
-                                    ),
-                                    icon: const Icon(Icons.timer_outlined),
-                                    label: Text(
-                                      _timers.containsKey('${action['id']}')
-                                          ? '${_remaining(_timers['${action['id']}']!)} · Cancel'
-                                          : '${action['label'] ?? 'Start timer'} · ${formatRecipeTime(action['duration_seconds'])}',
-                                    ),
-                                  )
-                                : Text(
-                                    '${action['label'] ?? 'Target'}${action['temperature_value'] != null ? ': ${recipeValue(action['temperature_value'])}°${action['temperature_unit']}' : ''}',
-                                    style: Theme.of(context)
-                                        .textTheme
-                                        .titleMedium,
-                                  ),
+                          Text(
+                            step['instruction'] as String,
+                            style: const TextStyle(fontSize: 22, height: 1.6),
                           ),
-                      ],
+                          for (final action in actions.where(
+                            (a) => a['step_id'] == step['id'],
+                          ))
+                            Padding(
+                              padding: const EdgeInsets.only(top: 16),
+                              child:
+                                  action['duration_seconds'] != null &&
+                                      (action['duration_seconds'] as num) > 0
+                                  ? OutlinedButton.icon(
+                                      onPressed: () => _timer(
+                                        '${action['id']}',
+                                        (action['duration_seconds'] as num)
+                                            .toInt(),
+                                      ),
+                                      icon: const Icon(Icons.timer_outlined),
+                                      label: Text(
+                                        _timers.containsKey('${action['id']}')
+                                            ? '${_remaining(_timers['${action['id']}']!)} · Cancel'
+                                            : '${action['label'] ?? 'Start timer'} · ${formatRecipeTime(action['duration_seconds'])}',
+                                      ),
+                                    )
+                                  : Text(
+                                      '${action['label'] ?? 'Target'}${action['temperature_value'] != null ? ': ${recipeValue(action['temperature_value'])}°${action['temperature_unit']}' : ''}',
+                                      style: Theme.of(context)
+                                          .textTheme
+                                          .titleMedium,
+                                    ),
+                            ),
+                        ],
+                      ),
                     ),
                   ),
-                ),
-              if (_completed.length == steps.length && steps.isNotEmpty)
-                const Padding(
-                  padding: EdgeInsets.all(16),
+                if (_completed.length == steps.length && steps.isNotEmpty)
+                  const Padding(
+                    padding: EdgeInsets.all(16),
+                    child: Text(
+                      'All steps completed. Enjoy your meal!',
+                      style: TextStyle(fontSize: 22),
+                    ),
+                  ),
+                OutlinedButton(
+                  key: _endKey,
+                  onPressed: _end,
                   child: Text(
-                    'All steps completed. Enjoy your meal!',
-                    style: TextStyle(fontSize: 22),
+                    widget.sessionId == null
+                        ? 'Exit cooking mode'
+                        : 'End cooking session',
                   ),
                 ),
-              OutlinedButton(
-                onPressed: () => Navigator.pop(context),
-                child: const Text('Exit cooking mode'),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ),

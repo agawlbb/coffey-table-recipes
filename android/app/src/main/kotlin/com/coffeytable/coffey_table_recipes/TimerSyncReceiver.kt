@@ -24,11 +24,15 @@ class TimerSyncReceiver : FirebaseMessagingService() {
             if (build > installed) AndroidReleaseNotice.show(this, version)
             return
         }
+        if (message.data["kind"] == "cooking_invitation") {
+            TimerSyncNative.invitation(this, message.data)
+            return
+        }
         if (message.data["kind"] != "recipe_timer") return
         try { TimerSyncNative.apply(this, JSONObject(message.data as Map<*, *>)) }
         catch (_: Exception) {
             // Permission failures must not create a fake running timer.
-            TimerSyncNative.notice(this, "Open Coffey Table Recipes to receive your timer.")
+            // Snapshot reconciliation retries without an unsolicited notification.
         }
     }
     override fun onNewToken(token: String) { TimerSyncNative.tokenChanged() }
@@ -47,16 +51,22 @@ object TimerSyncNative {
         val switched = p.getString("uid", "") != uid
         if (args["guard_only"] == true && !switched) return
         val revisions = JSONObject(p.getString("revisions", "{}")!!)
+        val sessions = if (args.containsKey("session_ids")) (args["session_ids"] as List<*>).filterIsInstance<String>().toSet() else if (switched) emptySet<String>() else p.getStringSet("sessions", emptySet())!!
+        for (key in RecipeTimers.rows(c).keys().asSequence().toList()) {
+            if (key.startsWith("remote:session:") && key.split(":").getOrNull(2) !in sessions) RecipeTimers.cancel(c, key)
+        }
         if (switched || !receive) {
             val rows = RecipeTimers.rows(c)
             for (key in rows.keys().asSequence().toList()) {
-                if (key.startsWith("remote:") || (switched && !p.getString("uid", "").isNullOrEmpty())) {
+                if ((key.startsWith("remote:") && !key.startsWith("remote:session:")) || (switched && !p.getString("uid", "").isNullOrEmpty())) {
                     RecipeTimers.cancel(c, key)
                     if (key.startsWith("remote:")) revisions.remove(key.removePrefix("remote:"))
                 }
             }
         }
         val editor = p.edit().putString("uid", uid).putString("installation", args["installation_id"] as String).putBoolean("receive", receive)
+        editor.putLong("clockOffset", (args["clock_offset_ms"] as? Number)?.toLong() ?: p.getLong("clockOffset", 0L))
+        editor.putStringSet("sessions", sessions)
         editor.putString("revisions", if (switched) "{}" else revisions.toString())
         check(editor.commit())
     }
@@ -76,19 +86,19 @@ object TimerSyncNative {
         val uid = p.getString("uid", "")!!
         val installation = p.getString("installation", "")!!
         if (uid.isEmpty() || data.optString("account_uid") != uid || data.optString("target_device") != installation) return
-        val own = data.optString("source_device") == installation
-        if (!p.getBoolean("receive", false) && !own) return
         val id = data.getString("timer_id")
+        if (!id.startsWith("session:")) return
+        val session = id.split(":").getOrNull(1) ?: return
+        if (session !in p.getStringSet("sessions", emptySet())!!) return
         require(id.matches(Regex("[A-Za-z0-9:_-]{1,160}")))
         val version = data.getLong("revision")
         val revisions = JSONObject(p.getString("revisions", "{}")!!)
         if (version <= revisions.optLong(id, 0)) return
-        val key = if (own) id.removePrefix("$installation:") else "remote:$id"
+        val key = "remote:$id"
         val cancelled = data.optString("cancelled") in listOf("1", "true")
-        val deadline = data.getLong("deadline_ms")
+        val deadline = data.getLong("deadline_ms") - p.getLong("clockOffset", 0L)
         if (cancelled || deadline <= System.currentTimeMillis()) {
             RecipeTimers.cancel(c, key)
-            if (cancelled) notice(c, "Shared cooking timer stopped.")
         } else {
             check(Build.VERSION.SDK_INT < 33 || c.checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED)
             val rows = RecipeTimers.rows(c)
@@ -103,7 +113,6 @@ object TimerSyncNative {
                 }
                 RecipeTimerService.stopTimer(c, key)
             }
-            if (!own) notice(c, "$title — timer ready on this device.")
         }
         // Record only after the OS accepted the operation; failures can retry.
         revisions.put(id, version)
@@ -111,13 +120,20 @@ object TimerSyncNative {
         changed()
     }
 
+    fun invitation(c: Context, data: Map<String, String>) {
+        val p = prefs(c)
+        if (p.getString("uid", "").isNullOrEmpty() || data["account_uid"] != p.getString("uid", "") || data["target_device"] != p.getString("installation", "")) return
+        notice(c, data["title"] ?: "Cooking invitation")
+        changed()
+    }
+
     fun notice(c: Context, text: String) {
         if (Build.VERSION.SDK_INT >= 33 && c.checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) return
         val manager = c.getSystemService(NotificationManager::class.java)
-        if (Build.VERSION.SDK_INT >= 26) manager.createNotificationChannel(NotificationChannel("timer_sync", "Shared cooking timers", NotificationManager.IMPORTANCE_DEFAULT))
+        if (Build.VERSION.SDK_INT >= 26) manager.createNotificationChannel(NotificationChannel("cooking_invitations", "Cooking invitations", NotificationManager.IMPORTANCE_DEFAULT))
         val open = PendingIntent.getActivity(c, 0, Intent(c, MainActivity::class.java), PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
-        val builder = if (Build.VERSION.SDK_INT >= 26) Notification.Builder(c, "timer_sync") else Notification.Builder(c)
-        manager.notify(7102, builder.setSmallIcon(android.R.drawable.ic_lock_idle_alarm).setContentTitle("Cooking timers")
+        val builder = if (Build.VERSION.SDK_INT >= 26) Notification.Builder(c, "cooking_invitations") else Notification.Builder(c)
+        manager.notify(7102, builder.setSmallIcon(android.R.drawable.ic_lock_idle_alarm).setContentTitle("Cooking invitation")
             .setContentText(text).setContentIntent(open).setAutoCancel(true).build())
     }
 

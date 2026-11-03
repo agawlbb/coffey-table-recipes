@@ -201,9 +201,16 @@ extension RecipeTimers {
         // Reject pushes immediately; cancellation can then safely await AlarmKit.
         defaults.set(false, forKey: "timerSyncReceive")
         defaults.set(uid, forKey: "timerSyncUid")
+        let sessions = args["session_ids"] as? [String] ?? (previous == uid ? defaults.stringArray(forKey: "cookingSessions") ?? [] : [])
+        for key in rows.keys where key.hasPrefix("remote:session:") {
+            let parts = key.components(separatedBy: ":")
+            if parts.count > 2 && !sessions.contains(parts[2]) { try await cancel(key) }
+        }
+        defaults.set(sessions, forKey: "cookingSessions")
+        if let offset = args["clock_offset_ms"] as? NSNumber { defaults.set(offset, forKey: "cookingClockOffset") }
         if previous != uid || !enabled {
             for key in rows.keys {
-                if key.hasPrefix("remote:") || (previous != uid && !previous.isEmpty) {
+                if (key.hasPrefix("remote:") && !key.hasPrefix("remote:session:")) || (previous != uid && !previous.isEmpty) {
                     try await cancel(key)
                     if key.hasPrefix("remote:") { versions.removeValue(forKey: String(key.dropFirst(7))) }
                 }
@@ -219,16 +226,18 @@ extension RecipeTimers {
         let installation = defaults.string(forKey: "timerSyncInstallation") ?? ""
         guard !uid.isEmpty, data["account_uid"] as? String == uid,
               data["target_device"] as? String == installation else { return }
-        let own = data["source_device"] as? String == installation
-        guard own || defaults.bool(forKey: "timerSyncReceive") else { return }
         guard let id = data["timer_id"] as? String,
               id.range(of: "^[A-Za-z0-9:_-]{1,160}$", options: .regularExpression) != nil,
               let version = Int64(String(describing: data["revision"] ?? "")),
-              let deadline = Double(String(describing: data["deadline_ms"] ?? "")) else { throw failure("Invalid shared timer.") }
+              let serverDeadline = Double(String(describing: data["deadline_ms"] ?? "")) else { throw failure("Invalid shared timer.") }
+        guard id.hasPrefix("session:") else { return }
+        let deadline = serverDeadline - defaults.double(forKey: "cookingClockOffset")
+        let parts = id.components(separatedBy: ":")
+        guard parts.count > 1, (defaults.stringArray(forKey: "cookingSessions") ?? []).contains(parts[1]) else { return }
         var versions = defaults.dictionary(forKey: "timerSyncRevisions") ?? [:]
         let current = (versions[id] as? NSNumber)?.int64Value ?? 0
         guard version > current else { return }
-        let key = own ? String(id.dropFirst(installation.count + 1)) : "remote:" + id
+        let key = "remote:" + id
         let cancelled = ["1", "true"].contains(String(describing: data["cancelled"] ?? ""))
         if cancelled || deadline <= Date().timeIntervalSince1970 * 1000 {
             try await cancel(key)

@@ -116,6 +116,8 @@ class RecipeApi {
   })?
   householdRequest;
   Future<void> Function(Map<String, dynamic>)? onTimerSnapshot;
+  Future<void> Function(Map<String, dynamic>)? onCookingSnapshot;
+  void Function(int)? onServerClock;
   void Function()? onSocketReady;
   String _socketToken = '';
   Future<String?> Function()? refreshSocketToken;
@@ -144,6 +146,8 @@ class RecipeApi {
         ? 'account'
         : isAiPath(path)
         ? 'ai'
+        : uri.path.startsWith('/me/cooking-sessions')
+        ? 'cooking'
         : uri.path.startsWith('/me/')
         ? 'timers'
         : uri.path.startsWith('/recipes/')
@@ -188,8 +192,12 @@ class RecipeApi {
         ),
         onSnapshot: (data) async {
           if (scope == 'timers') await onTimerSnapshot?.call(data);
+          if (scope == 'cooking') await onCookingSnapshot?.call(data);
         },
-        onTime: (time) => onServerTime?.call(time, DateTime.now()),
+        onTime: (time) {
+          onServerTime?.call(time, DateTime.now());
+          onServerClock?.call(time);
+        },
         onReady: () => onSocketReady?.call(),
       ),
     );

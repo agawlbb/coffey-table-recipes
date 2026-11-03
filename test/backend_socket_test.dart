@@ -19,6 +19,7 @@ void main() {
     final frames = <Map<String, dynamic>>[];
     final peers = <WebSocket>[];
     final timerPush = Completer<Map<String, dynamic>>();
+    final cookingPush = Completer<Map<String, dynamic>>();
     server.listen((request) async {
       expect(request.uri.query, isEmpty);
       final peer = await WebSocketTransformer.upgrade(request);
@@ -33,7 +34,11 @@ void main() {
             jsonEncode({
               'type': 'ready',
               'household_id': frame['household_id'],
-              'data': frame['scope'] == 'timers' ? {'timers': []} : {},
+              'data': frame['scope'] == 'timers'
+                  ? {'timers': []}
+                  : frame['scope'] == 'cooking'
+                  ? {'sessions': []}
+                  : {},
             }),
           );
         } else if (frame['type'] == 'request') {
@@ -67,6 +72,19 @@ void main() {
               }),
             );
           }
+          if (frame['path'] == '/me/cooking-sessions') {
+            peer.add(
+              jsonEncode({
+                'type': 'snapshot',
+                'household_id': null,
+                'data': {
+                  'sessions': [
+                    {'id': 'cooking'},
+                  ],
+                },
+              }),
+            );
+          }
         }
       });
     });
@@ -84,6 +102,11 @@ void main() {
     api.onTimerSnapshot = (data) async {
       if ((data['timers'] as List).isNotEmpty && !timerPush.isCompleted) {
         timerPush.complete(data);
+      }
+    };
+    api.onCookingSnapshot = (data) async {
+      if ((data['sessions'] as List).isNotEmpty && !cookingPush.isCompleted) {
+        cookingPush.complete(data);
       }
     };
     addTearDown(() async {
@@ -113,6 +136,10 @@ void main() {
     );
     expect((await timerPush.future)['timers'], [
       {'timer_id': 'remote'},
+    ]);
+    await api.request('/me/cooking-sessions', 'fixture');
+    expect((await cookingPush.future)['sessions'], [
+      {'id': 'cooking'},
     ]);
     await api.request('/households/1/name', 'fixture', body: {'name': 'Table'});
     await api.request(
@@ -160,6 +187,7 @@ void main() {
     expect(auth.map((f) => f['scope']), [
       'household',
       'timers',
+      'cooking',
       'public',
       'account',
       'ai',
