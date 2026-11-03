@@ -43,3 +43,7 @@ Validation:
 
 No complete Flutter suite, native build, release or physical-device check was
 requested or performed for this task. App integration into main remains pending.
+
+Companion backend source `bf7cf2e` is deployed on the hosted VPS. Service readiness,
+public health and deployed-source hash verification passed; no database changes
+were needed. Backend deployment does not publish the Flutter app changes.
