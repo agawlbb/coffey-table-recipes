@@ -172,7 +172,13 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.byType(Checkbox));
     await tester.pump();
-    expect(find.text('1 of 1 steps completed'), findsOneWidget);
+    expect(find.textContaining('of 1 steps completed'), findsNothing);
+    expect(
+      tester
+          .widget<LinearProgressIndicator>(find.byType(LinearProgressIndicator))
+          .value,
+      1,
+    );
     await tester.tap(find.text('View ingredients'));
     await tester.pumpAndSettle();
     expect(find.text('• 250 g flour'), findsOneWidget);

@@ -79,13 +79,18 @@ void main() {
       expect(find.textContaining('Could not stop'), findsOneWidget);
       expect(NativeTimers.active.value, hasLength(1));
       failCancel = false;
-      await tester.tap(find.text('Stop'));
+      await NativeTimers.schedule(
+        '14:2',
+        DateTime.now().add(const Duration(minutes: 5)),
+        'Bread',
+      );
+      await tester.pump();
+      await tester.tap(find.text('Stop').first);
       await tester.pumpAndSettle();
-      expect(find.text('No running timers'), findsOneWidget);
-      await tester.tap(find.text('Done'));
-      await tester.pumpAndSettle();
+      expect(find.byType(RunningTimersSheet), findsNothing);
       expect(find.text('Another page'), findsOneWidget);
       expect(find.text('Orange chicken'), findsNothing);
+      expect(NativeTimers.active.value.single['title'], 'Bread');
       await tester.pumpWidget(const SizedBox());
       expect(tester.takeException(), isNull);
     },

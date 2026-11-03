@@ -92,7 +92,55 @@ void main() {
   }
 
   testWidgets(
-    'all attachment sources, replacement and removal use the inline save',
+    'viewer deletion preserves the item and a failed deletion stays open',
+    (tester) async {
+      items = [
+        {...items.single, 'photo': photo, 'checked': true},
+      ];
+      var fail = true;
+      final saves = <Map<String, dynamic>>[];
+      await tester.pumpWidget(
+        MaterialApp(
+          home: ShoppingListScreen(
+            householdId: '1',
+            householdName: 'Our table',
+            request: (path, {body}) async {
+              if (body != null && fail) throw ApiException(422, 'Try again');
+              if (body != null) saves.add(body);
+              return request(path, body: body);
+            },
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('View photo'));
+      await tester.pump(const Duration(milliseconds: 350));
+      await tester.pumpAndSettle();
+      expect(find.byType(ShoppingPhotoViewer), findsOneWidget);
+      await tester.tap(find.byTooltip('Delete photo'));
+      await tester.pumpAndSettle();
+      expect(find.byType(ShoppingPhotoViewer), findsOneWidget);
+      expect(items.single['photo'], photo);
+      expect(
+        find.text('Could not delete photo. Please try again.'),
+        findsOneWidget,
+      );
+      fail = false;
+      await tester.tap(find.byTooltip('Delete photo'));
+      await tester.pumpAndSettle();
+      expect(find.byType(ShoppingPhotoViewer), findsNothing);
+      expect(saves, hasLength(1));
+      expect(items.single, containsPair('photo', ''));
+      expect(items.single['name'], 'Milk');
+      expect(items.single['checked'], true);
+      expect(items.single['note'], 'Blue carton');
+      expect(items.single['department'], 'Dairy');
+      await tester.pumpWidget(const SizedBox());
+    },
+  );
+
+  testWidgets(
+    'attachment sources save inline and removal is only in the viewer',
     (tester) async {
       ShoppingPhotoSource? selected;
       await open(tester, (source) async {
@@ -120,7 +168,8 @@ void main() {
         await tester.pumpAndSettle();
         expect(selected, entry.value);
         expect(writes, before);
-        expect(find.text('Remove photo'), findsOneWidget);
+        expect(find.text('Remove photo'), findsNothing);
+        expect(find.byTooltip('Delete photo'), findsNothing);
         await tester.tap(find.byTooltip('Save item'));
         await tester.pumpAndSettle();
         expect(items.single['photo'], uploadedPhoto);
@@ -130,9 +179,9 @@ void main() {
         expect(find.text('View photo'), findsOneWidget);
       }
       await edit(tester);
-      await tester.tap(find.text('Remove photo'));
+      await tester.tap(find.text('View photo'));
       await tester.pumpAndSettle();
-      await tester.tap(find.byTooltip('Save item'));
+      await tester.tap(find.byTooltip('Delete photo'));
       await tester.pumpAndSettle();
       expect(items.single['photo'], '');
       expect(find.text('View photo'), findsNothing);
@@ -218,6 +267,7 @@ void main() {
       await tester.tap(find.text('Could not load photo. Tap to retry.'));
       await tester.pumpAndSettle();
       expect(find.byType(InteractiveViewer), findsOneWidget);
+      expect(find.byTooltip('Delete photo'), findsNothing);
       expect(writes, 0);
       expect(items.single['checked'], false);
       await tester.pageBack();

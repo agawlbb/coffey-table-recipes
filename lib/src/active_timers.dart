@@ -204,6 +204,7 @@ class _RunningTimersSheetState extends State<RunningTimersSheet> {
         await NativeTimers.extend(key);
       } else {
         await NativeTimers.cancel(key);
+        if (mounted) Navigator.of(context).pop();
       }
     } catch (_) {
       if (mounted) {

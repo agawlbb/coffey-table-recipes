@@ -169,6 +169,43 @@ class CookingSessionMenu extends StatelessWidget {
     }
   }
 
+  Future<bool> _end(BuildContext context, String id) async {
+    final session = coordinator.session(id);
+    if (session == null || childMode.value) return false;
+    final steps = ((session['recipe'] as Map)['steps'] as List? ?? []);
+    final completed = (session['completed'] as List? ?? []).toSet();
+    final count = steps.where((s) => completed.contains('${s['id']}')).length;
+    final hasTimers = coordinator.timers(id).any((t) => t['cancelled'] != true);
+    if (hasTimers || (count > 0 && count < steps.length)) {
+      final confirmed = await showDialog<bool>(
+        context: context,
+        builder: (dialog) => AlertDialog(
+          title: const Text('End cooking session?'),
+          content: hasTimers
+              ? const Text('Running timers will be canceled.')
+              : null,
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialog, false),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(dialog, true),
+              child: const Text('End'),
+            ),
+          ],
+        ),
+      );
+      if (confirmed != true || !context.mounted) return false;
+    }
+    try {
+      await coordinator.end(id);
+    } catch (e) {
+      if (context.mounted) cookingError(context, e);
+    }
+    return false;
+  }
+
   @override
   Widget build(BuildContext context) => AnimatedBuilder(
     animation: coordinator,
@@ -182,26 +219,42 @@ class CookingSessionMenu extends StatelessWidget {
           const Divider(),
           const ListTile(title: Text('Cooking sessions')),
           for (final session in coordinator.sessions)
-            ListTile(
-              title: Text('${(session['recipe'] as Map)['title']}'),
-              trailing: Text(coordinator.joined(session) ? 'Open' : 'Join'),
-              onTap: () {
-                final navigator = Navigator.of(context);
-                final routeContext = Scaffold.of(context).context;
-                navigator.pop();
-                // Navigate from the page beneath the drawer, retaining its route identity.
-                WidgetsBinding.instance.addPostFrameCallback((_) {
-                  if (routeContext.mounted) {
-                    openCookingSession(
-                      routeContext,
-                      session,
-                      menuBuilder: menuBuilder,
-                      sessions: coordinator,
-                    );
-                  }
-                });
-              },
-              onLongPress: () => _share(context, '${session['id']}'),
+            Dismissible(
+              key: ValueKey('cooking-session-${session['id']}'),
+              confirmDismiss: (_) => _end(context, '${session['id']}'),
+              background: Container(
+                color: Theme.of(context).colorScheme.errorContainer,
+                alignment: Alignment.centerLeft,
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: const Icon(Icons.stop_circle_outlined),
+              ),
+              secondaryBackground: Container(
+                color: Theme.of(context).colorScheme.errorContainer,
+                alignment: Alignment.centerRight,
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: const Icon(Icons.stop_circle_outlined),
+              ),
+              child: ListTile(
+                title: Text('${(session['recipe'] as Map)['title']}'),
+                trailing: Text(coordinator.joined(session) ? 'Open' : 'Join'),
+                onTap: () {
+                  final navigator = Navigator.of(context);
+                  final routeContext = Scaffold.of(context).context;
+                  navigator.pop();
+                  // Navigate from the page beneath the drawer, retaining its route identity.
+                  WidgetsBinding.instance.addPostFrameCallback((_) {
+                    if (routeContext.mounted) {
+                      openCookingSession(
+                        routeContext,
+                        session,
+                        menuBuilder: menuBuilder,
+                        sessions: coordinator,
+                      );
+                    }
+                  });
+                },
+                onLongPress: () => _share(context, '${session['id']}'),
+              ),
             ),
         ],
       );

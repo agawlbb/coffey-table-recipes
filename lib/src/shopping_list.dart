@@ -198,13 +198,34 @@ class _ShoppingListScreenState extends State<ShoppingListScreen>
     }
   }
 
-  Future<void> _viewPhoto(String photo) => Navigator.of(context).push<void>(
-    MaterialPageRoute(
-      builder: (_) => ShoppingPhotoViewer(
-        load: () => widget.request('$_path/photos/$photo'),
-      ),
-    ),
-  );
+  Future<void> _viewPhoto(String photo, String id) =>
+      Navigator.of(context).push<void>(
+        MaterialPageRoute(
+          builder: (_) => ShoppingPhotoViewer(
+            load: () => widget.request('$_path/photos/$photo'),
+            onDelete: childMode.value
+                ? null
+                : () async {
+                    if (childMode.value || !mounted) return false;
+                    final item = _items.where((i) => i['id'] == id).firstOrNull;
+                    final saved =
+                        item == null ||
+                        item['photo'] != photo ||
+                        await _save([
+                          for (final i in _items)
+                            i['id'] == id ? {...i, 'photo': ''} : i,
+                        ]);
+                    if (saved &&
+                        mounted &&
+                        _editingId == id &&
+                        _editPhoto == photo) {
+                      setState(() => _editPhoto = '');
+                    }
+                    return saved;
+                  },
+          ),
+        ),
+      );
 
   List<Map<String, dynamic>> _items = [];
   List<Map<String, dynamic>> _confirmedItems = [];
@@ -951,14 +972,8 @@ class _ShoppingListScreenState extends State<ShoppingListScreen>
                               TextButton(
                                 onPressed: _photoBusy
                                     ? null
-                                    : () => _viewPhoto(_editPhoto),
+                                    : () => _viewPhoto(_editPhoto, _editingId!),
                                 child: const Text('View photo'),
-                              ),
-                              TextButton(
-                                onPressed: _photoBusy
-                                    ? null
-                                    : () => setState(() => _editPhoto = ''),
-                                child: const Text('Remove photo'),
                               ),
                             ],
                           ],
@@ -1028,8 +1043,10 @@ class _ShoppingListScreenState extends State<ShoppingListScreen>
                                     .bodySmall,
                                 alignment: Alignment.centerLeft,
                               ),
-                              onPressed: () =>
-                                  _viewPhoto(item['photo'] as String),
+                              onPressed: () => _viewPhoto(
+                                item['photo'] as String,
+                                item['id'] as String,
+                              ),
                               child: const Text('View photo'),
                             ),
                         ],

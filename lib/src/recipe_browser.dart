@@ -1,3 +1,4 @@
+import 'connection_indicator.dart';
 import 'cooking_session_ui.dart';
 import 'child_mode.dart';
 
@@ -1662,6 +1663,7 @@ class _RecipeDetailState extends State<RecipeDetail> {
             : _recipe?['title'] as String? ?? widget.title,
       ),
       actions: [
+        ConnectionIndicator(householdId: widget.householdId),
         if (!childModeOf(context) &&
             _recipe?['source_type'] == 'blank' &&
             widget.save != null &&

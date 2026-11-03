@@ -1,3 +1,4 @@
+import 'package:coffey_table_recipes/src/connection_indicator.dart';
 import 'package:coffey_table_recipes/src/cooking_sessions.dart';
 
 import 'cooking_session_fixture.dart';
@@ -110,6 +111,12 @@ void main() {
           await tester.tap(find.text('Soup'));
           await tester.pumpAndSettle();
           expect(find.byType(RecipeDetail), findsOneWidget);
+          connectedHouseholds.value = {'2'};
+          await tester.pump();
+          expect(find.byIcon(Icons.cloud_done), findsOneWidget);
+          connectedHouseholds.value = {};
+          await tester.pump();
+          expect(find.byIcon(Icons.cloud_done), findsNothing);
           expect(find.byTooltip('Open navigation menu'), findsOneWidget);
           if (destination == 'cooking') {
             await tester.tap(find.text('Start cooking'));

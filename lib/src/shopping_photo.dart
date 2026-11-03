@@ -1,3 +1,5 @@
+import 'child_mode.dart';
+
 import 'dart:async';
 import 'dart:convert';
 
@@ -134,8 +136,9 @@ class _PastePhotoDialogState extends State<_PastePhotoDialog> {
 }
 
 class ShoppingPhotoViewer extends StatefulWidget {
-  const ShoppingPhotoViewer({super.key, required this.load});
+  const ShoppingPhotoViewer({super.key, required this.load, this.onDelete});
   final Future<Map<String, dynamic>> Function() load;
+  final Future<bool> Function()? onDelete;
   @override
   State<ShoppingPhotoViewer> createState() => _ShoppingPhotoViewerState();
 }
@@ -145,9 +148,42 @@ class _ShoppingPhotoViewerState extends State<ShoppingPhotoViewer> {
   Future<Uint8List> _load() async =>
       base64Decode((await widget.load())['image_base64'] as String);
 
+  bool _deleting = false;
+  Future<void> _delete() async {
+    if (_deleting || childMode.value) return;
+    setState(() => _deleting = true);
+    try {
+      if (await widget.onDelete!()) {
+        if (mounted) Navigator.pop(context);
+      } else {
+        throw StateError('Photo removal failed');
+      }
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Could not delete photo. Please try again.'),
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _deleting = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(title: const Text('Shopping item photo')),
+    appBar: AppBar(
+      title: const Text('Shopping item photo'),
+      actions: [
+        if (widget.onDelete != null && !childModeOf(context))
+          IconButton(
+            tooltip: 'Delete photo',
+            onPressed: _deleting ? null : _delete,
+            icon: const Icon(Icons.delete_outline),
+          ),
+      ],
+    ),
     body: FutureBuilder<Uint8List>(
       future: _photo,
       builder: (context, snapshot) {

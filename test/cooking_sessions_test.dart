@@ -1,3 +1,4 @@
+import 'package:coffey_table_recipes/src/connection_indicator.dart';
 import 'package:coffey_table_recipes/src/api.dart';
 import 'package:shared_preferences_platform_interface/in_memory_shared_preferences_async.dart';
 import 'package:shared_preferences_platform_interface/shared_preferences_async_platform_interface.dart';
@@ -19,6 +20,115 @@ class _WakeRecorder extends WakelockPlusMacOSPlugin {
 }
 
 void main() {
+  for (final scenario in [
+    (count: 0, timer: 'none', confirms: false),
+    (count: 2, timer: 'none', confirms: false),
+    (count: 1, timer: 'none', confirms: true),
+    (count: 0, timer: 'running', confirms: true),
+    (count: 2, timer: 'ringing', confirms: true),
+    (count: 0, timer: 'cancelled', confirms: false),
+  ]) {
+    testWidgets('swipe ends session: $scenario', (tester) async {
+      final state = cookingFixture(joined: []);
+      (state['recipe'] as Map)['steps'] = [
+        {'id': '1'},
+        {'id': '2'},
+      ];
+      state['completed'] = [for (var i = 1; i <= scenario.count; i++) '$i'];
+      if (scenario.timer != 'none') {
+        state['timers'] = [
+          {
+            'action_id': '2',
+            'cancelled': scenario.timer == 'cancelled',
+            'deadline_ms': DateTime.now()
+                .add(Duration(minutes: scenario.timer == 'ringing' ? -1 : 1))
+                .millisecondsSinceEpoch,
+          },
+        ];
+      }
+      var ends = 0;
+      final service = CookingSessions(
+        installation: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+        request: (path, {body}) async {
+          expect(path, endsWith('/end'));
+          ends++;
+          return {
+            'session': {...state, 'ended_at': 1, 'revision': 2},
+          };
+        },
+      );
+      addTearDown(service.dispose);
+      await service.accept({
+        'sessions': [state],
+      });
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: CookingSessionMenu(
+              menuBuilder: (_) => const Drawer(),
+              sessions: service,
+            ),
+          ),
+        ),
+      );
+      Future<void> swipe() async {
+        await tester.drag(find.byType(Dismissible), const Offset(-700, 0));
+        await tester.pumpAndSettle();
+      }
+
+      await swipe();
+      if (scenario.confirms) {
+        expect(ends, 0);
+        expect(find.text('End cooking session?'), findsOneWidget);
+        expect(
+          find.text('Running timers will be canceled.'),
+          scenario.timer == 'running' || scenario.timer == 'ringing'
+              ? findsOneWidget
+              : findsNothing,
+        );
+        await tester.tap(find.text('Cancel'));
+        await tester.pumpAndSettle();
+        expect(service.sessions, hasLength(1));
+        await swipe();
+        await tester.tap(find.text('End'));
+        await tester.pumpAndSettle();
+      }
+      expect(ends, 1);
+      expect(service.sessions, isEmpty);
+      expect(find.byType(Dismissible), findsNothing);
+      expect(tester.takeException(), isNull);
+      await tester.pumpWidget(const SizedBox());
+    });
+  }
+
+  testWidgets('failed session end leaves the menu entry available', (
+    tester,
+  ) async {
+    final state = cookingFixture();
+    final service = CookingSessions(
+      request: (path, {body}) async => throw ApiException(503, 'Unavailable'),
+    );
+    addTearDown(service.dispose);
+    await service.accept({
+      'sessions': [state],
+    });
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: CookingSessionMenu(
+            menuBuilder: (_) => const Drawer(),
+            sessions: service,
+          ),
+        ),
+      ),
+    );
+    await tester.drag(find.byType(Dismissible), const Offset(700, 0));
+    await tester.pumpAndSettle();
+    expect(find.text('Unavailable'), findsOneWidget);
+    expect(service.sessions, hasLength(1));
+    expect(find.text('Soup'), findsOneWidget);
+    await tester.pumpWidget(const SizedBox());
+  });
   testWidgets(
     'menu has only recipe and Open or Join; long press directly shares with a member',
     (tester) async {
@@ -138,6 +248,8 @@ void main() {
   testWidgets(
     'joined cooking opens at first unchecked step and remote updates preserve scroll',
     (tester) async {
+      connectedHouseholds.value = {'1'};
+      addTearDown(() => connectedHouseholds.value = {});
       final state = cookingFixture();
       (state['recipe'] as Map)['steps'] = [
         for (var i = 1; i <= 12; i++)
@@ -169,6 +281,16 @@ void main() {
       );
       await tester.pumpAndSettle();
       expect(find.text('Step 9').hitTestable(), findsOneWidget);
+      final titlePosition = tester.getTopLeft(find.text('Soup'));
+      final awakePosition = tester.getTopLeft(find.text('Keep screen awake'));
+      expect(
+        awakePosition.dy,
+        lessThan(tester.getTopLeft(find.byType(LinearProgressIndicator)).dy),
+      );
+      expect(find.byIcon(Icons.cloud_done), findsOneWidget);
+      connectedHouseholds.value = {};
+      await tester.pump();
+      expect(find.byIcon(Icons.cloud_done), findsNothing);
       expect(find.byTooltip('Open navigation menu'), findsOneWidget);
       final scroll = tester
           .state<ScrollableState>(find.byType(Scrollable).first)
@@ -185,6 +307,13 @@ void main() {
       });
       await tester.pump();
       expect(scroll.pixels, offset);
+      await tester.drag(
+        find.byType(SingleChildScrollView),
+        const Offset(0, -400),
+      );
+      await tester.pumpAndSettle();
+      expect(tester.getTopLeft(find.text('Soup')), titlePosition);
+      expect(tester.getTopLeft(find.text('Keep screen awake')), awakePosition);
       await tester.tap(find.byTooltip('Open navigation menu'));
       await tester.pumpAndSettle();
       expect(find.text('Cooking sessions'), findsOneWidget);

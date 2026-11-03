@@ -1,3 +1,4 @@
+import 'connection_indicator.dart';
 import 'cooking_sessions.dart';
 import 'cooking_session_ui.dart';
 import 'shopping_socket.dart';
@@ -255,6 +256,10 @@ class _HouseholdPanelState extends State<HouseholdPanel>
         return socket;
       });
   void _shoppingConnectionChanged() {
+    connectedHouseholds.value = {
+      for (final entry in _shoppingSockets.entries)
+        if (entry.value.connected) entry.key,
+    };
     if (mounted) setState(() {});
   }
 
@@ -499,6 +504,7 @@ class _HouseholdPanelState extends State<HouseholdPanel>
     sharedRecipeInbox.removeListener(_sharedRecipeChanged);
     cookingSessions.removeListener(_cookingChanged);
     cookingMenuBuilder = null;
+    connectedHouseholds.value = {};
     _mirrorTimer?.cancel();
     for (final socket in _shoppingSockets.values) {
       socket.dispose();
@@ -1769,11 +1775,7 @@ class _HouseholdPanelState extends State<HouseholdPanel>
                 child: Text(name, maxLines: 1, overflow: TextOverflow.ellipsis),
               ),
             ),
-          if (_shoppingSockets[_selected]?.connected ?? false)
-            const Padding(
-              padding: EdgeInsets.only(right: 4),
-              child: Icon(Icons.cloud_done, color: Colors.green, size: 18),
-            ),
+          ConnectionIndicator(householdId: _selected ?? ''),
           AccountMenu(
             name: name,
             email: widget.user.email,

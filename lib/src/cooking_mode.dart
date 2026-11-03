@@ -1,3 +1,4 @@
+import 'connection_indicator.dart';
 import 'cooking_sessions.dart';
 import 'cooking_session_ui.dart';
 import 'child_mode.dart';
@@ -590,6 +591,11 @@ class _CookingModeState extends State<CookingMode>
       drawer: (widget.menuBuilder ?? cookingMenuBuilder)?.call(context),
       appBar: AppBar(
         title: const Text('Cooking mode'),
+        actions: [
+          ConnectionIndicator(
+            householdId: '${_session?['household_id'] ?? ''}',
+          ),
+        ],
         leadingWidth: (widget.menuBuilder ?? cookingMenuBuilder) == null
             ? null
             : 96,
@@ -610,7 +616,7 @@ class _CookingModeState extends State<CookingMode>
       body: Center(
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 850),
-          child: SingleChildScrollView(
+          child: Padding(
             padding: const EdgeInsets.all(24),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -620,11 +626,6 @@ class _CookingModeState extends State<CookingMode>
                   style: Theme.of(context).textTheme.headlineMedium,
                 ),
                 const SizedBox(height: 12),
-                Text('${_completed.length} of ${steps.length} steps completed'),
-                const SizedBox(height: 8),
-                LinearProgressIndicator(
-                  value: steps.isEmpty ? 0 : _completed.length / steps.length,
-                ),
                 SwitchListTile(
                   contentPadding: EdgeInsets.zero,
                   title: const Text('Keep screen awake'),
@@ -636,80 +637,106 @@ class _CookingModeState extends State<CookingMode>
                     _syncWake();
                   },
                 ),
-                const SizedBox(height: 16),
-                for (final step in steps)
-                  Card(
-                    key: _stepKeys.putIfAbsent(
-                      '${step['id']}',
-                      () => GlobalKey(),
-                    ),
-                    child: Padding(
-                      padding: const EdgeInsets.all(20),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          CheckboxListTile(
-                            contentPadding: EdgeInsets.zero,
-                            controlAffinity: ListTileControlAffinity.leading,
-                            title: Text(
-                              'Step ${step['position']}${step['section_title']?.toString().trim().isNotEmpty == true ? ' · ${step['section_title']}' : ''}',
-                              style: Theme.of(context).textTheme.titleLarge,
+                LinearProgressIndicator(
+                  value: steps.isEmpty ? 0 : _completed.length / steps.length,
+                ),
+                Expanded(
+                  child: SingleChildScrollView(
+                    padding: const EdgeInsets.only(top: 16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        for (final step in steps)
+                          Card(
+                            key: _stepKeys.putIfAbsent(
+                              '${step['id']}',
+                              () => GlobalKey(),
                             ),
-                            value: _completed.contains('${step['id']}'),
-                            onChanged: (value) =>
-                                _check('${step['id']}', value == true),
-                          ),
-                          Text(
-                            step['instruction'] as String,
-                            style: const TextStyle(fontSize: 22, height: 1.6),
-                          ),
-                          for (final action in actions.where(
-                            (a) => a['step_id'] == step['id'],
-                          ))
-                            Padding(
-                              padding: const EdgeInsets.only(top: 16),
-                              child:
-                                  action['duration_seconds'] != null &&
-                                      (action['duration_seconds'] as num) > 0
-                                  ? OutlinedButton.icon(
-                                      onPressed: () => _timer(
-                                        '${action['id']}',
-                                        (action['duration_seconds'] as num)
-                                            .toInt(),
-                                      ),
-                                      icon: const Icon(Icons.timer_outlined),
-                                      label: Text(
-                                        _timers.containsKey('${action['id']}')
-                                            ? '${_remaining(_timers['${action['id']}']!)} · Cancel'
-                                            : '${action['label'] ?? 'Start timer'} · ${formatRecipeTimeRange(action)}',
-                                      ),
-                                    )
-                                  : Text(
-                                      '${action['label'] ?? 'Target'}${action['temperature_value'] != null ? ': ${recipeValue(action['temperature_value'])}°${action['temperature_unit']}' : ''}',
+                            child: Padding(
+                              padding: const EdgeInsets.all(20),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  CheckboxListTile(
+                                    contentPadding: EdgeInsets.zero,
+                                    controlAffinity:
+                                        ListTileControlAffinity.leading,
+                                    title: Text(
+                                      'Step ${step['position']}${step['section_title']?.toString().trim().isNotEmpty == true ? ' · ${step['section_title']}' : ''}',
                                       style: Theme.of(context)
                                           .textTheme
-                                          .titleMedium,
+                                          .titleLarge,
                                     ),
+                                    value: _completed.contains('${step['id']}'),
+                                    onChanged: (value) =>
+                                        _check('${step['id']}', value == true),
+                                  ),
+                                  Text(
+                                    step['instruction'] as String,
+                                    style: const TextStyle(
+                                      fontSize: 22,
+                                      height: 1.6,
+                                    ),
+                                  ),
+                                  for (final action in actions.where(
+                                    (a) => a['step_id'] == step['id'],
+                                  ))
+                                    Padding(
+                                      padding: const EdgeInsets.only(top: 16),
+                                      child:
+                                          action['duration_seconds'] != null &&
+                                              (action['duration_seconds']
+                                                      as num) >
+                                                  0
+                                          ? OutlinedButton.icon(
+                                              onPressed: () => _timer(
+                                                '${action['id']}',
+                                                (action['duration_seconds']
+                                                        as num)
+                                                    .toInt(),
+                                              ),
+                                              icon: const Icon(
+                                                Icons.timer_outlined,
+                                              ),
+                                              label: Text(
+                                                _timers.containsKey(
+                                                      '${action['id']}',
+                                                    )
+                                                    ? '${_remaining(_timers['${action['id']}']!)} · Cancel'
+                                                    : '${action['label'] ?? 'Start timer'} · ${formatRecipeTimeRange(action)}',
+                                              ),
+                                            )
+                                          : Text(
+                                              '${action['label'] ?? 'Target'}${action['temperature_value'] != null ? ': ${recipeValue(action['temperature_value'])}°${action['temperature_unit']}' : ''}',
+                                              style: Theme.of(context)
+                                                  .textTheme
+                                                  .titleMedium,
+                                            ),
+                                    ),
+                                ],
+                              ),
                             ),
-                        ],
-                      ),
+                          ),
+                        if (_completed.length == steps.length &&
+                            steps.isNotEmpty)
+                          const Padding(
+                            padding: EdgeInsets.all(16),
+                            child: Text(
+                              'All steps completed. Enjoy your meal!',
+                              style: TextStyle(fontSize: 22),
+                            ),
+                          ),
+                        OutlinedButton(
+                          key: _endKey,
+                          onPressed: _end,
+                          child: Text(
+                            widget.sessionId == null
+                                ? 'Exit cooking mode'
+                                : 'End cooking session',
+                          ),
+                        ),
+                      ],
                     ),
-                  ),
-                if (_completed.length == steps.length && steps.isNotEmpty)
-                  const Padding(
-                    padding: EdgeInsets.all(16),
-                    child: Text(
-                      'All steps completed. Enjoy your meal!',
-                      style: TextStyle(fontSize: 22),
-                    ),
-                  ),
-                OutlinedButton(
-                  key: _endKey,
-                  onPressed: _end,
-                  child: Text(
-                    widget.sessionId == null
-                        ? 'Exit cooking mode'
-                        : 'End cooking session',
                   ),
                 ),
               ],
