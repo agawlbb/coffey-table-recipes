@@ -936,8 +936,22 @@ viewer-only shopping photo deletion and guarded swipe-to-end session controls.
 - No physical devices were available for cold/warm installed-app link resolution
   or background alarm checks. Native signing and hosted associations passed;
   device behavior remains a manual check.
-- Apple upload/processing verification is pending at this checkpoint. Final
-  TestFlight delivery is recorded below once verified.
+- [iOS upload 41625562798](https://github.com/agawlbb/coffey-table-recipes/actions/runs/41625562798)
+  reverified the exact signed artifact and reported **UPLOAD SUCCEEDED with no
+  errors**, delivery UUID `e796dd4a-0c13-4c6d-87f8-b04b9d1f0003`. Apple returned
+  several HTTP 500 errors before its uploader recovered and accepted the package.
+- **TestFlight availability remains blocked on Apple ingestion.** The early
+  verification window ended before upload completion. Two subsequent full
+  verification windows still returned `NOT_FOUND`, most recently
+  [41628518203](https://github.com/agawlbb/coffey-table-recipes/actions/runs/41628518203)
+  at 06:42 EST on 2026-11-03. Build processing, compliance state and existing
+  internal-group access therefore cannot yet be verified. No duplicate upload,
+  testers or territory changes were made; existing France exclusions remain
+  untouched. Do not describe the three-platform release as fully verified until
+  Apple exposes this build and the existing status check succeeds.
 - The app and VPS temporary worktrees are archived privately with per-file and
   archive SHA-256 checks before removal. Managed chat workspaces, base repositories,
   immutable release tags, historical evidence and signed packages are preserved.
+- All accepted task branches are removed locally and remotely after verifying
+  their ancestry in canonical main. The user workspace is clean on main, matching
+  GitHub. Only release documentation differs from the immutable tagged app source.
