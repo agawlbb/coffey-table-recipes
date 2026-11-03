@@ -5,21 +5,17 @@ import 'package:flutter_test/flutter_test.dart';
 void main() {
   tearDown(() => debugDefaultTargetPlatformOverride = null);
 
-  test(
-    'Android requests permission and subscribes to release announcements',
-    () async {
-      debugDefaultTargetPlatformOverride = TargetPlatform.android;
-      final calls = <String>[];
-      expect(
-        await registerAndroidReleaseNotifications(
-          requestPermission: () async => calls.add('permission'),
-          subscribeToTopic: (topic) async => calls.add(topic),
-        ),
-        isTrue,
-      );
-      expect(calls, ['permission', 'android_releases']);
-    },
-  );
+  test('Android subscribes to release announcements without owning permission requests', () async {
+    debugDefaultTargetPlatformOverride = TargetPlatform.android;
+    final calls = <String>[];
+    expect(
+      await registerAndroidReleaseNotifications(
+        subscribeToTopic: (topic) async => calls.add(topic),
+      ),
+      isTrue,
+    );
+    expect(calls, ['android_releases']);
+  });
 
   test(
     'failed registration stays nonfatal and can retry on the next launch',
@@ -33,36 +29,35 @@ void main() {
       }
 
       expect(
-        await registerAndroidReleaseNotifications(
-          requestPermission: () async {},
-          subscribeToTopic: subscribe,
-        ),
+        await registerAndroidReleaseNotifications(subscribeToTopic: subscribe),
         isFalse,
       );
       online = true;
       expect(
-        await registerAndroidReleaseNotifications(
-          requestPermission: () async {},
-          subscribeToTopic: subscribe,
-        ),
+        await registerAndroidReleaseNotifications(subscribeToTopic: subscribe),
         isTrue,
       );
       expect(subscriptions, 2);
     },
   );
 
-  test('unavailable permission API does not escape into app startup', () async {
-    debugDefaultTargetPlatformOverride = TargetPlatform.android;
-    var subscriptions = 0;
-    expect(
-      await registerAndroidReleaseNotifications(
-        requestPermission: () async => throw StateError('unavailable'),
-        subscribeToTopic: (_) async => subscriptions++,
-      ),
-      isFalse,
-    );
-    expect(subscriptions, 0);
-  });
+  test(
+    'unavailable subscription API does not escape into app startup',
+    () async {
+      debugDefaultTargetPlatformOverride = TargetPlatform.android;
+      var subscriptions = 0;
+      expect(
+        await registerAndroidReleaseNotifications(
+          subscribeToTopic: (_) async {
+            subscriptions++;
+            throw StateError('unavailable');
+          },
+        ),
+        isFalse,
+      );
+      expect(subscriptions, 1);
+    },
+  );
 
   test(
     'other platforms never request permissions or register the topic',
@@ -72,7 +67,6 @@ void main() {
         var calls = 0;
         expect(
           await registerAndroidReleaseNotifications(
-            requestPermission: () async => calls++,
             subscribeToTopic: (_) async => calls++,
           ),
           isFalse,

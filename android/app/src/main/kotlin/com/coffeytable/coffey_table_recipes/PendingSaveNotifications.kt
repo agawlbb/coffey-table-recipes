@@ -18,6 +18,7 @@ object PendingSaveNotifications {
         Intent(c, PendingSaveReceiver::class.java).setData(Uri.parse("ctr-pending:$key")),
         PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
     private fun arm(c: Context, key: String, deadline: Long) {
+        if (!NotificationPreferences.enabled(c, "pendingSaves")) return
         val alarms = c.getSystemService(AlarmManager::class.java)
         if (Build.VERSION.SDK_INT < 31 || alarms.canScheduleExactAlarms())
             alarms.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, maxOf(System.currentTimeMillis() + 100, deadline), intent(c, key))
@@ -29,13 +30,24 @@ object PendingSaveNotifications {
             if (!row.optBoolean("fired")) arm(c, key, row.getLong("deadline"))
         }
     }
+    fun refresh(c: Context) {
+        val saved = prefs(c)
+        saved.all.filterKeys { it.contains(":") }.forEach { (key, value) ->
+            val row = JSONObject(value as String)
+            if (!NotificationPreferences.enabled(c, "pendingSaves")) {
+                c.getSystemService(AlarmManager::class.java).cancel(intent(c, key))
+                c.getSystemService(NotificationManager::class.java).cancel(key, 0)
+            } else if (!row.optBoolean("fired")) arm(c, key, row.getLong("deadline"))
+        }
+    }
     fun deliver(c: Context, key: String) {
+        if (!NotificationPreferences.allowed(c, "pendingSaves")) return
         val raw = prefs(c).getString(key, null) ?: return
         val row = JSONObject(raw)
         if (row.optBoolean("fired")) return
         if (System.currentTimeMillis() < row.getLong("deadline")) { arm(c, key, row.getLong("deadline")); return }
         val manager = c.getSystemService(NotificationManager::class.java)
-        if (Build.VERSION.SDK_INT >= 26) manager.createNotificationChannel(NotificationChannel("pending_saves", "Changes waiting to sync", NotificationManager.IMPORTANCE_DEFAULT))
+        if (Build.VERSION.SDK_INT >= 26) manager.createNotificationChannel(NotificationChannel("pending_saves", "Pending saves", NotificationManager.IMPORTANCE_DEFAULT))
         if (Build.VERSION.SDK_INT >= 33 && c.checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) return
         val open = PendingIntent.getActivity(c, 0, Intent(c, MainActivity::class.java), PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
         val builder = if (Build.VERSION.SDK_INT >= 26) Notification.Builder(c, "pending_saves") else Notification.Builder(c)
@@ -66,18 +78,10 @@ object PendingSaveNotifications {
                     }
                 }
                 restore(activity)
-                if (wanted.isNotEmpty() && Build.VERSION.SDK_INT >= 33 && activity.checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
-                    // Ask once; denial is also surfaced by the in-app status.
-                    if (!saved.getBooleanCompat("permission_requested")) {
-                        saved.edit().putString("permission_requested", "true").commit()
-                        activity.requestPermissions(arrayOf(Manifest.permission.POST_NOTIFICATIONS), 602)
-                    }
-                    result.error("notifications_denied", "Allow notifications in device settings.", null)
-                } else result.success(null)
+                result.success(null)
             } catch (e: Exception) { result.error("pending_save", e.message, null) }
         }
     }
-    private fun android.content.SharedPreferences.getBooleanCompat(key: String) = getString(key, null) == "true"
 }
 
 class PendingSaveReceiver : BroadcastReceiver() {

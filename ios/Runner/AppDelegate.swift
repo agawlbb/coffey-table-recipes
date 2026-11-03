@@ -16,9 +16,9 @@ import UserNotifications
     if notification.request.content.userInfo["kind"] as? String == "recipe_timer" {
       RecipeTimers.receivePush(notification.request.content.userInfo) { _ in completionHandler([]) }
     }
-    else if notification.request.content.userInfo["kind"] as? String == "cooking_invitation" { completionHandler([.banner, .sound]) }
-    else if notification.request.content.userInfo["pendingSave"] as? Bool == true { completionHandler([.banner, .sound]) }
-    else if notification.request.content.userInfo["recipeTimer"] as? Bool == true { completionHandler([.banner, .sound]) }
+    else if notification.request.content.userInfo["kind"] as? String == "cooking_invitation" { completionHandler(NotificationPreferences.enabled("invitations") ? [.banner, .sound] : []) }
+    else if notification.request.content.userInfo["pendingSave"] as? Bool == true { completionHandler(NotificationPreferences.enabled("pendingSaves") ? [.banner, .sound] : []) }
+    else if notification.request.content.userInfo["recipeTimer"] as? Bool == true { completionHandler(NotificationPreferences.enabled("timers") ? [.banner, .sound] : []) }
     else { super.userNotificationCenter(center, willPresent: notification, withCompletionHandler: completionHandler) }
   }
 
@@ -59,15 +59,14 @@ import UserNotifications
             let stateKey = "pendingSaveReminders:" + scope
             let previous = UserDefaults.standard.dictionary(forKey: stateKey) as? [String: String] ?? [:]
             var next: [String: String] = [:]
-            let due = changes.compactMap { $0["deadline"] as? NSNumber }.map { $0.doubleValue }.min()
+            let settings = await center.notificationSettings()
+            let allowed = settings.authorizationStatus == .authorized || settings.authorizationStatus == .provisional
+            let due = (NotificationPreferences.enabled("pendingSaves") && allowed ? changes : []).compactMap { $0["deadline"] as? NSNumber }.map { $0.doubleValue }.min()
             // One account reminder avoids the OS limit on pending notifications.
             if let due = due {
               let version = String(due)
               if let existing = previous[version] { next[version] = existing }
               else {
-                guard try await center.requestAuthorization(options: [.alert, .sound]) else {
-                  throw NSError(domain: "PendingSaves", code: 1, userInfo: [NSLocalizedDescriptionKey: "Allow notifications in device settings."])
-                }
                 let id = "pending-save-" + UUID().uuidString
                 let content = UNMutableNotificationContent()
                 content.title = "Changes waiting to sync"

@@ -9,6 +9,53 @@ import AppIntents
 import FirebaseCore
 import FirebaseAuth
 
+@MainActor
+enum NotificationPreferences {
+    static let categories = ["invitations", "timers", "pendingSaves"]
+    static func enabled(_ category: String) -> Bool { UserDefaults.standard.object(forKey: "notifications:" + category) as? Bool ?? true }
+    static func register(_ messenger: FlutterBinaryMessenger) {
+        let channel = FlutterMethodChannel(name: "coffey_table_recipes/notifications", binaryMessenger: messenger)
+        channel.setMethodCallHandler { call, result in
+            Task { @MainActor in
+                do {
+                    let args = call.arguments as? [String: Any] ?? [:]
+                    switch call.method {
+                    case "read": result(Dictionary(uniqueKeysWithValues: categories.map { ($0, enabled($0)) }))
+                    case "set":
+                        guard let category = args["category"] as? String, categories.contains(category), let enabled = args["enabled"] as? Bool else { throw RecipeTimers.failure("Invalid notification preference.") }
+                        if category == "timers" { try await RecipeTimers.serializedSync { try await RecipeTimers.setTimerNotifications(enabled) } }
+                        else { UserDefaults.standard.set(enabled, forKey: "notifications:" + category) }
+                        if !enabled {
+                            let center = UNUserNotificationCenter.current()
+                            let delivered = await center.deliveredNotifications()
+                            let ids = delivered.filter { notification in
+                                let info = notification.request.content.userInfo
+                                return (category == "invitations" && info["kind"] as? String == "cooking_invitation") || (category == "pendingSaves" && info["pendingSave"] as? Bool == true)
+                            }.map { $0.request.identifier }
+                            center.removeDeliveredNotifications(withIdentifiers: ids)
+                            if category == "pendingSaves" {
+                                for key in UserDefaults.standard.dictionaryRepresentation().keys where key.hasPrefix("pendingSaveReminders:") {
+                                    let saved = UserDefaults.standard.dictionary(forKey: key) as? [String: String] ?? [:]
+                                    center.removePendingNotificationRequests(withIdentifiers: Array(saved.values))
+                                    UserDefaults.standard.removeObject(forKey: key)
+                                }
+                            }
+                        }
+                        result(nil)
+                    case "openSettings":
+                        let value: String
+                        if #available(iOS 15.4, *) { value = UIApplication.openNotificationSettingsURLString }
+                        else { value = UIApplication.openSettingsURLString }
+                        guard let url = URL(string: value), await UIApplication.shared.open(url) else { throw RecipeTimers.failure("Could not open notification settings.") }
+                        result(nil)
+                    default: result(FlutterMethodNotImplemented)
+                    }
+                } catch { result(FlutterError(code: "notifications", message: error.localizedDescription, details: nil)) }
+            }
+        }
+    }
+}
+
 @available(iOS 26.0, *)
 struct RecipeAlarmMetadata: AlarmMetadata {}
 
@@ -58,6 +105,7 @@ enum RecipeTimers {
         set { defaults.set(newValue, forKey: "recipeTimers") }
     }
     static func register(_ messenger: FlutterBinaryMessenger) {
+        NotificationPreferences.register(messenger)
         if let observer = previewObserver { NotificationCenter.default.removeObserver(observer) }
         previewObserver = NotificationCenter.default.addObserver(forName: UIApplication.willResignActiveNotification, object: nil, queue: .main) { _ in
             Task { @MainActor in stopPreview() }
@@ -89,6 +137,7 @@ enum RecipeTimers {
                     case "applyRemote":
                         try await serializedSync { try await applyRemote(args) }; result(nil)
                     case "requestTimerPermissions":
+                        if !NotificationPreferences.enabled("timers") && args["force"] as? Bool != true { result(nil); return }
                         let allowed = try await UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound, .badge])
                         guard allowed else { throw failure("Allow notifications in Settings, then try again.") }
                         if #available(iOS 26.0, *) {
@@ -138,7 +187,8 @@ enum RecipeTimers {
         let id = UUID()
         let tone = defaults.string(forKey: "recipeTimerTone") ?? ""
         var mode = "notification"
-        if #available(iOS 26.0, *) {
+        if !NotificationPreferences.enabled("timers") { mode = "muted" }
+        else if #available(iOS 26.0, *) {
             guard try await AlarmManager.shared.requestAuthorization() == .authorized else { throw failure("Allow alarms in Settings to start a cooking timer.") }
             let stop = AlarmButton(text: "Stop", textColor: .white, systemImageName: "stop.circle")
             let add = extensionSeconds > 0 ? AlarmButton(text: LocalizedStringResource(stringLiteral: extensionLabel(extensionSeconds)), textColor: .white, systemImageName: "timer") : nil
@@ -177,6 +227,32 @@ enum RecipeTimers {
         if #available(iOS 16.2, *), ActivityAuthorizationInfo().areActivitiesEnabled {
             // A missing/disabled Live Activity never cancels the independently scheduled alarm.
             _ = try? Activity<TimerActivityAttributes>.request(attributes: .init(key: key, title: title), content: ActivityContent(state: .init(deadline: date), staleDate: date), pushType: nil)
+        }
+    }
+    static func setTimerNotifications(_ enabled: Bool) async throws {
+        let previous = NotificationPreferences.enabled("timers")
+        if enabled == previous { return }
+        if !enabled {
+            // Preserve deadlines and revisions; only cancel native delivery.
+            for row in rows.values { try cancelNative(row) }
+            var saved = rows
+            for key in saved.keys { saved[key]?["mode"] = "muted" }
+            rows = saved
+            defaults.set(false, forKey: "notifications:timers")
+        } else {
+            defaults.set(true, forKey: "notifications:timers")
+            do {
+                for (key, row) in rows where ((row["deadline"] as? NSNumber)?.doubleValue ?? 0) > Date().timeIntervalSince1970 * 1000 {
+                    try await schedule(key, (row["deadline"] as! NSNumber).doubleValue, row["title"] as? String ?? "Cooking timer", (row["extension_seconds"] as? NSNumber)?.intValue ?? 0)
+                }
+            } catch {
+                defaults.set(false, forKey: "notifications:timers")
+                for row in rows.values { try? cancelNative(row) }
+                var saved = rows
+                for key in saved.keys { saved[key]?["mode"] = "muted" }
+                rows = saved
+                throw error
+            }
         }
     }
     static func cancelNative(_ row: [String: Any]) throws {
@@ -256,10 +332,12 @@ extension RecipeTimers {
         if cancelled || (deadline <= Date().timeIntervalSince1970 * 1000 && extensionSeconds <= 0) {
             try await cancel(key)
         } else {
+            if NotificationPreferences.enabled("timers") {
             let settings = await UNUserNotificationCenter.current().notificationSettings()
             guard settings.authorizationStatus == .authorized || settings.authorizationStatus == .provisional else { throw failure("Allow notifications to receive this timer.") }
             if #available(iOS 26.0, *) {
                 guard AlarmManager.shared.authorizationState == .authorized else { throw failure("Allow alarms to receive this timer.") }
+            }
             }
             let title = data["title"] as? String ?? "Cooking timer"
             let old = rows[key]

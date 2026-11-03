@@ -1,5 +1,7 @@
 import 'dart:async';
 
+import 'notification_preferences.dart';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/material.dart';
@@ -10,21 +12,33 @@ final syncMessengerKey = GlobalKey<ScaffoldMessengerState>();
 /// The in-app overdue status also works on web and when permission is denied.
 class SyncNotifications {
   static const channel = MethodChannel('coffey_table_recipes/pending_saves');
+  static final _latest = <String, List<Map<String, dynamic>>>{};
+  static Future<void> replay() async {
+    for (final entry in _latest.entries.toList()) {
+      await update(entry.key, entry.value);
+    }
+  }
+
   static final _announced = <String>{};
   static ScaffoldFeatureController<SnackBar, SnackBarClosedReason>? _notice;
   static Future<void> update(
     String scope,
     List<Map<String, dynamic>> changes,
   ) async {
+    _latest[scope] = changes;
     final prefix = '$scope|';
     final ids = changes.map((q) => '$prefix${q['id']}').toSet();
     _announced.removeWhere((id) => id.startsWith(prefix) && !ids.contains(id));
-    final due = changes
-        .where(
-          (q) =>
-              (q['deadline'] as int) <= DateTime.now().millisecondsSinceEpoch,
-        )
-        .toList();
+    final due =
+        (notificationPreferences.values['pendingSaves'] == false
+                ? <Map<String, dynamic>>[]
+                : changes)
+            .where(
+              (q) =>
+                  (q['deadline'] as int) <=
+                  DateTime.now().millisecondsSinceEpoch,
+            )
+            .toList();
     if (due.isEmpty) {
       _notice?.close();
       _notice = null;

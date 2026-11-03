@@ -1,3 +1,4 @@
+import 'notification_settings.dart';
 import 'connection_indicator.dart';
 import 'cooking_sessions.dart';
 import 'cooking_session_ui.dart';
@@ -1523,6 +1524,16 @@ class _HouseholdPanelState extends State<HouseholdPanel>
                     if (NativeTimers.supported && !childMode.value) ...[
                       const Divider(),
                       const ListTile(title: Text('This device')),
+                      ListTile(
+                        leading: const Icon(Icons.notifications_outlined),
+                        title: const Text('Notifications'),
+                        trailing: const Icon(Icons.chevron_right),
+                        onTap: () => Navigator.of(routeContext).push<void>(
+                          MaterialPageRoute(
+                            builder: (_) => const NotificationSettingsScreen(),
+                          ),
+                        ),
+                      ),
                       ListTile(
                         leading: const Icon(Icons.alarm_outlined),
                         title: const Text('Cooking timers'),

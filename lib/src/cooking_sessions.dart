@@ -10,6 +10,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'api.dart';
 import 'native_timers.dart';
+import 'notification_preferences.dart';
 
 final cookingSessions = CookingSessions();
 final cookingRouteObserver = RouteObserver<PageRoute<dynamic>>();
@@ -244,9 +245,26 @@ class CookingSessions extends ChangeNotifier with WidgetsBindingObserver {
     return result;
   }
 
-  Future<void> _register() async {
+  Future<void> refreshDeviceRegistration() => _register();
+
+  Future<void> setInvitationNotifications(bool enabled) =>
+      _register(invitations: enabled);
+
+  Future<void> _registrationTail = Future.value();
+
+  Future<void> _register({bool? invitations}) {
+    final next = _registrationTail
+        .catchError((Object _) {})
+        .then((_) => _registerNow(invitations: invitations));
+    _registrationTail = next;
+    return next;
+  }
+
+  Future<void> _registerNow({bool? invitations}) async {
+    if (_disposed) return;
     if (_registerDevice != null) return _registerDevice();
     if (_uid == null || !NativeTimers.supported || _testRequest != null) return;
+    await notificationPreferences.read();
     String? token;
     try {
       token = await FirebaseMessaging.instance.getToken();
@@ -261,9 +279,17 @@ class CookingSessions extends ChangeNotifier with WidgetsBindingObserver {
             ? 'ios'
             : 'android',
         'push_token': token,
+        'receive_cooking_invitations':
+            invitations ??
+            notificationPreferences.values['invitations'] ??
+            true,
         'receive_timers': false,
       },
     );
+    // Keep preference changes and background registration in the same queue.
+    if (invitations != null) {
+      await notificationPreferences.set('invitations', invitations);
+    }
   }
 
   Future<void> _configure() async {

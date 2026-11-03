@@ -188,3 +188,61 @@ cooking_sessions_test.dart suites passed all 27 tests. The other 20 focused test
 backend_socket_test.dart) passed in the initial run. Changed Dart files were
 formatted; scoped analysis and diff whitespace review passed. No build, release,
 backend change or deployment was performed.
+
+
+## Notification preferences
+
+Task `feature/notification-settings` starts from `0a8c817`. Android and iOS request
+notification permission after the first rendered frame when permission has not
+been decided. Granted or denied decisions are preserved on subsequent launches.
+Release announcements no longer own a competing permission request. First-launch
+permission completion refreshes device registration, independently of creating or
+joining a session; sign-in, resume and token refresh continue registering devices.
+
+Settings → This device → Notifications contains Cooking invitations, Cooking
+timers, Pending saves and (Android only) App updates. Preferences are local to
+the installation and default to enabled. The screen shows phone authorization
+and opens system notification controls; Android also links each existing native
+channel. Channels retain their IDs and are created up front so all are visible.
+The existing child-mode restriction on device settings is retained.
+
+Cooking timers controls both notifications and alarm sound. Disabling it cancels
+native delivery, including ringing alarms, while retaining deadlines, countdowns,
+range metadata and shared revisions. Re-enabling schedules future deadlines only;
+expired alerts are not replayed. Muted shared timers still accept updates and
+cancellations. Pending saves controls reminders without removing queued edits.
+App updates controls only the Android release notice.
+
+Invitation changes are confirmed through `/me/timer-devices` and persisted in
+native preferences within the same registration queue, preventing background
+registration from overwriting a choice. Failed server saves remain actionable
+errors without falsely showing a successful opt-out. The VPS backend stores
+`receive_cooking_invitations` per device and suppresses that device's invitation
+pushes while preserving session access and timer synchronization. Its explicit
+schema setup must precede backend deployment; the app does not migrate schemas.
+
+Native platform code was reviewed but no app build or physical-device run was
+performed: this task authorizes source changes and merge, not an app build or
+release. Native permission prompts, ringing-alarm suppression and background
+invitation delivery remain device acceptance checks for the next authorized build.
+
+Validation: all 622 tests passed in one full
+`flutter test --no-pub --concurrency=1 --reporter expanded` invocation. Scoped
+analysis passed for the changed app and test files. Six new notification tests
+cover first-use permission, persisted choices, narrow Android/iOS category screens,
+phone settings/resume and failed/confirmed invitation saves. Existing release,
+reminder, settings/child-mode, cooking and timer tests passed. A further focused
+registration-concurrency regression was added after that full run; only its timer
+suite is rerun because runtime Dart code is unchanged. Android system category
+names are aligned with the screen labels while retaining existing channel IDs.
+The final timer suite passed all 11 tests, including that concurrency regression;
+its focused analysis also passed. Backend preference support is deployed, with
+runtime hashes matching the merged backend source and hosted health passing.
+
+The final isolated UI refinement preserves actionable native permission errors
+instead of replacing them with a generic failure. Its affected-file analysis and
+all seven notification settings tests passed after the full run. Denied iOS
+notification permission suppresses background save reminders without another
+permission request or background permission error. These bounded changes did not
+repeat the full suite; final validation consists of the 622-test full run plus
+the final seven-test notification and eleven-test timer suites.

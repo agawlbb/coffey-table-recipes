@@ -13,6 +13,8 @@ import 'src/android_release_notifications.dart';
 import 'src/shared_recipe_import.dart';
 import 'src/firebase_config.dart';
 import 'src/cooking_sessions.dart';
+import 'src/notification_preferences.dart';
+import 'src/native_timers.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -28,7 +30,6 @@ Future<void> main() async {
     }
   }
   if (options != null && initializationError == null) {
-    unawaited(registerAndroidReleaseNotifications());
     final account = FirebaseAuth.instance.currentUser;
     if (account != null) {
       try {
@@ -47,6 +48,21 @@ Future<void> main() async {
       cookingSessions.error =
           'Cooking sync could not start. Reopen the app to try again.';
     }
+  }
+  if (NativeTimers.supported &&
+      options != null &&
+      initializationError == null) {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      unawaited(() async {
+        try {
+          await notificationPreferences.requestOnFirstLaunch();
+          await cookingSessions.refreshDeviceRegistration();
+        } catch (_) {
+          /* Permission and push availability never block startup. */
+        }
+        await registerAndroidReleaseNotifications();
+      }());
+    });
   }
   runApp(
     CoffeyTableApp(

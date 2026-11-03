@@ -102,7 +102,7 @@ object TimerSyncNative {
         if (cancelled || (deadline <= System.currentTimeMillis() && extension <= 0)) {
             RecipeTimers.cancel(c, key)
         } else {
-            check(Build.VERSION.SDK_INT < 33 || c.checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED)
+            check(!NotificationPreferences.enabled(c, "timers") || Build.VERSION.SDK_INT < 33 || c.checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED)
             val rows = RecipeTimers.rows(c)
             val old = rows.optJSONObject(key)
             val title = data.getString("title")
@@ -130,6 +130,7 @@ object TimerSyncNative {
     }
 
     fun notice(c: Context, text: String) {
+        if (!NotificationPreferences.allowed(c, "invitations")) return
         if (Build.VERSION.SDK_INT >= 33 && c.checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) return
         val manager = c.getSystemService(NotificationManager::class.java)
         if (Build.VERSION.SDK_INT >= 26) manager.createNotificationChannel(NotificationChannel("cooking_invitations", "Cooking invitations", NotificationManager.IMPORTANCE_DEFAULT))
@@ -145,6 +146,7 @@ object TimerSyncNative {
 /** Informational release notices; recipients use their own Google Drive location. */
 object AndroidReleaseNotice {
     fun show(c: Context, version: String) {
+        if (!NotificationPreferences.allowed(c, "updates")) return
         if (Build.VERSION.SDK_INT >= 33 && c.checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) return
         val manager = c.getSystemService(NotificationManager::class.java)
         if (Build.VERSION.SDK_INT >= 26) manager.createNotificationChannel(NotificationChannel("android_updates", "App updates", NotificationManager.IMPORTANCE_DEFAULT))

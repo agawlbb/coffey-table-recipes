@@ -38,7 +38,19 @@ object RecipeTimers {
     fun intent(c: Context, key: String): PendingIntent = PendingIntent.getBroadcast(c, 0,
         Intent(c, RecipeTimerReceiver::class.java).setAction("timer").setData(Uri.parse("recipe-timer://alarm/" + Uri.encode(key))).putExtra("key", key),
         PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
+    fun reconcileNotifications(c: Context) {
+        val all = rows(c)
+        all.keys().forEach { key ->
+            if (!NotificationPreferences.allowed(c, "timers")) {
+                c.getSystemService(AlarmManager::class.java).cancel(intent(c, key))
+                RecipeTimerService.stopTimer(c, key)
+            } else if (all.getJSONObject(key).getLong("deadline") > System.currentTimeMillis()) {
+                try { schedule(c, key, all.getJSONObject(key).getLong("deadline")) } catch (_: Exception) { /* Explicit timer starts report permission failures. */ }
+            }
+        }
+    }
     fun schedule(c: Context, key: String, deadline: Long) {
+        if (!NotificationPreferences.allowed(c, "timers")) return
         val alarms = c.getSystemService(AlarmManager::class.java)
         check(Build.VERSION.SDK_INT < 31 || alarms.canScheduleExactAlarms()) { "Allow Alarms & reminders in settings, then start the timer again." }
         val show = PendingIntent.getActivity(c, 0, Intent(c, MainActivity::class.java), PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
@@ -73,9 +85,9 @@ object RecipeTimers {
                     "applyRemote" -> { TimerSyncNative.apply(activity, JSONObject(call.arguments as Map<*, *>)); result.success(null) }
                     "requestTimerPermissions" -> {
                         val manager = activity.getSystemService(AlarmManager::class.java)
-                        if (Build.VERSION.SDK_INT >= 31 && !manager.canScheduleExactAlarms()) {
+                        if ((NotificationPreferences.enabled(activity, "timers") || call.argument<Boolean>("force") == true) && Build.VERSION.SDK_INT >= 31 && !manager.canScheduleExactAlarms()) {
                             activity.startActivity(Intent(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM, Uri.parse("package:" + activity.packageName)))
-                            result.error("permission", "Allow Alarms & reminders, then turn receiving on again.", null)
+                            result.error("permission", "Allow Alarms & reminders in phone settings, then try again.", null)
                         } else { result.success(null) }
                     }
                     "list" -> {
@@ -84,10 +96,10 @@ object RecipeTimers {
                     }
                     "schedule" -> {
                         val manager = activity.getSystemService(AlarmManager::class.java)
-                        if (Build.VERSION.SDK_INT >= 33 && activity.checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+                        if (NotificationPreferences.enabled(activity, "timers") && Build.VERSION.SDK_INT >= 33 && activity.checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
                             activity.requestPermissions(arrayOf(Manifest.permission.POST_NOTIFICATIONS), 8102)
                             result.error("permission", "Allow timer notifications, then start the timer again.", null)
-                        } else if (Build.VERSION.SDK_INT >= 31 && !manager.canScheduleExactAlarms()) {
+                        } else if (NotificationPreferences.enabled(activity, "timers") && Build.VERSION.SDK_INT >= 31 && !manager.canScheduleExactAlarms()) {
                             activity.startActivity(Intent(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM, Uri.parse("package:" + activity.packageName)))
                             result.error("permission", "Allow Alarms & reminders, then start the timer again.", null)
                         } else {
@@ -130,7 +142,7 @@ class RecipeTimerReceiver : BroadcastReceiver() {
         }
         if (intent.action == "timer") {
             val key = intent.getStringExtra("key") ?: return
-            if (!RecipeTimers.rows(c).has(key)) return
+            if (!RecipeTimers.rows(c).has(key) || !NotificationPreferences.allowed(c, "timers")) return
             val service = Intent(c, RecipeTimerService::class.java).putExtra("key", key)
             if (Build.VERSION.SDK_INT >= 26) c.startForegroundService(service) else c.startService(service)
         } else {
@@ -166,9 +178,10 @@ class RecipeTimerService : Service() {
             val row=RecipeTimers.rows(this).optJSONObject(key) ?: return START_NOT_STICKY
             TimerActions.action(this,key,row.getLong("deadline"),false); TimerActions.sync(this); return START_NOT_STICKY
         }
+        if (!NotificationPreferences.allowed(this, "timers")) { stopSelf(); return START_NOT_STICKY }
         val row = RecipeTimers.rows(this).optJSONObject(key) ?: return START_NOT_STICKY
         val manager = getSystemService(NotificationManager::class.java)
-        if (Build.VERSION.SDK_INT >= 26) manager.createNotificationChannel(NotificationChannel("cooking_alarms", "Cooking alarms", NotificationManager.IMPORTANCE_HIGH).apply { setSound(null, null) })
+        if (Build.VERSION.SDK_INT >= 26) manager.createNotificationChannel(NotificationChannel("cooking_alarms", "Cooking timers", NotificationManager.IMPORTANCE_HIGH).apply { setSound(null, null) })
         fun actionIntent(action: String): PendingIntent = PendingIntent.getBroadcast(this,0,
             Intent(this,RecipeTimerReceiver::class.java).setAction(action).setData(Uri.parse("recipe-timer://$action/"+Uri.encode(key)+"/"+row.getLong("deadline"))).putExtra("key",key).putExtra("deadline",row.getLong("deadline")),PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
         val builder = if (Build.VERSION.SDK_INT >= 26) Notification.Builder(this,"cooking_alarms") else Notification.Builder(this)

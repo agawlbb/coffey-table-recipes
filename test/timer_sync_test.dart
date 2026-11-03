@@ -109,6 +109,33 @@ void main() {
       'sessions': [state],
     });
   });
+  test(
+    'device registration is serialized across concurrent refreshes',
+    () async {
+      final first = Completer<void>();
+      final release = Completer<void>();
+      var calls = 0;
+      final service = CookingSessions(
+        registerDevice: () async {
+          calls++;
+          if (calls == 1) {
+            first.complete();
+            await release.future;
+          }
+        },
+      );
+      final one = service.refreshDeviceRegistration();
+      await first.future;
+      final two = service.refreshDeviceRegistration();
+      await Future<void>.delayed(Duration.zero);
+      expect(calls, 1);
+      release.complete();
+      await Future.wait([one, two]);
+      expect(calls, 2);
+      service.dispose();
+    },
+  );
+
   tearDown(() {
     sync.dispose();
     NativeTimers.active.value = [];
