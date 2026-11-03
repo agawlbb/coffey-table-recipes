@@ -47,3 +47,25 @@ requested or performed for this task. App integration into main remains pending.
 Companion backend source `bf7cf2e` is deployed on the hosted VPS. Service readiness,
 public health and deployed-source hash verification passed; no database changes
 were needed. Backend deployment does not publish the Flutter app changes.
+
+## Signed Android test APK — 2026-11-03
+
+The separately requested test build uses immutable source
+`6185a5b74c772f8f3250f61fc2996389b2dac9ac`.
+[Workflow 41619608261](https://github.com/agawlbb/coffey-table-recipes/actions/runs/41619608261)
+passed native compilation, original signing identity, package/version checks,
+timer-preference JNI checks and hosted app links. Independent `apksigner`,
+`aapt` and actual-certificate association checks passed after download.
+
+- Version `2.7.0-account-test`, build **55**, package
+  `com.coffeytable.coffey_table_recipes`.
+- Delivered filename: `CoffeyTableRecipes-2.7.0-cooking-controls-test-build55.apk`.
+- APK SHA-256: `f226f06f3295b61cd56cfd9ad713a0c0f854c9de6092d875bdc3dd34930b3e59`.
+- Certificate SHA-256: `f8de933f14b9bb4b3191a94aedc8637972c5ab224565f6abd7808f8038d12097`.
+- [Verified Drive test APK](https://drive.google.com/file/d/1XfqayColS9H5p7TfJIQTW9cgf77TqAc6/view).
+  Downloaded Drive bytes matched the APK SHA-256. Existing files were retained;
+  no release notification was sent.
+
+The source version is unchanged; the existing workflow supplied the test
+version/build override. No release tag, main integration, web deployment or
+iOS build was performed. Physical-device checks remain for this test package.
