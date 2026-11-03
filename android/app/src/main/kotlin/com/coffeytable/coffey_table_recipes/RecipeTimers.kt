@@ -64,6 +64,9 @@ object RecipeTimers {
             try {
                 when (call.method) {
                     "configureSync" -> { TimerSyncNative.configure(activity, call.arguments as Map<*, *>); result.success(null) }
+                    "pendingActions" -> result.success(TimerActions.rows(activity))
+                    "acknowledgeAction" -> { TimerActions.acknowledge(activity, call.argument<String>("account_uid")!!, call.argument<String>("operation_id")!!); result.success(null) }
+                    "syncActions" -> { TimerActions.sync(activity); result.success(null) }
                     "syncRevision" -> result.success(TimerSyncNative.revision(activity, call.argument<String>("timer_id")!!))
                     "recordSyncRevision" -> { TimerSyncNative.recordRevision(activity, call.argument<String>("timer_id")!!, call.argument<Number>("revision")!!.toLong()); result.success(null) }
                     "forgetSyncRevision" -> { TimerSyncNative.recordRevision(activity, call.argument<String>("timer_id")!!, null); result.success(null) }
@@ -77,7 +80,7 @@ object RecipeTimers {
                     }
                     "list" -> {
                         val all = rows(activity)
-                        result.success(all.keys().asSequence().map { key -> mapOf("key" to key, "deadline" to all.getJSONObject(key).getLong("deadline"), "title" to all.getJSONObject(key).optString("title", "Cooking timer")) }.toList())
+                        result.success(all.keys().asSequence().map { key -> mapOf("key" to key, "deadline" to all.getJSONObject(key).getLong("deadline"), "title" to all.getJSONObject(key).optString("title", "Cooking timer"), "extension_seconds" to all.getJSONObject(key).optInt("extension_seconds", 0)) }.toList())
                     }
                     "schedule" -> {
                         val manager = activity.getSystemService(AlarmManager::class.java)
@@ -93,7 +96,7 @@ object RecipeTimers {
                             require(deadline > System.currentTimeMillis())
                             val all = rows(activity)
                             val previous = all.optJSONObject(key)
-                            all.put(key, JSONObject().put("deadline", deadline).put("title", call.argument<String>("title")).put("tone", tone(activity)))
+                            all.put(key, JSONObject().put("deadline", deadline).put("title", call.argument<String>("title")).put("tone", tone(activity)).put("extension_seconds", call.argument<Number>("extension_seconds")?.toInt() ?: 0))
                             save(activity, all)
                             try { schedule(activity, key, deadline) } catch (e: Exception) {
                                 if (previous == null) all.remove(key) else all.put(key, previous)
@@ -118,6 +121,13 @@ object RecipeTimers {
 
 class RecipeTimerReceiver : BroadcastReceiver() {
     override fun onReceive(c: Context, intent: Intent) {
+        if (intent.action == "stop" || intent.action == "extend") {
+            val key=intent.getStringExtra("key") ?: return
+            val pending=goAsync()
+            try { TimerActions.action(c,key,intent.getLongExtra("deadline",0),intent.action=="extend"); TimerActions.sync(c) { pending.finish() } }
+            catch (_: Exception) { pending.finish() }
+            return
+        }
         if (intent.action == "timer") {
             val key = intent.getStringExtra("key") ?: return
             if (!RecipeTimers.rows(c).has(key)) return
@@ -152,14 +162,21 @@ class RecipeTimerService : Service() {
     }
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         val key = intent?.getStringExtra("key") ?: return START_NOT_STICKY
-        if (intent.action == "stop") { RecipeTimers.cancel(this, key); return START_NOT_STICKY }
+        if (intent.action == "stop") {
+            val row=RecipeTimers.rows(this).optJSONObject(key) ?: return START_NOT_STICKY
+            TimerActions.action(this,key,row.getLong("deadline"),false); TimerActions.sync(this); return START_NOT_STICKY
+        }
         val row = RecipeTimers.rows(this).optJSONObject(key) ?: return START_NOT_STICKY
         val manager = getSystemService(NotificationManager::class.java)
         if (Build.VERSION.SDK_INT >= 26) manager.createNotificationChannel(NotificationChannel("cooking_alarms", "Cooking alarms", NotificationManager.IMPORTANCE_HIGH).apply { setSound(null, null) })
-        val stopIntent = PendingIntent.getService(this, 0, Intent(this, RecipeTimerService::class.java).setAction("stop").setData(Uri.parse("recipe-timer://stop/"+Uri.encode(key))).putExtra("key",key), PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
+        fun actionIntent(action: String): PendingIntent = PendingIntent.getBroadcast(this,0,
+            Intent(this,RecipeTimerReceiver::class.java).setAction(action).setData(Uri.parse("recipe-timer://$action/"+Uri.encode(key)+"/"+row.getLong("deadline"))).putExtra("key",key).putExtra("deadline",row.getLong("deadline")),PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
         val builder = if (Build.VERSION.SDK_INT >= 26) Notification.Builder(this,"cooking_alarms") else Notification.Builder(this)
-        val notification = builder.setSmallIcon(android.R.drawable.ic_lock_idle_alarm).setContentTitle(row.optString("title", "Cooking timer")).setContentText("Time is up")
-            .setCategory(Notification.CATEGORY_ALARM).setOngoing(true).addAction(Notification.Action.Builder(null, "Stop", stopIntent).build()).build()
+        builder.setSmallIcon(android.R.drawable.ic_lock_idle_alarm).setContentTitle(row.optString("title", "Cooking timer")).setContentText("Time is up")
+            .setCategory(Notification.CATEGORY_ALARM).setOngoing(true).addAction(Notification.Action.Builder(null,"Stop",actionIntent("stop")).build())
+        val extension=row.optInt("extension_seconds",0)
+        if(extension>0) builder.addAction(Notification.Action.Builder(null,TimerActions.label(extension),actionIntent("extend")).build())
+        val notification=builder.build()
         startForeground(8101, notification)
         manager.notify(key,1,notification)
         if (!players.containsKey(key)) {

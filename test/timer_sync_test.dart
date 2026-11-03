@@ -2,294 +2,306 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:coffey_table_recipes/src/api.dart';
+import 'package:coffey_table_recipes/src/cooking_sessions.dart';
 import 'package:coffey_table_recipes/src/native_timers.dart';
-import 'package:coffey_table_recipes/src/timer_sync.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:http/http.dart' as http;
-import 'package:http/testing.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:shared_preferences_platform_interface/in_memory_shared_preferences_async.dart';
 import 'package:shared_preferences_platform_interface/shared_preferences_async_platform_interface.dart';
 
+Map<String, dynamic> cookingFixture({
+  String id = '11111111111111111111111111111111',
+  List<String> joined = const ['aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'],
+}) => {
+  'id': id,
+  'revision': 1,
+  'ended_at': null,
+  'created_at': 1800000000000,
+  'household_id': '1',
+  'recipe': {
+    'id': '1',
+    'title': 'Soup',
+    'steps': [
+      {'id': '1', 'position': 1, 'instruction': 'Simmer'},
+    ],
+    'actions': [
+      {'id': '2', 'step_id': '1', 'label': 'Simmer', 'duration_seconds': 60},
+    ],
+  },
+  'completed': <String>[],
+  'step_revisions': <String, dynamic>{},
+  'timers': <Map<String, dynamic>>[],
+  'joined_devices': joined,
+  'open_elsewhere': true,
+  'invited': false,
+};
+
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
-  late List<MethodCall> native;
-  late Map<String, int> revisions;
-  late List<Map<String, dynamic>> published;
-  late List<Map<String, dynamic>> remote;
+  late CookingSessions sync;
+  late Map<String, dynamic> state;
+  late List<Map<String, dynamic>> writes;
   late bool offline;
-  late String? currentUid;
-  late StreamController<String?> accounts;
-  late TimerSync sync;
-  late RecipeApi api;
-  var pushDuringUnregister = false;
-  late int permissions;
-
-  Future<void> create() async {
-    accounts = StreamController<String?>();
-    sync = TimerSync(
-      preferences: SharedPreferencesAsync.new,
-      api: api = RecipeApi(
-        baseUrl: 'https://fixture/api',
-        client: MockClient((request) async {
-          if (offline) throw http.ClientException('Offline');
-          if (request.url.path.endsWith('timer-devices/remove')) {
-            if (pushDuringUnregister) {
-              await api.onTimerSnapshot?.call({
-                'timers': [
-                  {'timer_id': 'old-account-timer'},
-                ],
-              });
-            }
-            return http.Response('{}', 200);
-          }
-          if (request.url.path.endsWith('timer-devices')) {
-            return http.Response('{}', 200);
-          }
-          if (request.method == 'POST') {
-            final operation = jsonDecode(request.body) as Map<String, dynamic>;
-            published.add(operation);
-            return http.Response(
-              jsonEncode({
-                'timer': {
-                  ...operation,
-                  'revision': (operation['revision'] as int) + 1,
-                },
-                'delivery': 'sent',
-              }),
-              200,
-            );
-          }
-          return http.Response(jsonEncode({'timers': remote}), 200);
-        }),
-      ),
-      currentUid: () => currentUid,
-      idToken: () async => 'fixture-auth',
-      pushToken: () async => 'fixture-push-token-long-enough',
-      authorizeReceiving: () async {
-        permissions++;
-      },
-      accountChanges: () => accounts.stream,
-      tokenChanges: () => const Stream.empty(),
-    );
-    await sync.start();
-    accounts.add(currentUid);
-    await Future<void>.delayed(Duration.zero);
-    try {
-      await sync.syncNow();
-    } catch (_) {}
+  late Set<String> operations;
+  Future<Map<String, dynamic>> request(
+    String path, {
+    Map<String, dynamic>? body,
+  }) async {
+    if (offline) throw ApiException(503, 'Offline');
+    if (body == null) {
+      return {
+        'sessions': [state],
+      };
+    }
+    writes.add(Map<String, dynamic>.from(body));
+    final action = path.split('/').last;
+    if (operations.add(body['operation_id'] as String)) {
+      if (action == 'timer') {
+        final timers = state['timers'] as List;
+        final old = timers.isEmpty ? null : timers.first;
+        if (body['revision'] != (old?['revision'] ?? 0)) {
+          throw ApiException(409, 'Timer changed');
+        }
+        state['timers'] = [
+          {
+            'timer_id': 'session:${state['id']}:2',
+            'session_id': state['id'],
+            'action_id': '2',
+            'source_device': 'session',
+            'title': 'Soup · Simmer',
+            'deadline_ms': body['deadline_ms'] ?? old?['deadline_ms'],
+            'cancelled': body['cancelled'],
+            'extension_seconds': body['extension_seconds'] ?? 0,
+            'revision': (old?['revision'] ?? 0) + 1,
+          },
+        ];
+      } else if (action == 'step') {
+        state['completed'] = body['checked'] == true ? ['1'] : [];
+        state['step_revisions'] = {'1': 1};
+      } else if (action == 'join') {
+        state['joined_devices'] = [sync.installation];
+      } else if (action == 'end') {
+        state['ended_at'] = 1800000000001;
+      }
+      state['revision'] = (state['revision'] as int) + 1;
+    }
+    return {'session': jsonDecode(jsonEncode(state))};
   }
 
   setUp(() async {
     SharedPreferencesAsyncPlatform.instance =
         InMemorySharedPreferencesAsync.empty();
-    native = [];
-    revisions = {};
-    published = [];
-    remote = [];
-    offline = false;
-    pushDuringUnregister = false;
-    currentUid = 'val';
-    permissions = 0;
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
-        .setMockMethodCallHandler(NativeTimers.channel, (call) async {
-          native.add(call);
-          if (call.method == 'list') return [];
-          if (call.method == 'syncRevision') {
-            return revisions[(call.arguments as Map)['timer_id']] ?? 0;
-          }
-          if (call.method == 'recordSyncRevision') {
-            final args = call.arguments as Map;
-            revisions[args['timer_id'] as String] = args['revision'] as int;
-          }
-          return null;
-        });
-    await create();
+        .setMockMethodCallHandler(
+          NativeTimers.channel,
+          (call) async => call.method == 'list' ? [] : null,
+        );
+    state = cookingFixture();
+    writes = [];
+    operations = {};
+    offline = false;
+    sync = CookingSessions(
+      request: request,
+      installation: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+    );
+    await sync.start();
+    await sync.accept({
+      'sessions': [state],
+    });
   });
-
-  tearDown(() async {
-    await sync.dispose();
-    await accounts.close();
+  tearDown(() {
+    sync.dispose();
     NativeTimers.active.value = [];
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
         .setMockMethodCallHandler(NativeTimers.channel, null);
   });
-
+  test('declined session remains available to join and joined sessions stop prompting', () async {
+    state = cookingFixture(joined: []);
+    await sync.accept({
+      'sessions': [state],
+    });
+    expect(sync.invitations, hasLength(1));
+    sync.offered.add('${state['id']}');
+    expect(sync.invitations, isEmpty);
+    expect(sync.sessions, hasLength(1));
+    await sync.join('${state['id']}');
+    expect(sync.joined(sync.sessions.single), isTrue);
+    expect(sync.invitations, isEmpty);
+  });
   test(
-    'receiving defaults off and persists only after explicit opt-in',
+    'step writes use individual revisions and stale snapshots cannot undo them',
     () async {
-      expect(sync.receiving.value, false);
-      expect(permissions, 0);
-      await sync.setReceiving(true);
-      expect(permissions, 1);
-      expect(sync.receiving.value, true);
-      expect(
-        await SharedPreferencesAsync().getBool('receive_timers_val'),
-        true,
-      );
-      offline = true;
-      await sync.setReceiving(false);
-      expect(sync.receiving.value, false);
-      expect(
-        await SharedPreferencesAsync().getBool('receive_timers_val'),
-        false,
-      );
-      expect(
-        (native.lastWhere((call) => call.method == 'configureSync').arguments
-            as Map)['receive_timers'],
-        false,
-      );
-    },
-  );
-
-  test(
-    'offline timers survive restart and publish with unchanged deadlines',
-    () async {
-      offline = true;
-      final deadline = DateTime.now().add(const Duration(minutes: 10));
-      await NativeTimers.schedule('42:step', deadline, 'Soup');
-      expect(
-        NativeTimers.active.value.single['deadline'],
-        deadline.millisecondsSinceEpoch,
-      );
-      expect(
-        (jsonDecode(
-          (await SharedPreferencesAsync().getString('timer_outbox_val'))!,
-        ) as List),
-        hasLength(1),
-      );
-      await sync.dispose();
-      await accounts.close();
-      offline = false;
-      await create();
-      expect(published, hasLength(1));
-      expect(published.single['deadline_ms'], deadline.millisecondsSinceEpoch);
-      expect(published.single['revision'], 0);
-      expect(published.single['timer_id'], endsWith(':42:step'));
-      expect(
-        jsonDecode(
-          (await SharedPreferencesAsync().getString('timer_outbox_val'))!,
-        ),
-        isEmpty,
-      );
-    },
-  );
-
-  test(
-    'cancellation of received timer retains its shared identity and revision',
-    () async {
-      revisions['origin:42:step'] = 3;
-      await NativeTimers.cancel('remote:origin:42:step');
-      await sync.syncNow();
-      expect(published.single['timer_id'], 'origin:42:step');
-      expect(published.single['revision'], 3);
-      expect(published.single['cancelled'], true);
-    },
-  );
-
-  test(
-    'reconciliation binds incoming timers to this account and installation',
-    () async {
-      remote = [
-        {
-          'timer_id': 'other:42:step',
-          'source_device': 'other',
-          'deadline_ms': DateTime.now()
-              .add(const Duration(minutes: 5))
-              .millisecondsSinceEpoch,
-          'title': 'Soup',
-          'revision': 2,
-          'cancelled': false,
-        },
-      ];
-      await sync.syncNow();
-      final args =
-          native.lastWhere((call) => call.method == 'applyRemote').arguments
-              as Map;
-      expect(args['account_uid'], 'val');
-      expect(
-        args['target_device'],
-        await SharedPreferencesAsync().getString('timer_installation'),
-      );
-      expect(published, isEmpty); // Reception never echoes a new timer back.
-    },
-  );
-
-  test(
-    'sign-out disables reception even when server unregister is offline',
-    () async {
-      await sync.setReceiving(true);
-      offline = true;
-      currentUid = null;
-      accounts.add(null);
-      await Future<void>.delayed(Duration.zero);
-      await sync.syncNow();
-      expect(sync.signedIn.value, false);
-      expect(sync.receiving.value, false);
-      final args =
-          native.lastWhere((call) => call.method == 'configureSync').arguments
-              as Map;
-      expect(args['account_uid'], '');
-      expect(args['receive_timers'], false);
-      await NativeTimers.schedule(
-        '42:other',
-        DateTime.now().add(const Duration(minutes: 2)),
-        'Other',
-      );
-      expect(published, isEmpty);
-    },
-  );
-
-  test(
-    'account switch rejects unregister pushes and delayed old snapshots',
-    () async {
-      final oldSnapshot = api.onTimerSnapshot!;
-      native.clear();
-      pushDuringUnregister = true;
-      currentUid = 'other';
-      accounts.add(currentUid);
-      await Future<void>.delayed(Duration.zero);
-      await sync.syncNow();
-      await oldSnapshot({
-        'timers': [
-          {'timer_id': 'delayed-old-account-timer'},
-        ],
+      final stale = jsonDecode(jsonEncode(state)) as Map<String, dynamic>;
+      await sync.check('${state['id']}', '1', true);
+      expect(writes.single['revision'], 0);
+      expect(sync.sessions.single['completed'], ['1']);
+      await sync.accept({
+        'sessions': [stale],
       });
-      expect(native.where((call) => call.method == 'applyRemote'), isEmpty);
-      await api.onTimerSnapshot!({
-        'timers': [
-          {'timer_id': 'new-account-timer'},
-        ],
-      });
-      final applied =
-          native.singleWhere((call) => call.method == 'applyRemote').arguments
-              as Map;
-      expect(applied['account_uid'], 'other');
-      expect(applied['timer_id'], 'new-account-timer');
+      expect(sync.sessions.single['completed'], ['1']);
+      await sync.check('${state['id']}', '1', false);
+      expect(writes.last['revision'], 1);
+      expect(sync.sessions.single['completed'], isEmpty);
     },
   );
-
-  test('failed native scheduling never publishes a timer', () async {
-    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
-        .setMockMethodCallHandler(NativeTimers.channel, (call) async {
-          if (call.method == 'schedule') {
-            throw PlatformException(code: 'permission');
-          }
-          return null;
-        });
-    await expectLater(
-      NativeTimers.schedule(
-        '42:step',
-        DateTime.now().add(const Duration(minutes: 5)),
-        'Soup',
-      ),
-      throwsA(isA<PlatformException>()),
+  test('offline start and cancellation survive restart with original deadlines and ordered revisions', () async {
+    offline = true;
+    final deadline = DateTime.now().add(const Duration(minutes: 12));
+    final key = 'remote:session:${state['id']}:2';
+    await NativeTimers.schedule(key, deadline, 'Soup');
+    await sync.refresh();
+    await NativeTimers.cancel(key);
+    await sync.refresh();
+    final raw = await SharedPreferencesAsync().getString('cooking_outbox_null');
+    expect((jsonDecode(raw!) as List), hasLength(2));
+    sync.dispose();
+    sync = CookingSessions(
+      request: request,
+      installation: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
     );
-    expect(published, isEmpty);
+    await sync.start();
+    offline = false;
+    await sync.refresh();
+    expect(writes, hasLength(2));
+    expect(writes.first['deadline_ms'], deadline.millisecondsSinceEpoch);
+    expect(writes.first['revision'], 0);
+    expect(writes.last['revision'], 1);
+    expect(state['timers'][0]['cancelled'], true);
     expect(
-      await SharedPreferencesAsync().getString('timer_outbox_val'),
-      isNull,
+      jsonDecode(
+        (await SharedPreferencesAsync().getString('cooking_outbox_null'))!,
+      ),
+      isEmpty,
     );
   });
+  test('lost timer response reuses the operation id and revision', () async {
+    sync.dispose();
+    var lose = true;
+    sync = CookingSessions(
+      installation: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+      request: (path, {body}) async {
+        final result = await request(path, body: body);
+        if (body != null && path.endsWith('/timer') && lose) {
+          lose = false;
+          throw ApiException(503, 'Response lost');
+        }
+        return result;
+      },
+    );
+    await sync.start();
+    await sync.accept({
+      'sessions': [state],
+    });
+    await sync.timerChanged(
+      'remote:session:${state['id']}:2',
+      DateTime.now().add(const Duration(minutes: 2)),
+      'Soup',
+    );
+    await sync.refresh();
+    expect(writes.length, greaterThanOrEqualTo(2));
+    expect(writes[0]['operation_id'], writes[1]['operation_id']);
+    expect(state['timers'][0]['revision'], 1);
+  });
+  test(
+    'session timer outbox preserves range metadata and consumes an extension',
+    () async {
+      offline = true;
+      final key = 'remote:session:${state['id']}:2';
+      final deadline = DateTime.now().add(const Duration(minutes: 1));
+      await NativeTimers.schedule(key, deadline, 'Soup', extensionSeconds: 120);
+      await sync.refresh();
+      expect(sync.timers('${state['id']}').single['extension_seconds'], 120);
+      sync.dispose();
+      sync = CookingSessions(
+        request: request,
+        installation: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+      );
+      await sync.start();
+      offline = false;
+      await sync.refresh();
+      expect(writes.single['extension_seconds'], 120);
+      expect(state['timers'][0]['extension_seconds'], 120);
+      await NativeTimers.extend(
+        key,
+        now: deadline.add(const Duration(seconds: 1)),
+      );
+      await sync.refresh();
+      expect(writes.last['extend'], isTrue);
+      expect(writes.last['extension_seconds'], 0);
+      expect(writes.last['revision'], 1);
+      expect(state['timers'][0]['extension_seconds'], 0);
+    },
+  );
+  test('native notification actions are durable, idempotent and account/device scoped', () async {
+    final operation = {
+      'account_uid': null,
+      'installation_id': sync.installation,
+      'session_id': state['id'],
+      'operation_id': 'eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee',
+      'body': {
+        'action_id': '2',
+        'cancelled': true,
+        'revision': 0,
+        'extension_seconds': 0,
+        'expected_deadline_ms': 1800000000000,
+      },
+    };
+    offline = true;
+    await sync.importNativeActions([
+      {...operation, 'account_uid': 'another-user'},
+      {...operation, 'installation_id': 'another-device'},
+    ]);
+    expect(sync.timers('${state['id']}'), isEmpty);
+    await sync.importNativeActions([operation, operation]);
+    expect(sync.timers('${state['id']}').single['cancelled'], isTrue);
+    sync.dispose();
+    sync = CookingSessions(
+      request: request,
+      installation: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+    );
+    await sync.start();
+    offline = false;
+    await sync.refresh();
+    expect(writes, hasLength(1));
+    expect(writes.single['operation_id'], operation['operation_id']);
+    expect(writes.single['expected_deadline_ms'], 1800000000000);
+    expect(state['timers'][0]['extension_seconds'], 0);
+  });
+  test('ending removes session and carries cancellation state', () async {
+    await sync.end('${state['id']}');
+    expect(sync.sessions, isEmpty);
+  });
+  test(
+    'old-account replies cannot restore sessions after an account switch',
+    () async {
+      sync.dispose();
+      final accounts = StreamController<String?>();
+      final delayed = Completer<Map<String, dynamic>>();
+      var delay = false;
+      sync = CookingSessions(
+        installation: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+        accountChanges: accounts.stream,
+        request: (path, {body}) async {
+          if (delay && body != null) return delayed.future;
+          return {'sessions': <Map<String, dynamic>>[]};
+        },
+      );
+      await sync.start();
+      accounts.add('alice');
+      await Future<void>.delayed(Duration.zero);
+      await Future<void>.delayed(Duration.zero);
+      await sync.accept({
+        'sessions': [state],
+      });
+      delay = true;
+      final pending = sync.check('${state['id']}', '1', true);
+      accounts.add('bob');
+      await Future<void>.delayed(Duration.zero);
+      await Future<void>.delayed(Duration.zero);
+      delayed.complete({'session': state});
+      await expectLater(pending, throwsStateError);
+      expect(sync.sessions, isEmpty);
+      await accounts.close();
+    },
+  );
 }

@@ -4,7 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
-import 'timer_sync.dart';
+import 'cooking_sessions.dart';
 
 class NativeTimers {
   static const channel = MethodChannel('coffey_table_recipes/timers');
@@ -31,13 +31,16 @@ class NativeTimers {
   static Future<void> schedule(
     String key,
     DateTime deadline,
-    String title,
-  ) async {
+    String title, {
+    int extensionSeconds = 0,
+    bool extending = false,
+  }) async {
     if (supported) {
       await channel.invokeMethod<void>('schedule', {
         'key': key,
         'deadline': deadline.millisecondsSinceEpoch,
         'title': title,
+        'extension_seconds': extensionSeconds,
       });
       _revision++;
       active.value = [
@@ -46,14 +49,47 @@ class NativeTimers {
           'key': key,
           'deadline': deadline.millisecondsSinceEpoch,
           'title': title,
+          'extending': extending,
+          'extension_seconds': extensionSeconds,
         },
       ];
       try {
         await onLocalChange?.call(key, deadline, title);
       } catch (_) {
-        timerSync.status.value =
-            'Timer started locally. Sharing could not be queued.';
+        cookingSessions.reportError(
+          'Timer started locally. Sharing could not be queued.',
+        );
       }
+    }
+  }
+
+  static final Set<String> _extending = {};
+
+  static int remainingExtension(Map<String, dynamic> row, {DateTime? now}) {
+    final deadline = row['deadline'] as num?;
+    if (deadline == null ||
+        deadline > (now ?? DateTime.now()).millisecondsSinceEpoch) {
+      return 0;
+    }
+    return (row['extension_seconds'] as num?)?.toInt() ?? 0;
+  }
+
+  static Future<void> extend(String key, {DateTime? now}) async {
+    if (!_extending.add(key)) return;
+    try {
+      final row = active.value.where((r) => r['key'] == key).firstOrNull;
+      final seconds = row == null ? 0 : remainingExtension(row, now: now);
+      if (seconds <= 0) {
+        throw StateError('The remaining time is no longer available.');
+      }
+      await schedule(
+        key,
+        (now ?? DateTime.now()).add(Duration(seconds: seconds)),
+        '${row!['title'] ?? 'Cooking timer'}',
+        extending: true,
+      );
+    } finally {
+      _extending.remove(key);
     }
   }
 
@@ -65,8 +101,9 @@ class NativeTimers {
       try {
         await onLocalChange?.call(key, null, null);
       } catch (_) {
-        timerSync.status.value =
-            'Timer stopped here. Other devices could not be updated.';
+        cookingSessions.reportError(
+          'Timer stopped here. Other devices could not be updated.',
+        );
       }
     }
   }
@@ -82,30 +119,6 @@ class _TimerSettingsState extends State<TimerSettings> {
   Map<String, dynamic>? _settings;
   String? _error;
   bool _saving = false;
-  bool _syncSaving = false;
-
-  Future<void> _receive(bool enabled) async {
-    setState(() {
-      _syncSaving = true;
-      _error = null;
-    });
-    try {
-      await timerSync.setReceiving(enabled);
-    } catch (error) {
-      if (mounted) {
-        setState(
-          () => _error = error is PlatformException
-              ? error.message ?? 'Could not enable receiving timers.'
-              : error is StateError
-              ? error.message
-              : 'Could not enable receiving timers. Check your connection and notification settings.',
-        );
-      }
-    } finally {
-      if (mounted) setState(() => _syncSaving = false);
-    }
-  }
-
   List<Map<String, dynamic>> get _tones =>
       (_settings?['tones'] as List? ??
               [
@@ -195,32 +208,6 @@ class _TimerSettingsState extends State<TimerSettings> {
                 Text('Cooking timers', style: theme.textTheme.headlineSmall),
                 const SizedBox(height: 8),
                 const SizedBox(height: 24),
-                ValueListenableBuilder<bool>(
-                  valueListenable: timerSync.signedIn,
-                  builder: (context, signedIn, _) =>
-                      ValueListenableBuilder<bool>(
-                        valueListenable: timerSync.receiving,
-                        builder: (context, enabled, _) => SwitchListTile(
-                          contentPadding: EdgeInsets.zero,
-                          title: const Text(
-                            'Receive timers from other devices',
-                          ),
-                          value: enabled,
-                          onChanged: signedIn && !_syncSaving ? _receive : null,
-                        ),
-                      ),
-                ),
-                if (_syncSaving) const LinearProgressIndicator(),
-                ValueListenableBuilder<String?>(
-                  valueListenable: timerSync.status,
-                  builder: (context, message, _) => message == null
-                      ? const SizedBox.shrink()
-                      : Padding(
-                          padding: const EdgeInsets.only(top: 12),
-                          child: Text(message),
-                        ),
-                ),
-
                 if (_error != null) ...[
                   Semantics(
                     liveRegion: true,

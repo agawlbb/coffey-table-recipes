@@ -1,3 +1,4 @@
+import 'cooking_session_ui.dart';
 import 'child_mode.dart';
 
 import 'dart:async';
@@ -14,7 +15,6 @@ import 'package:flutter_cache_manager/flutter_cache_manager.dart';
 import 'api.dart';
 import 'local_data.dart';
 import 'recipe_menu.dart';
-import 'cooking_mode.dart';
 import 'offline_recipes.dart';
 import 'recipe_sharing.dart';
 import 'recipe_editor.dart';
@@ -1239,11 +1239,11 @@ class _RecipeDetailState extends State<RecipeDetail> {
       ),
     );
     if (open != true || !mounted) return;
-    await Navigator.of(context).push<void>(
-      MaterialPageRoute(
-        builder: (_) =>
-            CookingMode(recipe: recipe, menuBuilder: widget.menuBuilder),
-      ),
+    await startCooking(
+      context,
+      recipe: recipe,
+      householdId: widget.householdId,
+      menuBuilder: widget.menuBuilder,
     );
   }
 
@@ -1648,10 +1648,12 @@ class _RecipeDetailState extends State<RecipeDetail> {
 
   @override
   Widget build(BuildContext context) => Scaffold(
-    drawer: widget.menuBuilder?.call(context),
+    drawer: (widget.menuBuilder ?? cookingMenuBuilder)?.call(context),
     appBar: AppBar(
-      leadingWidth: widget.menuBuilder == null ? null : 96,
-      leading: widget.menuBuilder == null
+      leadingWidth: (widget.menuBuilder ?? cookingMenuBuilder) == null
+          ? null
+          : 96,
+      leading: (widget.menuBuilder ?? cookingMenuBuilder) == null
           ? BackButton(onPressed: () => Navigator.of(context).pop())
           : const RecipeMenuLeading(),
       title: Text(
@@ -1881,13 +1883,11 @@ class _RecipeDetailState extends State<RecipeDetail> {
               FilledButton.icon(
                 onPressed: childModeOf(context) || steps.isEmpty
                     ? null
-                    : () => Navigator.of(context).push(
-                        MaterialPageRoute<void>(
-                          builder: (_) => CookingMode(
-                            recipe: recipe,
-                            menuBuilder: widget.menuBuilder,
-                          ),
-                        ),
+                    : () => startCooking(
+                        context,
+                        recipe: recipe,
+                        householdId: widget.householdId,
+                        menuBuilder: widget.menuBuilder,
                       ),
                 icon: const Icon(Icons.soup_kitchen_outlined),
                 label: const Text('Start cooking'),
@@ -2068,7 +2068,7 @@ class _RecipeDetailState extends State<RecipeDetail> {
                             [
                               if (action['label'] != null) '${action['label']}',
                               if (action['duration_seconds'] != null)
-                                formatRecipeTime(action['duration_seconds']),
+                                formatRecipeTimeRange(action),
                               if (action['temperature_value'] != null)
                                 '${recipeValue(action['temperature_value'])}°${action['temperature_unit']}',
                               if (action['label'] == null &&

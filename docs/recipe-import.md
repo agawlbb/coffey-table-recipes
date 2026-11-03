@@ -64,7 +64,7 @@ Set a stable ASCII `import_key` (at most 191 characters), such as a SHA-256 of t
 
 ### Steps, actions and photos
 
-Human-readable instructions remain authoritative. Action types: `timer`, `appliance_temperature`, `internal_temperature`, `rest`, `reminder`. Timers/rest require positive `duration_seconds`. Temperatures require both exact `temperature_value` and original `temperature_unit` (`C` or `F`); preserve 180°C as 180°C. Actions are data only and do not control appliances.
+Human-readable instructions remain authoritative. Action types: `timer`, `appliance_temperature`, `internal_temperature`, `rest`, `reminder`. Timers/rest require positive `duration_seconds`; optional `duration_max_seconds` must be at least that minimum. Explicit ranges and bounded same-stage check/continuation instructions produce one range timer. Temperatures require both exact `temperature_value` and original `temperature_unit` (`C` or `F`); preserve 180°C as 180°C. Actions are data only and do not control appliances.
 
 Photos store no image binaries. Use `storage_key` for a relative media key such as `households/<id>/recipes/<id>/<opaque-name>.jpg`, or `source_url` for a preserved original image reference. URLs are not automatically downloaded or guaranteed to remain available. Media upload/serving is not implemented yet. Record attribution, MIME type and dimensions when known. At most one photo per recipe can have `is_cover=1`. Unknown photos may simply be omitted.
 

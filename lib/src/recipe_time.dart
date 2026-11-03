@@ -45,3 +45,13 @@ String recipeTimeInput(Object? value, {bool minutePrecision = false}) {
   }
   return formatRecipeTime(amount, clock: true);
 }
+
+String formatRecipeTimeRange(Map<String, dynamic> action) {
+  final minimum = recipeSeconds(action['duration_seconds']) ?? 0;
+  final maximum = recipeSeconds(action['duration_max_seconds']);
+  if (maximum == null || maximum <= minimum) return formatRecipeTime(minimum);
+  if (minimum % 60 == 0 && maximum % 60 == 0 && maximum < 3600) {
+    return '${minimum ~/ 60}–${maximum ~/ 60} min';
+  }
+  return '${formatRecipeTime(minimum)}–${formatRecipeTime(maximum)}';
+}

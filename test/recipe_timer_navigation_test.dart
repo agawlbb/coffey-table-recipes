@@ -1,3 +1,7 @@
+import 'package:coffey_table_recipes/src/cooking_sessions.dart';
+
+import 'cooking_session_fixture.dart';
+
 import 'package:coffey_table_recipes/src/recipe_browser.dart';
 import 'package:coffey_table_recipes/src/cooking_mode.dart';
 import 'package:flutter/material.dart';
@@ -22,8 +26,12 @@ void main() {
           null,
         ),
       );
+      final sessions = recipeCookingFixture();
+      addTearDown(sessions.dispose);
       await tester.pumpWidget(
         MaterialApp(
+          builder: (context, child) =>
+              CookingSessionsScope(sessions: sessions, child: child!),
           home: RecipeDetail(
             householdId: '2',
             recipeId: '1',

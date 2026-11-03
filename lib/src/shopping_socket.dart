@@ -30,7 +30,9 @@ bool isAiPath(String path) => RegExp(
 bool isVpsDataPath(String path) {
   final route = Uri.parse(path).path;
   return RegExp(r'^/recipes/[1-9][0-9]*$').hasMatch(route) ||
-      RegExp(r'^/me/(?:timers|timer-devices(?:/remove)?)$').hasMatch(route) ||
+      RegExp(
+        r'^/me/(?:cooking-sessions(?:/[a-f0-9]{32}/(?:join|step|timer|presence|end|share|people))?|timers|timer-devices(?:/remove)?)$',
+      ).hasMatch(route) ||
       RegExp(
         r'^/households/[1-9][0-9]*/(?:snapshot|name|people(?:/me/name)?|restaurants|recipe-blank|shopping-list(?:/sync-request|/photos(?:/[a-f0-9]{64})?)?|meal-plan(?:/(?:ingredients|history|pairings/[1-9][0-9]*))?|recipes(?:/deleted|/[1-9][0-9]*(?:/(?:edit-options|share|favorites|attach|delete|restore))?)?)$',
       ).hasMatch(route);
@@ -226,7 +228,11 @@ class ShoppingSocket extends ChangeNotifier {
         : !isVpsDataPath(path) ||
               (scope == 'household' &&
                   !path.startsWith('/households/$household/')) ||
-              (scope == 'timers' && !path.startsWith('/me/')) ||
+              (scope == 'timers' &&
+                  !RegExp(r'^/me/(?:timers|timer-devices(?:/remove)?)$')
+                      .hasMatch(Uri.parse(path).path)) ||
+              (scope == 'cooking' &&
+                  !path.startsWith('/me/cooking-sessions')) ||
               (scope == 'public' &&
                   !RegExp(r'^/recipes/[1-9][0-9]*$').hasMatch(path))) {
       throw ArgumentError('Data path outside this connection');

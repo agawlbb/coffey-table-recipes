@@ -14,8 +14,9 @@ import UserNotifications
 
   override func userNotificationCenter(_ center: UNUserNotificationCenter, willPresent notification: UNNotification, withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void) {
     if notification.request.content.userInfo["kind"] as? String == "recipe_timer" {
-      RecipeTimers.receivePush(notification.request.content.userInfo) { _ in completionHandler([.banner]) }
+      RecipeTimers.receivePush(notification.request.content.userInfo) { _ in completionHandler([]) }
     }
+    else if notification.request.content.userInfo["kind"] as? String == "cooking_invitation" { completionHandler([.banner, .sound]) }
     else if notification.request.content.userInfo["pendingSave"] as? Bool == true { completionHandler([.banner, .sound]) }
     else if notification.request.content.userInfo["recipeTimer"] as? Bool == true { completionHandler([.banner, .sound]) }
     else { super.userNotificationCenter(center, willPresent: notification, withCompletionHandler: completionHandler) }
@@ -30,10 +31,14 @@ import UserNotifications
   }
 
   override func userNotificationCenter(_ center: UNUserNotificationCenter, didReceive response: UNNotificationResponse, withCompletionHandler completionHandler: @escaping () -> Void) {
+    if response.actionIdentifier == "timer_stop" || response.actionIdentifier == "timer_extend" {
+      Task { @MainActor in _ = await RecipeTimers.handleNotification(response); completionHandler() }
+    } else {
     if response.notification.request.content.userInfo["kind"] as? String == "recipe_timer" {
       RecipeTimers.receivePush(response.notification.request.content.userInfo) { _ in completionHandler() }
     } else {
       super.userNotificationCenter(center, didReceive: response, withCompletionHandler: completionHandler)
+    }
     }
   }
 

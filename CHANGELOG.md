@@ -2,6 +2,16 @@
 
 Release dates and changes are reconstructed from annotated Git tags, commit history, and project release records. Versions before 1.0 are demonstration releases; 1.0 marks the first usable release. Android retains the existing signing identity; iOS delivery and signing are recorded for each release.
 
+## 2.7.0 — 2026-11-03
+
+Build 54; tag `v2.7.0`.
+
+- Start shared cooking sessions, open or join them from the bottom of the navigation menu, and switch between dishes while steps and timers remain synchronized.
+- Invite household members directly by holding a session and choosing a person under **Share with**. Keep sessions available until explicitly ended or expired after inactivity, with running timers protected.
+- Preserve timer ranges in recipe imports, chat, variations and editing. Start at the minimum and offer the remaining time once, with shared revisions preventing duplicate extensions.
+- Add **Stop** and **Add remaining time** actions to expired Android and iOS timers. Clear stopped timers from cooking mode, retain background actions for reconciliation, and synchronize them through the server.
+- Optimize large recipe images in a separate backend worker while preserving originals and keeping shopping and recipe connections responsive.
+
 ## 2.6.0 — 2026-11-01
 
 Build 52; tag `v2.6.0`.

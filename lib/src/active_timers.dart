@@ -34,6 +34,7 @@ class _ActiveTimerHostState extends State<ActiveTimerHost>
   bool _refreshing = false;
   bool _foreground = true;
   int _ticks = 0;
+  bool _adding = false;
 
   @override
   void initState() {
@@ -79,6 +80,27 @@ class _ActiveTimerHostState extends State<ActiveTimerHost>
     _changed();
   }
 
+  Future<void> _extend(String key) async {
+    if (_adding || childMode.value) return;
+    setState(() => _adding = true);
+    try {
+      await NativeTimers.extend(key);
+    } catch (_) {
+      final context = widget.navigatorKey.currentContext;
+      if (context != null && context.mounted) {
+        ScaffoldMessenger.maybeOf(context)?.showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Could not add the remaining time. Please try again.',
+            ),
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _adding = false);
+    }
+  }
+
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
@@ -94,6 +116,7 @@ class _ActiveTimerHostState extends State<ActiveTimerHost>
       ..sort((a, b) => (a['deadline'] as num).compareTo(b['deadline'] as num));
     if (!NativeTimers.supported || timers.isEmpty) return widget.child;
     final theme = Theme.of(context);
+    final extension = NativeTimers.remainingExtension(timers.first);
     return Column(
       children: [
         Material(
@@ -111,7 +134,14 @@ class _ActiveTimerHostState extends State<ActiveTimerHost>
                 overflow: TextOverflow.ellipsis,
               ),
               subtitle: Text(timerCountdown(timers.first, DateTime.now())),
-              trailing: const Icon(Icons.expand_more),
+              trailing: extension > 0
+                  ? TextButton(
+                      onPressed: _adding
+                          ? null
+                          : () => _extend(timers.first['key'] as String),
+                      child: Text('Add ${formatRecipeTime(extension)}'),
+                    )
+                  : const Icon(Icons.expand_more),
               onTap: () => showModalBottomSheet<void>(
                 context: widget.navigatorKey.currentState!.overlay!.context,
                 useSafeArea: true,
@@ -163,17 +193,25 @@ class _RunningTimersSheetState extends State<RunningTimersSheet> {
     super.dispose();
   }
 
-  Future<void> _stop(String key) async {
+  Future<void> _stop(String key, {bool extend = false}) async {
     if (childMode.value) return;
     setState(() {
       _busy.add(key);
       _error = null;
     });
     try {
-      await NativeTimers.cancel(key);
+      if (extend) {
+        await NativeTimers.extend(key);
+      } else {
+        await NativeTimers.cancel(key);
+      }
     } catch (_) {
       if (mounted) {
-        setState(() => _error = 'Could not stop this timer. Please try again.');
+        setState(
+          () => _error = extend
+              ? 'Could not add the remaining time. Please try again.'
+              : 'Could not stop this timer. Please try again.',
+        );
       }
     } finally {
       if (mounted) setState(() => _busy.remove(key));
@@ -210,15 +248,30 @@ class _RunningTimersSheetState extends State<RunningTimersSheet> {
                     itemBuilder: (_, index) {
                       final row = rows[index];
                       final key = row['key'] as String;
+                      final extension = NativeTimers.remainingExtension(row);
                       return ListTile(
                         leading: const Icon(Icons.timer_outlined),
                         title: Text('${row['title'] ?? 'Cooking timer'}'),
                         subtitle: Text(timerCountdown(row, DateTime.now())),
-                        trailing: TextButton(
-                          onPressed: readOnly || _busy.contains(key)
-                              ? null
-                              : () => _stop(key),
-                          child: const Text('Stop'),
+                        trailing: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            if (extension > 0)
+                              TextButton(
+                                onPressed: readOnly || _busy.contains(key)
+                                    ? null
+                                    : () => _stop(key, extend: true),
+                                child: Text(
+                                  'Add ${formatRecipeTime(extension)}',
+                                ),
+                              ),
+                            TextButton(
+                              onPressed: readOnly || _busy.contains(key)
+                                  ? null
+                                  : () => _stop(key),
+                              child: const Text('Stop'),
+                            ),
+                          ],
                         ),
                       );
                     },

@@ -1,3 +1,5 @@
+import 'cooking_sessions.dart';
+import 'cooking_session_ui.dart';
 import 'shopping_socket.dart';
 import 'child_mode.dart';
 import 'meal_plan_actions.dart';
@@ -435,6 +437,7 @@ class _HouseholdPanelState extends State<HouseholdPanel>
             .request(path, body: body);
     WidgetsBinding.instance.addObserver(this);
     sharedRecipeInbox.addListener(_sharedRecipeChanged);
+    cookingSessions.addListener(_cookingChanged);
     _personName.text = widget.user.displayName ?? '';
     if (widget.request == null) {
       _offline =
@@ -494,6 +497,8 @@ class _HouseholdPanelState extends State<HouseholdPanel>
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     sharedRecipeInbox.removeListener(_sharedRecipeChanged);
+    cookingSessions.removeListener(_cookingChanged);
+    cookingMenuBuilder = null;
     _mirrorTimer?.cancel();
     for (final socket in _shoppingSockets.values) {
       socket.dispose();
@@ -514,6 +519,65 @@ class _HouseholdPanelState extends State<HouseholdPanel>
         socket.reconnect();
       }
     }
+  }
+
+  bool _cookingInvitationOpen = false;
+  String? _lastCookingError;
+  void _cookingChanged() {
+    final message = cookingSessions.error;
+    if (mounted && message != null && message != _lastCookingError) {
+      _lastCookingError = message;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          ScaffoldMessenger.of(context)
+              .showSnackBar(SnackBar(content: Text(message)));
+        }
+      });
+    }
+    if (!mounted ||
+        _cookingInvitationOpen ||
+        childMode.value ||
+        cookingSessions.invitations.isEmpty) {
+      return;
+    }
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      if (!mounted || _cookingInvitationOpen || childMode.value) return;
+      final invitations = cookingSessions.invitations;
+      if (invitations.isEmpty) return;
+      _cookingInvitationOpen = true;
+      cookingSessions.offered.addAll(invitations.map((s) => '${s['id']}'));
+      final chosen = await showDialog<String>(
+        context: context,
+        builder: (dialog) => SimpleDialog(
+          title: const Text('Mirror cooking?'),
+          children: [
+            for (final session in invitations)
+              SimpleDialogOption(
+                onPressed: () => Navigator.pop(dialog, '${session['id']}'),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Text('${(session['recipe'] as Map)['title']}'),
+                    ),
+                    const Text('Join'),
+                  ],
+                ),
+              ),
+            SimpleDialogOption(
+              onPressed: () => Navigator.pop(dialog),
+              child: const Text('Not now'),
+            ),
+          ],
+        ),
+      );
+      _cookingInvitationOpen = false;
+      if (mounted && chosen != null) {
+        final session = cookingSessions.session(chosen);
+        if (session != null) {
+          await openCookingSession(context, session, menuBuilder: _buildMenu);
+        }
+      }
+    });
   }
 
   void _sharedRecipeChanged() {
@@ -1270,6 +1334,7 @@ class _HouseholdPanelState extends State<HouseholdPanel>
 
   Widget _buildMenu(BuildContext menuContext) {
     final selected = _households.where((h) => h['id'] == _selected).firstOrNull;
+    cookingMenuBuilder = _buildMenu;
     return Drawer(
       child: SafeArea(
         child: Column(
@@ -1348,6 +1413,7 @@ class _HouseholdPanelState extends State<HouseholdPanel>
                         _openAdministration();
                       },
                     ),
+                  CookingSessionMenu(menuBuilder: _buildMenu),
                 ],
               ),
             ),

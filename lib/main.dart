@@ -12,7 +12,7 @@ import 'src/app.dart';
 import 'src/android_release_notifications.dart';
 import 'src/shared_recipe_import.dart';
 import 'src/firebase_config.dart';
-import 'src/timer_sync.dart';
+import 'src/cooking_sessions.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -42,10 +42,10 @@ Future<void> main() async {
     }
     // Sharing failures must never prevent the app or local timers from starting.
     try {
-      await timerSync.start();
+      await cookingSessions.start();
     } catch (_) {
-      timerSync.status.value =
-          'Timer sharing could not start. Reopen the app to try again.';
+      cookingSessions.error =
+          'Cooking sync could not start. Reopen the app to try again.';
     }
   }
   runApp(
