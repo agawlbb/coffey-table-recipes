@@ -2,6 +2,16 @@
 
 Release dates and changes are reconstructed from annotated Git tags, commit history, and project release records. Versions before 1.0 are demonstration releases; 1.0 marks the first usable release. Android retains the existing signing identity; iOS delivery and signing are recorded for each release.
 
+## 2.7.3 — 2026-11-05
+
+Build 58; tag `v2.7.3`.
+
+- Resolve synced recipe IDs in new and already queued meal-plan edits so temporary device IDs cannot leave uploads stuck.
+- Show pending or failed saves in the sync indicator and expose the existing retry/review status instead of showing a misleading green cloud.
+- Repair sharing from retained recipe screens and remove the HTML-copy option; Share recipe opens normal device sharing directly.
+- Add device notification categories and first-launch permission handling.
+- Complete InMotion web-hosting retirement. Android and iOS releases continue using the VPS backend; invitation and verification flows no longer point to the retired website.
+
 ## 2.7.2 — 2026-11-03
 
 Build 57; tag `v2.7.2`.

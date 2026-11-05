@@ -1021,3 +1021,27 @@ remains unconfirmed; no claim of repairing that cause is made.
 - Release preparation and evidence remain on `release/2.7.2`, synchronized with
   GitHub and ready for explicit main integration. The immutable tag retains the
   exact validated source; later release-documentation changes do not alter it.
+
+
+## 2.7.3 — meal-plan sync, sharing and native-only delivery
+
+Prepared 2026-11-05, version 2.7.3/build 58. The user explicitly accepted the
+sync/sharing repair, InMotion retirement in all three repositories, and the prior
+2.7.2 release records for main integration, requested cleanup of merged task
+branches/worktrees, and authorized a new native app release and VPS deployment
+after verifying that only main remains.
+
+The sync/sharing source passed all 627 Flutter tests and affected-file analysis.
+After integrating the retirement changes, invitation and verification-delivery
+checks passed (10 tests), and email-verification checks passed (7 tests).
+The first combined invocation also named a nonexistent verification test file;
+its two existing files passed, and the correct third file was then run separately.
+The signed release workflow will run full analysis and the full app suite on the
+immutable release source before packaging.
+
+The VPS merge passed 14 invitation-mail, 14 verification, 25 account, 21 remaining
+account/HA, 34 HTTP checks, private account configuration checks, and 10 account
+WebSocket fixture tests. No fixtures sent mail or used production data.
+
+Delivery and branch-cleanup evidence will be recorded after verification. The
+retired hosted web app must not be built or published.
