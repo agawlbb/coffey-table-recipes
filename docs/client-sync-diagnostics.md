@@ -77,5 +77,7 @@ before a process is forcibly killed is best effort.
 - Backend read-only inspection found no recent server errors, low resource use,
   and a running service. No backend change or deployment is part of this repair.
 
-The new client code requires a new app build before it can run on the affected
-phones/tablets. Physical-device multi-device acceptance remains unverified here.
+Released as **2.7.5/build 60** to Android Drive and the existing TestFlight group.
+Install build 60 on the affected phones/tablets for these fixes and diagnostics.
+See [release delivery evidence](releases.md). Physical-device multi-device
+acceptance remains unverified here.

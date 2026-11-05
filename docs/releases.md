@@ -1190,3 +1190,42 @@ The log starts with this build and cannot recover errors from older installation
 Physical affected-device diagnosis and multi-device acceptance remain pending.
 Delivery evidence follows after verification. No retired web app release and
 no backend redeployment needed for these client-only changes.
+
+
+### Verified 2.7.5 packaging and delivery — 2026-11-05
+
+- The accepted diagnostics branch is merged and deleted locally/on GitHub; its
+  worktree is removed. Both active repositories have only main and one primary
+  worktree. Backend main remains `649c99c`; no redeployment or state change.
+- Immutable app tag `v2.7.5` points to
+  `c805ab3ecb9e63cf792556535ad47953a354aac9` (2.7.5/build 60).
+- [Android run 42112794763](https://github.com/agawlbb/coffey-table-recipes/actions/runs/42112794763)
+  succeeded. Artifact `13455850117` archive SHA-256:
+  `36e195ba427edf679db0a57c5733209c492a364644502a598720b221aa8a4b4b`.
+  Downloaded artifact/source/version and actual APK checksums were verified.
+  APK SHA-256 `099f82177ee5fa476746d6f77f61e163b0d97febe59c85dcc4288c519ba7d336`.
+  Independent apksigner verification confirms the existing distribution
+  certificate `f8de933f14b9bb4b3191a94aedc8637972c5ab224565f6abd7808f8038d12097`.
+  Hosted recipe-link association matches that actual certificate.
+- [Verified Android APK in Drive](https://drive.google.com/file/d/1d3EmguQSjNx4dQl5oXfJdLf5m-juI09a/view).
+  The publisher downloaded and hashed the uploaded bytes, sent the informational
+  notification, and trashed only `CoffeyTableRecipes-2.7.4-build59.apk`.
+- [Signed iOS run 42112797823](https://github.com/agawlbb/coffey-table-recipes/actions/runs/42112797823)
+  succeeded on its first attempt. Analysis, app tests (including the real account
+  coordinator regression), native tooling, archive/export and strict signatures,
+  profiles and version/build for all three targets passed. Production APNs and
+  the hosted recipe-link association matched the actual signed app.
+  Exported IPA SHA-256:
+  `9ec1a4b487bd560b4e29734f61182bf24102ebc30e3b1e248efdb72a19cfadd8`.
+  Xcode confirmed upload success at 21:47:49 UTC. This upload-enabled workflow
+  retains its verification log but no downloadable IPA artifact.
+- Physical iPad/iPhone synchronization and link handoff acceptance remain manual
+  checks after installing build 60. Settings → Error log → Copy to clipboard
+  supplies diagnostics if an installed device still fails. Existing tester
+  memberships and France exclusions are preserved; no retired web app release.
+
+- [Apple verification 42115958745](https://github.com/agawlbb/coffey-table-recipes/actions/runs/42115958745)
+  confirms build `e78bcd00-8c37-4012-98f5-ef60741fb236`: version 2.7.5/build 60 is VALID,
+  declares no non-exempt encryption, is IN_BETA_TESTING, and is available
+  to the existing Family testers internal group. No new tester invitations,
+  public App Store submission or distribution-territory changes.
