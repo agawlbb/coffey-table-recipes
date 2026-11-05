@@ -1043,8 +1043,8 @@ The VPS merge passed 14 invitation-mail, 14 verification, 25 account, 21 remaini
 account/HA, 34 HTTP checks, private account configuration checks, and 10 account
 WebSocket fixture tests. No fixtures sent mail or used production data.
 
-Delivery and branch-cleanup evidence will be recorded after verification. The
-retired hosted web app must not be built or published.
+Verified delivery and branch-cleanup evidence is recorded below. The retired
+hosted web app was not built or published.
 
 
 The first iOS 58 attempt, run 42053084032, passed full analysis and all app and
@@ -1055,3 +1055,58 @@ fallback below iOS 16. This changes iOS source only; the delivered Android APK
 and immutable `v2.7.3` source are retained. The corrected iOS source is identified
 by a separate immutable `v2.7.3-ios.1` tag, still marketing version 2.7.3/build 58.
 No build 58 package was uploaded by the failed attempt.
+
+
+### Verified delivery — 2026-11-05
+
+- App main includes the accepted sync/sharing repair, InMotion retirement, and
+  2.7.2 release records. Only main remains locally and on GitHub in both active
+  repositories, with one primary checkout each. The legacy PHP repository was
+  briefly unarchived with explicit approval, fast-forwarded to retirement commit
+  `50fcbe1a8703f00d4b53230951528409dc437963`, its merged branch deleted, and
+  archived again. It also has only main; its local checkouts had been removed.
+- VPS main `e426455ee7b78f46105d4a05fb044c18e50d8c24` was deployed with the
+  existing copy-and-restart deployer. All 72 deployed runtime files matched
+  source. Health, recipe 9 and both native associations returned 200; public
+  WebSocket authentication, recipe read and heartbeat passed without writing
+  data. CPU, memory, security and restart settings were unchanged, including
+  CPU shares 1024 and unlimited cpu.max. Private configuration, database and
+  persistent media were preserved. No retired web app was built or published.
+- [Android run 42053078693](https://github.com/agawlbb/coffey-table-recipes/actions/runs/42053078693)
+  passed package/version, signing, timer JNI and hosted-association checks.
+  The downloaded artifact/archive and actual APK were independently verified.
+  APK SHA-256: `361ec041fb13445c73308a19773ce08ef95d851b7613a96dcb80a273fe5d2aa6`.
+  `apksigner` confirmed the existing certificate; `tool/verify-app-links.py`
+  passed against that APK's actual certificate fingerprint.
+  [Verified APK in Drive](https://drive.google.com/file/d/1zqKiNlnHFAkmCzKINM5ESqhcqGwnkC45/view).
+  The existing publisher downloaded and hashed the Drive bytes, sent the
+  informational notification without a link/click action, then trashed only
+  `CoffeyTableRecipes-2.7.2-build57.apk`. Other files and signed iOS packages remain.
+- [Corrected signed iOS run 42055797456](https://github.com/agawlbb/coffey-table-recipes/actions/runs/42055797456)
+  passed full analysis, all 627 app tests, iOS tooling tests, archive/export,
+  and actual app/extension signature/profile/version checks. Production APNs,
+  App Group, encryption declarations and the hosted universal-link association
+  were verified against the exported signed app. Signed IPA SHA-256:
+  `c66226acb0251aec948243d1ae2d51d648fe67ad830571120d5ac244b8904a1c`.
+  Retained artifact `13430418007` has archive SHA-256
+  `0cc63bc775c80628c6f951b7066737253c525b3db71d18541d512a3739e91dfa`.
+  Downloaded bytes, source and all three targets were independently checked;
+  the signed IPA and reports are retained privately outside Git.
+- [Upload run 42059557386](https://github.com/agawlbb/coffey-table-recipes/actions/runs/42059557386)
+  reverified that exact package and its signed native association, then reported
+  **UPLOAD SUCCEEDED with no errors**, delivery UUID
+  `8583d330-cb29-4659-8e6f-88cecbb70567`, at 15:55:34 UTC.
+- [Apple verification 42060013935](https://github.com/agawlbb/coffey-table-recipes/actions/runs/42060013935)
+  confirms version 2.7.3/build 58 is VALID, declares no non-exempt encryption,
+  and is available to the existing internal group. No testers, groups or
+  distribution territories were changed; existing France exclusions remain.
+- Android source is immutable tag `v2.7.3` at
+  `ae8cbd4e9dba643c80227b337a17b60808a46fca`. iOS uses the one-line availability
+  correction at `aaa98d727f53e3dcd4e671820a1f92550ae14d5c`, tag
+  `v2.7.3-ios.1`, with the same marketing version/build. Published history and
+  the delivered Android package were preserved. Later documentation commits
+  do not alter either package source.
+- Physical-device recipe-link handoff and acceptance of the original iPad
+  symptom were unavailable here. Automated app logic, native package signatures
+  and hosted associations passed; installed-device behavior remains a manual
+  acceptance check after updating.
