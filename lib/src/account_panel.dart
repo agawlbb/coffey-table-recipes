@@ -264,6 +264,16 @@ class _HouseholdPanelState extends State<HouseholdPanel>
     if (mounted) setState(() {});
   }
 
+  void _syncStatusChanged() {
+    final local = _local;
+    pendingSyncMessage.value = local == null
+        ? null
+        : local.error ??
+              (local.pending == 0
+                  ? null
+                  : '${local.pending} change(s) waiting to sync');
+  }
+
   Timer? _mirrorTimer;
   void _localChanged() {
     if (mounted && localDataChanges.value.startsWith('/me#')) {
@@ -483,6 +493,7 @@ class _HouseholdPanelState extends State<HouseholdPanel>
         onPendingChanged: (scope, _) =>
             SyncNotifications.update(scope, const []),
       )..start();
+      _local!.addListener(_syncStatusChanged);
       localDataChanges.addListener(_localChanged);
       _mirrorTimer = Timer.periodic(const Duration(minutes: 1), (_) {
         if (mounted &&
@@ -507,11 +518,13 @@ class _HouseholdPanelState extends State<HouseholdPanel>
     cookingMenuBuilder = null;
     cookingRecipeBrowser = null;
     connectedHouseholds.value = {};
+    pendingSyncMessage.value = null;
     _mirrorTimer?.cancel();
     for (final socket in _shoppingSockets.values) {
       socket.dispose();
     }
     localDataChanges.removeListener(_localChanged);
+    _local?.removeListener(_syncStatusChanged);
     _local?.dispose();
     _offline?.close();
     _api.close();
@@ -1838,6 +1851,7 @@ class _HouseholdPanelState extends State<HouseholdPanel>
       drawer: _buildMenu(context),
       body: Column(
         children: [
+          if (_local != null) LocalSyncStatus(data: _local!),
           Expanded(
             child: IndexedStack(
               index: _planning

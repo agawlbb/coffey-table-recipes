@@ -274,6 +274,13 @@ class LocalData extends ChangeNotifier {
     return done.future;
   }
 
+  void _resolveRecipeReferences(Map value) {
+    for (final field in ['recipe_id', 'parent_recipe_id', 'recipe_identity']) {
+      final resolved = _aliases[value[field]];
+      if (resolved != null) value[field] = resolved;
+    }
+  }
+
   String _path(String path) {
     for (final entry in _aliases.entries) {
       path = path.replaceAll('/${entry.key}', '/${entry.value}');
@@ -487,7 +494,9 @@ class LocalData extends ChangeNotifier {
         editOptions['recipes'] = choices.values.toList();
         recipe['edit_options'] = editOptions;
       }
-      return _overlayRecipes(path, result);
+      return uri.path.endsWith('/meal-plan')
+          ? _filterPlan(result, uri)
+          : _overlayRecipes(path, result);
     }
     final parts = uri.pathSegments;
     if (parts.length == 5 &&
@@ -776,6 +785,7 @@ class LocalData extends ChangeNotifier {
     final result = _copy(state);
     for (final entry in (result['entries'] as List? ?? [])) {
       if (entry['kind'] == 'recipe') {
+        _resolveRecipeReferences(entry as Map);
         final recipe =
             (_data['/households/${uri.pathSegments[1]}/recipes/${entry['recipe_id']}']
                     as Map?)?['recipe']
@@ -982,7 +992,11 @@ class LocalData extends ChangeNotifier {
     final browse = _snapshotBrowse(uri);
     if (browse != null) return browse;
     final direct = _data[path];
-    if (direct is Map) return _copy(direct);
+    if (direct is Map) {
+      return uri.path.endsWith('/meal-plan')
+          ? _filterPlan(direct, uri)
+          : _copy(direct);
+    }
     throw StateError('Local database is incomplete for $path');
   }
 
@@ -1256,6 +1270,7 @@ class LocalData extends ChangeNotifier {
     final before = jsonEncode({'data': _data, 'queue': _queue});
     final resource = Uri.parse(path).path;
     final value = _copy(body);
+    _resolveRecipeReferences(value);
     final previous = await cached(resource);
     final previousRevision =
         (previous?['recipe'] as Map?)?['revision'] ?? previous?['revision'];
@@ -1459,6 +1474,7 @@ class LocalData extends ChangeNotifier {
           return false;
         }
         final body = candidate['body'] as Map;
+        _resolveRecipeReferences(body);
         return !Uri.parse(_path(candidate['path'] as String)).pathSegments.last
                 .startsWith('local-') &&
             ![
@@ -1498,7 +1514,7 @@ class LocalData extends ChangeNotifier {
             final newerLocal = _data['$root/$localId'] as Map?;
             _data.remove('$root/$localId');
             // Resolve references in queued plan/recipe changes, not arbitrary text.
-            for (final pending in _queue.skip(1)) {
+            for (final pending in _queue.where((pending) => pending != q)) {
               final b = pending['body'] as Map;
               for (final field in ['recipe_id', 'parent_recipe_id']) {
                 if (b[field] == localId) b[field] = serverId;

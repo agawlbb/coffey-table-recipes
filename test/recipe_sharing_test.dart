@@ -25,50 +25,11 @@ void main() {
       '<a href="https://ctr.coffeybean.com/recipes/3">Fish &amp; &quot;Chips&quot; &lt;hot&gt;</a>',
     );
   });
-  testWidgets('copy HTML link copies the named escaped anchor', (tester) async {
-    String? copied;
-    tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
-      SystemChannels.platform,
-      (call) async {
-        if (call.method == 'Clipboard.setData') {
-          copied = call.arguments['text'] as String;
-        }
-        return null;
-      },
-    );
-    addTearDown(
-      () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
-        SystemChannels.platform,
-        null,
-      ),
-    );
-    await tester.pumpWidget(
-      MaterialApp(
-        home: RecipeDetail(
-          householdId: '2',
-          recipeId: '3',
-          title: 'Soup',
-          request: (_) async => {
-            'recipe': {'title': 'Soup & beans', 'original_language': 'en'},
-          },
-        ),
-      ),
-    );
-    await tester.pumpAndSettle();
-    await tester.tap(find.byTooltip('Share recipe'));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('Copy HTML link'));
-    await tester.pumpAndSettle();
-    expect(
-      copied,
-      '<a href="https://ctr.coffeybean.com/recipes/3">Soup &amp; beans</a>',
-    );
-    expect(find.text('HTML link copied'), findsOneWidget);
-  });
-
   testWidgets('native rich sharing includes HTML and readable fallback', (
     tester,
   ) async {
+    await tester.binding.setSurfaceSize(const Size(1024, 768));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
     MethodCall? shared;
     const channel = MethodChannel('coffey_table_recipes/share_link');
     tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(channel, (
@@ -87,18 +48,20 @@ void main() {
       MaterialApp(
         home: RecipeDetail(
           householdId: '2',
-          recipeId: '3',
+          recipeId: 'local-soup',
           title: 'Old title',
           request: (_) async => {
-            'recipe': {'title': 'Crêpes & cream', 'original_language': 'fr'},
+            'recipe': {
+              'id': '3',
+              'title': 'Crêpes & cream',
+              'original_language': 'fr',
+            },
           },
         ),
       ),
     );
     await tester.pumpAndSettle();
     await tester.tap(find.byTooltip('Share recipe'));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('Send a link'));
     await tester.pumpAndSettle();
     expect(
       shared?.arguments['html'],
@@ -108,7 +71,37 @@ void main() {
       shared?.arguments['text'],
       'Crêpes & cream\nhttps://ctr.coffeybean.com/recipes/3',
     );
+    expect(shared?.arguments['origin'][2], greaterThan(0));
+    expect(shared?.arguments['origin'][3], greaterThan(0));
     expect(find.text('Recipe link'), findsNothing);
+  }, variant: TargetPlatformVariant.only(TargetPlatform.iOS));
+
+  testWidgets('unsynced recipe gives an accurate status without sharing', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: RecipeDetail(
+          householdId: '2',
+          recipeId: 'local-soup',
+          title: 'Soup',
+          request: (_) async => {
+            'recipe': {'id': 'local-soup', 'title': 'Soup'},
+          },
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.byTooltip('Share recipe'));
+    await tester.pumpAndSettle();
+    expect(
+      find.text(
+        'This recipe is waiting to sync. Share it once syncing finishes.',
+      ),
+      findsOneWidget,
+    );
+    expect(find.textContaining('Check your connection'), findsNothing);
+    expect(tester.takeException(), isNull);
   });
 
   testWidgets('send a link passes the server URL to native sharing', (
@@ -145,8 +138,6 @@ void main() {
     );
     await tester.pumpAndSettle();
     await tester.tap(find.byTooltip('Share recipe'));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('Send a link'));
     await tester.pumpAndSettle();
     expect(shared?.method, 'share');
     expect(shared?.arguments['text'], 'Crêpes\n$url');
@@ -187,14 +178,7 @@ void main() {
       await tester.pumpAndSettle();
       await tester.tap(find.byTooltip('Share recipe'));
       await tester.pumpAndSettle();
-      expect(find.text('Send a link'), findsOneWidget);
-      expect(
-        find.text('Anyone with the link can view this recipe.'),
-        findsOneWidget,
-      );
-      expect(paths.length, 1);
-      await tester.tap(find.text('Send a link'));
-      await tester.pumpAndSettle();
+      expect(find.text('Copy HTML link'), findsNothing);
       expect(paths.length, 1);
       expect(find.text('Copy link'), findsOneWidget);
       expect(find.text('https://ctr.coffeybean.com/recipes/3'), findsOneWidget);

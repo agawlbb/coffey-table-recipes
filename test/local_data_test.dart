@@ -675,6 +675,87 @@ void main() {
     },
   );
 
+  test('meal added from an open local recipe resolves its synced ID', () async {
+    const plan = '/households/1/meal-plan';
+    final sent = <Map<String, dynamic>>[];
+    final data = store(
+      fetch: (_) async => {'revision': 0, 'today': '2026-11-05', 'entries': []},
+      send: (path, body) async {
+        if (path.endsWith('/recipes')) {
+          return {
+            'recipe': {'id': '99', 'title': 'Soup', 'revision': '1'},
+          };
+        }
+        sent.add(body);
+        return {'revision': 1};
+      },
+    );
+    await data.request(plan);
+    final created = await data.save('/households/1/recipes', {'title': 'Soup'});
+    final localId = created['recipe']['id'];
+    await settle(data);
+    expect(data.pending, 0);
+    await data.save(plan, {
+      'revision': 0,
+      'operation': 'add',
+      'id': 'meal',
+      'kind': 'recipe',
+      'recipe_id': localId,
+      'date': '2026-11-06',
+    });
+    await settle(data);
+    expect(data.pending, 0);
+    expect(sent.single['recipe_id'], '99');
+    expect((await data.cached(plan))!['entries'][0]['recipe_id'], '99');
+  });
+
+  test(
+    'restart repairs queued meal references with an existing recipe alias',
+    () async {
+      const plan = '/households/1/meal-plan';
+      disk['local-first-v1-server|account'] = jsonEncode({
+        'aliases': {'local-soup': '99'},
+        'data': {
+          plan: {
+            'revision': 1,
+            'entries': [
+              {
+                'id': 'meal',
+                'kind': 'recipe',
+                'recipe_id': 'local-soup',
+                'recipe_identity': 'local-soup',
+                'plan_date': '2026-11-06',
+              },
+            ],
+          },
+        },
+        'queue': [
+          {
+            'id': 'queued',
+            'path': plan,
+            'body': {
+              'revision': 0,
+              'operation': 'add',
+              'id': 'meal',
+              'kind': 'recipe',
+              'recipe_id': 'local-soup',
+              'date': '2026-11-06',
+            },
+          },
+        ],
+      });
+      final data = store(
+        send: (_, body) async {
+          expect(body['recipe_id'], '99');
+          return {'revision': 1};
+        },
+      );
+      await settle(data);
+      expect(data.pending, 0);
+      expect((await data.cached(plan))!['entries'][0]['recipe_id'], '99');
+    },
+  );
+
   test(
     'lost creation response retries the same receipt without review',
     () async {

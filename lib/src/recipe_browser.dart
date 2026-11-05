@@ -1249,39 +1249,17 @@ class _RecipeDetailState extends State<RecipeDetail> {
   }
 
   Future<void> _shareRecipe(BuildContext anchor) async {
-    final choice = await showModalBottomSheet<String>(
-      context: context,
-      builder: (context) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            ListTile(
-              leading: const Icon(Icons.link),
-              title: const Text('Send a link'),
-              subtitle: const Text(
-                'Anyone with the link can view this recipe.',
-              ),
-              onTap: () => Navigator.pop(context, 'send'),
-            ),
-            ListTile(
-              leading: const Icon(Icons.code),
-              title: const Text('Copy HTML link'),
-              onTap: () => Navigator.pop(context, 'html'),
-            ),
-          ],
-        ),
-      ),
-    );
-    if (choice == null || !mounted || !anchor.mounted) return;
     final title = '${_recipe?['title'] ?? widget.title}';
-    if (choice == 'html') {
-      await Clipboard.setData(
-        ClipboardData(text: recipeShareHtml(widget.recipeId, title)),
+    // A detail route can outlive the temporary ID assigned before its first sync.
+    final recipeId = '${_recipe?['id'] ?? widget.recipeId}';
+    if (!RegExp(r'^[1-9][0-9]{0,18}$').hasMatch(recipeId)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'This recipe is waiting to sync. Share it once syncing finishes.',
+          ),
+        ),
       );
-      if (mounted) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(const SnackBar(content: Text('HTML link copied')));
-      }
       return;
     }
     final box = anchor.findRenderObject() as RenderBox?;
@@ -1290,10 +1268,10 @@ class _RecipeDetailState extends State<RecipeDetail> {
         : box.localToGlobal(Offset.zero) & box.size;
     setState(() => _sharing = true);
     try {
-      final link = recipeShareLink(widget.recipeId);
+      final link = recipeShareLink(recipeId);
       var status = ShareResultStatus.unavailable;
       try {
-        if (await shareRecipeHtml(widget.recipeId, title, origin: origin)) {
+        if (await shareRecipeHtml(recipeId, title, origin: origin)) {
           status = ShareResultStatus.success;
         } else {
           final result = await SharePlus.instance.share(
@@ -1336,7 +1314,9 @@ class _RecipeDetailState extends State<RecipeDetail> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
-              error is ApiException ? error.message : 'Could not share this recipe. Check your connection and retry.',
+              error is ApiException
+                  ? error.message
+                  : 'Could not open sharing. Please try again.',
             ),
           ),
         );
