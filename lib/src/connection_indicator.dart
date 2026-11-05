@@ -21,12 +21,12 @@ class ConnectionIndicator extends StatelessWidget {
       return Padding(
         padding: const EdgeInsets.only(right: 4),
         child: Tooltip(
-          message: pending ?? 'All changes synced',
+          message: pending ?? 'Matches last confirmed server data',
           child: Icon(
             pending == null ? Icons.cloud_done : Icons.cloud_upload_outlined,
             color: pending == null ? Colors.green : Colors.orange,
             size: 18,
-            semanticLabel: pending ?? 'All changes synced',
+            semanticLabel: pending ?? 'Matches last confirmed server data',
           ),
         ),
       );

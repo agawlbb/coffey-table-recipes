@@ -80,6 +80,8 @@ class ShoppingSocket extends ChangeNotifier {
   final _progress = <String, void Function(String, int)>{};
   final _pending = <String, Completer<Map<String, dynamic>>>{};
   Future<void> _incoming = Future.value();
+  ApiException? failure;
+  bool applyingSnapshot = false;
   bool connected = false, _closed = false, _opening = false;
   int _sequence = 0, _attempt = 0, _generation = 0;
   DateTime _lastReceived = DateTime.now();
@@ -120,8 +122,18 @@ class ShoppingSocket extends ChangeNotifier {
                   await _receive(message, generation);
                 }
               })
-              .catchError((Object _) {
-                if (generation == _generation) _lost();
+              .catchError((Object failure) {
+                if (generation == _generation) {
+                  _lost(
+                    failure is ApiException
+                        ? failure
+                        : ApiException(
+                            502,
+                            'The server sent an invalid data response. Reconnecting.',
+                            code: 'invalid_server_message',
+                          ),
+                  );
+                }
               });
         },
         onDone: () {
@@ -187,26 +199,52 @@ class ShoppingSocket extends ChangeNotifier {
       );
       final pending = _pending.remove(message['id']);
       if (pending != null) pending.completeError(error);
-      if (message['id'] == null || [401, 403, 404].contains(error.status)) {
+      if (message['id'] == null ||
+          error.status == 401 ||
+          (error.status == 403 && error.code != 'permission_denied') ||
+          [
+            'account_disabled',
+            'household_not_found',
+            'household_access_removed',
+            'invalid_connection',
+          ].contains(error.code)) {
         _lost(error);
       }
     } else if (type == 'ready' || type == 'snapshot') {
       if ((message['household_id'] ?? '') != household) {
         throw const FormatException('Wrong household');
       }
-      await onSnapshot(Map<String, dynamic>.from(message['data'] as Map));
+      // Stateless scopes have no snapshot. Older servers encode the empty
+      // public payload as [] rather than {}, which is still a valid handshake.
+      final data = message['data'];
+      final emptyPublic = scope == 'public' && data is List && data.isEmpty;
+      if (data is! Map && !emptyPublic) {
+        throw const FormatException('Invalid server snapshot');
+      }
+      applyingSnapshot = true;
+      notifyListeners();
+      try {
+        await onSnapshot(
+          emptyPublic ? {} : Map<String, dynamic>.from(data as Map),
+        );
+      } finally {
+        applyingSnapshot = false;
+        if (!_closed && generation == _generation) notifyListeners();
+      }
       if (_closed || generation != _generation || _channel == null) return;
       if (type == 'ready') {
         connected = true;
+        failure = null;
         _attempt = 0;
         if (!(_ready?.isCompleted ?? true)) _ready!.complete();
         notifyListeners();
         onReady?.call();
       }
     } else if (type == 'response') {
-      _pending
-          .remove(message['id'])
-          ?.complete(Map<String, dynamic>.from(message['data'] as Map));
+      // Validate before removing the waiter: malformed responses must fail it
+      // through _lost(), rather than leaving an orphan waiting for its timeout.
+      final data = Map<String, dynamic>.from(message['data'] as Map);
+      _pending.remove(message['id'])?.complete(data);
     }
   }
 
@@ -261,6 +299,15 @@ class ShoppingSocket extends ChangeNotifier {
               ? 90
               : 20,
         ),
+        onTimeout: () {
+          final error = ApiException(
+            504,
+            'The data service did not confirm the request. Reconnecting.',
+            code: 'response_timeout',
+          );
+          _lost(error);
+          throw error;
+        },
       );
     } finally {
       _pending.remove(id);
@@ -273,12 +320,14 @@ class ShoppingSocket extends ChangeNotifier {
     _opening = false;
     _incoming = Future.value();
     connected = false;
+    applyingSnapshot = false;
     _heartbeat?.cancel();
     _renew?.cancel();
     unawaited(_subscription?.cancel());
     unawaited(_channel?.sink.close());
     _channel = null;
     final error = failure ?? _connectionLost();
+    this.failure = error is ApiException ? error : _connectionLost();
     if (!(_ready?.isCompleted ?? true)) _ready!.completeError(error);
     for (final pending in _pending.values) {
       pending.completeError(error);

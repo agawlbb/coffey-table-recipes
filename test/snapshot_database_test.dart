@@ -5,12 +5,15 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter/material.dart';
 import 'package:coffey_table_recipes/src/recipe_browser.dart';
 import 'package:coffey_table_recipes/src/local_data.dart';
+import 'package:coffey_table_recipes/src/api.dart';
 
 Map<String, dynamic> snapshot(String title, {String household = '1'}) {
   final root = '/households/$household';
   return {
     'schema': 1,
     'household_id': household,
+    'household': {'id': household, 'name': 'Table', 'role': 'owner'},
+    'user': {'id': '1', 'display_name': 'Alice', 'child_mode': false},
     'version': title,
     'edit_options': {'categories': [], 'recipes': []},
     'recipes': [
@@ -214,7 +217,7 @@ void main() {
       fail = true;
       await expectLater(
         data.installSnapshot(snapshot('New')),
-        throwsStateError,
+        throwsA(isA<ApiException>().having((e) => e.status, 'status', 507)),
       );
       expect(await data.snapshotVersion('1'), 'Old');
       expect(

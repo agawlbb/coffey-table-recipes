@@ -204,6 +204,7 @@ class LocalData extends ChangeNotifier {
   }
 
   void inventoryUpdated(String household) {
+    invalidateConfirmation(household);
     final root = '/households/$household/recipes';
     _data.removeWhere(
       (path, _) =>
@@ -227,6 +228,7 @@ class LocalData extends ChangeNotifier {
       final parts = Uri.parse(path).pathSegments;
       if (parts.length < 3 || parts[2] != 'recipes') return;
       final root = '/${parts.take(3).join('/')}';
+      _invalidatePath(path);
       final recipe = result['recipe'] as Map?;
       final id = result['deleted_recipe_id'] ?? recipe?['id'];
       if (id == null) return;
@@ -440,8 +442,16 @@ class LocalData extends ChangeNotifier {
         : null;
   }
 
-  int _version(String path) =>
-      (_versions[_resource(path)] ?? 0) + (_versions[_recipeRoot(path)] ?? 0);
+  int _version(String path) {
+    final parts = Uri.parse(path).pathSegments;
+    final household = parts.length > 1 && parts[0] == 'households'
+        ? '/households/${parts[1]}/'
+        : '';
+    return (_versions[_resource(path)] ?? 0) +
+        (_versions[_recipeRoot(path)] ?? 0) +
+        (_versions[household] ?? 0);
+  }
+
   void _bump(String path) {
     final resource = _resource(path);
     _versions[resource] = (_versions[resource] ?? 0) + 1;
@@ -852,6 +862,25 @@ class LocalData extends ChangeNotifier {
     return result;
   }
 
+  final _confirmedHouseholds = <String>{};
+  bool isHouseholdConfirmed(String household) =>
+      _confirmedHouseholds.contains(household) &&
+      error == null &&
+      !_queue.any(
+        (q) => (q['path'] as String).startsWith('/households/$household/'),
+      );
+
+  void invalidateConfirmation(String household) {
+    if (_confirmedHouseholds.remove(household) && !_closed) notifyListeners();
+  }
+
+  void _invalidatePath(String path) {
+    final parts = Uri.parse(path).pathSegments;
+    if (parts.length > 1 && parts[0] == 'households') {
+      invalidateConfirmation(parts[1]);
+    }
+  }
+
   Future<String?> snapshotVersion(String household) async {
     await _load();
     return _data['snapshot-version:$household'] as String?;
@@ -860,6 +889,9 @@ class LocalData extends ChangeNotifier {
   Future<void> installSnapshot(Map<String, dynamic> snapshot) => _serial(
     () async {
       await _load();
+      if (snapshot['household_id'] is String) {
+        invalidateConfirmation(snapshot['household_id'] as String);
+      }
       if (snapshot['schema'] != 1 ||
           snapshot['household_id'] is! String ||
           snapshot['version'] is! String ||
@@ -877,6 +909,14 @@ class LocalData extends ChangeNotifier {
         throw ApiException(403, 'Household access was removed.');
       }
       final supplied = snapshot['responses'] as Map;
+      if (supplied.entries.any(
+        (entry) =>
+            entry.key is! String ||
+            !(entry.key as String).startsWith('/households/$household/') ||
+            entry.value is! Map,
+      )) {
+        throw const FormatException('Invalid household snapshot scope');
+      }
       for (final row in snapshot['recipes'] as List) {
         if (supplied['/households/$household/recipes/${row['id']}']?['recipe']
                 is! Map ||
@@ -899,8 +939,7 @@ class LocalData extends ChangeNotifier {
         (path, _) =>
             path.startsWith(prefix) &&
             !(separateShopping && path.endsWith('/shopping-list')) &&
-            !_dirty(path) &&
-            !_aliases.values.any((id) => path == '${prefix}recipes/$id'),
+            !_dirty(path),
       );
       for (final entry in responses.entries) {
         if (separateShopping && entry.key.endsWith('/shopping-list')) continue;
@@ -916,12 +955,39 @@ class LocalData extends ChangeNotifier {
           }
         }
       }
+      final beforeMe = jsonEncode(next['/me']);
+      final meta = snapshot['household'];
+      final user = snapshot['user'];
+      if (meta is Map && user is Map) {
+        if (meta['id'] != household) {
+          throw const FormatException('Wrong household metadata');
+        }
+        final me = next['/me'] is Map ? _copy(next['/me'] as Map) : null;
+        if (me != null) {
+          final oldUser = me['user'] as Map?;
+          if (oldUser?['id'] != null && oldUser!['id'] != user['id']) {
+            throw const FormatException('Wrong account metadata');
+          }
+          me['user'] = {...?oldUser, ...user};
+          me['households'] = [
+            for (final row in me['households'] as List? ?? [])
+              if (row['id'] == household) {...row as Map, ...meta} else row,
+          ];
+          next['/me'] = me;
+        }
+      }
       next['snapshot-version:$household'] = snapshot['version'];
       next['snapshot-categories:$household'] = _copy({
         'rows': snapshot['categories'],
       })['rows'];
       next['snapshot-options:$household'] = _copy(options);
-      await _persist(data: next);
+      try {
+        await _persist(data: next);
+      } catch (_) {
+        error = 'Could not store synchronized data on this device. Free space and retry.';
+        notifyListeners();
+        throw ApiException(507, error!, code: 'storage_failure');
+      }
       if (accessEpoch != _accessEpoch) {
         throw ApiException(
           403,
@@ -929,6 +995,20 @@ class LocalData extends ChangeNotifier {
         );
       }
       _data = next;
+      error = null;
+      final shopping = '/households/$household/shopping-list';
+      if (meta is Map &&
+          user is Map &&
+          !_queue.any((q) => (q['path'] as String).startsWith(prefix)) &&
+          (!separateShopping ||
+              (_data['shopping-server-state:$household'] is Map &&
+                  jsonEncode(_data[shopping]) ==
+                      jsonEncode(_data['shopping-server-state:$household'])))) {
+        _confirmedHouseholds.add(household);
+      } else {
+        _confirmedHouseholds.remove(household);
+      }
+      if (beforeMe != jsonEncode(next['/me'])) _changed('/me');
       _bump(prefix);
       for (final resource in [
         'recipes',
@@ -968,7 +1048,14 @@ class LocalData extends ChangeNotifier {
       if (departments is List) (next[path] as Map)['departments'] = departments;
     }
     final changed = jsonEncode(next[path]) != jsonEncode(_data[path]);
-    await _persist(data: next);
+    if (changed) invalidateConfirmation(household);
+    try {
+      await _persist(data: next);
+    } catch (_) {
+      error = 'Could not store synchronized data on this device. Free space and retry.';
+      notifyListeners();
+      throw ApiException(507, error!, code: 'storage_failure');
+    }
     _data = next;
     if (changed) {
       _bump(path);
@@ -1056,6 +1143,7 @@ class LocalData extends ChangeNotifier {
   }) async {
     await _load();
     final path = _path(input);
+    _invalidatePath(path);
     if (_closed) throw StateError('Repository closed');
     if (_dirty(path)) {
       final saved = await cached(path);
@@ -1243,6 +1331,7 @@ class LocalData extends ChangeNotifier {
   ) async {
     await _load();
     final path = _path(input);
+    _invalidatePath(path);
     if (_blocked.keys.any((prefix) => _under(path, prefix))) {
       throw ApiException(
         403,
@@ -1453,6 +1542,59 @@ class LocalData extends ChangeNotifier {
   Future<void> synchronize() =>
       _draining ??= _drain().whenComplete(() => _draining = null);
 
+  Future<Map<String, dynamic>> _sendQueued(
+    String path,
+    Map<String, dynamic> body,
+  ) async {
+    try {
+      return await send(path, body);
+    } on ApiException catch (failure) {
+      if (path.endsWith('/restaurants') &&
+          failure.code == 'restaurant_conflict') {
+        final server = await (readServer ?? fetch)(path);
+        final wanted = [
+          for (final item in body['items'] as List)
+            {
+              'id': item['id'],
+              'name': '${item['name']}'.trim(),
+              'logo_reference': item['logo_reference'],
+            },
+        ];
+        if (jsonEncode(server['items']) == jsonEncode(wanted)) return server;
+        rethrow;
+      }
+
+      if (!path.endsWith('/meal-plan') ||
+          ![
+            'plan_conflict',
+            'entry_exists',
+            'meal_not_found',
+          ].contains(failure.code)) {
+        rethrow;
+      }
+      final server = await (readServer ?? fetch)(
+        '$path?from=2000-01-01&to=2199-12-31',
+      );
+      final entries = server['entries'] as List;
+      final entry = entries.where((e) => e['id'] == body['id']).firstOrNull;
+      final applied = switch (body['operation']) {
+        'remove' => entry == null,
+        'move' => entry != null && entry['plan_date'] == body['date'],
+        'add' =>
+          entry != null &&
+              entry['plan_date'] == body['date'] &&
+              entry['kind'] == body['kind'] &&
+              (body['kind'] != 'recipe' ||
+                  '${entry['recipe_id']}' == '${body['recipe_id']}') &&
+              (body['kind'] != 'restaurant' ||
+                  entry['restaurant_id'] == body['restaurant_id']),
+        _ => false,
+      };
+      if (!applied) rethrow;
+      return server;
+    }
+  }
+
   Future<void> _drain() async {
     await _load();
     while (!_closed && _queue.isNotEmpty) {
@@ -1491,7 +1633,7 @@ class LocalData extends ChangeNotifier {
           q['sending'] = true;
           await _persist(); // Crash during send is never mistaken for unsent work.
         });
-        final received = await send(path, _copy(q['body'] as Map));
+        final received = await _sendQueued(path, _copy(q['body'] as Map));
         if (path.endsWith('/shopping-list') &&
             (q['body'] as Map)['client_change_id'] != null &&
             received['acknowledged_change_id'] !=
@@ -1511,7 +1653,8 @@ class LocalData extends ChangeNotifier {
             final localId = q['local_id'] as String;
             _aliases[localId] = serverId;
             final root = Uri.parse(path).path;
-            final newerLocal = _data['$root/$localId'] as Map?;
+            final newerLocal =
+                (_data['$root/$localId'] ?? _data['$root/$serverId']) as Map?;
             _data.remove('$root/$localId');
             // Resolve references in queued plan/recipe changes, not arbitrary text.
             for (final pending in _queue.where((pending) => pending != q)) {
@@ -1578,7 +1721,11 @@ class LocalData extends ChangeNotifier {
                 path.endsWith('/favorites')) {
               _data[path] = _copy(result);
             } else if (path.endsWith('/meal-plan')) {
-              (_data[path] as Map?)?['revision'] = result['revision'];
+              if (result['entries'] is List) {
+                _data[path] = _copy(result);
+              } else {
+                (_data[path] as Map?)?['revision'] = result['revision'];
+              }
             }
           }
           if (separateShopping && path.endsWith('/shopping-list')) {
@@ -1632,7 +1779,14 @@ class LocalData extends ChangeNotifier {
               ? failure.message
               : 'The server response was interrupted.';
           q['last_status'] = failure is ApiException ? failure.status : null;
-          if ((delivered && (q['body'] as Map)['client_change_id'] == null) ||
+          final body = q['body'] as Map;
+          final replaySafe =
+              body['client_change_id'] != null ||
+              body['client_save_id'] != null ||
+              path.endsWith('/meal-plan') ||
+              path.endsWith('/restaurants') ||
+              path.endsWith('/favorites');
+          if ((delivered && !replaySafe) ||
               q['creating'] == true &&
                   (q['body'] as Map)['client_save_id'] == null ||
               failure is ApiException &&

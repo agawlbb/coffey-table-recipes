@@ -19,6 +19,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/scheduler.dart';
 
 import 'api.dart';
 import 'native_timers.dart';
@@ -233,13 +234,16 @@ class _HouseholdPanelState extends State<HouseholdPanel>
           ),
           token: (refresh) => _idToken(refresh),
           onSnapshot: (state) async {
+            _local?.invalidateConfirmation(household);
             await _local?.acceptShopping(
               household,
               Map<String, dynamic>.from(state['shopping'] as Map),
             );
-            await _local?.installSnapshot(
-              Map<String, dynamic>.from(state['library'] as Map),
-            );
+            final library = Map<String, dynamic>.from(state['library'] as Map);
+            if (library['household_id'] != household) {
+              throw const FormatException('Wrong library household');
+            }
+            await _local?.installSnapshot(library);
             if (mounted) {
               setState(() {
                 _readyHouseholds.add(household);
@@ -252,32 +256,83 @@ class _HouseholdPanelState extends State<HouseholdPanel>
             if (mounted) unawaited(_local?.synchronize());
           },
         );
-        socket.addListener(_shoppingConnectionChanged);
+        socket.addListener(_syncStatusChanged);
         socket.start();
         return socket;
       });
   void _shoppingConnectionChanged() {
+    for (final entry in _shoppingSockets.entries) {
+      if (!entry.value.connected) _local?.invalidateConfirmation(entry.key);
+    }
     connectedHouseholds.value = {
       for (final entry in _shoppingSockets.entries)
-        if (entry.value.connected) entry.key,
+        if (entry.value.connected &&
+            !entry.value.applyingSnapshot &&
+            (_local?.isHouseholdConfirmed(entry.key) ?? false))
+          entry.key,
     };
     if (mounted) setState(() {});
   }
 
   void _syncStatusChanged() {
+    if (SchedulerBinding.instance.schedulerPhase ==
+        SchedulerPhase.persistentCallbacks) {
+      scheduleMicrotask(() {
+        if (mounted) _syncStatusChanged();
+      });
+      return;
+    }
     final local = _local;
-    pendingSyncMessage.value = local == null
-        ? null
-        : local.error ??
-              (local.pending == 0
-                  ? null
-                  : '${local.pending} change(s) waiting to sync');
+    final checking = _shoppingSockets.entries.any(
+      (entry) =>
+          (!entry.value.connected ||
+          entry.value.applyingSnapshot ||
+          !(local?.isHouseholdConfirmed(entry.key) ?? false)),
+    );
+    final cookingPending =
+        cookingSessions.available && !cookingSessions.isSynchronized;
+    pendingSyncMessage.value =
+        (activeServerWrites.value > 0
+            ? 'Waiting for server acknowledgment'
+            : null) ??
+        local?.error ??
+        _shoppingSockets.values
+            .map((s) => s.failure?.message)
+            .whereType<String>()
+            .firstOrNull ??
+        (local != null && local.pending > 0
+            ? '${local.pending} change(s) waiting to sync'
+            : null) ??
+        (cookingPending
+            ? 'Cooking data waiting for server confirmation'
+            : null) ??
+        (!_accountConfirmed && widget.request == null
+            ? 'Checking account data against the server'
+            : null) ??
+        (checking ? 'Checking local data against the server' : null);
+    _shoppingConnectionChanged();
   }
 
+  bool _accountConfirmed = false;
   Timer? _mirrorTimer;
   void _localChanged() {
     if (mounted && localDataChanges.value.startsWith('/me#')) {
       unawaited(_load(reviewInvitations: false));
+    } else if (mounted &&
+        _selected != null &&
+        localDataChanges.value.startsWith('/households/$_selected/people#')) {
+      unawaited(_loadPeople());
+    } else if (mounted && _local != null && _local!.pending == 0) {
+      final households = _shoppingSockets.entries
+          .where(
+            (entry) =>
+                entry.value.connected &&
+                !entry.value.applyingSnapshot &&
+                !_local!.isHouseholdConfirmed(entry.key),
+          )
+          .map((entry) => entry.key)
+          .toList();
+      if (households.isNotEmpty) unawaited(_syncLibrary(households));
     }
   }
 
@@ -448,6 +503,8 @@ class _HouseholdPanelState extends State<HouseholdPanel>
   @override
   void initState() {
     super.initState();
+    activeServerWrites.addListener(_syncStatusChanged);
+    _api.refreshSocketToken = () => _idToken(true);
     _api.householdRequest = (path, {body}) =>
         _shoppingSocket(Uri.parse(path).pathSegments[1])
             .request(path, body: body);
@@ -497,13 +554,9 @@ class _HouseholdPanelState extends State<HouseholdPanel>
       localDataChanges.addListener(_localChanged);
       _mirrorTimer = Timer.periodic(const Duration(minutes: 1), (_) {
         if (mounted &&
-            !offlineStatus.value &&
             WidgetsBinding.instance.lifecycleState ==
                 AppLifecycleState.resumed) {
-          unawaited(_refreshChildPolicy());
-          unawaited(
-            _syncLibrary(_households.map((h) => h['id'] as String).toList()),
-          );
+          unawaited(_load(reviewInvitations: false));
         }
       });
     }
@@ -524,6 +577,7 @@ class _HouseholdPanelState extends State<HouseholdPanel>
       socket.dispose();
     }
     localDataChanges.removeListener(_localChanged);
+    activeServerWrites.removeListener(_syncStatusChanged);
     _local?.removeListener(_syncStatusChanged);
     _local?.dispose();
     _offline?.close();
@@ -533,9 +587,19 @@ class _HouseholdPanelState extends State<HouseholdPanel>
     super.dispose();
   }
 
+  bool _wasBackgrounded = false;
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.resumed) {
+    if (state == AppLifecycleState.paused ||
+        state == AppLifecycleState.hidden ||
+        state == AppLifecycleState.detached) {
+      _wasBackgrounded = true;
+      for (final household in _shoppingSockets.keys) {
+        _local?.invalidateConfirmation(household);
+      }
+      _syncStatusChanged();
+    } else if (state == AppLifecycleState.resumed && _wasBackgrounded) {
+      _wasBackgrounded = false;
       for (final socket in _shoppingSockets.values) {
         socket.reconnect();
       }
@@ -545,6 +609,7 @@ class _HouseholdPanelState extends State<HouseholdPanel>
   bool _cookingInvitationOpen = false;
   String? _lastCookingError;
   void _cookingChanged() {
+    if (mounted) _syncStatusChanged();
     final message = cookingSessions.error;
     if (mounted && message != null && message != _lastCookingError) {
       _lastCookingError = message;
@@ -708,9 +773,30 @@ class _HouseholdPanelState extends State<HouseholdPanel>
     String path, {
     Map<String, dynamic>? body,
   }) async {
+    try {
+      return await _sendOnlineRequest(path, body: body);
+    } finally {
+      if (body != null && _local != null && path.startsWith('/households/')) {
+        _local!.invalidateConfirmation(Uri.parse(path).pathSegments[1]);
+      }
+    }
+  }
+
+  Future<Map<String, dynamic>> _sendOnlineRequest(
+    String path, {
+    Map<String, dynamic>? body,
+  }) async {
+    if (body != null && isAccountPath(path)) {
+      _accountConfirmed = false;
+      _syncStatusChanged();
+    }
+    if (body != null && path.startsWith('/households/')) {
+      _local?.invalidateConfirmation(Uri.parse(path).pathSegments[1]);
+    }
     if (isVpsDataPath(path) && path.startsWith('/households/')) {
       final household = Uri.parse(path).pathSegments[1];
-      return _shoppingSocket(household).request(path, body: body);
+      _shoppingSocket(household);
+      return _api.request(path, '', body: body);
     }
     final token = await _idToken();
     if (token == null) throw ApiException(401, 'Please sign in again.');
@@ -828,11 +914,11 @@ class _HouseholdPanelState extends State<HouseholdPanel>
       });
       try {
         final epoch = _local!.snapshotEpoch;
-        final version = await _local!.snapshotVersion(household);
+        _local!.invalidateConfirmation(household);
         final token = await _idToken();
         if (token == null) throw ApiException(401, 'Please sign in again.');
         final snapshot = await _api.request(
-          '/households/$household/snapshot${version == null ? '' : '?version=$version'}',
+          '/households/$household/snapshot',
           token,
           timeout: const Duration(seconds: 90),
           onProgress: (received, total) {
@@ -894,6 +980,8 @@ class _HouseholdPanelState extends State<HouseholdPanel>
           });
         }
       } catch (error) {
+        _local?.invalidateConfirmation(household);
+        _syncStatusChanged();
         if (mounted) {
           setState(() {
             _databaseError = error is ApiException ? error.message : 'Database download could not finish. Your existing local data is safe. Retry to finish setup.';
@@ -904,6 +992,8 @@ class _HouseholdPanelState extends State<HouseholdPanel>
   }
 
   Future<void> _load({bool reviewInvitations = true}) async {
+    _accountConfirmed = false;
+    _syncStatusChanged();
     // This cache chooses public browsing only. It never authorizes a mutation,
     // exposes account data, or substitutes for authenticated /me responses.
     final browseKey =
@@ -955,15 +1045,22 @@ class _HouseholdPanelState extends State<HouseholdPanel>
       _shoppingSocket(_selected!);
     }
     await _perform(() async {
+      var fresh = _local == null;
       final data = _local == null
           ? await _request('/me')
-          : await _local!.refresh('/me', force: true).catchError((
-              Object error,
-            ) async {
-              final saved = await _local!.cached('/me');
-              if (saved != null) return saved;
-              throw error;
-            });
+          : await _local!
+                .refresh('/me', force: true)
+                .then((value) {
+                  fresh = true;
+                  return value;
+                })
+                .catchError((Object error) async {
+                  final saved = await _local!.cached('/me');
+                  if (saved != null) return saved;
+                  throw error;
+                });
+      if (!mounted) return;
+      _accountConfirmed = fresh;
       if (widget.request != null) {
         childMode.value = (data['user'] as Map?)?['child_mode'] == true;
       } else {
@@ -981,6 +1078,14 @@ class _HouseholdPanelState extends State<HouseholdPanel>
       );
       if (!mounted) return;
       _households = households;
+      final ids = households.map((h) => '${h['id']}').toSet();
+      for (final id
+          in _shoppingSockets.keys.where((id) => !ids.contains(id)).toList()) {
+        _shoppingSockets.remove(id)?.dispose();
+        _readyHouseholds.remove(id);
+        _local?.invalidateConfirmation(id);
+      }
+      _syncStatusChanged();
       if (widget.request == null) {
         try {
           await writeOfflineStore(

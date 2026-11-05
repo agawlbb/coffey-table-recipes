@@ -30,7 +30,10 @@ void main() {
       pendingSyncMessage.value = null;
       await tester.pump();
       expect(find.byIcon(Icons.cloud_done), findsOneWidget);
-      expect(find.byTooltip('All changes synced'), findsOneWidget);
+      expect(
+        find.byTooltip('Matches last confirmed server data'),
+        findsOneWidget,
+      );
       connectedHouseholds.value = {};
       await tester.pump();
       expect(find.byIcon(Icons.cloud_done), findsNothing);

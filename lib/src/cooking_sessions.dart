@@ -56,6 +56,8 @@ class CookingSessions extends ChangeNotifier with WidgetsBindingObserver {
   final _api = RecipeApi(baseUrl: apiBaseUrl);
   String installation;
   String? _uid;
+  bool _wasBackgrounded = false;
+  bool _syncConfirmed = false;
   bool _started = false, _foreground = true, _loaded = false, _disposed = false;
   String? visibleSession;
   String? error;
@@ -80,6 +82,22 @@ class CookingSessions extends ChangeNotifier with WidgetsBindingObserver {
   }
 
   List<Map<String, dynamic>> _outbox = [];
+  bool get isSynchronized =>
+      available &&
+      _loaded &&
+      _syncConfirmed &&
+      _outbox.isEmpty &&
+      error == null &&
+      (_testRequest != null || _api.socketsReady);
+  void _invalidateSync() {
+    _syncConfirmed = false;
+    // Route presence can change during build; invalidate state immediately,
+    // then notify mounted UI outside the build stack.
+    scheduleMicrotask(() {
+      if (!_disposed) notifyListeners();
+    });
+  }
+
   bool get available => _testRequest != null || _uid != null;
   static String randomId() {
     final r = Random.secure();
@@ -121,6 +139,9 @@ class CookingSessions extends ChangeNotifier with WidgetsBindingObserver {
     installation = await _prefs.getString('timer_installation') ?? randomId();
     await _prefs.setString('timer_installation', installation);
     WidgetsBinding.instance.addObserver(this);
+    _api.onConnectionChanged = () {
+      if (!_disposed) notifyListeners();
+    };
     _api.refreshSocketToken = () async =>
         FirebaseAuth.instance.currentUser?.getIdToken(true);
     _api.onCookingSnapshot = (data) async {
@@ -160,7 +181,12 @@ class CookingSessions extends ChangeNotifier with WidgetsBindingObserver {
   }
 
   void _failed(Object e) {
-    if (_disposed || isTemporaryCommunicationFailure(e)) return;
+    if (_disposed) return;
+    _syncConfirmed = false;
+    if (isTemporaryCommunicationFailure(e)) {
+      notifyListeners();
+      return;
+    }
     error = e is ApiException ? e.message : 'Could not update cooking.';
     notifyListeners();
   }
@@ -191,6 +217,7 @@ class CookingSessions extends ChangeNotifier with WidgetsBindingObserver {
     final generation = ++_generation;
     _uid = uid;
     _loaded = false;
+    _syncConfirmed = false;
     visibleSession = null;
     sessions.clear();
     offered.clear();
@@ -311,11 +338,16 @@ class CookingSessions extends ChangeNotifier with WidgetsBindingObserver {
     await next;
   }
 
-  Future<void> accept(Map<String, dynamic> data) async {
+  Future<void> accept(
+    Map<String, dynamic> data, {
+    bool confirmed = true,
+  }) async {
     final generation = _generation;
     if (!available) return;
-    _loaded = true;
-    final incoming = (data['sessions'] as List? ?? [])
+    if (data['sessions'] is! List) {
+      throw const FormatException('Invalid cooking snapshot');
+    }
+    final incoming = (data['sessions'] as List)
         .map((e) => Map<String, dynamic>.from(e as Map))
         .toList();
     // A delayed response must not replace a newer session snapshot.
@@ -326,6 +358,9 @@ class CookingSessions extends ChangeNotifier with WidgetsBindingObserver {
         incoming[i] = old;
       }
     }
+    _loaded = true;
+    _syncConfirmed = confirmed;
+    error = null;
     sessions
       ..clear()
       ..addAll(incoming);
@@ -410,6 +445,7 @@ class CookingSessions extends ChangeNotifier with WidgetsBindingObserver {
 
   Future<void> refresh() async {
     if (!available) return;
+    _invalidateSync();
     final generation = _generation;
     try {
       await _readNativeActions();
@@ -428,6 +464,7 @@ class CookingSessions extends ChangeNotifier with WidgetsBindingObserver {
     Map<String, dynamic> body, {
     String? operation,
   }) async {
+    _invalidateSync();
     final result = await _request(
       '/me/cooking-sessions/$id/$action',
       body: {
@@ -441,11 +478,11 @@ class CookingSessions extends ChangeNotifier with WidgetsBindingObserver {
       await accept({
         'sessions': sessions.where((s) => s['id'] != id).toList(),
         'ended_sessions': [updated],
-      });
+      }, confirmed: false);
     } else {
       await accept({
         'sessions': [...sessions.where((s) => s['id'] != id), updated],
-      });
+      }, confirmed: false);
     }
     return updated;
   }
@@ -466,6 +503,7 @@ class CookingSessions extends ChangeNotifier with WidgetsBindingObserver {
     Map<String, dynamic> recipe,
   ) async {
     await _permissions();
+    _invalidateSync();
     final id = randomId();
     final result = await _request(
       '/me/cooking-sessions',
@@ -480,7 +518,7 @@ class CookingSessions extends ChangeNotifier with WidgetsBindingObserver {
     final s = Map<String, dynamic>.from(result['session'] as Map);
     await accept({
       'sessions': [...sessions, s],
-    });
+    }, confirmed: false);
     return s;
   }
 
@@ -635,7 +673,9 @@ class CookingSessions extends ChangeNotifier with WidgetsBindingObserver {
           });
         }
         if (generation == _generation) {
-          await accept({'sessions': List<Map<String, dynamic>>.from(sessions)});
+          await accept({
+            'sessions': List<Map<String, dynamic>>.from(sessions),
+          }, confirmed: false);
         }
       }
     });
@@ -645,12 +685,23 @@ class CookingSessions extends ChangeNotifier with WidgetsBindingObserver {
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.inactive) return;
+    if (state == AppLifecycleState.paused ||
+        state == AppLifecycleState.hidden ||
+        state == AppLifecycleState.detached) {
+      _wasBackgrounded = true;
+    }
+    final resumedFromBackground =
+        state == AppLifecycleState.resumed && _wasBackgrounded;
     _foreground = state == AppLifecycleState.resumed;
     final visible = visibleSession;
     if (_foreground) {
       offered.clear();
       if (_uid != null) unawaited(_register().catchError(_failed));
-      _api.reconnectSockets();
+      if (resumedFromBackground) {
+        _wasBackgrounded = false;
+        _api.reconnectSockets();
+      }
       unawaited(refresh());
       if (visible != null) {
         unawaited(presence(visible, true).catchError(_failed));

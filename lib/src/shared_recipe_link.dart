@@ -26,25 +26,36 @@ String? recipeIdFromLink(String value) {
 
 /// Public display never waits for Firebase or an identity-token refresh.
 class SharedRecipeLink extends StatefulWidget {
-  const SharedRecipeLink({super.key, required this.recipeId});
+  const SharedRecipeLink({super.key, required this.recipeId, this.api});
   final String recipeId;
+  final RecipeApi? api;
   @override
   State<SharedRecipeLink> createState() => _SharedRecipeLinkState();
 }
 
 class _SharedRecipeLinkState extends State<SharedRecipeLink> {
-  final _api = RecipeApi(baseUrl: apiBaseUrl);
+  late final _api = widget.api ?? RecipeApi(baseUrl: apiBaseUrl);
   late final _cache = OfflineRecipes(
     key: '$apiStorageNamespace|public-recipes',
     fetch: (path) => _api.request(path, ''),
     downloadLibrary: false,
   );
+  final _reconnect = ValueNotifier<int>(0);
+  @override
+  void initState() {
+    super.initState();
+    _api.onSocketReady = () {
+      if (mounted) _reconnect.value++;
+    };
+  }
+
   bool _adding = false;
   String? _message;
   @override
   void dispose() {
     _cache.close();
     _api.close();
+    _reconnect.dispose();
     super.dispose();
   }
 
@@ -161,6 +172,7 @@ class _SharedRecipeLinkState extends State<SharedRecipeLink> {
             child: RecipeDetail(
               householdId: '0',
               recipeId: widget.recipeId,
+              reconnect: _reconnect,
               title: 'Shared recipe',
               request: (path) {
                 final id = Uri.parse(path).path.split('/').last;

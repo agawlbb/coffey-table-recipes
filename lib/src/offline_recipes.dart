@@ -78,6 +78,7 @@ class OfflineRecipes with WidgetsBindingObserver {
       final me = await fetch('/me');
       if (_closed) return;
       await _load();
+      if (_closed) return;
       _responses['/me'] = me;
       _pruneHouseholds(
         (me['households'] as List? ?? [])
@@ -85,6 +86,7 @@ class OfflineRecipes with WidgetsBindingObserver {
             .toList(),
       );
       await _save();
+      if (_closed) return;
       offlineStatus.value = false;
       _reconnect?.call();
     } catch (error) {
@@ -141,7 +143,7 @@ class OfflineRecipes with WidgetsBindingObserver {
 
   Future<void> _load() => _ready ??= () async {
     try {
-      final source = await read(key);
+      final source = await read(key).timeout(const Duration(seconds: 2));
       if (source != null) {
         final data = jsonDecode(source) as Map<String, dynamic>;
         _responses = Map<String, dynamic>.from(data['responses'] as Map);
@@ -168,7 +170,7 @@ class OfflineRecipes with WidgetsBindingObserver {
     final operation = _writes.then((_) => write(key, source));
     _writes = operation.catchError((Object _) {});
     try {
-      await operation;
+      await operation.timeout(const Duration(seconds: 2));
     } catch (_) {
       _updateProgress(
         error:
@@ -390,10 +392,13 @@ class OfflineRecipes with WidgetsBindingObserver {
   }
 
   Future<Map<String, dynamic>> request(String path) async {
+    final public = RegExp(r'^/recipes/[1-9][0-9]*$').hasMatch(path);
     await _load();
-    if (offlineStatus.value && _cacheable(path)) {
+    if (!public && offlineStatus.value && _cacheable(path)) {
       final cached = _cached(path);
-      if (cached != null) return cached;
+      if (cached != null) {
+        return public ? {...cached, '_cache_needs_refresh': true} : cached;
+      }
       throw ApiException(
         503,
         'This content has not been saved on this device yet. Connect to the internet and try again.',
@@ -403,7 +408,7 @@ class OfflineRecipes with WidgetsBindingObserver {
     try {
       final data = await fetch(path);
       if (_closed || version != _accessVersion) return data;
-      offlineStatus.value = false;
+      if (!public) offlineStatus.value = false;
       if (_cacheable(path)) {
         _responses[path] = data;
         if (path == '/me') {
@@ -418,20 +423,24 @@ class OfflineRecipes with WidgetsBindingObserver {
       return data;
     } on ApiException catch (error) {
       if (isTemporaryCommunicationFailure(error)) {
-        if (!_closed) offlineStatus.value = true;
+        if (!_closed && !public) offlineStatus.value = true;
         final cached = _cacheable(path) ? _cached(path) : null;
-        if (cached != null) return cached;
+        if (cached != null) {
+          return public ? {...cached, '_cache_needs_refresh': true} : cached;
+        }
         rethrow;
       }
       // Authorization and deletion must never become cache hits.
-      if (!_closed) offlineStatus.value = false;
+      if (!_closed && !public) offlineStatus.value = false;
       await _invalidate(path, error.status);
       rethrow;
     } catch (error) {
       if (!isOfflineFailure(error)) rethrow;
-      if (!_closed) offlineStatus.value = true;
+      if (!_closed && !public) offlineStatus.value = true;
       final cached = _cacheable(path) ? _cached(path) : null;
-      if (cached != null) return cached;
+      if (cached != null) {
+        return public ? {...cached, '_cache_needs_refresh': true} : cached;
+      }
       rethrow;
     }
   }

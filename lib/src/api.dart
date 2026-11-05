@@ -1,5 +1,7 @@
 import 'shopping_socket.dart';
 
+import 'package:flutter/foundation.dart';
+
 import 'package:web_socket_channel/web_socket_channel.dart';
 
 import 'package:connectivity_plus/connectivity_plus.dart';
@@ -11,6 +13,9 @@ import 'dart:async';
 
 import 'package:http/http.dart' as http;
 import 'package:firebase_auth/firebase_auth.dart';
+
+// Shared by screen owners so non-queued writes cannot leave a green indicator.
+final activeServerWrites = ValueNotifier<int>(0);
 
 bool isOfflineFailure(Object error) =>
     error is TimeoutException ||
@@ -119,7 +124,30 @@ class RecipeApi {
   Future<void> Function(Map<String, dynamic>)? onCookingSnapshot;
   void Function(int)? onServerClock;
   void Function()? onSocketReady;
+  void Function()? onConnectionChanged;
+  bool get socketsReady =>
+      _sockets.isNotEmpty &&
+      _sockets.values.every((s) => s.connected && !s.applyingSnapshot);
   String _socketToken = '';
+  String _socketIdentity = '';
+
+  // This is connection ownership, not authentication. The server validates
+  // every token. A token refresh for the same identity must not abort writes.
+  static String _identity(String token) {
+    try {
+      final parts = token.split('.');
+      if (parts.length == 3) {
+        final claims = jsonDecode(
+          utf8.decode(base64Url.decode(base64Url.normalize(parts[1]))),
+        ) as Map;
+        if (claims['sub'] is String && (claims['sub'] as String).isNotEmpty) {
+          return jsonEncode([claims['iss'], claims['aud'], claims['sub']]);
+        }
+      }
+    } catch (_) {}
+    return token;
+  }
+
   Future<String?> Function()? refreshSocketToken;
 
   void resetSockets() {
@@ -128,6 +156,8 @@ class RecipeApi {
     }
     _sockets.clear();
     _socketToken = '';
+    _socketIdentity = '';
+    onConnectionChanged?.call();
   }
 
   void reconnectSockets() {
@@ -156,13 +186,16 @@ class RecipeApi {
     if (scope == 'household' && householdRequest != null) {
       return householdRequest!(path, body: body);
     }
-    // An API instance belongs to one account. Drop old authenticated connections
-    // when the caller switches identity (including sign-out).
-    if (_socketToken != token && scope != 'public') {
-      for (final socket in _sockets.values) {
-        socket.dispose();
+    if (scope != 'public') {
+      final identity = _identity(token);
+      if (_socketIdentity != identity) {
+        for (final entry in _sockets.entries.toList()) {
+          if (entry.key.startsWith('public/')) continue;
+          entry.value.dispose();
+          _sockets.remove(entry.key);
+        }
+        _socketIdentity = identity;
       }
-      _sockets.clear();
       _socketToken = token;
     }
     final household =
@@ -171,9 +204,8 @@ class RecipeApi {
         ? uri.pathSegments[1]
         : '';
     final key = '$scope/$household';
-    final socket = _sockets.putIfAbsent(
-      key,
-      () => ShoppingSocket(
+    final socket = _sockets.putIfAbsent(key, () {
+      final created = ShoppingSocket(
         household: household,
         scope: scope,
         connect: _socketConnect,
@@ -199,9 +231,22 @@ class RecipeApi {
           onServerClock?.call(time);
         },
         onReady: () => onSocketReady?.call(),
-      ),
-    );
+      );
+      created.addListener(() => onConnectionChanged?.call());
+      return created;
+    });
     return socket.request(path, body: body);
+  }
+
+  Future<Map<String, dynamic>> _write(
+    Future<Map<String, dynamic>> Function() send,
+  ) async {
+    activeServerWrites.value++;
+    try {
+      return await send();
+    } finally {
+      activeServerWrites.value--;
+    }
   }
 
   Future<Map<String, dynamic>> request(
@@ -220,7 +265,7 @@ class RecipeApi {
               () => _socketRequest(path, token),
               active: () => !_closed,
             )
-          : _socketRequest(path, token, body: body);
+          : _write(() => _socketRequest(path, token, body: body));
     }
     if (body == null) {
       return retryCommunication(
@@ -229,7 +274,9 @@ class RecipeApi {
         active: () => !_closed,
       );
     }
-    return _requestOnce(path, token, body: body, timeout: timeout);
+    return _write(
+      () => _requestOnce(path, token, body: body, timeout: timeout),
+    );
   }
 
   bool _closed = false;

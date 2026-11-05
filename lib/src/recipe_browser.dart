@@ -1017,12 +1017,14 @@ class RecipeDetail extends StatefulWidget {
     required this.title,
     required this.request,
     this.cachedRequest,
+    this.reconnect,
     this.localRead,
     this.save,
     this.onChanged,
     this.menuBuilder,
     this.onViewMealPlan,
   });
+  final Listenable? reconnect;
   final String householdId;
   final String recipeId;
   final String title;
@@ -1038,6 +1040,7 @@ class RecipeDetail extends StatefulWidget {
 }
 
 class _RecipeDetailState extends State<RecipeDetail> {
+  Timer? _retryRead;
   Future<void> _shoppingIngredients(List<Map<String, dynamic>> ingredients) =>
       showRecipeShopping(
         context,
@@ -1335,6 +1338,7 @@ class _RecipeDetailState extends State<RecipeDetail> {
   void initState() {
     super.initState();
     localDataChanges.addListener(_localChanged);
+    widget.reconnect?.addListener(_retryAfterReconnect);
     _wasOffline = offlineStatus.value;
     if (mobileOfflineEnabled) offlineStatus.addListener(_connectionChanged);
     _load();
@@ -1350,6 +1354,19 @@ class _RecipeDetailState extends State<RecipeDetail> {
     }
   }
 
+  void _retryAfterReconnect() {
+    if (mounted && (_error != null || _recipe != null)) _load();
+  }
+
+  @override
+  void didUpdateWidget(RecipeDetail oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.reconnect != widget.reconnect) {
+      oldWidget.reconnect?.removeListener(_retryAfterReconnect);
+      widget.reconnect?.addListener(_retryAfterReconnect);
+    }
+  }
+
   void _connectionChanged() {
     final recovered = _wasOffline && !offlineStatus.value;
     _wasOffline = offlineStatus.value;
@@ -1358,12 +1375,15 @@ class _RecipeDetailState extends State<RecipeDetail> {
 
   @override
   void dispose() {
+    _retryRead?.cancel();
     localDataChanges.removeListener(_localChanged);
+    widget.reconnect?.removeListener(_retryAfterReconnect);
     offlineStatus.removeListener(_connectionChanged);
     super.dispose();
   }
 
   Future<void> _load() async {
+    _retryRead?.cancel();
     final generation = ++_loadGeneration;
     bool current() => mounted && generation == _loadGeneration;
     setState(() {
@@ -1416,10 +1436,20 @@ class _RecipeDetailState extends State<RecipeDetail> {
           .timeout(const Duration(seconds: 30));
       if (current()) {
         display(data);
+        if (data['_cache_needs_refresh'] == true) {
+          _retryRead = Timer(const Duration(seconds: 10), () {
+            if (mounted) _load();
+          });
+        }
         _prefetchImages(_recipe!);
         _loadFavorites();
       }
     } catch (error) {
+      if (current() && isTemporaryCommunicationFailure(error)) {
+        _retryRead = Timer(const Duration(seconds: 10), () {
+          if (mounted) _load();
+        });
+      }
       if (mounted && generation == _loadGeneration) {
         final denied =
             error is ApiException && [401, 403, 404].contains(error.status);

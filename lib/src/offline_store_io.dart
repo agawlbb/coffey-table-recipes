@@ -19,9 +19,15 @@ class OfflineFileStore {
 
   Future<void> write(String key, String value) async {
     final file = await _file(key);
-    final temporary = File('${file.path}.tmp');
-    await temporary.writeAsString(value, flush: true);
-    await temporary.rename(file.path);
+    // Independent readers of the same cache key must not share a .tmp path.
+    final staging = await file.parent.createTemp('.recipe-save-');
+    try {
+      final temporary = File('${staging.path}/data.json');
+      await temporary.writeAsString(value, flush: true);
+      await temporary.rename(file.path);
+    } finally {
+      await staging.delete(recursive: true);
+    }
   }
 }
 
