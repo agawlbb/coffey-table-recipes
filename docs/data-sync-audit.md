@@ -1,8 +1,8 @@
 # Data synchronization audit — 5 November 2026
 
-Status: backend repair deployed and verified; client changes tested on
-`fix/data-sync-audit`, awaiting an app build/release. Installed apps do not acquire
-client changes from a backend deployment.
+Status: backend repair deployed and verified; client changes merged into main
+and released as 2.7.4/build 59 to Android Drive and the existing TestFlight group.
+Install build 59 for client corrections. See [delivery evidence](releases.md).
 
 ## Findings and corrections
 

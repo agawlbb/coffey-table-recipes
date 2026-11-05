@@ -1130,3 +1130,42 @@ Client changes require installation of this release. Green indicates the latest
 persisted canonical confirmation, not instantaneous knowledge of another device's
 commit before its notification arrives. Physical iPad acceptance remains pending.
 Delivery evidence will be added after verification. No retired web app release.
+
+
+### Verified 2.7.4 delivery — 2026-11-05
+
+- Both active repositories have only main locally and on GitHub and one primary
+  worktree each; merged audit branches/worktrees were deleted. The archived legacy
+  repository also has only main. Backend main is `649c99c`; all 60 checked deployed
+  PHP runtime files match main. Health 200, no container OOM/restarts.
+- Immutable app source `c49a605d48d247ca4283923ac48e7e2112e0d96f`, tag `v2.7.4`.
+  Release metadata and changelog were committed before tagging. The application
+  source passed 651 tests with real PHP integration; the signed workflow also
+  passed analysis, its app suite and native tooling checks.
+- [Android run 42078875493](https://github.com/agawlbb/coffey-table-recipes/actions/runs/42078875493)
+  succeeded. Artifact `13439959197` archive SHA-256:
+  `dbc01f7013491b2ae54f2bf0851c21109ab8740af8dfe705c9da80d1e05e82cd`.
+  Downloaded archive, source provenance, version/build and APK checksum verified.
+  APK SHA-256 `7ec8cd5660d03c1cf0627f37c1eddb15c53b9d17284354f7948280008c015f68`.
+  Independent apksigner verification confirms the existing certificate
+  `f8de933f14b9bb4b3191a94aedc8637972c5ab224565f6abd7808f8038d12097`;
+  `tool/verify-app-links.py` passed against that actual certificate.
+- [Android APK in Drive](https://drive.google.com/file/d/1acb0rWAI6FoIcssLlWiQqCC0zyZAgG9I/view)
+  was downloaded and hashed by the existing publisher before the informational
+  notification and trashing only `CoffeyTableRecipes-2.7.3-build58.apk`.
+- [Signed iOS run 42078879338](https://github.com/agawlbb/coffey-table-recipes/actions/runs/42078879338)
+  attempt 1 failed before upload while downloading Firebase grpc: network
+  connection lost. Attempt 2 used the same source and passed archive, export,
+  strict signatures/profiles/version for app and both extensions, production APNs
+  and the hosted iOS recipe-link association. Exported IPA SHA-256:
+  `16e63d5bded697b5ec5b340fe2960ce16bb77fa02ecc2324c0eb01adf41ebb69`.
+  Xcode reported upload succeeded at 18:31:59 UTC. Upload-enabled workflow does
+  not retain a downloadable IPA artifact; verification and logs are retained.
+- [Apple check 42082393873](https://github.com/agawlbb/coffey-table-recipes/actions/runs/42082393873)
+  attempt 2 confirms Apple build `3cea0818-9096-417d-b5ad-9b02120563b3`, version
+  2.7.4/build 59: VALID, no non-exempt encryption, IN_BETA_TESTING, available to
+  the existing Family testers internal group. The early check ended before upload
+  and correctly reported NOT_FOUND; it did not indicate an Apple rejection.
+  No new testers or distribution-territory changes; France exclusions preserved.
+- No retired web app was built or published. Physical-device link handoff and
+  multi-device iPad acceptance remain manual checks after installing build 59.
