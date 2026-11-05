@@ -2,6 +2,17 @@
 
 Release dates and changes are reconstructed from annotated Git tags, commit history, and project release records. Versions before 1.0 are demonstration releases; 1.0 marks the first usable release. Android retains the existing signing identity; iOS delivery and signing are recorded for each release.
 
+## 2.7.4 — 2026-11-05
+
+Build 59; tag `v2.7.4`.
+
+- Repair shared-recipe loading when the server sends an empty public synchronization handshake.
+- Recover automatically from malformed responses, timed-out connections and temporary recipe-loading failures.
+- Preserve saves through token refresh, brief system dialogs and interrupted acknowledgments; retain real conflicts for review.
+- Require persisted server snapshots and no known pending work before showing green synchronization status. The indicator means “Matches last confirmed server data.”
+- Prevent concurrent cache writes and delayed reads from corrupting or restoring stale local data, including remotely deleted recipes.
+- Synchronize household/account display metadata and add real Dart/PHP protocol and fault-recovery regression coverage.
+
 ## 2.7.3 — 2026-11-05
 
 Build 58; tag `v2.7.3`.

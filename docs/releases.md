@@ -1110,3 +1110,23 @@ No build 58 package was uploaded by the failed attempt.
   symptom were unavailable here. Automated app logic, native package signatures
   and hosted associations passed; installed-device behavior remains a manual
   acceptance check after updating.
+
+
+## 2.7.4 — synchronization audit and recovery
+
+Release requested 2026-11-05, version 2.7.4/build 59, immutable tag `v2.7.4`.
+The user authorized merging all working branches, deleting merged branches and
+worktrees, then releasing the app. Both repositories fast-forwarded their tested
+`fix/data-sync-audit` branches into main. No source integration conflicts.
+
+The exact application source passed full analysis and all 651 tests, including
+production Dart/PHP transport integration with injected server failure. Backend
+validation and limitations are recorded in [the audit](data-sync-audit.md).
+Backend commit `649c99c` is already deployed: the unchanged released Dart client
+passed the live public-recipe read that failed before the repair. The backend
+merge does not change deployed bytes, private configuration or persistent data.
+
+Client changes require installation of this release. Green indicates the latest
+persisted canonical confirmation, not instantaneous knowledge of another device's
+commit before its notification arrives. Physical iPad acceptance remains pending.
+Delivery evidence will be added after verification. No retired web app release.
