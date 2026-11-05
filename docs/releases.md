@@ -955,3 +955,69 @@ viewer-only shopping photo deletion and guarded swipe-to-end session controls.
 - All accepted task branches are removed locally and remotely after verifying
   their ancestry in canonical main. The user workspace is clean on main, matching
   GitHub. Only release documentation differs from the immutable tagged app source.
+
+
+## 2.7.2 — silent cooking communication failures
+
+Release 2026-11-03, version 2.7.2/build 57. Immutable tag `v2.7.2` points to
+`7dd377eab5601c1d523901b6c903615c1f94f4eb`. Preparation starts from accepted
+canonical main `0a8c817`. Cooking communication failures no longer produce
+startup or cooking-action messages. Device push registration failure no longer
+skips the initial session refresh. The underlying repeated device disconnect
+remains unconfirmed; no claim of repairing that cause is made.
+
+- App, VPS backend and InMotion PHP checkouts were clean and matched GitHub at
+  release start, with only main branches. All local tags were pushed/confirmed
+  synchronized before tagging. Existing backend source and deployment were
+  unchanged; InMotion endpoint-retirement deployment remains deferred.
+- [Web 41638287113](https://github.com/agawlbb/coffey-table-recipes/actions/runs/41638287113)
+  passed full analysis and all **616 tests**, deployed, and verified asset hashes.
+  Independent public version.json confirms 2.7.2/build 57 and the exact tag source.
+- [Android 41638283731](https://github.com/agawlbb/coffey-table-recipes/actions/runs/41638283731)
+  verified package/version, provenance, existing signing identity, timer JNI and
+  hosted associations. Independent downloaded-APK `apksigner` and actual-certificate
+  `tool/verify-app-links.py` checks passed. APK SHA-256:
+  `79283145a0017402b1a46d1e393aae5ea08e30d392ce56b2bbd88b270b767bf9`.
+  [Verified APK in Drive](https://drive.google.com/file/d/1FVepkeDebPHnXbDXTIJBb5YY4_RoHdB6/view).
+  The existing publisher verified downloaded Drive bytes, sent the informational
+  notification without a link/click action, and trashed only
+  `CoffeyTableRecipes-2.7.1-build56.apk`. Test packages, signed iOS packages and
+  unrelated files remain.
+- No physical devices are available for cold/warm installed-app recipe links or
+  background alarm acceptance. Automated signing and hosted-association checks
+  do not establish physical-device behavior.
+
+- [Initial iOS attempt 41638290700](https://github.com/agawlbb/coffey-table-recipes/actions/runs/41638290700)
+  passed analysis, all 616 tests, archive, export and signed-package verification
+  for all three targets, including production APNs, App Group, encryption and
+  hosted universal-link association. Exported IPA SHA-256:
+  `6a1b581664b4fe25e1f1bc57ac2a7de9b5a1b20c1cd39cfafab5d6ebde169a19`.
+  The combined 25-minute archive/sign/upload step timed out during upload.
+  The final log contains archive/export success, but no upload success.
+- [Apple check 41643129851](https://github.com/agawlbb/coffey-table-recipes/actions/runs/41643129851)
+  repeatedly returned build 57 `NOT_FOUND`, last at 13:26:50 UTC. A separate
+  no-upload build was therefore started to retain the signed IPA and enable the
+  existing artifact-only uploader without repeating archive work for each retry.
+  No testers, groups or territories were changed; existing France exclusions
+  remain unchanged.
+
+- [Retained iOS build 41643188653](https://github.com/agawlbb/coffey-table-recipes/actions/runs/41643188653)
+  passed analysis, all 616 tests, signed archive/export and all three target
+  signature/profile/version checks. The downloaded signed IPA matches its report:
+  `016563dc6583327010876dba0d526f27b8873f5c8303bd0b7c7980ae69578d8e`.
+  Artifact `13234878488` has archive digest
+  `e6e8a011b3cf0a51525a87681869059e51e547a7d3b366cb5c01c1c30bd0d886`.
+- [Artifact-only upload 41646603171](https://github.com/agawlbb/coffey-table-recipes/actions/runs/41646603171)
+  reverified that exact signed package and its hosted universal-link association.
+  Apple reported **UPLOAD SUCCEEDED with no errors** at 13:43:23 UTC,
+  delivery UUID `57002a4b-3798-4625-80c6-6cc70e658255`.
+  The signed package and reports are retained privately outside Git.
+
+- [Final Apple verification 41647055206](https://github.com/agawlbb/coffey-table-recipes/actions/runs/41647055206)
+  confirms build `57002a4b-3798-4625-80c6-6cc70e658255` at 13:47:01 UTC:
+  `VALID`, `usesNonExemptEncryption:false`, `IN_BETA_TESTING`, available to the
+  existing **Family testers** internal group. All three platform deliveries are
+  verified. No duplicate upload was submitted after this successful delivery.
+- Release preparation and evidence remain on `release/2.7.2`, synchronized with
+  GitHub and ready for explicit main integration. The immutable tag retains the
+  exact validated source; later release-documentation changes do not alter it.

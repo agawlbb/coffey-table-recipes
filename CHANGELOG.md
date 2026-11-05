@@ -2,6 +2,14 @@
 
 Release dates and changes are reconstructed from annotated Git tags, commit history, and project release records. Versions before 1.0 are demonstration releases; 1.0 marks the first usable release. Android retains the existing signing identity; iOS delivery and signing are recorded for each release.
 
+## 2.7.2 — 2026-11-03
+
+Build 57; tag `v2.7.2`.
+
+- Keep temporary cooking connection failures out of startup notifications and cooking-action messages; retain existing connection indicators and actionable validation/alarm errors.
+- Refresh cooking sessions even when registering the device for push delivery fails.
+- The underlying repeated device disconnect has not been reproduced; this release does not claim to resolve its cause.
+
 ## 2.7.1 — 2026-11-03
 
 Build 56; tag `v2.7.1`.
