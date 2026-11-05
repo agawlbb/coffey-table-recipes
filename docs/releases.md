@@ -1169,3 +1169,24 @@ Delivery evidence will be added after verification. No retired web app release.
   No new testers or distribution-territory changes; France exclusions preserved.
 - No retired web app was built or published. Physical-device link handoff and
   multi-device iPad acceptance remain manual checks after installing build 59.
+
+
+## 2.7.5 — client recovery and copyable diagnostics
+
+Release requested 2026-11-05, version 2.7.5/build 60, tag `v2.7.5`.
+The user explicitly authorized merging and deleting the working branch and
+releasing the app. The tested `fix/client-sync-diagnostics` branch fast-forwarded
+into main without source conflicts. The VPS repository has no working branch or
+source change; deployed backend main remains `649c99c`.
+
+Validation and reproduced released-behavior failures are documented in
+[client sync diagnostics](client-sync-diagnostics.md): 662 full-suite tests passed,
+then 16 final targeted checks covered the last safe error-code logging refinement;
+analysis clean. The signed release workflow runs analysis and its app/native
+checks again on the immutable release source before packaging.
+
+Only Settings → Error log and its viewer/copy action are added to the interface.
+The log starts with this build and cannot recover errors from older installations.
+Physical affected-device diagnosis and multi-device acceptance remain pending.
+Delivery evidence follows after verification. No retired web app release and
+no backend redeployment needed for these client-only changes.

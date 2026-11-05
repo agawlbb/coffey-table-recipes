@@ -2,6 +2,15 @@
 
 Release dates and changes are reconstructed from annotated Git tags, commit history, and project release records. Versions before 1.0 are demonstration releases; 1.0 marks the first usable release. Android retains the existing signing identity; iOS delivery and signing are recorded for each release.
 
+## 2.7.5 — 2026-11-05
+
+Build 60; tag `v2.7.5`.
+
+- Preserve initial and reconnected snapshot confirmation so synchronization can finish and become green without depending on a redundant download.
+- Retry failed startup storage reads instead of caching the failure indefinitely.
+- Recover safely retryable interrupted saves after restarting, including old interruption holds; preserve real conflicts and uncertain saves without receipt IDs.
+- Add a persistent device-local error log under Settings, with Copy to clipboard. Record synchronization state and safe error codes without tokens, recipe contents or private exception messages.
+
 ## 2.7.4 — 2026-11-05
 
 Build 59; tag `v2.7.4`.
