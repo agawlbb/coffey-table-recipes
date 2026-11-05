@@ -7,35 +7,31 @@ void main() {
     connectedHouseholds.value = {};
     pendingSyncMessage.value = null;
   });
-
   testWidgets(
-    'connected household stays amber until pending saves are confirmed',
+    'green means an open connection and never flickers for data activity',
     (tester) async {
       connectedHouseholds.value = {'1'};
-      pendingSyncMessage.value = '1 change(s) waiting to sync';
       await tester.pumpWidget(
         const MaterialApp(
           home: Scaffold(body: ConnectionIndicator(householdId: '1')),
         ),
       );
-      expect(find.byIcon(Icons.cloud_done), findsNothing);
-      expect(find.byTooltip('1 change(s) waiting to sync'), findsOneWidget);
+      expect(find.byTooltip('Connected to server'), findsOneWidget);
+      for (final message in [
+        'Saving',
+        'Sync paused',
+        'Checking account data',
+      ]) {
+        pendingSyncMessage.value = message;
+        await tester.pump();
+        expect(
+          tester.widget<Icon>(find.byIcon(Icons.cloud_done)).color,
+          Colors.green,
+        );
+      }
       connectedHouseholds.value = {};
       await tester.pump();
-      expect(find.byIcon(Icons.cloud_upload_outlined), findsOneWidget);
-      connectedHouseholds.value = {'1'};
-      pendingSyncMessage.value = 'Sync paused';
-      await tester.pump();
-      expect(find.byIcon(Icons.cloud_done), findsNothing);
-      pendingSyncMessage.value = null;
-      await tester.pump();
-      expect(find.byIcon(Icons.cloud_done), findsOneWidget);
-      expect(
-        find.byTooltip('Matches last confirmed server data'),
-        findsOneWidget,
-      );
-      connectedHouseholds.value = {};
-      await tester.pump();
+      expect(find.byTooltip('Not connected to server'), findsOneWidget);
       expect(find.byIcon(Icons.cloud_done), findsNothing);
     },
   );

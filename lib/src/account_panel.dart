@@ -1,3 +1,4 @@
+import 'app_connection.dart';
 import 'client_log.dart';
 import 'client_log_screen.dart';
 import 'notification_settings.dart';
@@ -19,7 +20,6 @@ import 'offline_store.dart';
 
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
-import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
@@ -231,65 +231,60 @@ class _HouseholdPanelState extends State<HouseholdPanel>
     with WidgetsBindingObserver {
   late final _api = RecipeApi(
     baseUrl: apiBaseUrl,
-    socketConnect: widget.socketConnect,
+    connection: widget.socketConnect == null
+        ? appConnection
+        : AppConnection(
+            connect: widget.socketConnect!,
+            refreshToken: (refresh) => _idToken(refresh),
+          ),
     onServerTime: (milliseconds, receivedAt) =>
         _local?.observeServerTime(milliseconds, receivedAt),
   );
-  OfflineRecipes? _offline;
   LocalData? _local;
-  final _shoppingSockets = <String, ShoppingSocket>{};
-  ShoppingSocket _shoppingSocket(String household) =>
-      _shoppingSockets.putIfAbsent(household, () {
-        final socket = ShoppingSocket(
-          household: household,
-          scope: 'household',
-          connect: widget.socketConnect ?? WebSocketChannel.connect,
-          networkChanges: Connectivity().onConnectivityChanged.map(
-            (results) =>
-                results.any((result) => result != ConnectivityResult.none),
-          ),
-          token: (refresh) => _idToken(refresh),
-          onSnapshot: (state) async {
-            _local?.invalidateConfirmation(household);
-            await _local?.acceptShopping(
-              household,
-              Map<String, dynamic>.from(state['shopping'] as Map),
-            );
-            final library = Map<String, dynamic>.from(state['library'] as Map);
-            if (library['household_id'] != household) {
-              throw const FormatException('Wrong library household');
-            }
-            await _local?.installSnapshot(library);
-            if (mounted) {
-              setState(() {
-                _readyHouseholds.add(household);
-                _databaseError = null;
-              });
-            }
-          },
-          onDisconnect: () => _local?.invalidateConfirmation(household),
-          onTime: (time) => _local?.observeServerTime(time, DateTime.now()),
-          onReady: () {
-            if (mounted) unawaited(_local?.synchronize());
-          },
+  String? _lastSyncReason;
+  Future<void>? _accountLoading;
+  Map<String, dynamic>? _pushedAccount;
+
+  Future<void> _receiveAppState(Map<String, dynamic> state) async {
+    if (!mounted) return;
+    final account = state['account'];
+    if (account is Map) {
+      await _local?.acceptAccountSnapshot(Map<String, dynamic>.from(account));
+    }
+    final households = state['households'];
+    if (households is Map) {
+      for (final row in households.entries) {
+        final id = '${row.key}';
+        final data = row.value as Map;
+        await _local?.acceptShopping(
+          id,
+          Map<String, dynamic>.from(data['shopping'] as Map),
         );
-        socket.addListener(_syncStatusChanged);
-        socket.start();
-        return socket;
-      });
-  void _shoppingConnectionChanged() {
-    connectedHouseholds.value = {
-      for (final entry in _shoppingSockets.entries)
-        if (entry.value.connected &&
-            !entry.value.applyingSnapshot &&
-            (_local?.isHouseholdConfirmed(entry.key) ?? false))
-          entry.key,
-    };
-    if (mounted) setState(() {});
+        await _local?.installSnapshot(
+          Map<String, dynamic>.from(data['library'] as Map),
+        );
+        _readyHouseholds.add(id);
+      }
+      if (mounted) {
+        setState(() {
+          _databaseChecking = false;
+          _databaseError = null;
+        });
+      }
+    }
+    if (account is Map && mounted) {
+      unawaited(
+        _load(
+          reviewInvitations: false,
+          account: Map<String, dynamic>.from(account),
+        ),
+      );
+    }
+    _syncStatusChanged();
   }
 
-  String? _lastSyncReason;
   void _syncStatusChanged() {
+    if (!mounted) return;
     if (SchedulerBinding.instance.schedulerPhase ==
         SchedulerPhase.persistentCallbacks) {
       scheduleMicrotask(() {
@@ -297,89 +292,32 @@ class _HouseholdPanelState extends State<HouseholdPanel>
       });
       return;
     }
-    final local = _local;
-    final checking = _shoppingSockets.entries.any(
-      (entry) =>
-          (!entry.value.connected ||
-          entry.value.applyingSnapshot ||
-          !(local?.isHouseholdConfirmed(entry.key) ?? false)),
-    );
-    final cookingPending =
-        cookingSessions.available && !cookingSessions.isSynchronized;
-    pendingSyncMessage.value =
-        (activeServerWrites.value > 0
-            ? 'Waiting for server acknowledgment'
-            : null) ??
-        local?.error ??
-        _shoppingSockets.values
-            .map((s) => s.failure?.message)
-            .whereType<String>()
-            .firstOrNull ??
-        (local != null && local.pending > 0
-            ? '${local.pending} change(s) waiting to sync'
-            : null) ??
-        (cookingPending
-            ? 'Cooking data waiting for server confirmation'
-            : null) ??
-        (!_accountConfirmed && widget.request == null
-            ? 'Checking account data against the server'
-            : null) ??
-        (checking ? 'Checking local data against the server' : null);
-    final reason = activeServerWrites.value > 0
-        ? 'write_pending'
-        : local?.error != null
-        ? 'local_error'
-        : _shoppingSockets.values.any((s) => s.failure != null)
-        ? 'socket_error'
-        : (local?.pending ?? 0) > 0
-        ? 'outbox_pending'
-        : cookingPending
-        ? 'cooking_unconfirmed'
-        : !_accountConfirmed && widget.request == null
-        ? 'account_unconfirmed'
-        : checking
-        ? 'household_unconfirmed'
-        : 'confirmed';
-    if (reason != _lastSyncReason) {
+    final connected =
+        widget.request != null || (_api.liveConnection?.connected ?? false);
+    offlineStatus.value = !connected;
+    final households = _api.liveConnection?.data['households'] as Map? ?? {};
+    connectedHouseholds.value = connected
+        ? households.keys.map((id) => '$id').toSet()
+        : {};
+    final reason = connected ? 'connected' : 'disconnected';
+    if (_lastSyncReason != reason) {
       _lastSyncReason = reason;
-      clientLog.record(
-        'sync',
-        reason,
-        pending: local?.pending ?? 0,
-        connected: _shoppingSockets.values.every((s) => s.connected),
-        confirmed: pendingSyncMessage.value == null && !checking,
-      );
+      clientLog.record('sync', reason, connected: connected);
     }
-    _shoppingConnectionChanged();
+    setState(() {});
   }
 
-  bool _accountConfirmed = false;
-  Timer? _mirrorTimer;
   void _localChanged() {
-    if (mounted && localDataChanges.value.startsWith('/me#')) {
-      unawaited(_load(reviewInvitations: false));
-    } else if (mounted &&
-        _selected != null &&
+    if (!mounted) return;
+    if (_selected != null &&
         localDataChanges.value.startsWith('/households/$_selected/people#')) {
       unawaited(_loadPeople());
-    } else if (mounted && _local != null && _local!.pending == 0) {
-      final households = _shoppingSockets.entries
-          .where(
-            (entry) =>
-                entry.value.connected &&
-                !entry.value.applyingSnapshot &&
-                !_local!.isHouseholdConfirmed(entry.key),
-          )
-          .map((entry) => entry.key)
-          .toList();
-      if (households.isNotEmpty) unawaited(_syncLibrary(households));
     }
   }
 
   Future<Map<String, dynamic>?> _cachedRead(String path) =>
       widget.cachedRequest?.call(path) ??
       _local?.cachedView(path) ??
-      _offline?.cachedRead(path) ??
       Future.value(null);
   final _householdName = TextEditingController();
   final _personName = TextEditingController();
@@ -490,9 +428,6 @@ class _HouseholdPanelState extends State<HouseholdPanel>
       );
       person['display_name'] = (result['person'] as Map)['display_name'];
       if (mounted) setState(() => _recipeRefresh++);
-      if (_local != null) {
-        unawaited(_syncLibrary([householdId]).catchError((Object _) {}));
-      }
     });
   }
 
@@ -543,62 +478,26 @@ class _HouseholdPanelState extends State<HouseholdPanel>
   @override
   void initState() {
     super.initState();
-    activeServerWrites.addListener(_syncStatusChanged);
     _api.refreshSocketToken = () => _idToken(true);
-    _api.householdRequest = (path, {body}) =>
-        _shoppingSocket(Uri.parse(path).pathSegments[1])
-            .request(path, body: body);
+    _api.onAppSnapshot = _receiveAppState;
+    _api.onConnectionChanged = _syncStatusChanged;
     WidgetsBinding.instance.addObserver(this);
     sharedRecipeInbox.addListener(_sharedRecipeChanged);
     cookingSessions.addListener(_cookingChanged);
     _personName.text = widget.user.displayName ?? '';
     if (widget.request == null) {
-      _offline =
-          OfflineRecipes(
-            key: '$apiStorageNamespace|${widget.user.uid}',
-            fetch: (path) async {
-              if (path == '/me') {
-                if (kIsWeb && Uri.base.queryParameters['account'] == 'signin') {
-                  await widget.user.reload().timeout(
-                    const Duration(seconds: 8),
-                  );
-                }
-                await _idToken(true);
-              }
-              return _onlineRequest(path);
-            },
-            downloadLibrary: false,
-          )..start(() {
-            if (mounted) unawaited(_load(reviewInvitations: false));
-          });
-    }
-    if (widget.request == null) {
       _local = LocalData(
         key: '$apiStorageNamespace|${widget.user.uid}',
-        fetch: (path) => isVpsDataPath(path)
-            ? _onlineRequest(path)
-            : _offline!.request(path),
+        fetch: (path) => _onlineRequest(path),
         readServer: (path) => _onlineRequest(path),
         send: (path, body) => _onlineRequest(path, body: body),
-        online: () => !offlineStatus.value,
-        canSend: (path) => isVpsDataPath(path)
-            ? (_shoppingSockets[Uri.parse(path).pathSegments[1]]?.connected ??
-                  false)
-            : !offlineStatus.value,
         snapshotOnly: true,
         separateShopping: true,
         onPendingChanged: (scope, _) =>
             SyncNotifications.update(scope, const []),
-      )..start();
+      );
       _local!.addListener(_syncStatusChanged);
       localDataChanges.addListener(_localChanged);
-      _mirrorTimer = Timer.periodic(const Duration(minutes: 1), (_) {
-        if (mounted &&
-            WidgetsBinding.instance.lifecycleState ==
-                AppLifecycleState.resumed) {
-          unawaited(_load(reviewInvitations: false));
-        }
-      });
     }
     unawaited(_restoreSectionAndLoad());
   }
@@ -612,45 +511,24 @@ class _HouseholdPanelState extends State<HouseholdPanel>
     cookingRecipeBrowser = null;
     connectedHouseholds.value = {};
     pendingSyncMessage.value = null;
-    _mirrorTimer?.cancel();
-    for (final socket in _shoppingSockets.values) {
-      socket.dispose();
-    }
     localDataChanges.removeListener(_localChanged);
-    activeServerWrites.removeListener(_syncStatusChanged);
     _local?.removeListener(_syncStatusChanged);
     _local?.dispose();
-    _offline?.close();
     _api.close();
+    if (widget.socketConnect != null) _api.liveConnection?.dispose();
     _householdName.dispose();
     _personName.dispose();
     super.dispose();
   }
 
-  bool _wasBackgrounded = false;
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     clientLog.record('lifecycle', state.name);
-    if (state == AppLifecycleState.paused ||
-        state == AppLifecycleState.hidden ||
-        state == AppLifecycleState.detached) {
-      _wasBackgrounded = true;
-      for (final household in _shoppingSockets.keys) {
-        _local?.invalidateConfirmation(household);
-      }
-      _syncStatusChanged();
-    } else if (state == AppLifecycleState.resumed && _wasBackgrounded) {
-      _wasBackgrounded = false;
-      for (final socket in _shoppingSockets.values) {
-        socket.reconnect();
-      }
-    }
   }
 
   bool _cookingInvitationOpen = false;
   String? _lastCookingError;
   void _cookingChanged() {
-    if (mounted) _syncStatusChanged();
     final message = cookingSessions.error;
     if (mounted && message != null && message != _lastCookingError) {
       _lastCookingError = message;
@@ -746,12 +624,7 @@ class _HouseholdPanelState extends State<HouseholdPanel>
             request: (path, body) async {
               final data = await _request(path, body: body);
               if (data['recipe'] is Map &&
-                  (data['recipe'] as Map)['id'] != null) {
-                await _offline?.rememberSavedRecipe(
-                  '/households/$householdId/recipes/${(data['recipe'] as Map)['id']}',
-                  data,
-                );
-              }
+                  (data['recipe'] as Map)['id'] != null) {}
               return data;
             },
           ),
@@ -784,15 +657,11 @@ class _HouseholdPanelState extends State<HouseholdPanel>
         path.contains('/restaurants')) {
       return data;
     }
-    await _offline?.rememberSavedRecipe(path, data);
+
     if (_local != null && !_local!.canSave(path)) {
       await _local!.acceptServerRecipe(path, data);
     }
-    if (_offline != null) {
-      unawaited(
-        _syncLibrary(_households.map((h) => h['id'] as String).toList()),
-      );
-    }
+
     return data;
   }
 
@@ -805,7 +674,7 @@ class _HouseholdPanelState extends State<HouseholdPanel>
     if (_local != null) {
       if (path.endsWith('/recipe-blank')) return _local!.blank(path);
       if (body == null) return _local!.request(path);
-      if (_local!.canSave(path)) return _local!.save(path, body);
+      // Saves go directly to the server over the shared connection.
     }
     return _onlineRequest(path, body: body);
   }
@@ -828,16 +697,10 @@ class _HouseholdPanelState extends State<HouseholdPanel>
     Map<String, dynamic>? body,
   }) async {
     if (body != null && isAccountPath(path)) {
-      _accountConfirmed = false;
       _syncStatusChanged();
     }
     if (body != null && path.startsWith('/households/')) {
       _local?.invalidateConfirmation(Uri.parse(path).pathSegments[1]);
-    }
-    if (isVpsDataPath(path) && path.startsWith('/households/')) {
-      final household = Uri.parse(path).pathSegments[1];
-      _shoppingSocket(household);
-      return _api.request(path, '', body: body);
     }
     final token = await _idToken();
     if (token == null) throw ApiException(401, 'Please sign in again.');
@@ -857,8 +720,6 @@ class _HouseholdPanelState extends State<HouseholdPanel>
               ? (body?['method_selection'] == 'both' ? 190 : 110)
               : path.startsWith('/admin/')
               ? 60
-              : _offline != null && body == null
-              ? 8
               : 20,
         ),
       );
@@ -929,7 +790,7 @@ class _HouseholdPanelState extends State<HouseholdPanel>
   final _readyHouseholds = <String>{};
   bool _databaseChecking = true;
   String? _databaseError;
-  String _databaseProgress = 'Checking local database';
+  final String _databaseProgress = 'Connecting to server';
   double? _databaseFraction;
   Future<void>? _librarySync;
   Future<void> _syncLibrary(List<String> households) async {
@@ -952,105 +813,40 @@ class _HouseholdPanelState extends State<HouseholdPanel>
   }
 
   Future<void> _downloadLibraries(List<String> households) async {
-    for (var index = 0; index < households.length; index++) {
-      final household = households[index];
-      if (!mounted) return;
-      setState(() {
-        _databaseError = null;
-        _databaseProgress =
-            'Downloading household ${index + 1} of ${households.length}';
-        _databaseFraction = index / households.length;
-      });
-      try {
-        final epoch = _local!.snapshotEpoch;
-        _local!.invalidateConfirmation(household);
-        final token = await _idToken();
-        if (token == null) throw ApiException(401, 'Please sign in again.');
-        final snapshot = await _api.request(
-          '/households/$household/snapshot',
-          token,
-          timeout: const Duration(seconds: 90),
-          onProgress: (received, total) {
-            if (!mounted || _readyHouseholds.contains(household)) return;
-            setState(() {
-              _databaseProgress =
-                  'Downloaded ${(received / 1024).round()} KB${total == null ? '' : ' of ${(total / 1024).round()} KB'}';
-              _databaseFraction = total == null || total == 0
-                  ? null
-                  : (index + 0.8 * received / total) / households.length;
-            });
-          },
-        );
-        if (!mounted) return;
-        if (_local!.snapshotEpoch != epoch) {
-          if (!_readyHouseholds.contains(household)) index--;
-          continue;
-        }
-        if (snapshot['unchanged'] != true) {
-          if (snapshot['schema'] != 1 ||
-              snapshot['household_id'] != household ||
-              snapshot['version'] is! String ||
-              snapshot['recipes'] is! List ||
-              snapshot['categories'] is! List ||
-              snapshot['responses'] is! Map ||
-              snapshot['edit_options'] is! Map) {
-            throw const FormatException('Incomplete database response');
-          }
-          final responses = snapshot['responses'] as Map;
-          for (final row in snapshot['recipes'] as List) {
-            if (responses['/households/$household/recipes/${row['id']}']?['recipe']
-                    is! Map ||
-                responses['/households/$household/recipes/${row['id']}/favorites']
-                    is! Map) {
-              throw const FormatException('Missing recipe data');
-            }
-          }
-          for (final resource in [
-            'people',
-            'recipe-blank',
-            'meal-plan',
-            'meal-plan/history',
-          ]) {
-            if (responses['/households/$household/$resource'] is! Map) {
-              throw const FormatException('Missing household data');
-            }
-          }
-          setState(() {
-            _databaseProgress =
-                'Saving ${(snapshot['recipes'] as List).length} recipes on this device';
-            _databaseFraction = (index + 0.8) / households.length;
-          });
-          await _local!.installSnapshot(snapshot);
-        }
-        if (await _local!.snapshotVersion(household) != null && mounted) {
-          setState(() {
-            _readyHouseholds.add(household);
-            _databaseFraction = (index + 1) / households.length;
-          });
-        }
-      } catch (error, stack) {
-        clientLog.record(
-          'household',
-          'snapshot_failed',
-          error: error,
-          stack: stack,
-          status: error is ApiException ? error.status : null,
-          code: error is ApiException ? error.code : null,
-        );
-        _local?.invalidateConfirmation(household);
-        _syncStatusChanged();
-        if (mounted) {
-          setState(() {
-            _databaseError = error is ApiException ? error.message : 'Database download could not finish. Your existing local data is safe. Retry to finish setup.';
-          });
-        }
-      }
-    }
+    final token = await _idToken();
+    if (token == null) throw ApiException(401, 'Please sign in again.');
+    await _api.request('/me', token);
   }
 
-  Future<void> _load({bool reviewInvitations = true}) async {
-    _accountConfirmed = false;
-    _syncStatusChanged();
+  Future<void> _load({
+    bool reviewInvitations = true,
+    Map<String, dynamic>? account,
+  }) {
+    if (account != null) _pushedAccount = account;
+    final loading = _accountLoading ??= () async {
+      do {
+        final pushed = _pushedAccount;
+        _pushedAccount = null;
+        await _loadAccount(
+          reviewInvitations: reviewInvitations,
+          account: pushed,
+        );
+      } while (mounted && _pushedAccount != null);
+    }().whenComplete(() => _accountLoading = null);
+    return loading.then((_) async {
+      if (mounted &&
+          _error == null &&
+          reviewInvitations &&
+          !offlineStatus.value) {
+        await _reviewInvitations();
+      }
+    });
+  }
+
+  Future<void> _loadAccount({
+    bool reviewInvitations = true,
+    Map<String, dynamic>? account,
+  }) async {
     // This cache chooses public browsing only. It never authorizes a mutation,
     // exposes account data, or substitutes for authenticated /me responses.
     final browseKey =
@@ -1098,30 +894,23 @@ class _HouseholdPanelState extends State<HouseholdPanel>
       }
       if (mounted) setState(() => _databaseChecking = false);
     }
-    if (widget.request == null && _selected != null) {
-      _shoppingSocket(_selected!);
-    }
     await _perform(() async {
-      var fresh = _local == null;
-      final data = _local == null
-          ? await _request('/me')
-          : await _local!
-                .refresh('/me', force: true)
-                .then((value) {
-                  fresh = true;
-                  return value;
-                })
-                .catchError((Object error) async {
+      final data =
+          account ??
+          (_local == null
+              ? await _request('/me')
+              : await _local!.refresh('/me', force: true).catchError((
+                  Object error,
+                ) async {
                   final saved = await _local!.cached('/me');
                   if (saved != null) return saved;
                   throw error;
-                });
+                }));
       if (!mounted) return;
-      _accountConfirmed = fresh;
       if (widget.request != null) {
         childMode.value = (data['user'] as Map?)?['child_mode'] == true;
       } else {
-        await _refreshChildPolicy();
+        await _refreshChildPolicy(data);
       }
       _userId = (data['user'] as Map?)?['id'] as String?;
       _displayName = (data['user'] as Map?)?['display_name'] as String?;
@@ -1135,13 +924,6 @@ class _HouseholdPanelState extends State<HouseholdPanel>
       );
       if (!mounted) return;
       _households = households;
-      final ids = households.map((h) => '${h['id']}').toSet();
-      for (final id
-          in _shoppingSockets.keys.where((id) => !ids.contains(id)).toList()) {
-        _shoppingSockets.remove(id)?.dispose();
-        _readyHouseholds.remove(id);
-        _local?.invalidateConfirmation(id);
-      }
       _syncStatusChanged();
       if (widget.request == null) {
         try {
@@ -1167,32 +949,9 @@ class _HouseholdPanelState extends State<HouseholdPanel>
             ? null
             : households.first['id'] as String;
       }
-      if (_offline != null && !offlineStatus.value) {
-        unawaited(
-          _syncLibrary(households.map((h) => h['id'] as String).toList()),
-        );
-      }
-      if (_local != null) {
-        for (final household in households) {
-          _shoppingSocket(household['id'] as String);
-          unawaited(
-            _local!
-                .request(
-                  '/households/${household['id']}/meal-plan?from=2000-01-01&to=2199-12-31',
-                )
-                .catchError((Object _) => <String, dynamic>{}),
-          );
-        }
-      }
       await _loadPeople();
     });
     _sharedRecipeChanged();
-    if (mounted &&
-        _error == null &&
-        reviewInvitations &&
-        !offlineStatus.value) {
-      await _reviewInvitations();
-    }
   }
 
   Future<void> _reviewInvitations() async {
@@ -1288,13 +1047,18 @@ class _HouseholdPanelState extends State<HouseholdPanel>
       );
       if (!mounted) return;
       final household = Map<String, dynamic>.from(data['household'] as Map);
-      _households.add(household);
-      _selected = household['id'] as String;
-      if (_local != null) {
-        unawaited(
-          _syncLibrary(_households.map((h) => h['id'] as String).toList()),
-        );
+      if (widget.request != null) {
+        _households.add(household);
+      } else {
+        final account = _api.liveConnection?.data['account'] as Map?;
+        if (account != null) {
+          await _load(
+            reviewInvitations: false,
+            account: Map<String, dynamic>.from(account),
+          );
+        }
       }
+      _selected = household['id'] as String;
       await _loadPeople();
     });
   }
@@ -1344,9 +1108,15 @@ class _HouseholdPanelState extends State<HouseholdPanel>
     if (mounted) setState(() => _recipeRefresh++);
   }
 
-  Future<void> _refreshChildPolicy() async {
+  Future<void> _refreshChildPolicy([Map<String, dynamic>? account]) async {
     try {
-      final policy = await _onlineRequest('/me/child-mode');
+      final policy =
+          account != null && account.containsKey('people_child_modes')
+          ? {
+              'enabled': (account['user'] as Map)['child_mode'],
+              'people_child_modes': account['people_child_modes'],
+            }
+          : await _onlineRequest('/me/child-mode');
       if (!mounted) return;
       childMode.value = policy['enabled'] == true;
       if (policy['people_child_modes'] is Map) {
@@ -1451,14 +1221,6 @@ class _HouseholdPanelState extends State<HouseholdPanel>
           householdId: householdId,
           request: (path, body) async {
             final data = await _request(path, body: body);
-            if (data['recipe'] is Map &&
-                (data['recipe'] as Map)['id'] != null) {
-              final id = (data['recipe'] as Map)['id'];
-              await _offline?.rememberSavedRecipe(
-                '/households/$householdId/recipes/$id',
-                data,
-              );
-            }
             return data;
           },
         ),
@@ -2023,7 +1785,6 @@ class _HouseholdPanelState extends State<HouseholdPanel>
       drawer: _buildMenu(context),
       body: Column(
         children: [
-          if (_local != null) LocalSyncStatus(data: _local!),
           Expanded(
             child: IndexedStack(
               index: _planning

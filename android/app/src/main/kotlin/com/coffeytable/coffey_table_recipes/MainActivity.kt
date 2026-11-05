@@ -6,7 +6,12 @@ import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
 
 class MainActivity : FlutterActivity() {
+    override fun onResume() {
+        super.onResume()
+        RecipeTimers.foreground = true
+    }
     override fun onPause() {
+        RecipeTimers.foreground = false
         RecipeTimers.stopPreview()
         super.onPause()
     }

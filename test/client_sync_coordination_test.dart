@@ -75,13 +75,28 @@ void main() {
           ws.listen((raw) {
             final m = jsonDecode(raw as String) as Map;
             if (m['type'] == 'auth') {
-              final household = m['scope'] == 'household';
+              final household = m['scope'] == 'app';
               if (household) householdPeers.add(ws);
               ws.add(
                 jsonEncode({
                   'type': 'ready',
-                  'household_id': household ? '1' : null,
-                  'data': household ? state() : {},
+                  'household_id': null,
+                  'data': household
+                      ? {
+                          'account': {
+                            'user': {
+                              'id': '42',
+                              'display_name': 'Alice',
+                              'child_mode': false,
+                            },
+                            'households': [
+                              {'id': '1', 'name': 'Table', 'role': 'owner'},
+                            ],
+                            'people_child_modes': <String, dynamic>{},
+                          },
+                          'households': {'1': state()},
+                        }
+                      : {},
                 }),
               );
             } else if (m['type'] == 'request') {
@@ -182,8 +197,10 @@ void main() {
         householdPeers.last.add(
           jsonEncode({
             'type': 'snapshot',
-            'household_id': '1',
-            'data': state(),
+            'household_id': null,
+            'data': {
+              'households': {'1': state()},
+            },
           }),
         );
         await settleUntil(

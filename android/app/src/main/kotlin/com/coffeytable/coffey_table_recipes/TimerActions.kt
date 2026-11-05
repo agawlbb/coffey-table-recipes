@@ -85,6 +85,7 @@ object TimerActions {
         check(p.edit().putString("actions", all.toString()).commit())
     }
     fun sync(c: Context, finished: () -> Unit = {}) {
+        if (RecipeTimers.foreground) { TimerSyncNative.changed(); finished(); return }
         synchronized(this) { if (sending) { finished(); return }; sending = true }
         val all = pending(c)
         val first = (0 until all.length()).map { all.getJSONObject(it) }.firstOrNull { !it.optBoolean("sent", false) }

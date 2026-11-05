@@ -119,6 +119,16 @@ enum RecipeTimers {
                     switch call.method {
                     case "configureSync":
                         try await serializedSync { try await configureSync(args) }; result(nil)
+                    case "resetSyncCache":
+                        pendingActions = []
+                        defaults.removeObject(forKey: "timerSyncRevisions")
+                        for key in UserDefaults.standard.dictionaryRepresentation().keys where key.hasPrefix("pendingSaveReminders:") {
+                            let identifiers = UserDefaults.standard.stringArray(forKey: key) ?? []
+                            UNUserNotificationCenter.current().removePendingNotificationRequests(withIdentifiers: identifiers)
+                            UNUserNotificationCenter.current().removeDeliveredNotifications(withIdentifiers: identifiers)
+                            UserDefaults.standard.removeObject(forKey: key)
+                        }
+                        result(nil)
                     case "pendingActions": result(pendingActions)
                     case "acknowledgeAction": acknowledgeAction(args["account_uid"] as? String ?? "", args["operation_id"] as? String ?? ""); result(nil)
                     case "syncActions": Task { await syncActions() }; result(nil)
@@ -440,6 +450,10 @@ extension RecipeTimers {
         return true
     }
     static func syncActions() async {
+        if UIApplication.shared.applicationState == .active {
+            syncChannel?.invokeMethod("changed", arguments: nil)
+            return
+        }
         guard !sendingActions else { return }
         sendingActions = true
         defer { sendingActions = false }

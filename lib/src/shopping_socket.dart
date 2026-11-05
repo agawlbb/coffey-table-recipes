@@ -181,7 +181,7 @@ class ShoppingSocket extends ChangeNotifier {
         'scope': scope,
       });
       await ready.future.timeout(
-        Duration(seconds: scope == 'household' ? 90 : 20),
+        Duration(seconds: (scope == 'household' || scope == 'app') ? 90 : 20),
       );
       if (_closed || generation != _generation) return;
       _lastReceived = DateTime.now();
@@ -193,7 +193,7 @@ class ShoppingSocket extends ChangeNotifier {
           _send({'type': 'ping'});
         }
       });
-      _renew = Timer(const Duration(minutes: 45), _lost);
+      _scheduleRenewal();
     } catch (error, stack) {
       if (!_closed && generation == _generation) {
         clientLog.record(
@@ -206,6 +206,45 @@ class ShoppingSocket extends ChangeNotifier {
       }
     } finally {
       if (generation == _generation) _opening = false;
+    }
+  }
+
+  void _scheduleRenewal() {
+    _renew?.cancel();
+    _renew = Timer(const Duration(minutes: 45), () {
+      unawaited(
+        reauthenticate(refresh: true)
+            .catchError((Object error) => _lost(error)),
+      );
+    });
+  }
+
+  Future<void> reauthenticate({bool refresh = false}) async {
+    final generation = _generation;
+    try {
+      await Future.wait(_pending.values.map((c) => c.future).toList());
+    } catch (_) {
+      /* The original requests report their errors. */
+    }
+    if (_closed || !connected || generation != _generation) return;
+    final ready = _ready = Completer<void>();
+    unawaited(ready.future.catchError((Object _) {}));
+    try {
+      final credential = await token(refresh)
+          .timeout(const Duration(seconds: 10));
+      if (credential == null) throw ApiException(401, 'Please sign in again.');
+      if (_closed || generation != _generation) return;
+      _send({
+        'type': 'auth',
+        'token': credential,
+        'household_id': household.isEmpty ? null : household,
+        'scope': scope,
+      });
+      await ready.future.timeout(const Duration(seconds: 90));
+      _scheduleRenewal();
+    } catch (error) {
+      if (!_closed && generation == _generation) _lost(error);
+      rethrow;
     }
   }
 
@@ -292,12 +331,25 @@ class ShoppingSocket extends ChangeNotifier {
     }
   }
 
+  Future<void> ensureReady() async {
+    start();
+    await _ready!.future.timeout(
+      Duration(
+        seconds: scope == 'app' || (scope == 'household' || scope == 'app')
+            ? 90
+            : 20,
+      ),
+    );
+  }
+
   Future<Map<String, dynamic>> request(
     String path, {
     Map<String, dynamic>? body,
   }) async {
     if (_closed) throw StateError('Data connection closed');
-    if (scope == 'account'
+    if (scope == 'app'
+        ? !(isVpsDataPath(path) || isAccountPath(path) || isAiPath(path))
+        : scope == 'account'
         ? !isAccountPath(path) || household.isNotEmpty
         : scope == 'ai'
         ? (!isAiPath(path) ||
@@ -321,7 +373,7 @@ class ShoppingSocket extends ChangeNotifier {
     }
     start();
     await _ready!.future.timeout(
-      Duration(seconds: scope == 'household' ? 90 : 20),
+      Duration(seconds: (scope == 'household' || scope == 'app') ? 90 : 20),
     );
     if (!connected) {
       throw _connectionLost();
@@ -335,11 +387,12 @@ class ShoppingSocket extends ChangeNotifier {
     try {
       return await response.future.timeout(
         Duration(
-          seconds: scope == 'ai' || body?['source_type'] == 'blank'
+          seconds:
+              scope == 'ai' || isAiPath(path) || body?['source_type'] == 'blank'
               ? 615
               : scope == 'account'
               ? 90
-              : scope == 'household'
+              : scope == 'household' || scope == 'app'
               ? 90
               : 20,
         ),

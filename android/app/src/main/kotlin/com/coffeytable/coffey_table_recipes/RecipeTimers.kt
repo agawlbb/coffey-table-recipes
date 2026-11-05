@@ -12,6 +12,7 @@ import io.flutter.plugin.common.MethodChannel
 import org.json.JSONObject
 
 object RecipeTimers {
+    @Volatile var foreground = false
     private var preview: Ringtone? = null
     private val previewHandler = Handler(Looper.getMainLooper())
     private val previewStop = Runnable { stopPreview() }
@@ -76,6 +77,11 @@ object RecipeTimers {
             try {
                 when (call.method) {
                     "configureSync" -> { TimerSyncNative.configure(activity, call.arguments as Map<*, *>); result.success(null) }
+                    "resetSyncCache" -> {
+                        PendingSaveNotifications.clearAll(activity)
+                        check(activity.getSharedPreferences("timer_sync", Context.MODE_PRIVATE).edit().remove("actions").remove("revisions").commit())
+                        result.success(null)
+                    }
                     "pendingActions" -> result.success(TimerActions.rows(activity))
                     "acknowledgeAction" -> { TimerActions.acknowledge(activity, call.argument<String>("account_uid")!!, call.argument<String>("operation_id")!!); result.success(null) }
                     "syncActions" -> { TimerActions.sync(activity); result.success(null) }

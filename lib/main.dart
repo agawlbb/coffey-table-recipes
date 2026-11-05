@@ -1,3 +1,4 @@
+import 'src/reset_local_data.dart';
 import 'src/client_log.dart';
 import 'src/client_error_logging.dart';
 
@@ -24,6 +25,7 @@ import 'src/native_timers.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await resetLocalDataForUpdate();
   installClientErrorLogging();
   await clientLog.start();
   try {

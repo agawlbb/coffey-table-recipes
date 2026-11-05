@@ -1,3 +1,4 @@
+import 'app_connection.dart';
 import 'client_log.dart';
 import 'shopping_socket.dart';
 
@@ -106,9 +107,53 @@ class RecipeApi {
     http.Client? client,
     this.onServerTime,
     WebSocketChannel Function(Uri)? socketConnect,
-  }) : _client = client ?? http.Client(),
+    AppConnection? connection,
+  }) : _app =
+           connection ??
+           (client == null && socketConnect == null ? appConnection : null),
+       _client = client ?? http.Client(),
        _useSockets = client == null || socketConnect != null,
-       _socketConnect = socketConnect ?? WebSocketChannel.connect;
+       _socketConnect = socketConnect ?? WebSocketChannel.connect {
+    _app?.addReceiver(_appSnapshot);
+    _app?.addListener(_appChanged);
+  }
+  final AppConnection? _app;
+  String? _appOwner;
+  bool _appApplied = false, _appConnected = false;
+  Future<void> Function(Map<String, dynamic>)? onAppSnapshot;
+  AppConnection? get liveConnection => _app;
+  Future<void> _appSnapshot(Map<String, dynamic> data) async {
+    if (_appOwner != _app?.owner || _closed) return;
+    if (_app?.serverTime != null) {
+      onServerTime?.call(_app!.serverTime!, _app.receivedAt!);
+      onServerClock?.call(_app!.serverTime!);
+    }
+    if (onAppSnapshot != null ||
+        onCookingSnapshot != null ||
+        onTimerSnapshot != null) {
+      _appApplied = true;
+      await onAppSnapshot?.call(data);
+      if (data['cooking'] is Map) {
+        await onCookingSnapshot?.call(
+          Map<String, dynamic>.from(data['cooking'] as Map),
+        );
+      }
+      if (data['timers'] is Map) {
+        await onTimerSnapshot?.call(
+          Map<String, dynamic>.from(data['timers'] as Map),
+        );
+      }
+    }
+  }
+
+  void _appChanged() {
+    if (_closed) return;
+    final connected = _app?.connected ?? false;
+    onConnectionChanged?.call();
+    if (connected && !_appConnected) onSocketReady?.call();
+    _appConnected = connected;
+  }
+
   final String baseUrl;
   final http.Client _client;
   final void Function(int milliseconds, DateTime receivedAt)? onServerTime;
@@ -126,9 +171,10 @@ class RecipeApi {
   void Function(int)? onServerClock;
   void Function()? onSocketReady;
   void Function()? onConnectionChanged;
-  bool get socketsReady =>
-      _sockets.isNotEmpty &&
-      _sockets.values.every((s) => s.connected && !s.applyingSnapshot);
+  bool get socketsReady => _app != null
+      ? _app.connected
+      : _sockets.isNotEmpty &&
+            _sockets.values.every((s) => s.connected && !s.applyingSnapshot);
   String _socketToken = '';
   String _socketIdentity = '';
 
@@ -152,6 +198,9 @@ class RecipeApi {
   Future<String?> Function()? refreshSocketToken;
 
   void resetSockets() {
+    _app?.reset();
+    _appOwner = null;
+    _appApplied = false;
     for (final socket in _sockets.values) {
       socket.dispose();
     }
@@ -162,6 +211,10 @@ class RecipeApi {
   }
 
   void reconnectSockets() {
+    if (_app != null) {
+      _app.reconnect();
+      return;
+    }
     for (final socket in _sockets.values) {
       socket.reconnect();
     }
@@ -172,6 +225,9 @@ class RecipeApi {
     String token, {
     Map<String, dynamic>? body,
   }) {
+    if (_app != null) {
+      return _appRequest(path, token, body: body);
+    }
     final uri = Uri.parse(path);
     final scope = isAccountPath(path)
         ? 'account'
@@ -237,6 +293,24 @@ class RecipeApi {
       return created;
     });
     return socket.request(path, body: body);
+  }
+
+  Future<void> connect(String token) async {
+    if (_app == null) return;
+    _appOwner = AppConnection.identity(token);
+    await _app.open(token);
+    if (!_appApplied && _app.data.isNotEmpty) await _appSnapshot(_app.data);
+  }
+
+  Future<Map<String, dynamic>> _appRequest(
+    String path,
+    String token, {
+    Map<String, dynamic>? body,
+  }) async {
+    _appOwner = token.isEmpty ? _app!.owner : AppConnection.identity(token);
+    if (token.isNotEmpty) await _app!.open(token);
+    if (!_appApplied && _app!.data.isNotEmpty) await _appSnapshot(_app.data);
+    return _app!.request(path, token, body: body);
   }
 
   Future<Map<String, dynamic>> _write(
@@ -413,6 +487,8 @@ class RecipeApi {
   }
 
   void close() {
+    _app?.removeReceiver(_appSnapshot);
+    _app?.removeListener(_appChanged);
     _closed = true;
     for (final socket in _sockets.values) {
       socket.dispose();

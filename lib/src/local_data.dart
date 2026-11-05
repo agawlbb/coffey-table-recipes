@@ -937,6 +937,15 @@ class LocalData extends ChangeNotifier {
     }
   }
 
+  Future<void> acceptAccountSnapshot(Map<String, dynamic> account) =>
+      _serial(() async {
+        await _load();
+        _prune(account);
+        _data['/me'] = _copy(account);
+        await _persist();
+        _changed('/me');
+      });
+
   Future<String?> snapshotVersion(String household) async {
     await _load();
     return _data['snapshot-version:$household'] as String?;
@@ -2034,127 +2043,4 @@ class LocalData extends ChangeNotifier {
     _reminderTimer?.cancel();
     super.dispose();
   }
-}
-
-class LocalSyncStatus extends StatelessWidget {
-  const LocalSyncStatus({super.key, required this.data});
-  final LocalData data;
-  @override
-  Widget build(BuildContext context) => ListenableBuilder(
-    listenable: data,
-    builder: (context, _) => data.pending == 0 && data.error == null
-        ? const SizedBox.shrink()
-        : Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            child: Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    (data.overdue > 0
-                            ? '${data.overdue} change(s) still await server confirmation after one minute. Saved on this device.${data.lastSyncFailure == null ? '' : ' ${data.lastSyncFailure}'}'
-                            : null) ??
-                        data.reminderError ??
-                        data.error ??
-                        '${data.pending} change(s) saved on this device · awaiting server confirmation',
-                    style: Theme.of(context).textTheme.bodySmall,
-                  ),
-                ),
-                TextButton(
-                  onPressed: () async {
-                    if (data.conflicts.isEmpty) {
-                      await data.synchronize();
-                      return;
-                    }
-                    final q = data.conflicts.first;
-                    if (!context.mounted) return;
-                    await showDialog<void>(
-                      context: context,
-                      builder: (dialog) => AlertDialog(
-                        title: const Text('Review local change'),
-                        content: SingleChildScrollView(
-                          child: SelectableText(
-                            '${q['problem']}\n\nLocal edit (retained on this device):\n${describeLocalData(q['body'] as Map)}',
-                          ),
-                        ),
-                        actions: [
-                          TextButton(
-                            onPressed: () => Navigator.pop(dialog),
-                            child: const Text('Keep local draft'),
-                          ),
-                          TextButton(
-                            onPressed: () async {
-                              try {
-                                final server = await data.serverCopy(q);
-                                if (!dialog.mounted) return;
-                                final accept = await showDialog<String>(
-                                  context: dialog,
-                                  builder: (review) => AlertDialog(
-                                    title: const Text('Server version'),
-                                    content: SingleChildScrollView(
-                                      child: SelectableText(
-                                        describeLocalData(server),
-                                      ),
-                                    ),
-                                    actions: [
-                                      TextButton(
-                                        onPressed: () =>
-                                            Navigator.pop(review, 'cancel'),
-                                        child: const Text('Cancel'),
-                                      ),
-                                      if (q['creating'] != true)
-                                        TextButton(
-                                          onPressed: () =>
-                                              Navigator.pop(review, 'local'),
-                                          child: const Text(
-                                            'Apply my local changes',
-                                          ),
-                                        ),
-                                      TextButton(
-                                        onPressed: () =>
-                                            Navigator.pop(review, 'server'),
-                                        child: const Text(
-                                          'Use server; archive local draft',
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                );
-                                if (accept == 'local') {
-                                  await data.useLocal(
-                                    q['id'] as String,
-                                    server,
-                                  );
-                                }
-                                if (accept == 'server') {
-                                  await data.keepServer(q['id'] as String);
-                                }
-                                if (dialog.mounted &&
-                                    accept != null &&
-                                    accept != 'cancel') {
-                                  Navigator.pop(dialog);
-                                }
-                              } catch (_) {
-                                if (dialog.mounted) {
-                                  ScaffoldMessenger.of(dialog).showSnackBar(
-                                    const SnackBar(
-                                      content: Text(
-                                        'Could not load the server version. Local edits are retained.',
-                                      ),
-                                    ),
-                                  );
-                                }
-                              }
-                            },
-                            child: const Text('Compare with server'),
-                          ),
-                        ],
-                      ),
-                    );
-                  },
-                  child: Text(data.conflicts.isEmpty ? 'Sync now' : 'Review'),
-                ),
-              ],
-            ),
-          ),
-  );
 }

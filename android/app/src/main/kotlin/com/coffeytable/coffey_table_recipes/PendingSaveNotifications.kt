@@ -57,6 +57,13 @@ object PendingSaveNotifications {
             .setContentIntent(open).setAutoCancel(true).build())
         prefs(c).edit().putString(key, row.put("fired", true).toString()).commit()
     }
+    fun clearAll(c: Context) {
+        for (key in prefs(c).all.keys.filter { it.contains(":") }) {
+            c.getSystemService(AlarmManager::class.java).cancel(intent(c, key))
+            c.getSystemService(NotificationManager::class.java).cancel(key, 0)
+        }
+        check(prefs(c).edit().clear().commit())
+    }
     fun register(activity: Activity, channel: MethodChannel) {
         channel.setMethodCallHandler { call, result ->
             if (call.method != "update") { result.notImplemented(); return@setMethodCallHandler }

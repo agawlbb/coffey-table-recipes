@@ -11,22 +11,23 @@ class ConnectionIndicator extends StatelessWidget {
   final String householdId;
 
   @override
-  Widget build(BuildContext context) => ListenableBuilder(
-    listenable: Listenable.merge([connectedHouseholds, pendingSyncMessage]),
-    builder: (_, _) {
-      final pending = pendingSyncMessage.value;
-      if (!connectedHouseholds.value.contains(householdId) && pending == null) {
-        return const SizedBox.shrink();
-      }
+  Widget build(BuildContext context) => ValueListenableBuilder<Set<String>>(
+    valueListenable: connectedHouseholds,
+    builder: (_, households, _) {
+      if (householdId.isEmpty) return const SizedBox.shrink();
+      final connected = households.contains(householdId);
+      final label = connected
+          ? 'Connected to server'
+          : 'Not connected to server';
       return Padding(
         padding: const EdgeInsets.only(right: 4),
         child: Tooltip(
-          message: pending ?? 'Matches last confirmed server data',
+          message: label,
           child: Icon(
-            pending == null ? Icons.cloud_done : Icons.cloud_upload_outlined,
-            color: pending == null ? Colors.green : Colors.orange,
+            connected ? Icons.cloud_done : Icons.cloud_off_outlined,
+            color: connected ? Colors.green : Colors.orange,
             size: 18,
-            semanticLabel: pending ?? 'Matches last confirmed server data',
+            semanticLabel: label,
           ),
         ),
       );

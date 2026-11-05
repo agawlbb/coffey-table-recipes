@@ -1229,3 +1229,9 @@ no backend redeployment needed for these client-only changes.
   declares no non-exempt encryption, is IN_BETA_TESTING, and is available
   to the existing Family testers internal group. No new tester invitations,
   public App Store submission or distribution-territory changes.
+
+## 2.7.6 — one foreground connection and server reload
+
+User authorized implementation, merging both repositories, deleting working branches and releasing the apps. Version 2.7.6/build 61 clears old local recipe state and pending edits once, preserving authentication. Server data becomes the source of truth. The comparison screen and recipe outbox are removed from production operation. Green means an open server connection. See [connection behavior](server-first-sync.md).
+
+Backend validation: five unified-connection tests (including four-client commands and updates), ten account websocket tests, seven legacy data websocket tests, two cooking websocket tests, PHP identity/account/cooking and data-contract checks passed. App analysis is clean; final suite and delivery evidence follow.

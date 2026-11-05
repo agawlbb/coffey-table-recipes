@@ -2,6 +2,15 @@
 
 Release dates and changes are reconstructed from annotated Git tags, commit history, and project release records. Versions before 1.0 are demonstration releases; 1.0 marks the first usable release. Android retains the existing signing identity; iOS delivery and signing are recorded for each release.
 
+## 2.7.6 — 2026-11-05
+
+Build 61; tag `v2.7.6`.
+
+- Clear recipe caches and pending local edits once after updating, then reload server data; retain sign-in and device preferences.
+- Use one shared foreground server connection for account, recipes, meal plans, shopping, cooking and timers, with server-pushed changes and direct saves.
+- Remove the local/server comparison screen and routine synchronization polling. Green indicates an open server connection.
+- Renew authentication on the existing connection and serialize account commands to avoid competing startup requests.
+
 ## 2.7.5 — 2026-11-05
 
 Build 60; tag `v2.7.5`.

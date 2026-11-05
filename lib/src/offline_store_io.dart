@@ -17,6 +17,17 @@ class OfflineFileStore {
     return await file.exists() ? file.readAsString() : null;
   }
 
+  Future<void> clear() async {
+    final folder = await directory();
+    if (!await folder.exists()) return;
+    await for (final entry in folder.list()) {
+      final name = entry.uri.pathSegments.where((s) => s.isNotEmpty).last;
+      if (name.startsWith('recipes-') || name.startsWith('.recipe-save-')) {
+        await entry.delete(recursive: true);
+      }
+    }
+  }
+
   Future<void> write(String key, String value) async {
     final file = await _file(key);
     // Independent readers of the same cache key must not share a .tmp path.
@@ -35,3 +46,5 @@ final _store = OfflineFileStore();
 Future<String?> readOfflineStore(String key) => _store.read(key);
 Future<void> writeOfflineStore(String key, String value) =>
     _store.write(key, value);
+
+Future<void> clearOfflineStore() => _store.clear();

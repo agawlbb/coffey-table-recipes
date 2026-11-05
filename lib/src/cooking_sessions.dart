@@ -58,7 +58,6 @@ class CookingSessions extends ChangeNotifier with WidgetsBindingObserver {
   final _api = RecipeApi(baseUrl: apiBaseUrl);
   String installation;
   String? _uid;
-  bool _wasBackgrounded = false;
   bool _syncConfirmed = false;
   bool _started = false, _foreground = true, _loaded = false, _disposed = false;
   String? visibleSession;
@@ -152,16 +151,16 @@ class CookingSessions extends ChangeNotifier with WidgetsBindingObserver {
     };
     _api.onServerClock = (milliseconds) =>
         _serverOffset = milliseconds - DateTime.now().millisecondsSinceEpoch;
-    _api.onSocketReady = () => unawaited(refresh());
+    _api.onSocketReady = () => unawaited(_flush().catchError(_failed));
     NativeTimers.onLocalChange = timerChanged;
     if (NativeTimers.supported) {
       NativeTimers.channel.setMethodCallHandler((call) async {
         if (call.method == 'changed') {
           await _readNativeActions();
           await NativeTimers.restore();
-          unawaited(refresh());
+          unawaited(_flush().catchError(_failed));
         }
-        if (call.method == 'tokenChanged') await refresh();
+        if (call.method == 'tokenChanged') await _register();
       });
     }
     if (NativeTimers.supported) {
@@ -232,7 +231,7 @@ class CookingSessions extends ChangeNotifier with WidgetsBindingObserver {
     sessions.clear();
     offered.clear();
     _outbox = [];
-    _api.resetSockets();
+    if (previous != null || uid == null) _api.resetSockets();
     notifyListeners();
     try {
       await _configure();
@@ -251,7 +250,14 @@ class CookingSessions extends ChangeNotifier with WidgetsBindingObserver {
         if (generation == _generation) _failed(e);
       }
       if (generation != _generation) return;
-      await refresh();
+      if (_testRequest != null) {
+        await refresh();
+      } else {
+        final token = await FirebaseAuth.instance.currentUser?.getIdToken();
+        if (token != null) await _api.connect(token);
+        await _readNativeActions();
+        await _flush();
+      }
     } catch (e) {
       if (generation == _generation) _failed(e);
     }
@@ -450,7 +456,6 @@ class CookingSessions extends ChangeNotifier with WidgetsBindingObserver {
     await importNativeActions(
       rows.map((r) => Map<String, dynamic>.from(r as Map)).toList(),
     );
-    await NativeTimers.channel.invokeMethod<void>('syncActions');
   }
 
   Future<void> refresh() async {
@@ -696,23 +701,12 @@ class CookingSessions extends ChangeNotifier with WidgetsBindingObserver {
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.inactive) return;
-    if (state == AppLifecycleState.paused ||
-        state == AppLifecycleState.hidden ||
-        state == AppLifecycleState.detached) {
-      _wasBackgrounded = true;
-    }
-    final resumedFromBackground =
-        state == AppLifecycleState.resumed && _wasBackgrounded;
     _foreground = state == AppLifecycleState.resumed;
     final visible = visibleSession;
     if (_foreground) {
       offered.clear();
       if (_uid != null) unawaited(_register().catchError(_failed));
-      if (resumedFromBackground) {
-        _wasBackgrounded = false;
-        _api.reconnectSockets();
-      }
-      unawaited(refresh());
+      unawaited(_readNativeActions().then((_) => _flush()).catchError(_failed));
       if (visible != null) {
         unawaited(presence(visible, true).catchError(_failed));
       }
