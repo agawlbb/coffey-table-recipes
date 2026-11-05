@@ -1045,3 +1045,13 @@ WebSocket fixture tests. No fixtures sent mail or used production data.
 
 Delivery and branch-cleanup evidence will be recorded after verification. The
 retired hosted web app must not be built or published.
+
+
+The first iOS 58 attempt, run 42053084032, passed full analysis and all app and
+iOS tooling tests, then failed before archive/export/upload: Xcode requires iOS
+16 for `UIApplication.openNotificationSettingsURLString`, but the new settings
+handler guarded it at 15.4. The correction uses the existing general-app-settings
+fallback below iOS 16. This changes iOS source only; the delivered Android APK
+and immutable `v2.7.3` source are retained. The corrected iOS source is identified
+by a separate immutable `v2.7.3-ios.1` tag, still marketing version 2.7.3/build 58.
+No build 58 package was uploaded by the failed attempt.

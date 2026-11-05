@@ -44,7 +44,7 @@ enum NotificationPreferences {
                         result(nil)
                     case "openSettings":
                         let value: String
-                        if #available(iOS 15.4, *) { value = UIApplication.openNotificationSettingsURLString }
+                        if #available(iOS 16.0, *) { value = UIApplication.openNotificationSettingsURLString }
                         else { value = UIApplication.openSettingsURLString }
                         guard let url = URL(string: value), await UIApplication.shared.open(url) else { throw RecipeTimers.failure("Could not open notification settings.") }
                         result(nil)
