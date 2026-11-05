@@ -116,12 +116,6 @@ void main() {
     );
     expect(find.widgetWithText(TextFormField, 'Full name'), findsOneWidget);
     expect(find.text('val+test@example.test'), findsOneWidget);
-    final returned = InvitationEntry(
-      Uri.parse(InvitationEntry.verificationReturnUrl(entry.email)),
-    );
-    expect(returned.signIn, isTrue);
-    expect(returned.register, isFalse);
-    expect(returned.email, entry.email);
   });
   testWidgets('accept failure stays visible and retry cannot submit twice', (
     tester,

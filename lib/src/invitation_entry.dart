@@ -11,11 +11,6 @@ class InvitationEntry {
   final String email;
   final bool register;
   final bool signIn;
-
-  static String verificationReturnUrl(String email) =>
-      Uri.parse('https://coffeybean.com/CoffeyTableRecipes/app/')
-          .replace(queryParameters: {'account': 'signin', 'email': email})
-          .toString();
 }
 
 abstract final class InvitationVerification {
