@@ -1,3 +1,4 @@
+import 'client_log.dart';
 import 'child_mode.dart';
 
 import 'dart:async';
@@ -297,36 +298,80 @@ class LocalData extends ChangeNotifier {
     ).toString();
   }
 
-  Future<void> _load() => _ready ??= () async {
-    final text = await readStore('local-first-v1-$key');
-    if (text == null || text.isEmpty) return;
-    try {
-      final saved = jsonDecode(text) as Map;
-      _data = Map<String, dynamic>.from(saved['data'] as Map);
-      _aliases = Map<String, dynamic>.from(saved['aliases'] as Map? ?? {});
-      _blocked = Map<String, dynamic>.from(saved['blocked'] as Map? ?? {});
-      _serverOffsetMs ??= saved['server_offset_ms'] as int?;
-      _lastShoppingEditMs = saved['last_shopping_edit_ms'] as int? ?? 0;
-      _queue = (saved['queue'] as List).map((q) => _copy(q as Map)).toList();
-      _archive = (saved['archive'] as List? ?? [])
-          .map((q) => _copy(q as Map))
-          .toList();
-      for (final q in _queue) {
-        q['saved_at'] ??= now().millisecondsSinceEpoch;
-        if (q['sending'] == true &&
-            (q['body'] as Map)['client_save_id'] == null &&
-            (q['body'] as Map)['client_change_id'] == null) {
-          q['problem'] = 'The app closed during synchronization. Review the server copy before retrying.';
+  Future<void> _load() => _ready ??=
+      () async {
+        final text = await readStore('local-first-v1-$key')
+            .timeout(const Duration(seconds: 10));
+        if (text == null || text.isEmpty) return;
+        try {
+          final saved = jsonDecode(text) as Map;
+          _data = Map<String, dynamic>.from(saved['data'] as Map);
+          _aliases = Map<String, dynamic>.from(saved['aliases'] as Map? ?? {});
+          _blocked = Map<String, dynamic>.from(saved['blocked'] as Map? ?? {});
+          _serverOffsetMs ??= saved['server_offset_ms'] as int?;
+          _lastShoppingEditMs = saved['last_shopping_edit_ms'] as int? ?? 0;
+          _queue = (saved['queue'] as List)
+              .map((q) => _copy(q as Map))
+              .toList();
+          _archive = (saved['archive'] as List? ?? [])
+              .map((q) => _copy(q as Map))
+              .toList();
+          for (final q in _queue) {
+            q['saved_at'] ??= now().millisecondsSinceEpoch;
+            final replaySafe = _canReplay(
+              q['path'] as String,
+              q['body'] as Map,
+            );
+            const interrupted = {
+              'The app closed during synchronization. Review the server copy before retrying.',
+              'The server accepted this change, but this device could not record the confirmation. Compare with the server before continuing.',
+              'The save response was lost. Review the server before retrying this new recipe.',
+            };
+            if (replaySafe &&
+                q['problem_code'] == null &&
+                interrupted.contains(q['problem'])) {
+              q.remove('problem');
+              clientLog.record(
+                'outbox',
+                'interrupted_save_recoverable',
+                path: q['path'] as String,
+              );
+            }
+            if (q['sending'] == true && !replaySafe) {
+              q['problem'] = 'The app closed during synchronization. Review the server copy before retrying.';
+            }
+          }
+          for (final q in _queue.where((q) => q['problem'] != null)) {
+            clientLog.record(
+              'outbox',
+              'needs_conflict_resolution',
+              path: q['path'] as String,
+              code: q['problem_code'] as String?,
+              pending: pending,
+            );
+          }
+          clientLog.record('storage', 'loaded', pending: pending);
+          _updateReminders();
+        } catch (_) {
+          // Preserve the damaged source instead of silently overwriting edits.
+          throw const FormatException(
+            'Local data could not be read. Restore device storage before continuing.',
+          );
         }
-      }
-      _updateReminders();
-    } catch (_) {
-      // Preserve the damaged source instead of silently overwriting edits.
-      throw const FormatException(
-        'Local data could not be read. Restore device storage before continuing.',
-      );
-    }
-  }();
+      }().catchError((Object error, StackTrace stack) {
+        // A transient startup read failure must not poison every reconnect forever.
+        // No edits are accepted until a subsequent read succeeds.
+        _ready = null;
+        clientLog.record('storage', 'load_failed', error: error, stack: stack);
+        Error.throwWithStackTrace(error, stack);
+      });
+
+  static bool _canReplay(String path, Map body) =>
+      body['client_change_id'] != null ||
+      body['client_save_id'] != null ||
+      path.endsWith('/meal-plan') ||
+      path.endsWith('/restaurants') ||
+      path.endsWith('/favorites');
 
   Future<void> _persist({Map<String, dynamic>? data}) {
     final value = jsonEncode({
@@ -339,7 +384,18 @@ class LocalData extends ChangeNotifier {
       'last_shopping_edit_ms': _lastShoppingEditMs,
     });
     final task = _disk.then((_) async {
-      await writeStore('local-first-v1-$key', value);
+      try {
+        await writeStore('local-first-v1-$key', value);
+      } catch (error, stack) {
+        clientLog.record(
+          'storage',
+          'persist_failed',
+          error: error,
+          stack: stack,
+          pending: pending,
+        );
+        rethrow;
+      }
       _updateReminders();
     });
     _disk = task.catchError((Object _) {});
@@ -1008,6 +1064,12 @@ class LocalData extends ChangeNotifier {
       } else {
         _confirmedHouseholds.remove(household);
       }
+      clientLog.record(
+        'local',
+        'snapshot_installed',
+        pending: pending,
+        confirmed: isHouseholdConfirmed(household),
+      );
       if (beforeMe != jsonEncode(next['/me'])) _changed('/me');
       _bump(prefix);
       for (final resource in [
@@ -1751,6 +1813,12 @@ class LocalData extends ChangeNotifier {
           error = null;
           await _persist();
           _bump(path);
+          clientLog.record(
+            'outbox',
+            'save_acknowledged',
+            path: path,
+            pending: pending,
+          );
           _changed(path);
         });
         if (result['recipe'] is Map) {
@@ -1764,7 +1832,17 @@ class LocalData extends ChangeNotifier {
             _changed(recipePath);
           }
         }
-      } catch (failure) {
+      } catch (failure, stack) {
+        clientLog.record(
+          'outbox',
+          'save_failed',
+          path: path,
+          error: failure,
+          stack: stack,
+          pending: pending,
+          status: failure is ApiException ? failure.status : null,
+          code: failure is ApiException ? failure.code : null,
+        );
         await _serial(() async {
           q.remove('sending');
           if (delivered && !_queue.contains(q)) _queue.insert(0, q);
@@ -1780,12 +1858,7 @@ class LocalData extends ChangeNotifier {
               : 'The server response was interrupted.';
           q['last_status'] = failure is ApiException ? failure.status : null;
           final body = q['body'] as Map;
-          final replaySafe =
-              body['client_change_id'] != null ||
-              body['client_save_id'] != null ||
-              path.endsWith('/meal-plan') ||
-              path.endsWith('/restaurants') ||
-              path.endsWith('/favorites');
+          final replaySafe = _canReplay(path, body);
           if ((delivered && !replaySafe) ||
               q['creating'] == true &&
                   (q['body'] as Map)['client_save_id'] == null ||

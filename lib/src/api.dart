@@ -1,3 +1,4 @@
+import 'client_log.dart';
 import 'shopping_socket.dart';
 
 import 'package:flutter/foundation.dart';
@@ -250,6 +251,35 @@ class RecipeApi {
   }
 
   Future<Map<String, dynamic>> request(
+    String path,
+    String token, {
+    Map<String, dynamic>? body,
+    Duration timeout = const Duration(seconds: 20),
+    void Function(int received, int? total)? onProgress,
+  }) async {
+    try {
+      return await _performRequest(
+        path,
+        token,
+        body: body,
+        timeout: timeout,
+        onProgress: onProgress,
+      );
+    } catch (error, stack) {
+      clientLog.record(
+        'api',
+        body == null ? 'read_failed' : 'write_failed',
+        path: path,
+        error: error,
+        stack: stack,
+        status: error is ApiException ? error.status : null,
+        code: error is ApiException ? error.code : null,
+      );
+      rethrow;
+    }
+  }
+
+  Future<Map<String, dynamic>> _performRequest(
     String path,
     String token, {
     Map<String, dynamic>? body,

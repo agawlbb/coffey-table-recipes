@@ -104,6 +104,7 @@ void main() {
       );
       await tester.tap(find.text('Settings'));
       await tester.pumpAndSettle();
+      expect(find.text('Error log'), findsOneWidget);
       final departments = tester.widget<ListTile>(
         find.widgetWithText(ListTile, 'Shopping list departments'),
       );

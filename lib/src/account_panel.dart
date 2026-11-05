@@ -1,3 +1,5 @@
+import 'client_log.dart';
+import 'client_log_screen.dart';
 import 'notification_settings.dart';
 import 'connection_indicator.dart';
 import 'cooking_sessions.dart';
@@ -16,6 +18,7 @@ import 'dart:convert';
 import 'offline_store.dart';
 
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:web_socket_channel/web_socket_channel.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -69,7 +72,15 @@ class _AccountPanelState extends State<AccountPanel> {
     });
     try {
       await GoogleAuthentication.signIn();
-    } catch (error) {
+    } catch (error, stack) {
+      clientLog.record(
+        'account',
+        'operation_failed',
+        error: error,
+        stack: stack,
+        status: error is ApiException ? error.status : null,
+        code: error is ApiException ? error.code : null,
+      );
       if (mounted) {
         setState(() {
           _error = GoogleAuthentication.message(error);
@@ -198,7 +209,10 @@ class HouseholdPanel extends StatefulWidget {
     this.cachedRequest,
     this.readPreference,
     this.writePreference,
+    this.socketConnect,
   });
+  @visibleForTesting
+  final WebSocketChannel Function(Uri)? socketConnect;
   final Future<String?> Function(String)? readPreference;
   final Future<void> Function(String, String)? writePreference;
   final Future<void> Function()? signOut;
@@ -217,6 +231,7 @@ class _HouseholdPanelState extends State<HouseholdPanel>
     with WidgetsBindingObserver {
   late final _api = RecipeApi(
     baseUrl: apiBaseUrl,
+    socketConnect: widget.socketConnect,
     onServerTime: (milliseconds, receivedAt) =>
         _local?.observeServerTime(milliseconds, receivedAt),
   );
@@ -228,6 +243,7 @@ class _HouseholdPanelState extends State<HouseholdPanel>
         final socket = ShoppingSocket(
           household: household,
           scope: 'household',
+          connect: widget.socketConnect ?? WebSocketChannel.connect,
           networkChanges: Connectivity().onConnectivityChanged.map(
             (results) =>
                 results.any((result) => result != ConnectivityResult.none),
@@ -251,6 +267,7 @@ class _HouseholdPanelState extends State<HouseholdPanel>
               });
             }
           },
+          onDisconnect: () => _local?.invalidateConfirmation(household),
           onTime: (time) => _local?.observeServerTime(time, DateTime.now()),
           onReady: () {
             if (mounted) unawaited(_local?.synchronize());
@@ -261,9 +278,6 @@ class _HouseholdPanelState extends State<HouseholdPanel>
         return socket;
       });
   void _shoppingConnectionChanged() {
-    for (final entry in _shoppingSockets.entries) {
-      if (!entry.value.connected) _local?.invalidateConfirmation(entry.key);
-    }
     connectedHouseholds.value = {
       for (final entry in _shoppingSockets.entries)
         if (entry.value.connected &&
@@ -274,6 +288,7 @@ class _HouseholdPanelState extends State<HouseholdPanel>
     if (mounted) setState(() {});
   }
 
+  String? _lastSyncReason;
   void _syncStatusChanged() {
     if (SchedulerBinding.instance.schedulerPhase ==
         SchedulerPhase.persistentCallbacks) {
@@ -310,6 +325,31 @@ class _HouseholdPanelState extends State<HouseholdPanel>
             ? 'Checking account data against the server'
             : null) ??
         (checking ? 'Checking local data against the server' : null);
+    final reason = activeServerWrites.value > 0
+        ? 'write_pending'
+        : local?.error != null
+        ? 'local_error'
+        : _shoppingSockets.values.any((s) => s.failure != null)
+        ? 'socket_error'
+        : (local?.pending ?? 0) > 0
+        ? 'outbox_pending'
+        : cookingPending
+        ? 'cooking_unconfirmed'
+        : !_accountConfirmed && widget.request == null
+        ? 'account_unconfirmed'
+        : checking
+        ? 'household_unconfirmed'
+        : 'confirmed';
+    if (reason != _lastSyncReason) {
+      _lastSyncReason = reason;
+      clientLog.record(
+        'sync',
+        reason,
+        pending: local?.pending ?? 0,
+        connected: _shoppingSockets.values.every((s) => s.connected),
+        confirmed: pendingSyncMessage.value == null && !checking,
+      );
+    }
     _shoppingConnectionChanged();
   }
 
@@ -590,6 +630,7 @@ class _HouseholdPanelState extends State<HouseholdPanel>
   bool _wasBackgrounded = false;
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
+    clientLog.record('lifecycle', state.name);
     if (state == AppLifecycleState.paused ||
         state == AppLifecycleState.hidden ||
         state == AppLifecycleState.detached) {
@@ -860,7 +901,15 @@ class _HouseholdPanelState extends State<HouseholdPanel>
     _settingsChanges.value++;
     try {
       await action();
-    } catch (error) {
+    } catch (error, stack) {
+      clientLog.record(
+        'account',
+        'load_or_action_failed',
+        error: error,
+        stack: stack,
+        status: error is ApiException ? error.status : null,
+        code: error is ApiException ? error.code : null,
+      );
       if (mounted) {
         setState(() {
           _error = error is ApiException ? error.message : 'Could not reach your household. Check your connection and try again.';
@@ -979,7 +1028,15 @@ class _HouseholdPanelState extends State<HouseholdPanel>
             _databaseFraction = (index + 1) / households.length;
           });
         }
-      } catch (error) {
+      } catch (error, stack) {
+        clientLog.record(
+          'household',
+          'snapshot_failed',
+          error: error,
+          stack: stack,
+          status: error is ApiException ? error.status : null,
+          code: error is ApiException ? error.code : null,
+        );
         _local?.invalidateConfirmation(household);
         _syncStatusChanged();
         if (mounted) {
@@ -1637,6 +1694,16 @@ class _HouseholdPanelState extends State<HouseholdPanel>
                           ),
                           ..._householdControls(routeContext),
                         ],
+                      ),
+                    ),
+                    ListTile(
+                      leading: const Icon(Icons.receipt_long_outlined),
+                      title: const Text('Error log'),
+                      trailing: const Icon(Icons.chevron_right),
+                      onTap: () => Navigator.of(routeContext).push<void>(
+                        MaterialPageRoute(
+                          builder: (_) => const ClientLogScreen(),
+                        ),
                       ),
                     ),
                     if (NativeTimers.supported && !childMode.value) ...[

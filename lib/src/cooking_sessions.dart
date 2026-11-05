@@ -1,3 +1,5 @@
+import 'client_log.dart';
+
 import 'dart:async';
 import 'dart:convert';
 import 'dart:math';
@@ -183,6 +185,14 @@ class CookingSessions extends ChangeNotifier with WidgetsBindingObserver {
   void _failed(Object e) {
     if (_disposed) return;
     _syncConfirmed = false;
+    clientLog.record(
+      'cooking',
+      'sync_failed',
+      error: e,
+      status: e is ApiException ? e.status : null,
+      code: e is ApiException ? e.code : null,
+      pending: _outbox.length,
+    );
     if (isTemporaryCommunicationFailure(e)) {
       notifyListeners();
       return;

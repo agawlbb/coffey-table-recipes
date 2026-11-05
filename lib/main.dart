@@ -1,3 +1,9 @@
+import 'src/client_log.dart';
+import 'src/client_error_logging.dart';
+
+import 'package:package_info_plus/package_info_plus.dart';
+import 'package:flutter/foundation.dart';
+
 import 'dart:async';
 
 import 'package:firebase_auth/firebase_auth.dart';
@@ -18,13 +24,33 @@ import 'src/native_timers.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  installClientErrorLogging();
+  await clientLog.start();
+  try {
+    final info = await PackageInfo.fromPlatform().timeout(
+      const Duration(seconds: 2),
+    );
+    clientLog.record(
+      'app',
+      'started.${defaultTargetPlatform.name}',
+      code: '${info.version}.${info.buildNumber}',
+    );
+  } catch (error, stack) {
+    clientLog.record('app', 'version_unavailable', error: error, stack: stack);
+  }
   await sharedRecipeInbox.start();
   final options = FirebaseConfig.options;
   String? initializationError;
   if (options != null) {
     try {
       await Firebase.initializeApp(options: options);
-    } catch (_) {
+    } catch (error, stack) {
+      clientLog.record(
+        'startup',
+        'firebase_failed',
+        error: error,
+        stack: stack,
+      );
       initializationError =
           'Google sign-in could not start. Please reopen the app.';
     }
@@ -44,7 +70,8 @@ Future<void> main() async {
     // Sharing failures must never prevent the app or local timers from starting.
     try {
       await cookingSessions.start();
-    } catch (_) {
+    } catch (error, stack) {
+      clientLog.record('startup', 'cooking_failed', error: error, stack: stack);
       cookingSessions.error =
           'Cooking sync could not start. Reopen the app to try again.';
     }

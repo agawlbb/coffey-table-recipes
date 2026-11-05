@@ -1,3 +1,4 @@
+import 'client_log.dart';
 import 'ai_progress.dart';
 
 import 'dart:async';
@@ -47,11 +48,16 @@ class ShoppingSocket extends ChangeNotifier {
     this.onTime,
     this.scope = 'shopping',
     this.onReady,
+    this.onDisconnect,
     this.connect = WebSocketChannel.connect,
     this.url = shoppingSocketUrl,
     Stream<bool>? networkChanges,
   }) {
     _network = networkChanges?.distinct().listen((available) {
+      clientLog.record(
+        'socket.$scope',
+        available ? 'network_online' : 'network_offline',
+      );
       if (available) {
         // The first online event reports current state; it is not a network
         // change. Do not cancel an opening socket or an in-flight write.
@@ -69,6 +75,7 @@ class ShoppingSocket extends ChangeNotifier {
   final Future<void> Function(Map<String, dynamic>) onSnapshot;
   final void Function(int milliseconds)? onTime;
   final void Function()? onReady;
+  final void Function()? onDisconnect;
   final WebSocketChannel Function(Uri) connect;
   final String url;
   bool? _networkAvailable;
@@ -103,6 +110,7 @@ class ShoppingSocket extends ChangeNotifier {
 
   Future<void> _open() async {
     _opening = true;
+    clientLog.record('socket.$scope', 'opening', attempt: _attempt);
     final generation = ++_generation;
     final ready = _ready = Completer<void>();
     // Startup may have no caller waiting; errors are still surfaced to requests.
@@ -122,8 +130,14 @@ class ShoppingSocket extends ChangeNotifier {
                   await _receive(message, generation);
                 }
               })
-              .catchError((Object failure) {
+              .catchError((Object failure, StackTrace stack) {
                 if (generation == _generation) {
+                  clientLog.record(
+                    'socket.$scope',
+                    'frame_failed',
+                    error: failure,
+                    stack: stack,
+                  );
                   _lost(
                     failure is ApiException
                         ? failure
@@ -137,10 +151,25 @@ class ShoppingSocket extends ChangeNotifier {
               });
         },
         onDone: () {
-          if (generation == _generation) _lost();
+          if (generation == _generation) {
+            clientLog.record(
+              'socket.$scope',
+              'transport_closed',
+              status: channel.closeCode,
+            );
+            _lost();
+          }
         },
-        onError: (Object _) {
-          if (generation == _generation) _lost();
+        onError: (Object error, StackTrace stack) {
+          if (generation == _generation) {
+            clientLog.record(
+              'socket.$scope',
+              'transport_failed',
+              error: error,
+              stack: stack,
+            );
+            _lost(error);
+          }
         },
       );
       await channel.ready.timeout(const Duration(seconds: 10));
@@ -165,8 +194,16 @@ class ShoppingSocket extends ChangeNotifier {
         }
       });
       _renew = Timer(const Duration(minutes: 45), _lost);
-    } catch (_) {
-      if (!_closed && generation == _generation) _lost();
+    } catch (error, stack) {
+      if (!_closed && generation == _generation) {
+        clientLog.record(
+          'socket.$scope',
+          'open_failed',
+          error: error,
+          stack: stack,
+        );
+        _lost(error);
+      }
     } finally {
       if (generation == _generation) _opening = false;
     }
@@ -196,6 +233,12 @@ class ShoppingSocket extends ChangeNotifier {
         message['status'] as int? ?? 503,
         details?['message'] as String? ?? 'Data synchronization paused.',
         code: details?['code'] as String?,
+      );
+      clientLog.record(
+        'socket.$scope',
+        'server_error',
+        status: error.status,
+        code: error.code,
       );
       final pending = _pending.remove(message['id']);
       if (pending != null) pending.completeError(error);
@@ -238,6 +281,7 @@ class ShoppingSocket extends ChangeNotifier {
         _attempt = 0;
         if (!(_ready?.isCompleted ?? true)) _ready!.complete();
         notifyListeners();
+        clientLog.record('socket.$scope', 'ready', connected: true);
         onReady?.call();
       }
     } else if (type == 'response') {
@@ -321,20 +365,32 @@ class ShoppingSocket extends ChangeNotifier {
     _incoming = Future.value();
     connected = false;
     applyingSnapshot = false;
+    if (!_closed) onDisconnect?.call();
     _heartbeat?.cancel();
     _renew?.cancel();
     unawaited(_subscription?.cancel());
     unawaited(_channel?.sink.close());
     _channel = null;
-    final error = failure ?? _connectionLost();
-    this.failure = error is ApiException ? error : _connectionLost();
+    final error = failure is ApiException ? failure : _connectionLost();
+    this.failure = error;
     if (!(_ready?.isCompleted ?? true)) _ready!.completeError(error);
+    final interrupted = _pending.length;
     for (final pending in _pending.values) {
       pending.completeError(error);
     }
     _pending.clear();
     _progress.clear();
     if (!_closed) {
+      clientLog.record(
+        'socket.$scope',
+        'disconnected',
+        error: error,
+        status: error.status,
+        code: error.code,
+        pending: interrupted,
+        attempt: _attempt,
+        connected: false,
+      );
       notifyListeners();
       _retry?.cancel();
       _retry = Timer(
