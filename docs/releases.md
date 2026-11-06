@@ -1296,3 +1296,10 @@ The temporary Apple inspection workflow is solely for this staged release
 and will be restored after verification. Existing app validation is recorded
 in [simple offline saves](simple-offline-saves.md); the signed-build workflow
 runs its existing analysis/test/signing checks.
+
+The user subsequently authorized proceeding with normal iOS TestFlight
+distribution, including the existing automatic Family testers assignment.
+The no-group upload hold is therefore lifted for this release. Android and main
+integration remain deferred. The temporary Apple inspection workflow is restored
+to its original form; there is no standing release-policy or workflow change.
+The signed package from tag v2.7.7 will be uploaded without rebuilding.

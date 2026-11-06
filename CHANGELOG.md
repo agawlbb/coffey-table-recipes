@@ -4,7 +4,7 @@ Release dates and changes are reconstructed from annotated Git tags, commit hist
 
 ## 2.7.7 — 2026-11-06
 
-Build 62; tag `v2.7.7`. Initially uploaded for approval without a TestFlight group assignment. Android release and main integration remain pending approval.
+Build 62; tag `v2.7.7`. iOS is staged for approval through TestFlight. Android release and main integration remain pending approval.
 
 - Apply last-update-wins saves without edit-version conflicts or a general synchronization hold.
 - Warn before recipe editing, adding, or shopping when disconnected.
