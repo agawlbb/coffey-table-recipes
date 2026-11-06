@@ -1303,3 +1303,30 @@ The no-group upload hold is therefore lifted for this release. Android and main
 integration remain deferred. The temporary Apple inspection workflow is restored
 to its original form; there is no standing release-policy or workflow change.
 The signed package from tag v2.7.7 will be uploaded without rebuilding.
+
+### Verified staged iOS delivery
+
+- Immutable app tag `v2.7.7` points to
+  `4651b3d85a843f71fe8e336a26bab3115ff74a64`, version 2.7.7/build62.
+- [Signed build 42253404405](https://github.com/agawlbb/coffey-table-recipes/actions/runs/42253404405)
+  passed analysis, app tests, native tooling, archive/export, all three target
+  signatures/profiles and hosted iOS recipe-link association verification.
+- Artifact `13522897155` archive SHA-256:
+  `79f7ead97697bbb52db0eed924721549412233e40d6122b84e12ce757b9d689f`.
+  IPA SHA-256:
+  `a1c389679a8e906bbabe7912aa2f20cae20eef0b3c6a75871b49a5827fd7a7dd`.
+  A local copy of the exact signed package and verification logs is retained
+  outside Git under `.release-tools/release-2.7.7` beyond artifact expiry.
+- [Upload 42256676746](https://github.com/agawlbb/coffey-table-recipes/actions/runs/42256676746)
+  uploaded that same verified IPA, without rebuilding, successfully.
+- [Apple verification 42257079315](https://github.com/agawlbb/coffey-table-recipes/actions/runs/42257079315)
+  confirms Apple build `e2eff33c-070e-4f3c-986d-a681a3f8ba64` is VALID,
+  IN_BETA_TESTING, declares no non-exempt encryption and is available to the
+  existing Family testers group under the user's superseding instruction.
+- Application source still matches the tag exactly. Subsequent branch changes
+  restore the original verification workflow and record delivery only.
+  After approval, merge these branches and build Android from `v2.7.7`; retain
+  this existing Apple build. Do not bump/rebuild iOS for that merge.
+- Both main branches and working branches are retained. No Android build,
+  Android publication, main integration or branch/worktree deletion occurred.
+  Physical-device acceptance remains with the user before further release work.
