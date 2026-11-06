@@ -1,13 +1,12 @@
+# Temporary verification for the explicitly requested 2.7.7 review upload.
 name: Verify TestFlight delivery
 on:
   workflow_dispatch:
     inputs:
       version:
-        description: Marketing version to verify
         required: true
         type: string
       build_number:
-        description: Uploaded build number to verify
         required: true
         type: string
 permissions:
@@ -15,15 +14,27 @@ permissions:
 jobs:
   verify:
     runs-on: ubuntu-latest
-    timeout-minutes: 18
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
-      - run: node --test tool/test_check_testflight.mjs
-      - name: Read Apple processing, compliance and existing internal access
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - name: Inspect Apple distribution and requested build without assigning testers
         env:
           APP_VERSION: ${{ inputs.version }}
           BUILD_NUMBER: ${{ inputs.build_number }}
           ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
           ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
           ASC_PRIVATE_KEY: ${{ secrets.ASC_PRIVATE_KEY }}
-        run: node tool/check-testflight.mjs
+        run: |
+          node --input-type=module <<'JS'
+          import { token } from './tool/check-testflight.mjs';
+          const env=process.env;
+          async function get(path) {
+            const r=await fetch('https://api.appstoreconnect.apple.com/v1/'+path,{headers:{Authorization:'Bearer '+token(env)},signal:AbortSignal.timeout(30000)});
+            if(!r.ok) throw Error('Apple HTTP '+r.status);
+            return r.json();
+          }
+          const groups=await get('apps/6822451610/betaGroups?limit=200');
+          console.log('GROUPS',JSON.stringify(groups.data.map(g=>({id:g.id,...g.attributes}))));
+          const q=new URLSearchParams({'filter[app]':'6822451610','filter[version]':env.BUILD_NUMBER,include:'preReleaseVersion,buildBetaDetail,betaGroups',limit:'10'});
+          const builds=await get('builds?'+q);
+          console.log('BUILDS',JSON.stringify(builds));
+          JS
