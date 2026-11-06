@@ -1348,3 +1348,31 @@ run. Native-device acceptance remains outstanding.
 
 Backend deployment, signed iOS upload and Apple processing verification are
 pending at the version tag; their outcomes will be recorded after completion.
+
+
+### Verified 2.8.0 delivery
+
+- Immutable tag `v2.8.0` points to
+  `990d1ec355417460f01854db4b82fbedb411f601`, version 2.8.0/build63.
+- Backend implementation `8a51af582b09e443659eca14d646691e1ced7196` was copied
+  to the VPS and restarted using the existing deployer. All 63 checked source,
+  lockfile and association files match; Compose matches; private configuration
+  is unchanged. Health and both native associations return HTTP 200. CPU shares
+  remain 1024 with unlimited cpu.max. No schema change or live user-data write.
+- [Signed build and upload 42282002238](https://github.com/agawlbb/coffey-table-recipes/actions/runs/42282002238)
+  passed analysis, native archive/export, app and both extension signatures and
+  distribution profiles, matching versions/builds and hosted iOS association.
+  The workflow ran no Flutter test suite. Upload succeeded from the tagged source.
+- Exported IPA SHA-256:
+  `1fdddde99ed094408f572ab2105b02217126b5942a8d7392dccc157a38d8cb2e`.
+- [Apple verification 42284708115](https://github.com/agawlbb/coffey-table-recipes/actions/runs/42284708115)
+  confirms build `7def3289-9f01-42db-9bf9-a55cc7728df2` is VALID,
+  IN_BETA_TESTING, declares no non-exempt encryption, and is available to the
+  existing Family testers group. No group or territory setting was changed.
+- Build/upload and Apple verification logs are retained outside Git under
+  `.release-tools/release-2.8.0`. This upload workflow does not publish an IPA
+  artifact. No additional build was started.
+- Android build/publication is deferred. Main integration and branch/worktree
+  deletion did not occur. Native iPad/iPhone acceptance remains with the user.
+  A later merge can retain this tag and existing Apple build without rebuilding
+  iOS, provided application source is unchanged.
