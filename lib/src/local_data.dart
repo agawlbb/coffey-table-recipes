@@ -162,6 +162,7 @@ class LocalData extends ChangeNotifier {
         await _load();
         if (snapshot['schema'] != 1 ||
             snapshot['household_id'] is! String ||
+            snapshot['recipes'] is! List ||
             snapshot['responses'] is! Map ||
             snapshot['categories'] is! List ||
             snapshot['edit_options'] is! Map) {
@@ -177,6 +178,15 @@ class LocalData extends ChangeNotifier {
               e.value is! Map,
         )) {
           throw const FormatException('Invalid household snapshot scope');
+        }
+        if ((snapshot['recipes'] as List).any(
+          (row) =>
+              row is! Map ||
+              responses['${prefix}recipes/${row['id']}'] is! Map ||
+              (responses['${prefix}recipes/${row['id']}'] as Map)['recipe']
+                  is! Map,
+        )) {
+          throw const FormatException('Incomplete recipe snapshot');
         }
         final next = Map<String, dynamic>.from(_data);
         final shopping = next['${prefix}shopping-list'];
@@ -228,23 +238,6 @@ class LocalData extends ChangeNotifier {
         final path = '/households/$household/shopping-list';
         await _commit({..._data, path: _copy(state)}, path);
       });
-  Future<void> acceptServerRecipe(String path, Map<String, dynamic> result) =>
-      _serial(() async {
-        await _load();
-        final next = Map<String, dynamic>.from(_data);
-        final root = '/${Uri.parse(path).pathSegments.take(3).join('/')}';
-        final id =
-            result['deleted_recipe_id'] ?? (result['recipe'] as Map?)?['id'];
-        if (id == null) return;
-        if (result['deleted_recipe_id'] != null) {
-          next.removeWhere(
-            (p, _) => p == '$root/$id' || p.startsWith('$root/$id/'),
-          );
-        } else {
-          next['$root/$id'] = _copy(result);
-        }
-        await _commit(next, root);
-      });
   Map<String, dynamic> readView(String input) {
     final path = _path(input), uri = Uri.parse(input);
     if (_revoked.any((prefix) => _under(path, prefix))) {
@@ -256,6 +249,15 @@ class LocalData extends ChangeNotifier {
       return uri.path.endsWith('/meal-plan')
           ? _filterPlan(_data[path] as Map, uri)
           : _copy(_data[path] as Map);
+    }
+    if (uri.pathSegments.length == 4 &&
+        uri.pathSegments[2] == 'recipes' &&
+        _data.containsKey('snapshot-version:${uri.pathSegments[1]}')) {
+      throw ApiException(
+        404,
+        'This recipe is no longer available.',
+        code: 'recipe_not_found',
+      );
     }
     throw StateError('Local cache is incomplete for $path');
   }

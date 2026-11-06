@@ -808,24 +808,7 @@ class _HouseholdPanelState extends State<HouseholdPanel>
   Future<Map<String, dynamic>> _saveRecipe(
     String path,
     Map<String, dynamic> body,
-  ) async {
-    final data = await _request(path, body: body);
-    if (data['_offline_pending'] == true) return data;
-    // Generation returns an unsaved draft, not a replacement for its parent.
-    if (path.endsWith('/recipe-chat') ||
-        path.endsWith('/variation') ||
-        path.contains('/meal-plan') ||
-        path.contains('/shopping-list') ||
-        path.contains('/restaurants')) {
-      return data;
-    }
-
-    if (_local != null) {
-      await _local!.acceptServerRecipe(path, data);
-    }
-
-    return data;
-  }
+  ) => _request(path, body: body);
 
   Future<Map<String, dynamic>> _request(
     String path, {

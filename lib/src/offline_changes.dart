@@ -113,7 +113,12 @@ class OfflineChanges extends ChangeNotifier {
   }) async {
     await load();
     final payload = _copy(body)..remove('revision');
-    payload.putIfAbsent('client_save_id', newId);
+    final create = RegExp(r'/recipes$').hasMatch(path);
+    if (create) {
+      payload.putIfAbsent('client_save_id', newId);
+    } else {
+      payload.remove('client_save_id');
+    }
     if (connected) {
       try {
         return await send(path, payload);
@@ -121,7 +126,7 @@ class OfflineChanges extends ChangeNotifier {
         if (!isTemporaryCommunicationFailure(error)) rethrow;
       }
     }
-    final create = RegExp(r'/recipes$').hasMatch(path);
+    final entryId = create ? payload['client_save_id'] as String : newId();
     final previous = !create
         ? _entries
               .where((e) => e['kind'] == 'recipe' && e['path'] == path)
@@ -131,7 +136,7 @@ class OfflineChanges extends ChangeNotifier {
       _entries.removeWhere((e) => e['kind'] == 'recipe' && e['path'] == path);
     }
     _entries.add({
-      'id': payload['client_save_id'],
+      'id': entryId,
       'kind': 'recipe',
       'path': path,
       'body': payload,
@@ -140,7 +145,7 @@ class OfflineChanges extends ChangeNotifier {
     try {
       await _persist();
     } catch (_) {
-      _entries.removeWhere((e) => e['id'] == payload['client_save_id']);
+      _entries.removeWhere((e) => e['id'] == entryId);
       _entries.addAll(previous);
       rethrow;
     }

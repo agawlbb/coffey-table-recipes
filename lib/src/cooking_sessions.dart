@@ -489,15 +489,19 @@ class CookingSessions extends ChangeNotifier with WidgetsBindingObserver {
       },
     );
     final updated = Map<String, dynamic>.from(result['session'] as Map);
-    if (updated['ended_at'] != null) {
-      await accept({
-        'sessions': sessions.where((s) => s['id'] != id).toList(),
-        'ended_sessions': [updated],
-      }, confirmed: false);
-    } else {
-      await accept({
-        'sessions': [...sessions.where((s) => s['id'] != id), updated],
-      }, confirmed: false);
+    // Production state comes from the shared socket's pushed snapshots.
+    // Request-only test transports have no push stream.
+    if (_testRequest != null) {
+      if (updated['ended_at'] != null) {
+        await accept({
+          'sessions': sessions.where((s) => s['id'] != id).toList(),
+          'ended_sessions': [updated],
+        }, confirmed: false);
+      } else {
+        await accept({
+          'sessions': [...sessions.where((s) => s['id'] != id), updated],
+        }, confirmed: false);
+      }
     }
     return updated;
   }
@@ -531,9 +535,11 @@ class CookingSessions extends ChangeNotifier with WidgetsBindingObserver {
       },
     );
     final s = Map<String, dynamic>.from(result['session'] as Map);
-    await accept({
-      'sessions': [...sessions, s],
-    }, confirmed: false);
+    if (_testRequest != null) {
+      await accept({
+        'sessions': [...sessions, s],
+      }, confirmed: false);
+    }
     return s;
   }
 

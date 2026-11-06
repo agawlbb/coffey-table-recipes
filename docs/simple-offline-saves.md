@@ -67,3 +67,26 @@ coverage are retained. Validation:
   shopping protocol fixtures and retained HA request acknowledgment were tested.
 - No native packages were built. Physical affected-device acceptance and any
   merge/deployment/release remain outside this implementation request.
+
+Final review also removes save-acknowledgment writes into the canonical cache.
+Only pushed snapshots own that data, so an older reply cannot replace a newer
+push. Closing an editor re-reads current pushed data; deleting an open recipe
+shows that it is unavailable without disconnecting. A partial recipe snapshot
+fails application and preserves the last complete data for reconnection.
+
+The production cooking-session coordinator likewise uses pushed state rather
+than re-installing a possibly older save reply. Existing request-only test
+transports still simulate delivery from their response.
+
+Explicit recipe edits are always real writes, including after an uncertain
+earlier response; they carry no client save-replay precondition. Delivery
+receipts are used only for creating a new recipe, where a repeated delivery
+must not create a duplicate. Deferred shopping display updates apply when an
+inline edit or drag ends, without restoring background polling.
+
+Final regressions: 13 recipe push-authority, deletion, partial-frame, shopping
+interaction/cache and offline-removal checks passed; 13 offline-action, actual
+connection/decision and AI-save-message checks passed. Cooking/transport/access
+checks also passed in the 69-test focused run (its one fixture-control lookup
+was corrected and passes in the final push-authority run). PHP creation-receipt,
+explicit edit-resubmission, data contracts and recipe persistence checks pass.

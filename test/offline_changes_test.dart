@@ -72,6 +72,7 @@ void main() {
     expect(sent, ['/households/1/recipes', '/households/1/shopping-list']);
     final edit = changes.recipes.single;
     expect(edit['body'], isNot(contains('revision')));
+    expect(edit['body'], isNot(contains('client_save_id')));
     await changes.submit(edit, (path, body) async {
       sent.add(path);
       return {};

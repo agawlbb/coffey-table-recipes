@@ -115,6 +115,7 @@ class _ShoppingListScreenState extends State<ShoppingListScreen>
         (name == item['name'] &&
             note == (item['note'] ?? '') &&
             photo == (item['photo'] ?? ''))) {
+      if (_reloadPending) unawaited(_load());
       return;
     }
     _save([
@@ -244,7 +245,7 @@ class _ShoppingListScreenState extends State<ShoppingListScreen>
   int _revision = 0;
   int _saveGeneration = 0;
   bool _loading = true, _saving = false, _reading = false;
-  bool _reloadAfterSave = false;
+  bool _reloadPending = false;
   bool _dragging = false;
   bool _routeVisible = false;
   bool _rateLimited = false;
@@ -382,15 +383,16 @@ class _ShoppingListScreenState extends State<ShoppingListScreen>
   }
 
   void _localChanged() {
-    if (_saving) {
-      _reloadAfterSave = true;
+    if (!mounted ||
+        !(localDataChanges.value.startsWith(_path) ||
+            localDataChanges.value.startsWith('/me#'))) {
       return;
     }
-    if (mounted &&
-        (localDataChanges.value.startsWith(_path) ||
-            localDataChanges.value.startsWith('/me#'))) {
-      _load();
+    if (_saving || _reading || _dragging || _holding || _editingId != null) {
+      _reloadPending = true;
+      return;
     }
+    _load();
   }
 
   Future<void> _restoreCache() async {
@@ -430,6 +432,7 @@ class _ShoppingListScreenState extends State<ShoppingListScreen>
     if (_saving || _reading || _dragging || _holding || _editingId != null) {
       return;
     }
+    _reloadPending = false;
     _reading = true;
     final generation = _saveGeneration;
     try {
@@ -488,6 +491,14 @@ class _ShoppingListScreenState extends State<ShoppingListScreen>
     } finally {
       _reading = false;
       if (mounted && _loading) setState(() => _loading = false);
+      if (mounted &&
+          _reloadPending &&
+          !_saving &&
+          !_dragging &&
+          !_holding &&
+          _editingId == null) {
+        unawaited(_load());
+      }
     }
   }
 
@@ -548,8 +559,8 @@ class _ShoppingListScreenState extends State<ShoppingListScreen>
     } finally {
       if (mounted) {
         setState(() => _saving = false);
-        if (_reloadAfterSave) {
-          _reloadAfterSave = false;
+        if (_reloadPending) {
+          _reloadPending = false;
           unawaited(_load());
         }
       }
@@ -584,8 +595,8 @@ class _ShoppingListScreenState extends State<ShoppingListScreen>
     } finally {
       if (mounted) {
         setState(() => _saving = false);
-        if (_reloadAfterSave) {
-          _reloadAfterSave = false;
+        if (_reloadPending) {
+          _reloadPending = false;
           unawaited(_load());
         }
       }
@@ -706,6 +717,7 @@ class _ShoppingListScreenState extends State<ShoppingListScreen>
     _holdPointer = null;
     _holdOrigin = null;
     if (_holding && mounted) setState(() => _holding = false);
+    if (mounted && _reloadPending) unawaited(_load());
   }
 
   void _dragStarted() {
@@ -749,6 +761,7 @@ class _ShoppingListScreenState extends State<ShoppingListScreen>
     _autoScroll = null;
     _dragPosition = null;
     if (mounted && wasDragging) setState(() {});
+    if (mounted && _reloadPending) unawaited(_load());
   }
 
   void _dropItem(

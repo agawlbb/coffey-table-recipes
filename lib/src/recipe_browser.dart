@@ -1572,8 +1572,13 @@ class _RecipeDetailState extends State<RecipeDetail> {
       ),
     );
     if (updated != null && mounted) {
-      setState(() => _recipe = updated);
-      _prefetchImages(updated);
+      if (updated['_offline_pending'] != true && widget.localRead != null) {
+        await _load();
+      } else {
+        setState(() => _recipe = updated);
+        _prefetchImages(updated);
+      }
+      if (!mounted) return;
       if (updated['_offline_pending'] != true) {
         ScaffoldMessenger.of(context)
             .showSnackBar(const SnackBar(content: Text('Recipe saved')));

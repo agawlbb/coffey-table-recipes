@@ -114,9 +114,10 @@ void main() {
   test('revoking one recipe does not hide a different recipe with the same ID prefix', () async {
     final first = store();
     await first.request(recipe);
-    await first.acceptServerRecipe('/households/1/recipes/70', {
+    server['/households/1/recipes/70'] = {
       'recipe': {'id': '70', 'title': 'Other'},
-    });
+    };
+    await first.request('/households/1/recipes/70');
     final denied = store(
       fetch: (_) async =>
           throw ApiException(404, 'Gone', code: 'recipe_not_found'),
@@ -300,22 +301,6 @@ void main() {
       response.complete(server[list] as Map<String, dynamic>);
       await accepted;
       expect((await data.cached(list))!['items'][0]['name'], 'Milk');
-    },
-  );
-
-  test(
-    'online deletion and restore update the local source immediately',
-    () async {
-      final data = store();
-      await data.request(recipe);
-      await data.acceptServerRecipe('$recipe/delete', {
-        'deleted_recipe_id': '7',
-      });
-      expect(await data.cached(recipe), isNull);
-      await data.acceptServerRecipe('$recipe/restore', {
-        'recipe': {'id': '7', 'title': 'Restored soup', 'revision': '2'},
-      });
-      expect((await data.request(recipe))['recipe']['title'], 'Restored soup');
     },
   );
 }
