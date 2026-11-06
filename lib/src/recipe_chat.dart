@@ -407,6 +407,22 @@ class _RecipeChatState extends State<RecipeChat>
         recipe,
       );
       final saved = response['recipe'];
+      if (response['_offline_pending'] == true &&
+          saved is Map<String, dynamic>) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                recipe['id'] == null
+                    ? 'Your recipe is saved on this device and will upload when you reconnect.'
+                    : 'Your changes are saved on this device. We’ll ask before sending them when you reconnect.',
+              ),
+            ),
+          );
+          await _leave(saved);
+        }
+        return;
+      }
       if (saved is! Map<String, dynamic> ||
           saved['id'] == null ||
           saved['title'] is! String) {

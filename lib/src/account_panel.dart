@@ -1,3 +1,5 @@
+import 'offline_changes.dart';
+import 'connection_notice.dart';
 import 'app_connection.dart';
 import 'client_log.dart';
 import 'client_log_screen.dart';
@@ -5,11 +7,9 @@ import 'notification_settings.dart';
 import 'connection_indicator.dart';
 import 'cooking_sessions.dart';
 import 'cooking_session_ui.dart';
-import 'shopping_socket.dart';
 import 'child_mode.dart';
 import 'meal_plan_actions.dart';
 import 'restaurant_manager.dart';
-import 'sync_notifications.dart';
 import 'account_menu.dart';
 import 'recipe_menu.dart';
 
@@ -237,9 +237,149 @@ class _HouseholdPanelState extends State<HouseholdPanel>
             connect: widget.socketConnect!,
             refreshToken: (refresh) => _idToken(refresh),
           ),
-    onServerTime: (milliseconds, receivedAt) =>
-        _local?.observeServerTime(milliseconds, receivedAt),
   );
+  late final _offlineChanges = OfflineChanges(
+    account: '$apiStorageNamespace|${widget.user.uid}',
+  );
+  Timer? _offlineRetry;
+  bool _reviewingOffline = false;
+  final _reviewedOffline = <String>{};
+  final _reportedOffline = <String>{};
+  bool get _connected =>
+      widget.request != null || (_api.liveConnection?.connected ?? false);
+
+  void _offlineChanged() {
+    if (!mounted) return;
+    localDataChanges.value =
+        '/me#offline-${DateTime.now().microsecondsSinceEpoch}';
+    _scheduleOffline();
+  }
+
+  void _scheduleOffline() {
+    _offlineRetry?.cancel();
+    if (!mounted) return;
+    var delay = _offlineChanges.untilRemovalExpiry;
+    if (_connected &&
+        _offlineChanges.hasAutomatic &&
+        (delay == null || delay > const Duration(seconds: 30))) {
+      delay = const Duration(seconds: 30);
+    }
+    if (delay == null) return;
+    _offlineRetry = Timer(delay, () async {
+      try {
+        await _offlineChanges.expire();
+        if (mounted && _connected) await _resumeOffline();
+      } catch (error) {
+        clientLog.record('offline', 'retry_failed', error: error);
+      }
+      if (mounted) _scheduleOffline();
+    });
+  }
+
+  Future<void> _resumeOffline() async {
+    if (!_connected || !mounted) return;
+    // Never await this work from the socket snapshot callback.
+    try {
+      await _offlineChanges.sendAutomatic(
+        (path, body) => _onlineRequest(path, body: body),
+        () => mounted && _connected,
+        onFailure: (entry, error) {
+          if (!mounted || !_reportedOffline.add(entry['id'] as String)) return;
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                entry['kind'] == 'remove'
+                    ? 'These items haven’t reached the server yet. We’ll retry the removals for up to two hours.'
+                    : 'Your new recipe couldn’t be uploaded yet. It’s still on this device and will retry when connected.',
+              ),
+            ),
+          );
+        },
+      );
+    } catch (error) {
+      clientLog.record('offline', 'resume_failed', error: error);
+      return;
+    }
+    if (mounted) _scheduleOffline();
+    if (!mounted || !_connected || _reviewingOffline) return;
+    _reviewingOffline = true;
+    try {
+      for (final entry in _offlineChanges.recipes.where(
+        (e) => e['create'] != true,
+      )) {
+        if (!_connected || !mounted) break;
+        if (!_reviewedOffline.add(entry['id'] as String)) continue;
+        final body = entry['body'] as Map;
+        String? failure;
+        var saving = false;
+        await showDialog<void>(
+          context: context,
+          barrierDismissible: false,
+          builder: (dialog) => StatefulBuilder(
+            builder: (dialog, update) {
+              Future<void> decide(bool save) async {
+                if (saving) return;
+                if (save && !_connected) {
+                  update(
+                    () => failure = 'You’re not connected. Your changes are still on this device. Reconnect and try Save to server again, or discard them.',
+                  );
+                  return;
+                }
+                update(() {
+                  saving = true;
+                  failure = null;
+                });
+                try {
+                  if (save) {
+                    await _offlineChanges.submit(
+                      entry,
+                      (path, body) => _onlineRequest(path, body: body),
+                    );
+                  } else {
+                    await _offlineChanges.discard(entry['id'] as String);
+                  }
+                  if (dialog.mounted) Navigator.pop(dialog);
+                } catch (error) {
+                  clientLog.record(
+                    'offline',
+                    'recipe_edit_send_failed',
+                    error: error,
+                    path: entry['path'] as String,
+                  );
+                  if (dialog.mounted) {
+                    update(() {
+                      saving = false;
+                      failure = 'Your changes couldn’t be saved to the server. They’re still on this device. Try Save to server again, or discard them.';
+                    });
+                  }
+                }
+              }
+
+              return AlertDialog(
+                title: const Text('Save your offline changes?'),
+                content: Text(
+                  'You changed “${body['title']}” while offline. These changes haven’t been saved to the server. Saving now will replace the recipe currently on the server.${failure == null ? '' : '\n\n$failure'}',
+                ),
+                actions: [
+                  TextButton(
+                    onPressed: saving ? null : () => decide(false),
+                    child: const Text('Discard my changes'),
+                  ),
+                  FilledButton(
+                    onPressed: saving ? null : () => decide(true),
+                    child: const Text('Save to server'),
+                  ),
+                ],
+              );
+            },
+          ),
+        );
+      }
+    } finally {
+      _reviewingOffline = false;
+    }
+  }
+
   LocalData? _local;
   String? _lastSyncReason;
   Future<void>? _accountLoading;
@@ -299,6 +439,18 @@ class _HouseholdPanelState extends State<HouseholdPanel>
     connectedHouseholds.value = connected
         ? households.keys.map((id) => '$id').toSet()
         : {};
+    if (!connected) {
+      _reviewedOffline.clear();
+      _reportedOffline.clear();
+    }
+    if (_lastSyncReason != (connected ? 'connected' : 'disconnected')) {
+      _scheduleOffline();
+    }
+    if (connected && _lastSyncReason != 'connected') {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) unawaited(_resumeOffline());
+      });
+    }
     final reason = connected ? 'connected' : 'disconnected';
     if (_lastSyncReason != reason) {
       _lastSyncReason = reason;
@@ -478,6 +630,17 @@ class _HouseholdPanelState extends State<HouseholdPanel>
   @override
   void initState() {
     super.initState();
+    _offlineChanges.addListener(_offlineChanged);
+    unawaited(
+      _offlineChanges
+          .load()
+          .then((_) {
+            if (mounted) _offlineChanged();
+          })
+          .catchError((Object error) {
+            clientLog.record('offline', 'load_failed', error: error);
+          }),
+    );
     _api.refreshSocketToken = () => _idToken(true);
     _api.onAppSnapshot = _receiveAppState;
     _api.onConnectionChanged = _syncStatusChanged;
@@ -489,12 +652,7 @@ class _HouseholdPanelState extends State<HouseholdPanel>
       _local = LocalData(
         key: '$apiStorageNamespace|${widget.user.uid}',
         fetch: (path) => _onlineRequest(path),
-        readServer: (path) => _onlineRequest(path),
         send: (path, body) => _onlineRequest(path, body: body),
-        snapshotOnly: true,
-        separateShopping: true,
-        onPendingChanged: (scope, _) =>
-            SyncNotifications.update(scope, const []),
       );
       _local!.addListener(_syncStatusChanged);
       localDataChanges.addListener(_localChanged);
@@ -504,13 +662,14 @@ class _HouseholdPanelState extends State<HouseholdPanel>
 
   @override
   void dispose() {
+    _offlineRetry?.cancel();
+    _offlineChanges.removeListener(_offlineChanged);
     WidgetsBinding.instance.removeObserver(this);
     sharedRecipeInbox.removeListener(_sharedRecipeChanged);
     cookingSessions.removeListener(_cookingChanged);
     cookingMenuBuilder = null;
     cookingRecipeBrowser = null;
     connectedHouseholds.value = {};
-    pendingSyncMessage.value = null;
     localDataChanges.removeListener(_localChanged);
     _local?.removeListener(_syncStatusChanged);
     _local?.dispose();
@@ -614,6 +773,8 @@ class _HouseholdPanelState extends State<HouseholdPanel>
       return;
     }
     final householdId = _selected!;
+    await connectionNotice(context, 'add');
+    if (!mounted) return;
     try {
       final saved = await Navigator.push<Map<String, dynamic>>(
         context,
@@ -649,6 +810,7 @@ class _HouseholdPanelState extends State<HouseholdPanel>
     Map<String, dynamic> body,
   ) async {
     final data = await _request(path, body: body);
+    if (data['_offline_pending'] == true) return data;
     // Generation returns an unsaved draft, not a replacement for its parent.
     if (path.endsWith('/recipe-chat') ||
         path.endsWith('/variation') ||
@@ -658,7 +820,7 @@ class _HouseholdPanelState extends State<HouseholdPanel>
       return data;
     }
 
-    if (_local != null && !_local!.canSave(path)) {
+    if (_local != null) {
       await _local!.acceptServerRecipe(path, data);
     }
 
@@ -671,9 +833,43 @@ class _HouseholdPanelState extends State<HouseholdPanel>
   }) async {
     if (body != null) requireChildModeWrite(path);
     if (widget.request != null) return widget.request!(path, body: body);
+    if (body != null &&
+        RegExp(r'^/households/[^/]+/recipes(?:/[^/]+)?$').hasMatch(path)) {
+      final result = await _offlineChanges.saveRecipe(
+        path,
+        body,
+        connected: _connected,
+        send: (route, payload) => _onlineRequest(route, body: payload),
+      );
+      if (result['_offline_pending'] == true && _connected) {
+        _api.liveConnection?.reconnect();
+      }
+      return result;
+    }
+    if (body != null &&
+        path.endsWith('/shopping-list') &&
+        body['remove_ids'] is List) {
+      await _offlineChanges.removeItems(
+        path,
+        (body['remove_ids'] as List).cast<String>(),
+      );
+      if (_connected) unawaited(_resumeOffline());
+      final current = await _local!.request(path);
+      return _offlineChanges.shopping(path, current);
+    }
     if (_local != null) {
       if (path.endsWith('/recipe-blank')) return _local!.blank(path);
-      if (body == null) return _local!.request(path);
+      if (body == null) {
+        try {
+          await _offlineChanges.load();
+        } catch (error) {
+          clientLog.record('offline', 'load_failed', error: error);
+        }
+        final data = await _local!.request(path);
+        return path.endsWith('/shopping-list')
+            ? _offlineChanges.shopping(path, data)
+            : data;
+      }
       // Saves go directly to the server over the shared connection.
     }
     return _onlineRequest(path, body: body);
@@ -683,25 +879,13 @@ class _HouseholdPanelState extends State<HouseholdPanel>
     String path, {
     Map<String, dynamic>? body,
   }) async {
-    try {
-      return await _sendOnlineRequest(path, body: body);
-    } finally {
-      if (body != null && _local != null && path.startsWith('/households/')) {
-        _local!.invalidateConfirmation(Uri.parse(path).pathSegments[1]);
-      }
-    }
+    return _sendOnlineRequest(path, body: body);
   }
 
   Future<Map<String, dynamic>> _sendOnlineRequest(
     String path, {
     Map<String, dynamic>? body,
   }) async {
-    if (body != null && isAccountPath(path)) {
-      _syncStatusChanged();
-    }
-    if (body != null && path.startsWith('/households/')) {
-      _local?.invalidateConfirmation(Uri.parse(path).pathSegments[1]);
-    }
     final token = await _idToken();
     if (token == null) throw ApiException(401, 'Please sign in again.');
     try {
@@ -887,7 +1071,7 @@ class _HouseholdPanelState extends State<HouseholdPanel>
     if (_local != null) {
       for (final h in _households) {
         final id = h['id'] as String;
-        if (await _local!.snapshotVersion(id) != null &&
+        if (await _local!.cached('/households/$id/recipe-blank') != null &&
             await _local!.cached('/households/$id/meal-plan') != null) {
           _readyHouseholds.add(id);
         }
@@ -1211,7 +1395,9 @@ class _HouseholdPanelState extends State<HouseholdPanel>
 
   Future<void> _addRecipe() async {
     if (childMode.value) return;
-    if (_selected == null || offlineStatus.value) return;
+    if (_selected == null) return;
+    await connectionNotice(context, 'add');
+    if (!mounted) return;
     mealPlanNotices.dismiss();
     final householdId = _selected!;
     final saved = await Navigator.push<Map<String, dynamic>>(
@@ -1234,7 +1420,8 @@ class _HouseholdPanelState extends State<HouseholdPanel>
         _planning = false;
         _recipeRefresh++;
       });
-      if (saved['source_type'] == 'ai_created') {
+      if (saved['_offline_pending'] != true &&
+          saved['source_type'] == 'ai_created') {
         await Navigator.push<void>(
           context,
           MaterialPageRoute(
@@ -1342,8 +1529,10 @@ class _HouseholdPanelState extends State<HouseholdPanel>
                     enabled: selected != null,
                     onTap: selected == null
                         ? null
-                        : () {
+                        : () async {
                             _leaveMenu();
+                            await connectionNotice(context, 'shopping');
+                            if (!mounted) return;
                             setState(() {
                               _rememberSection('shopping');
                               _shopping = true;

@@ -46,12 +46,12 @@ class _MealPlannerState extends State<MealPlanner> with WidgetsBindingObserver {
   bool _background = false;
   List<Map<String, dynamic>> _entries = [];
   late DateTime _today;
-  int _revision = 0, _pastDays = 30, _futureDays = 45, _generation = 0;
+  int _pastDays = 30, _futureDays = 45, _generation = 0;
   bool _loading = true, _saving = false, _fetching = false;
   bool _ready = false;
   int _accessEpoch = 0;
   String? _error;
-  Timer? _refresh, _dragScroll;
+  Timer? _dragScroll;
   Offset? _dragPosition;
   int _upHoverMs = 0;
   String get _path => '/households/${widget.householdId}/meal-plan';
@@ -72,7 +72,6 @@ class _MealPlannerState extends State<MealPlanner> with WidgetsBindingObserver {
     setState(() {
       _ready = false;
       _entries = [];
-      _revision = 0;
       _accessEpoch++;
       _generation++;
       _fetching = false;
@@ -94,11 +93,6 @@ class _MealPlannerState extends State<MealPlanner> with WidgetsBindingObserver {
     localDataChanges.addListener(_localChanged);
     _scroll.addListener(_extend);
     _load();
-    _refresh = Timer.periodic(const Duration(seconds: 30), (_) {
-      if (widget.active && !_saving && !_loading && !_fetching) {
-        _load(quiet: true);
-      }
-    });
   }
 
   @override
@@ -131,7 +125,6 @@ class _MealPlannerState extends State<MealPlanner> with WidgetsBindingObserver {
     WidgetsBinding.instance.removeObserver(this);
     GestureBinding.instance.pointerRouter.removeGlobalRoute(_trackPointer);
     localDataChanges.removeListener(_localChanged);
-    _refresh?.cancel();
     _stopDragScroll();
     _scroll.dispose();
     super.dispose();
@@ -162,8 +155,9 @@ class _MealPlannerState extends State<MealPlanner> with WidgetsBindingObserver {
       final today = DateTime.tryParse('${data['today']}');
       setState(() {
         if (today != null) _today = today;
-        _revision = (data['revision'] as num).toInt();
-        _entries = entries.map((e) => {...e, '_revision': _revision}).toList();
+        _entries = entries
+            .map((e) => Map<String, dynamic>.from(e as Map))
+            .toList();
         _error = null;
         _loading = false;
         _ready = true;
@@ -273,20 +267,17 @@ class _MealPlannerState extends State<MealPlanner> with WidgetsBindingObserver {
   }) async {
     if (_saving || !_ready || childMode.value) return false;
     final epoch = _accessEpoch;
-    final expectedRevision = operation['_revision'] ?? _revision;
     final past = _past(oldDate) || _past(operation['date'] as String?);
     if (past && !confirmed && !await _confirmPast()) return false;
     if (!_usable(epoch)) return false;
     setState(() => _saving = true);
-    _generation++; // In-flight polls must not replace a mutation's newer revision.
+    _generation++; // Ignore reads started before this save.
     try {
-      final result = await widget.save(_path, {
+      await widget.save(_path, {
         ...operation,
-        'revision': expectedRevision,
         'confirm_past': past || confirmed,
       });
       if (!_usable(epoch)) return false;
-      _revision = (result['revision'] as num).toInt();
       await _load(quiet: true);
       return true;
     } on ApiException catch (error) {
@@ -524,7 +515,6 @@ class _MealPlannerState extends State<MealPlanner> with WidgetsBindingObserver {
       'operation': 'move',
       'id': entry['id'],
       'date': date,
-      '_revision': entry['_revision'],
     }, oldDate: entry['plan_date'] as String?);
   }
 
@@ -533,7 +523,6 @@ class _MealPlannerState extends State<MealPlanner> with WidgetsBindingObserver {
     await _change({
       'operation': 'remove',
       'id': entry['id'],
-      '_revision': entry['_revision'],
     }, oldDate: entry['plan_date'] as String?);
   }
 

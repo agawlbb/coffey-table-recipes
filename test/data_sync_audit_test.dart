@@ -7,7 +7,6 @@ import 'package:coffey_table_recipes/src/cooking_sessions.dart';
 import 'package:coffey_table_recipes/src/shared_recipe_link.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
-import 'package:coffey_table_recipes/src/local_data.dart';
 import 'package:coffey_table_recipes/src/offline_recipes.dart';
 import 'package:coffey_table_recipes/src/offline_store_io.dart';
 import 'package:coffey_table_recipes/src/recipe_browser.dart';
@@ -16,7 +15,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
 
-import 'snapshot_database_test.dart' show snapshot;
 import 'timer_sync_test.dart' show cookingFixture;
 
 class PeerServer {
@@ -259,134 +257,6 @@ void main() {
     expect(auths, 3);
   });
 
-  test('only a persisted canonical snapshot confirms data; acknowledgment alone cannot', () async {
-    var stored = '';
-    var hold = false;
-    final disk = Completer<void>();
-    final data = LocalData(
-      key: 'confirmation',
-      snapshotOnly: true,
-      fetch: (_) async => {},
-      send: (_, body) async => {
-        'revision': 2,
-        'items': [],
-        'departments': [],
-        'acknowledged_change_id': body['client_change_id'],
-      },
-      readStore: (_) async => null,
-      writeStore: (_, text) async {
-        if (hold) await disk.future;
-        stored = text;
-      },
-    );
-    addTearDown(data.dispose);
-    expect(data.isHouseholdConfirmed('1'), false);
-    await data.installSnapshot(snapshot('Soup'));
-    expect(data.isHouseholdConfirmed('1'), true);
-    await data.save('/households/1/shopping-list', {
-      'revision': 1,
-      'items': [],
-    });
-    await data.synchronize();
-    expect(data.pending, 0);
-    expect(data.isHouseholdConfirmed('1'), false);
-    hold = true;
-    final incoming = data.installSnapshot(snapshot('New soup'));
-    await Future<void>.delayed(Duration.zero);
-    expect(data.isHouseholdConfirmed('1'), false);
-    disk.complete();
-    await incoming;
-    expect(data.isHouseholdConfirmed('1'), true);
-    expect(stored, contains('New soup'));
-    data.invalidateConfirmation('1');
-    expect(data.isHouseholdConfirmed('1'), false);
-  });
-
-  test(
-    'fresh snapshot removes an aliased recipe deleted on the server',
-    () async {
-      final data = LocalData(
-        key: 'deleted-alias',
-        snapshotOnly: true,
-        fetch: (_) async => {},
-        send: (_, _) async => {
-          'recipe': {'id': '99', 'title': 'Created soup', 'revision': '1'},
-        },
-        readStore: (_) async => null,
-        writeStore: (_, _) async {},
-      );
-      addTearDown(data.dispose);
-      await data.installSnapshot(snapshot('Soup'));
-      final creation = await data.save('/households/1/recipes', {
-        'title': 'Created soup',
-      });
-      await data.synchronize();
-      final id = creation['recipe']['id'];
-      expect(
-        (await data.cached('/households/1/recipes/$id'))?['recipe']['id'],
-        '99',
-      );
-      await data.installSnapshot(snapshot('Soup'));
-      expect(await data.cached('/households/1/recipes/$id'), isNull);
-      expect(data.isHouseholdConfirmed('1'), true);
-    },
-  );
-
-  for (final operation in ['add', 'move', 'remove']) {
-    test(
-      'lost $operation meal acknowledgment reconciles exact server effect without overwriting',
-      () async {
-        const path = '/households/1/meal-plan';
-        var count = 0;
-        final entry = {
-          'id': 'meal',
-          'kind': 'leftovers',
-          'plan_date': '2099-01-02',
-        };
-        final data = LocalData(
-          key: 'lost-$operation',
-          fetch: (_) async => {
-            'revision': 2,
-            'today': '2099-01-01',
-            'entries': operation == 'remove' ? [] : [entry],
-          },
-          send: (_, _) async {
-            count++;
-            if (count == 1) throw TimeoutException('lost after commit');
-            throw ApiException(409, 'Changed', code: 'plan_conflict');
-          },
-          readStore: (_) async => null,
-          writeStore: (_, _) async {},
-        );
-        addTearDown(data.dispose);
-        final state = snapshot('Soup');
-        state['responses'][path] = {
-          'revision': 0,
-          'today': '2099-01-01',
-          'entries': operation == 'add'
-              ? []
-              : [
-                  {...entry, 'plan_date': '2099-01-01'},
-                ],
-        };
-        await data.installSnapshot(state);
-        await data.save(path, {
-          'revision': 0,
-          'operation': operation,
-          'id': 'meal',
-          'kind': 'leftovers',
-          'date': '2099-01-02',
-        });
-        await Future<void>.delayed(Duration.zero);
-        await data.synchronize();
-        await data.synchronize();
-        expect(data.pending, 0);
-        expect(data.conflicts, isEmpty);
-        expect(count, 2);
-      },
-    );
-  }
-
   test(
     'simultaneous cache writes never collide on a shared temporary file',
     () async {
@@ -479,111 +349,6 @@ void main() {
     },
   );
 
-  test('a genuine conflicting meal edit is preserved for review, never overwritten', () async {
-    const path = '/households/1/meal-plan';
-    final data = LocalData(
-      key: 'real-conflict',
-      snapshotOnly: true,
-      fetch: (_) async => {
-        'revision': 2,
-        'entries': [
-          {'id': 'meal', 'kind': 'leftovers', 'plan_date': '2099-01-03'},
-        ],
-      },
-      send: (_, _) async =>
-          throw ApiException(409, 'Changed elsewhere', code: 'plan_conflict'),
-      readStore: (_) async => null,
-      writeStore: (_, _) async {},
-    );
-    addTearDown(data.dispose);
-    final source = snapshot('Soup');
-    source['responses'][path] = {
-      'revision': 0,
-      'entries': [
-        {'id': 'meal', 'kind': 'leftovers', 'plan_date': '2099-01-01'},
-      ],
-    };
-    await data.installSnapshot(source);
-    await data.save(path, {
-      'revision': 0,
-      'operation': 'move',
-      'id': 'meal',
-      'date': '2099-01-02',
-    });
-    await Future<void>.delayed(Duration.zero);
-    await data.synchronize();
-    expect(data.pending, 1);
-    expect(data.conflicts, hasLength(1));
-    expect(data.readView(path)['entries'][0]['plan_date'], '2099-01-02');
-    expect(data.isHouseholdConfirmed('1'), false);
-  });
-
-  test(
-    'storage and malformed snapshot failures cannot leave a green confirmation',
-    () async {
-      var failing = false;
-      final data = LocalData(
-        key: 'storage-confirmation',
-        snapshotOnly: true,
-        fetch: (_) async => {},
-        send: (_, _) async => {},
-        readStore: (_) async => null,
-        writeStore: (_, _) async {
-          if (failing) throw FileSystemException('disk full');
-        },
-      );
-      addTearDown(data.dispose);
-      await data.installSnapshot(snapshot('Old soup'));
-      expect(data.isHouseholdConfirmed('1'), true);
-      failing = true;
-      await expectLater(
-        data.installSnapshot(snapshot('New soup')),
-        throwsA(isA<ApiException>().having((e) => e.status, 'status', 507)),
-      );
-      expect(data.isHouseholdConfirmed('1'), false);
-      expect(
-        data.readView('/households/1/recipes/1')['recipe']['title'],
-        'Old soup',
-      );
-      failing = false;
-      await data.installSnapshot(snapshot('New soup'));
-      expect(data.isHouseholdConfirmed('1'), true);
-      final invalid = snapshot('Wrong scope');
-      invalid['responses']['/households/2/people'] = {'people': []};
-      await expectLater(
-        data.installSnapshot(invalid),
-        throwsA(isA<FormatException>()),
-      );
-      expect(data.isHouseholdConfirmed('1'), false);
-    },
-  );
-
-  test('lost restaurant response is acknowledged only if the exact intended list is on the server', () async {
-    const path = '/households/1/restaurants';
-    final wanted = [
-      {'id': 'cafe', 'name': 'Cafe', 'logo_reference': null},
-    ];
-    final data = LocalData(
-      key: 'restaurant-receipt',
-      snapshotOnly: true,
-      fetch: (_) async => {'revision': 1, 'items': wanted},
-      send: (_, _) async =>
-          throw ApiException(409, 'Changed', code: 'restaurant_conflict'),
-      readStore: (_) async => null,
-      writeStore: (_, _) async {},
-    );
-    addTearDown(data.dispose);
-    final source = snapshot('Soup');
-    source['responses'][path] = {'revision': 0, 'items': []};
-    await data.installSnapshot(source);
-    await data.save(path, {'revision': 0, 'items': wanted});
-    await Future<void>.delayed(Duration.zero);
-    await data.synchronize();
-    expect(data.pending, 0);
-    expect(data.readView(path)['items'], wanted);
-    expect(data.isHouseholdConfirmed('1'), false);
-  });
-
   test('partial cooking acknowledgments and failed reads cannot assert whole-account confirmation', () async {
     var fail = false;
     final state = cookingFixture();
@@ -653,32 +418,7 @@ void main() {
     expect(paths, contains('/recipes/9'));
     await tester.pumpWidget(const SizedBox());
   });
-  test('a delayed partial read cannot overwrite a newer confirmed server generation', () async {
-    final oldResponse = Completer<Map<String, dynamic>>();
-    final data = LocalData(
-      key: 'generation-order',
-      snapshotOnly: true,
-      fetch: (_) => oldResponse.future,
-      send: (_, _) async => {},
-      readStore: (_) async => null,
-      writeStore: (_, _) async {},
-    );
-    addTearDown(data.dispose);
-    await data.installSnapshot(snapshot('Old soup'));
-    final delayed = data.refresh('/households/1/recipes/1', force: true);
-    await Future<void>.delayed(Duration.zero);
-    await data.installSnapshot(snapshot('Newest soup'));
-    expect(data.isHouseholdConfirmed('1'), true);
-    oldResponse.complete({
-      'recipe': {'id': '1', 'title': 'Stale soup', 'revision': '1'},
-    });
-    await delayed;
-    expect(
-      data.readView('/households/1/recipes/1')['recipe']['title'],
-      'Newest soup',
-    );
-    expect(data.isHouseholdConfirmed('1'), true);
-  });
+
   test(
     'public recipe recovery is independent of the household offline flag',
     () async {
@@ -732,70 +472,6 @@ void main() {
       await tester.pump(const Duration(seconds: 3));
       await tester.pump(const Duration(seconds: 3));
       expect(loaded?['recipe']['title'], 'Online soup');
-    },
-  );
-
-  test('household and account display metadata are reconciled with the same generation', () async {
-    final data = LocalData(
-      key: 'metadata',
-      snapshotOnly: true,
-      fetch: (_) async => {
-        'user': {'id': '1', 'display_name': 'Old name', 'child_mode': false},
-        'households': [
-          {'id': '1', 'name': 'Old table', 'role': 'owner'},
-        ],
-      },
-      send: (_, _) async => {},
-      readStore: (_) async => null,
-      writeStore: (_, _) async {},
-    );
-    addTearDown(data.dispose);
-    await data.refresh('/me', force: true);
-    final source = snapshot('Soup');
-    source['household']['name'] = 'Renamed table';
-    source['user']['display_name'] = 'New name';
-    await data.installSnapshot(source);
-    final me = data.readView('/me');
-    expect(me['user']['display_name'], 'New name');
-    expect(me['households'][0]['name'], 'Renamed table');
-    expect(data.isHouseholdConfirmed('1'), true);
-  });
-  test(
-    'failed receipt persistence retries a recipe save without manual review',
-    () async {
-      var failOnce = false, calls = 0;
-      final receipts = <String>[];
-      final data = LocalData(
-        key: 'receipt-disk-failure',
-        snapshotOnly: true,
-        fetch: (_) async => {},
-        send: (_, body) async {
-          calls++;
-          receipts.add(body['client_save_id'] as String);
-          if (calls == 1) failOnce = true;
-          return {
-            'recipe': {'id': '99', 'title': 'Saved soup', 'revision': '1'},
-          };
-        },
-        readStore: (_) async => null,
-        writeStore: (_, _) async {
-          if (failOnce) {
-            failOnce = false;
-            throw FileSystemException('ack persistence interrupted');
-          }
-        },
-      );
-      addTearDown(data.dispose);
-      await data.installSnapshot(snapshot('Soup'));
-      await data.save('/households/1/recipes', {'title': 'Saved soup'});
-      await Future<void>.delayed(Duration.zero);
-      await data.synchronize();
-      expect(data.conflicts, isEmpty);
-      await data.synchronize();
-      expect(data.pending, 0);
-      expect(calls, 2);
-      expect(receipts.toSet(), hasLength(1));
-      expect(data.isHouseholdConfirmed('1'), false);
     },
   );
 }

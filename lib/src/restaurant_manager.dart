@@ -33,7 +33,6 @@ class _RestaurantManagerState extends State<RestaurantManager> {
     super.dispose();
   }
 
-  int _revision = 0;
   bool _loading = true, _saving = false, _editing = false;
   String? _error;
   String get _path => '/households/${widget.householdId}/restaurants';
@@ -61,7 +60,6 @@ class _RestaurantManagerState extends State<RestaurantManager> {
       if (mounted) {
         setState(() {
           _items = recipeRows(data['items']);
-          _revision = (data['revision'] as num).toInt();
           _loading = false;
           _error = null;
         });
@@ -79,14 +77,10 @@ class _RestaurantManagerState extends State<RestaurantManager> {
   Future<void> _commit(List<Map<String, dynamic>> items) async {
     setState(() => _saving = true);
     try {
-      final data = await widget.save(_path, {
-        'revision': _revision,
-        'items': items,
-      });
+      await widget.save(_path, {'items': items});
       if (mounted) {
         setState(() {
           _items = items;
-          _revision = (data['revision'] as num).toInt();
           _error = null;
         });
       }

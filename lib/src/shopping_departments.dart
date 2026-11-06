@@ -25,7 +25,6 @@ class ShoppingDepartmentsScreen extends StatefulWidget {
 class _ShoppingDepartmentsScreenState extends State<ShoppingDepartmentsScreen> {
   List<String> _departments = [];
   List<Map<String, dynamic>> _items = [];
-  int _revision = 0;
   bool _busy = true;
   String? _error;
   String get _path => '/households/${widget.householdId}/shopping-list';
@@ -37,7 +36,6 @@ class _ShoppingDepartmentsScreenState extends State<ShoppingDepartmentsScreen> {
   }
 
   void _accept(Map<String, dynamic> data) {
-    _revision = data['revision'] as int;
     _departments = (data['departments'] as List).cast<String>();
     _items = (data['items'] as List)
         .map((i) => Map<String, dynamic>.from(i as Map))
@@ -72,7 +70,6 @@ class _ShoppingDepartmentsScreenState extends State<ShoppingDepartmentsScreen> {
       final data = await widget.request(
         _path,
         body: {
-          'revision': _revision,
           'departments': departments,
           'items': items,
           'department_renames': ?renames,

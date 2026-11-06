@@ -227,7 +227,7 @@ void main() {
   );
 
   testWidgets(
-    'offline cache stays visible and five-second polling recovers without losing typed text',
+    'offline cache stays visible and reopening refreshes without losing typed text',
     (tester) async {
       final cache = memoryCache(<String, String>{});
       await cache.save(snapshot(2, 'Milk'));
@@ -252,9 +252,6 @@ void main() {
       );
       await tester.pumpAndSettle();
       expect(find.text('Milk'), findsOneWidget);
-      expect(find.text('Offline'), findsNothing);
-      await tester.pump(const Duration(seconds: 2));
-      await tester.pump(const Duration(seconds: 4));
       expect(find.text('Offline'), findsOneWidget);
       expect(find.byTooltip('No server connection'), findsOneWidget);
       expect(
@@ -267,12 +264,14 @@ void main() {
             .onPressed,
         isNull,
       );
+      await tester.pump(const Duration(seconds: 2));
       await tester.enterText(find.byType(TextField), 'Keep my draft');
-      expect(reads, 3);
+      expect(reads, 1);
       connected = true;
-      await tester.pump(const Duration(seconds: 5));
+      await tester.tap(find.byTooltip('Refresh'));
+      await tester.pump(const Duration(milliseconds: 50));
       await tester.pumpAndSettle();
-      expect(reads, 4);
+      expect(reads, 2);
       expect(find.text('Offline'), findsNothing);
       expect(
         tester.widget<TextField>(find.byType(TextField)).controller!.text,
@@ -281,20 +280,20 @@ void main() {
       active.value = false;
       await tester.pump();
       await tester.pump(const Duration(seconds: 15));
-      expect(reads, 4);
+      expect(reads, 2);
       active.value = true;
       await tester.pumpAndSettle();
-      expect(reads, 5);
+      expect(reads, 3);
       tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
       tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.hidden);
       tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
       await tester.pump(const Duration(seconds: 10));
-      expect(reads, 5);
+      expect(reads, 3);
       tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.hidden);
       tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
       tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
       await tester.pumpAndSettle();
-      expect(reads, 6);
+      expect(reads, 4);
       final navigator = Navigator.of(
         tester.element(find.byType(ShoppingListScreen)),
       );
@@ -307,10 +306,10 @@ void main() {
       );
       await tester.pumpAndSettle();
       await tester.pump(const Duration(seconds: 5));
-      expect(reads, 6);
+      expect(reads, 4);
       navigator.pop();
       await tester.pumpAndSettle();
-      expect(reads, 7);
+      expect(reads, 5);
       await tester.pumpWidget(const SizedBox());
     },
   );
@@ -351,7 +350,7 @@ void main() {
     await tester.enterText(find.byType(TextField), 'Unsaved item');
     await tester.tap(find.byTooltip('Add item'));
     await tester.pumpAndSettle();
-    expect(find.text('Offline'), findsOneWidget);
+    expect(find.textContaining('Your change wasn’t saved'), findsOneWidget);
     expect(find.text('Milk'), findsOneWidget);
     final saved = await cache.read();
     expect((saved!['items'] as List).single['name'], 'Milk');

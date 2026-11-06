@@ -3,7 +3,6 @@ import 'src/client_log.dart';
 import 'src/client_error_logging.dart';
 
 import 'package:package_info_plus/package_info_plus.dart';
-import 'package:flutter/foundation.dart';
 
 import 'dart:async';
 
@@ -32,11 +31,7 @@ Future<void> main() async {
     final info = await PackageInfo.fromPlatform().timeout(
       const Duration(seconds: 2),
     );
-    clientLog.record(
-      'app',
-      'started.${defaultTargetPlatform.name}',
-      code: '${info.version}.${info.buildNumber}',
-    );
+    clientLog.version = '${info.version}.${info.buildNumber}';
   } catch (error, stack) {
     clientLog.record('app', 'version_unavailable', error: error, stack: stack);
   }

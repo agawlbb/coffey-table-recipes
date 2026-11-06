@@ -1,3 +1,5 @@
+import 'package:coffey_table_recipes/src/local_data.dart';
+
 import 'dart:async';
 
 import 'package:coffey_table_recipes/src/api.dart';
@@ -161,7 +163,7 @@ void main() {
         await tester.pumpAndSettle();
         await tester.tap(find.text('Leftovers'));
         await tester.pumpAndSettle();
-        expect(fixture.writes.single['revision'], 20);
+        expect(fixture.writes.single.containsKey('revision'), false);
         await tester.pumpWidget(const SizedBox());
       },
     );
@@ -208,7 +210,7 @@ void main() {
   }
 
   testWidgets(
-    'poll loss while mounted and hidden clears cached entries on return',
+    'push-triggered access loss while hidden clears cached entries on return',
     (tester) async {
       final fixture = PlanFixture();
       final pending = Completer<Map<String, dynamic>>();
@@ -243,7 +245,9 @@ void main() {
       );
       await tester.pumpAndSettle();
       poll = true;
-      await tester.pump(const Duration(seconds: 30));
+      localDataChanges.value =
+          '/households/1/meal-plan#${DateTime.now().microsecondsSinceEpoch}';
+      await tester.pump();
       update(() => active = false);
       await tester.pump();
       pending.completeError(
@@ -292,10 +296,14 @@ void main() {
       await trashMeal(tester, 'Yesterday soup');
       expect(find.text('Change this past meal?'), findsOneWidget);
       denied = true;
-      await tester.pump(const Duration(seconds: 30));
+      localDataChanges.value =
+          '/households/1/meal-plan#${DateTime.now().microsecondsSinceEpoch}';
+      await tester.pump();
       await tester.pumpAndSettle();
       denied = false;
-      await tester.pump(const Duration(seconds: 30));
+      localDataChanges.value =
+          '/households/1/meal-plan#${DateTime.now().microsecondsSinceEpoch}';
+      await tester.pump();
       await tester.pumpAndSettle();
       await tester.tap(find.text('Change'));
       await tester.pumpAndSettle();

@@ -549,9 +549,15 @@ void main() {
             request: (path, {body}) async {
               expect(path, '/households/7/shopping-list');
               if (body != null) {
-                expect(body['revision'], revision);
                 revision++;
-                items = List<Map<String, dynamic>>.from(body['items'] as List);
+                items = body['remove_ids'] is List
+                    ? items
+                          .where(
+                            (i) =>
+                                !(body['remove_ids'] as List).contains(i['id']),
+                          )
+                          .toList()
+                    : List<Map<String, dynamic>>.from(body['items'] as List);
               }
               return {'revision': revision, 'items': items};
             },

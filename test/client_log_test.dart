@@ -94,7 +94,7 @@ void main() {
         write: (_, _) async => throw StateError('disk'),
       );
       await log.start();
-      log.record('storage', 'persist_failed');
+      log.record('storage', 'persist_failed', error: StateError('disk'));
       await log.flush();
       expect(log.text, contains('persist_failed'));
       log.dispose();
@@ -135,12 +135,56 @@ void main() {
       log.dispose();
     }
   });
+  test(
+    'routine events are ignored and old informational rows are removed on load',
+    () async {
+      final log = ClientLog(
+        read: (_) async => jsonEncode([
+          {'event': 'started', 'area': 'app'},
+          {'event': 'transport_closed', 'area': 'socket', 'status': 1000},
+          {'event': 'failed', 'area': 'sync', 'status': 503},
+        ]),
+        write: (_, _) async {},
+      );
+      await log.start();
+      for (final event in [
+        'ready',
+        'opening',
+        'resumed',
+        'confirmed',
+        'network_online',
+      ]) {
+        log.record('sync', event, connected: true);
+      }
+      log.record('socket', 'transport_closed', status: 1000);
+      expect(log.text, contains('failed'));
+      expect(log.text, isNot(contains('transport_closed')));
+      for (final event in [
+        'started',
+        'ready',
+        'opening',
+        'resumed',
+        'confirmed',
+        'network_online',
+      ]) {
+        expect(log.text, isNot(contains('"event":"$event"')));
+      }
+      log.version = '2.7.6.61';
+      log.record('api', 'save_failed', status: 503);
+      expect(log.text, contains('2.7.6.61'));
+      log.dispose();
+    },
+  );
   testWidgets('log viewer copies displayed diagnostics to clipboard', (
     tester,
   ) async {
     final log = ClientLog(read: (_) async => null, write: (_, _) async {});
     await log.start();
-    log.record('sync', 'household_unconfirmed', pending: 2);
+    log.record(
+      'sync',
+      'snapshot_failed',
+      error: StateError('invalid snapshot'),
+    );
     String? copied;
     tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
       SystemChannels.platform,
@@ -164,6 +208,6 @@ void main() {
     await tester.tap(find.byTooltip('Copy to clipboard'));
     await tester.pumpAndSettle();
     expect(copied, log.text);
-    expect(copied, contains('household_unconfirmed'));
+    expect(copied, contains('snapshot_failed'));
   });
 }

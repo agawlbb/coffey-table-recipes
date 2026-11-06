@@ -25,6 +25,7 @@ class ClientLog extends ChangeNotifier {
   final _rows = <Map<String, dynamic>>[];
   Future<void>? _start;
   Future<void> _writes = Future.value();
+  String? version;
   bool _saveScheduled = false;
   bool _notifying = false, _disposed = false;
 
@@ -33,9 +34,16 @@ class ClientLog extends ChangeNotifier {
     try {
       final raw = await read(_key).timeout(const Duration(seconds: 2));
       if (raw != null) {
-        final old = (jsonDecode(raw) as List).whereType<Map>().map(
-          (r) => Map<String, dynamic>.from(r),
-        );
+        final old = (jsonDecode(raw) as List)
+            .whereType<Map>()
+            .where(
+              (r) =>
+                  r['error'] != null ||
+                  (r['status'] is int &&
+                      (r['status'] as int) >= 400 &&
+                      (r['status'] as int) < 600),
+            )
+            .map((r) => Map<String, dynamic>.from(r));
         _rows.insertAll(0, old);
         _trim();
       }
@@ -108,7 +116,10 @@ class ClientLog extends ChangeNotifier {
     bool? connected,
     bool? confirmed,
   }) {
-    if (_disposed) return;
+    if (_disposed ||
+        (error == null && (status == null || status < 400 || status >= 600))) {
+      return;
+    }
     final failureCode =
         code ??
         switch (error) {
@@ -120,6 +131,7 @@ class ClientLog extends ChangeNotifier {
       'time': now().toUtc().toIso8601String(),
       'area': _label(area),
       'event': _label(event),
+      if (version != null) 'version': version,
       if (error != null) 'error': _label(error.runtimeType.toString()),
       if (path != null) 'route': route(path),
       if (failureCode != null) 'code': _label(failureCode),
@@ -156,9 +168,8 @@ class ClientLog extends ChangeNotifier {
     }
   }
 
-  String get text => _rows.isEmpty
-      ? 'No diagnostic events recorded.'
-      : _rows.map(jsonEncode).join('\n');
+  String get text =>
+      _rows.isEmpty ? 'No errors recorded.' : _rows.map(jsonEncode).join('\n');
 
   void _changed() {
     if (_notifying || _disposed) return;

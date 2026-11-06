@@ -95,8 +95,9 @@ void main() {
         await tester.pumpAndSettle();
         expect(
           find.byType(Switch),
-          findsNWidgets(platform == TargetPlatform.android ? 4 : 3),
+          findsNWidgets(platform == TargetPlatform.android ? 3 : 2),
         );
+        expect(find.text('Pending saves'), findsNothing);
         expect(
           find.text('App updates'),
           platform == TargetPlatform.android ? findsOneWidget : findsNothing,

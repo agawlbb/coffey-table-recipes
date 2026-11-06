@@ -597,6 +597,11 @@ class _RecipeImportState extends State<RecipeImport> {
       });
       return;
     }
+    if (saved?['_offline_pending'] == true && mounted) {
+      setState(() => _leaving = true);
+      Navigator.pop(context, saved);
+      return;
+    }
     if (saved != null && _pendingImports.isNotEmpty && mounted) {
       final main = _savedMain ?? saved;
       final next = _pendingImports.removeAt(0);

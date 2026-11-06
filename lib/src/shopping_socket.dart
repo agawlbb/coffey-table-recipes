@@ -89,6 +89,7 @@ class ShoppingSocket extends ChangeNotifier {
   Future<void> _incoming = Future.value();
   ApiException? failure;
   bool applyingSnapshot = false;
+  bool get connecting => _opening;
   bool connected = false, _closed = false, _opening = false;
   int _sequence = 0, _attempt = 0, _generation = 0;
   DateTime _lastReceived = DateTime.now();
@@ -102,7 +103,7 @@ class ShoppingSocket extends ChangeNotifier {
 
   void reconnect() {
     if (_closed) return;
-    _lost();
+    _lost(null, true);
     _attempt = 0;
     _retry?.cancel();
     start();
@@ -412,7 +413,7 @@ class ShoppingSocket extends ChangeNotifier {
     }
   }
 
-  void _lost([Object? failure]) {
+  void _lost([Object? failure, bool intentional = false]) {
     ++_generation;
     _opening = false;
     _incoming = Future.value();
@@ -434,16 +435,18 @@ class ShoppingSocket extends ChangeNotifier {
     _pending.clear();
     _progress.clear();
     if (!_closed) {
-      clientLog.record(
-        'socket.$scope',
-        'disconnected',
-        error: error,
-        status: error.status,
-        code: error.code,
-        pending: interrupted,
-        attempt: _attempt,
-        connected: false,
-      );
+      if (!intentional || interrupted > 0) {
+        clientLog.record(
+          'socket.$scope',
+          'disconnected',
+          error: error,
+          status: error.status,
+          code: error.code,
+          pending: interrupted,
+          attempt: _attempt,
+          connected: false,
+        );
+      }
       notifyListeners();
       _retry?.cancel();
       _retry = Timer(

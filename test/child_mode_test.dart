@@ -10,7 +10,6 @@ import 'package:coffey_table_recipes/src/recipe_import.dart';
 import 'package:coffey_table_recipes/src/recipe_shopping_selector.dart';
 import 'package:coffey_table_recipes/src/meal_plan_ingredients.dart';
 import 'package:coffey_table_recipes/src/administration.dart';
-import 'package:coffey_table_recipes/src/local_data.dart';
 import 'package:coffey_table_recipes/src/api.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
@@ -18,47 +17,6 @@ import 'package:http/testing.dart';
 import 'meal_planner_test.dart' show PlanFixture;
 
 void main() {
-  test(
-    'offline writes stop before durable queue and API allows favorites',
-    () async {
-      var writes = 0;
-      final local = LocalData(
-        key: 'child-fixture',
-        fetch: (_) async => {},
-        send: (_, body) async {
-          writes++;
-          return {};
-        },
-        readStore: (_) async => null,
-        writeStore: (_, value) async {
-          writes++;
-        },
-      );
-      childMode.value = true;
-      expect(() => local.save('/households/1/recipes', {}), throwsStateError);
-      expect(writes, 0);
-      final api = RecipeApi(
-        baseUrl: 'https://example.com',
-        client: MockClient((request) async {
-          writes++;
-          return http.Response('{}', 200);
-        }),
-      );
-      await expectLater(
-        api.request('/households/1/shopping-list', 'fixture', body: {}),
-        throwsStateError,
-      );
-      expect(writes, 0);
-      await api.request(
-        '/households/1/recipes/2/favorites',
-        'fixture',
-        body: {'favorite': true},
-      );
-      expect(writes, 1);
-      local.dispose();
-      api.close();
-    },
-  );
   testWidgets('policy changes rebuild an open protected view', (tester) async {
     await tester.pumpWidget(
       MaterialApp(

@@ -2,8 +2,6 @@ import 'app_connection.dart';
 import 'client_log.dart';
 import 'shopping_socket.dart';
 
-import 'package:flutter/foundation.dart';
-
 import 'package:web_socket_channel/web_socket_channel.dart';
 
 import 'package:connectivity_plus/connectivity_plus.dart';
@@ -15,9 +13,6 @@ import 'dart:async';
 
 import 'package:http/http.dart' as http;
 import 'package:firebase_auth/firebase_auth.dart';
-
-// Shared by screen owners so non-queued writes cannot leave a green indicator.
-final activeServerWrites = ValueNotifier<int>(0);
 
 bool isOfflineFailure(Object error) =>
     error is TimeoutException ||
@@ -313,17 +308,6 @@ class RecipeApi {
     return _app!.request(path, token, body: body);
   }
 
-  Future<Map<String, dynamic>> _write(
-    Future<Map<String, dynamic>> Function() send,
-  ) async {
-    activeServerWrites.value++;
-    try {
-      return await send();
-    } finally {
-      activeServerWrites.value--;
-    }
-  }
-
   Future<Map<String, dynamic>> request(
     String path,
     String token, {
@@ -369,7 +353,7 @@ class RecipeApi {
               () => _socketRequest(path, token),
               active: () => !_closed,
             )
-          : _write(() => _socketRequest(path, token, body: body));
+          : _socketRequest(path, token, body: body);
     }
     if (body == null) {
       return retryCommunication(
@@ -378,9 +362,7 @@ class RecipeApi {
         active: () => !_closed,
       );
     }
-    return _write(
-      () => _requestOnce(path, token, body: body, timeout: timeout),
-    );
+    return _requestOnce(path, token, body: body, timeout: timeout);
   }
 
   bool _closed = false;

@@ -13,7 +13,7 @@ class NotificationPreferences {
   Future<void> read() async {
     final data = await channel.invokeMapMethod<String, dynamic>('read') ?? {};
     values = {
-      for (final key in ['invitations', 'timers', 'pendingSaves', 'updates'])
+      for (final key in ['invitations', 'timers', 'updates'])
         key: data[key] as bool? ?? true,
     };
     blockedChannels = (data['blockedChannels'] as List? ?? [])

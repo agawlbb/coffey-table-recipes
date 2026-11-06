@@ -1,6 +1,5 @@
 import 'cooking_sessions.dart';
 import 'child_mode.dart';
-import 'sync_notifications.dart';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -27,7 +26,6 @@ class CoffeyTableApp extends StatelessWidget {
   Widget build(BuildContext context) => MaterialApp(
     title: 'Coffey Table Recipes',
     navigatorKey: _appNavigatorKey,
-    scaffoldMessengerKey: syncMessengerKey,
     navigatorObservers: [mealPlanNotices, cookingRouteObserver],
     onGenerateRoute: (settings) {
       final id = recipeIdFromLink(settings.name ?? '');

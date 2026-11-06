@@ -4,7 +4,6 @@ import 'package:flutter/services.dart';
 
 import 'cooking_sessions.dart';
 import 'notification_preferences.dart';
-import 'sync_notifications.dart';
 
 class NotificationSettingsScreen extends StatefulWidget {
   const NotificationSettingsScreen({
@@ -85,9 +84,6 @@ class _NotificationSettingsScreenState extends State<NotificationSettingsScreen>
             .invokeMethod<void>('requestTimerPermissions', {'force': true});
       }
       await preferences.set(category, enabled);
-      if (category == 'pendingSaves') {
-        await SyncNotifications.replay();
-      }
     } catch (error) {
       if (mounted) {
         setState(
@@ -132,7 +128,6 @@ class _NotificationSettingsScreenState extends State<NotificationSettingsScreen>
               for (final entry in {
                 'invitations': 'Cooking invitations',
                 'timers': 'Cooking timers',
-                'pendingSaves': 'Pending saves',
                 if (defaultTargetPlatform == TargetPlatform.android)
                   'updates': 'App updates',
               }.entries)

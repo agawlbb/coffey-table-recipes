@@ -36,7 +36,6 @@ void main() {
               if (path.endsWith('/people')) return {'people': []};
               if (path.endsWith('/shopping-list')) {
                 if (body != null) {
-                  expect(body['revision'], revision);
                   expect(body['department_renames'], {'Produce': 'Farm stand'});
                   revision++;
                   departments = (body['departments'] as List).cast<String>();
@@ -116,7 +115,7 @@ void main() {
             householdId: '2',
             request: (path, {body}) async {
               if (body != null) {
-                expect(body['revision'], revision++);
+                revision++;
                 departments = (body['departments'] as List).cast<String>();
                 items = (body['items'] as List).cast<Map<String, dynamic>>();
               }

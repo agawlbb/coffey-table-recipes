@@ -1,6 +1,3 @@
-import 'dart:async';
-
-import 'package:coffey_table_recipes/src/local_data.dart';
 import 'package:coffey_table_recipes/src/api.dart';
 import 'package:coffey_table_recipes/src/meal_planner.dart';
 import 'package:coffey_table_recipes/src/meal_plan_ingredients.dart';
@@ -108,7 +105,6 @@ class PlanFixture {
         'The meal plan changed. Review the updated plan and try again.',
       );
     }
-    expect(body['revision'], revision);
     writes.add(Map.from(body));
     revision++;
     if (body['operation'] == 'remove') {
@@ -402,49 +398,6 @@ void main() {
     expect(tester.getTopLeft(today).dy, closeTo(viewportTop, 4));
     expect(find.byTooltip('Yesterday soup').hitTestable(), findsNothing);
     await tester.pumpWidget(const SizedBox());
-  });
-
-  testWidgets('persisted plan paints while the network never returns', (
-    tester,
-  ) async {
-    final disk = <String, String>{};
-    final fixture = PlanFixture();
-    LocalData data(Future<Map<String, dynamic>> Function(String) fetch) =>
-        LocalData(
-          key: 'plan-persistence-test',
-          fetch: fetch,
-          send: (path, body) => fixture.save(path, body),
-          readStore: (key) async => disk[key],
-          writeStore: (key, text) async {
-            disk[key] = text;
-          },
-        );
-    final first = data(fixture.request);
-    await first.request(
-      '/households/1/meal-plan?from=2000-01-01&to=2199-12-31',
-    );
-    await tester.runAsync(() => Future<void>.delayed(Duration.zero));
-    first.dispose();
-    final never = Completer<Map<String, dynamic>>();
-    final second = data((_) => never.future);
-    await tester.pumpWidget(
-      MaterialApp(
-        home: Scaffold(
-          body: MealPlanner(
-            householdId: '1',
-            householdName: 'Table',
-            now: () => DateTime(2026, 10, 22),
-            request: second.request,
-            save: second.save,
-          ),
-        ),
-      ),
-    );
-    await tester.pumpAndSettle();
-    expect(find.byTooltip('Today soup'), findsOneWidget);
-    expect(find.byType(CircularProgressIndicator), findsNothing);
-    await tester.pumpWidget(const SizedBox());
-    second.dispose();
   });
 
   testWidgets(
@@ -781,25 +734,6 @@ void main() {
     await drop('Bread plan', '2026-10-25');
     expect(find.text('Frequently made together'), findsNothing);
     expect(fixture.reads.where((p) => p.contains('/pairings/')), isEmpty);
-    await tester.pumpWidget(const SizedBox());
-  });
-
-  testWidgets('stale plan is refreshed and does not silently retry a write', (
-    tester,
-  ) async {
-    final fixture = PlanFixture()..conflict = true;
-    await tester.binding.setSurfaceSize(const Size(390, 900));
-    addTearDown(() => tester.binding.setSurfaceSize(null));
-    await tester.pumpWidget(fixture.app());
-    await tester.pumpAndSettle();
-    await trashMeal(tester, 'Today soup');
-    expect(fixture.writes, isEmpty);
-    expect(
-      find.text(
-        'The meal plan changed. Review the updated plan and try again.',
-      ),
-      findsOneWidget,
-    );
     await tester.pumpWidget(const SizedBox());
   });
 

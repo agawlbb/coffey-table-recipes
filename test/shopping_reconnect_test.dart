@@ -3,12 +3,10 @@ import 'package:coffey_table_recipes/src/ai_progress.dart';
 import 'dart:async';
 import 'dart:convert';
 
-import 'package:coffey_table_recipes/src/local_data.dart';
 import 'package:coffey_table_recipes/src/shopping_socket.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
 
-const _path = '/households/1/shopping-list';
 Map<String, dynamic> _state(int revision) => {
   'revision': revision,
   'items': <Map<String, dynamic>>[],
@@ -234,85 +232,6 @@ void main() {
     },
   );
 
-  testWidgets(
-    'reconnect replays a lost-response edit immediately with the same ID',
-    (tester) async {
-      final network = StreamController<bool>();
-      final writes = <Map<String, dynamic>>[];
-      final disk = <String, String>{};
-      var dropResponse = true;
-      late final ShoppingSocket socket;
-      final data = LocalData(
-        key: 'reconnect-replay',
-        separateShopping: true,
-        online: () => false,
-        canSend: (_) => socket.connected,
-        fetch: (path) => socket.request(path),
-        send: (path, body) => socket.request(path, body: body),
-        readStore: (key) async => disk[key],
-        writeStore: (key, value) async {
-          disk[key] = value;
-        },
-      );
-      socket = ShoppingSocket(
-        household: '1',
-        networkChanges: network.stream,
-        token: (_) async => 'fixture',
-        onSnapshot: (state) => data.acceptShopping('1', state),
-        onReady: () => unawaited(data.synchronize()),
-        connect: (_) {
-          late final _Channel peer;
-          peer = _Channel(
-            onSend: (message) {
-              if (message['type'] == 'auth') peer.authenticate(1);
-              if (message['type'] == 'request') {
-                final body = Map<String, dynamic>.from(message['body'] as Map);
-                writes.add(body);
-                if (!dropResponse) {
-                  peer.receive({
-                    'type': 'response',
-                    'id': message['id'],
-                    'data': {
-                      ..._state(2),
-                      'items': body['items'],
-                      'acknowledged_change_id': body['client_change_id'],
-                    },
-                  });
-                }
-              }
-            },
-          );
-          return peer;
-        },
-      );
-      socket.start();
-      await tester.pump();
-      expect(socket.connected, isTrue);
-      await data.save(_path, {
-        'revision': 1,
-        'items': [
-          {'id': 'milk', 'name': 'Milk', 'checked': false, 'department': ''},
-        ],
-      });
-      await tester.pump();
-      expect(writes, hasLength(1));
-      network.add(false);
-      await tester.pump();
-      expect(data.pending, 1);
-      dropResponse = false;
-      network.add(true);
-      await tester.pump();
-      expect(socket.connected, isTrue);
-      expect(writes, hasLength(2));
-      expect(writes.last['client_change_id'], writes.first['client_change_id']);
-      expect(data.pending, 0); // No twenty-second periodic sync wait.
-      expect((await data.cached(_path))!['items'], hasLength(1));
-      socket.dispose();
-      data.dispose();
-      unawaited(network.close());
-      await tester.pump();
-    },
-  );
   testWidgets(
     'AI progress keeps a long request alive and the same socket accepts clarification',
     (tester) async {

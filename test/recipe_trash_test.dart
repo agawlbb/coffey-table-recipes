@@ -139,7 +139,7 @@ void main() {
                       save: (path, body) async {
                         paths.add(path);
                         if (path.endsWith('/delete')) {
-                          expect(body['revision'], '4');
+                          expect(body, isEmpty);
                         }
                         return {};
                       },

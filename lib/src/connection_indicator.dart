@@ -1,10 +1,7 @@
 import 'package:flutter/material.dart';
 
-// Updated from the same household sockets used by the account header.
+// Updated from the shared connection after its initial server state is applied.
 final connectedHouseholds = ValueNotifier<Set<String>>({});
-
-// The active account's durable queue, shared by every screen's indicator.
-final pendingSyncMessage = ValueNotifier<String?>(null);
 
 class ConnectionIndicator extends StatelessWidget {
   const ConnectionIndicator({super.key, required this.householdId});

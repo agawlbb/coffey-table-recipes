@@ -28,6 +28,7 @@ class AppConnection extends ChangeNotifier with WidgetsBindingObserver {
   Future<void> _accountTail = Future.value();
   Future<void>? _refreshing;
   bool get connected => _socket?.connected ?? false;
+  bool get connecting => _socket?.connecting ?? false;
 
   static String identity(String token) {
     try {

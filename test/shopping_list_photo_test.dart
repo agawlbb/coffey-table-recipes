@@ -5,7 +5,6 @@ import 'package:coffey_table_recipes/src/api.dart';
 import 'package:coffey_table_recipes/src/child_mode.dart';
 import 'package:coffey_table_recipes/src/shopping_list.dart';
 import 'package:coffey_table_recipes/src/shopping_photo.dart';
-import 'package:coffey_table_recipes/src/shopping_changes.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -323,27 +322,4 @@ void main() {
       await tester.pumpWidget(const SizedBox());
     },
   );
-
-  test('queued photo replacement preserves a remote checkoff', () {
-    final base = items.single;
-    final remote = {...base, 'checked': true, 'photo': photo};
-    final result = overlayShoppingChanges(
-      {
-        'revision': 2,
-        'items': [remote],
-      },
-      [
-        {
-          'body': {
-            'base_items': [base],
-            'items': [
-              {...base, 'photo': replacement},
-            ],
-          },
-        },
-      ],
-    );
-    expect(result['items'][0]['photo'], replacement);
-    expect(result['items'][0]['checked'], true);
-  });
 }

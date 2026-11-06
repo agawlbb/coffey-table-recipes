@@ -1,3 +1,4 @@
+import 'connection_notice.dart';
 import 'connection_indicator.dart';
 import 'cooking_session_ui.dart';
 import 'child_mode.dart';
@@ -1161,9 +1162,7 @@ class _RecipeDetailState extends State<RecipeDetail> {
     final save = widget.save!;
     final onChanged = widget.onChanged;
     try {
-      final removal = await save('$path/delete', {
-        'revision': _recipe!['revision'],
-      });
+      final removal = await save('$path/delete', {});
       if (!mounted) return;
       final messenger = ScaffoldMessenger.of(context);
       messenger.showSnackBar(
@@ -1539,6 +1538,8 @@ class _RecipeDetailState extends State<RecipeDetail> {
 
   Future<void> _edit() async {
     if (childModeOf(context)) return;
+    await connectionNotice(context, 'edit');
+    if (!mounted) return;
     try {
       final metadata = await widget.request(
         '/households/${widget.householdId}/recipes/${widget.recipeId}/edit-options',
@@ -1554,7 +1555,7 @@ class _RecipeDetailState extends State<RecipeDetail> {
             content: Text(
               error is ApiException
                   ? error.message
-                  : 'Sign in again to edit this recipe.',
+                  : 'Could not open the recipe editor. Please try again.',
             ),
           ),
         );
@@ -1573,8 +1574,10 @@ class _RecipeDetailState extends State<RecipeDetail> {
     if (updated != null && mounted) {
       setState(() => _recipe = updated);
       _prefetchImages(updated);
-      ScaffoldMessenger.of(context)
-          .showSnackBar(const SnackBar(content: Text('Recipe saved')));
+      if (updated['_offline_pending'] != true) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(const SnackBar(content: Text('Recipe saved')));
+      }
     }
   }
 
@@ -1623,9 +1626,14 @@ class _RecipeDetailState extends State<RecipeDetail> {
       widget.onChanged?.call();
       await _load();
       if (!mounted) return;
-      ScaffoldMessenger.of(context)
-          .showSnackBar(const SnackBar(content: Text('Recipe saved')));
-      if (saved['id']?.toString() != widget.recipeId) await _openRelated(saved);
+      if (saved['_offline_pending'] != true) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(const SnackBar(content: Text('Recipe saved')));
+      }
+      if (saved['_offline_pending'] != true &&
+          saved['id']?.toString() != widget.recipeId) {
+        await _openRelated(saved);
+      }
     } finally {
       if (mounted) setState(() => _variationOpen = false);
     }

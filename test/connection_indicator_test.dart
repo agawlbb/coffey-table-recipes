@@ -5,7 +5,6 @@ import 'package:flutter_test/flutter_test.dart';
 void main() {
   tearDown(() {
     connectedHouseholds.value = {};
-    pendingSyncMessage.value = null;
   });
   testWidgets(
     'green means an open connection and never flickers for data activity',
@@ -17,18 +16,10 @@ void main() {
         ),
       );
       expect(find.byTooltip('Connected to server'), findsOneWidget);
-      for (final message in [
-        'Saving',
-        'Sync paused',
-        'Checking account data',
-      ]) {
-        pendingSyncMessage.value = message;
-        await tester.pump();
-        expect(
-          tester.widget<Icon>(find.byIcon(Icons.cloud_done)).color,
-          Colors.green,
-        );
-      }
+      expect(
+        tester.widget<Icon>(find.byIcon(Icons.cloud_done)).color,
+        Colors.green,
+      );
       connectedHouseholds.value = {};
       await tester.pump();
       expect(find.byTooltip('Not connected to server'), findsOneWidget);

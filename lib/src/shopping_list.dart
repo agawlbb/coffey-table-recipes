@@ -1,3 +1,4 @@
+import 'offline_recipes.dart';
 import 'child_mode.dart';
 
 import 'dart:async';
@@ -229,8 +230,6 @@ class _ShoppingListScreenState extends State<ShoppingListScreen>
 
   List<Map<String, dynamic>> _items = [];
   List<Map<String, dynamic>> _confirmedItems = [];
-  final _writes =
-      <({List<Map<String, dynamic>> items, Completer<bool> done})>[];
   bool _holding = false;
   String? _heldItemId;
   Timer? _holdTimer;
@@ -245,6 +244,7 @@ class _ShoppingListScreenState extends State<ShoppingListScreen>
   int _revision = 0;
   int _saveGeneration = 0;
   bool _loading = true, _saving = false, _reading = false;
+  bool _reloadAfterSave = false;
   bool _dragging = false;
   bool _routeVisible = false;
   bool _rateLimited = false;
@@ -256,8 +256,7 @@ class _ShoppingListScreenState extends State<ShoppingListScreen>
   Offset? _dragPosition;
   String? _error;
   bool _saveNotice = false;
-  final _retryWaiters = <Timer, Completer<bool>>{};
-  Timer? _poll;
+  final _offlineChecks = <String, bool>{};
   Timer? _displayPause;
   final _pendingCompletion = <String, Timer>{};
 
@@ -322,13 +321,6 @@ class _ShoppingListScreenState extends State<ShoppingListScreen>
     if (widget.localFirst) localDataChanges.addListener(_localChanged);
     _restoreCache();
     if (widget.active) _load();
-    _poll = Timer.periodic(const Duration(seconds: 5), (_) {
-      if (widget.active &&
-          WidgetsBinding.instance.lifecycleState == AppLifecycleState.resumed &&
-          _routeVisible) {
-        _load();
-      }
-    });
   }
 
   @override
@@ -366,7 +358,7 @@ class _ShoppingListScreenState extends State<ShoppingListScreen>
     }
   }
 
-  void _accept(Map<String, dynamic> data) {
+  void _accept(Map<String, dynamic> data, {bool remote = true}) {
     final before = jsonEncode([_items, _departments]);
     final wasDisplayed = !_loading;
     _departments =
@@ -374,16 +366,26 @@ class _ShoppingListScreenState extends State<ShoppingListScreen>
     _revision = data['revision'] as int;
     _setItems(
       (data['items'] as List)
-          .map((item) => Map<String, dynamic>.from(item as Map))
+          .map(
+            (item) => {
+              ...Map<String, dynamic>.from(item as Map),
+              if (_offlineChecks.containsKey(item['id']))
+                'checked': _offlineChecks[item['id']],
+            },
+          )
           .toList(),
-      remote: true,
+      remote: remote,
       initial: !wasDisplayed,
     );
     _confirmedItems = _items;
-    if (wasDisplayed) _pauseAfterDisplayChange(before);
+    if (remote && wasDisplayed) _pauseAfterDisplayChange(before);
   }
 
   void _localChanged() {
+    if (_saving) {
+      _reloadAfterSave = true;
+      return;
+    }
     if (mounted &&
         (localDataChanges.value.startsWith(_path) ||
             localDataChanges.value.startsWith('/me#'))) {
@@ -420,69 +422,9 @@ class _ShoppingListScreenState extends State<ShoppingListScreen>
   bool _connectionFailure(Object error) =>
       error is! ApiException || isTemporaryCommunicationFailure(error);
 
-  Future<bool> _retryDelay(Duration delay) {
-    final done = Completer<bool>();
-    late final Timer timer;
-    timer = Timer(delay, () {
-      _retryWaiters.remove(timer);
-      done.complete(true);
-    });
-    _retryWaiters[timer] = done;
-    return done.future;
-  }
-
   Future<Map<String, dynamic>> _requestWithRetry({
     Map<String, dynamic>? body,
-  }) async {
-    final knownIds = _confirmedItems.map((i) => i['id']).toSet();
-    for (var attempt = 0; ; attempt++) {
-      try {
-        return await widget.request(_path, body: body);
-      } catch (error) {
-        var retryable = _connectionFailure(error);
-        // A response can be lost after a save commits. A subsequent revision
-        // conflict is success only when the server confirms the requested state.
-        if (body != null &&
-            attempt > 0 &&
-            error is ApiException &&
-            error.status == 409) {
-          try {
-            final current = await widget.request(_path);
-            final expected = (body['items'] as List)
-                .cast<Map<String, dynamic>>();
-            final actual = (current['items'] as List)
-                .cast<Map<String, dynamic>>();
-            final matches =
-                (current['revision'] as int) > (body['revision'] as int) &&
-                actual.length == expected.length &&
-                List.generate(expected.length, (i) {
-                  final wanted = expected[i], saved = actual[i];
-                  return wanted['id'] == saved['id'] &&
-                      wanted['name'] == saved['name'] &&
-                      (wanted['note'] ?? '') == (saved['note'] ?? '') &&
-                      (wanted['photo'] ?? '') == (saved['photo'] ?? '') &&
-                      wanted['checked'] == saved['checked'] &&
-                      (wanted['department'] == saved['department'] ||
-                          (!knownIds.contains(wanted['id']) &&
-                              wanted['department'] == ''));
-                }).every((same) => same);
-            if (matches) return current;
-            rethrow;
-          } catch (verificationError) {
-            if (!_connectionFailure(verificationError)) rethrow;
-            retryable = true;
-          }
-        }
-        if (!retryable || attempt >= 2) rethrow;
-        final delay = error is ApiException && error.status == 429
-            ? error.retryAfter ?? const Duration(seconds: 30)
-            : Duration(seconds: attempt == 0 ? 2 : 4);
-        if (!await _retryDelay(delay) || !mounted) {
-          throw const _ShoppingRequestCancelled();
-        }
-      }
-    }
-  }
+  }) => widget.request(_path, body: body);
 
   Future<void> _load() async {
     if (_saving || _reading || _dragging || _holding || _editingId != null) {
@@ -549,127 +491,104 @@ class _ShoppingListScreenState extends State<ShoppingListScreen>
     }
   }
 
-  Future<bool> _save(List<Map<String, dynamic>> items) {
-    if (childMode.value || _displayPause != null) return Future.value(false);
-    if (widget.localFirst && _saving) return Future.value(false);
-    if ((_disconnected && !widget.localFirst) || _accessDenied) {
-      return Future.value(false);
+  Future<bool> _save(List<Map<String, dynamic>> items) async {
+    if (childMode.value || _displayPause != null || _saving || _accessDenied) {
+      return false;
+    }
+    if (widget.localFirst && offlineStatus.value) {
+      // Checkboxes prepare the items to remove; only Remove checked off queues a removal.
+      final before = {for (final item in _items) item['id']: item};
+      final checksOnly =
+          items.length == _items.length &&
+          items.every(
+            (item) =>
+                before.containsKey(item['id']) &&
+                jsonEncode({...item, 'checked': false}) ==
+                    jsonEncode({...before[item['id']]!, 'checked': false}),
+          );
+      if (checksOnly) {
+        for (final item in items) {
+          _offlineChecks[item['id'] as String] = item['checked'] as bool;
+        }
+        setState(() => _setItems(items));
+        return true;
+      }
+      setState(
+        () => _error = 'Only item removals can be saved offline. Reconnect to make other shopping changes.',
+      );
+      return false;
     }
     _saveGeneration++;
-    final done = Completer<bool>();
-    final start = !_saving;
-    _writes.add((items: items, done: done));
-    // Keep the dropped order visible while serializing writes against the
-    // server revision.
     setState(() {
-      // In local-first mode the response confirms a durable device write,
-      // not a server upload. Do not hide a deletion before that write finishes.
-      if (!widget.localFirst) _setItems(items);
       _saving = true;
       _error = null;
-      _saveNotice = false;
     });
-    if (start) unawaited(_drainWrites());
-    return done.future;
-  }
-
-  Future<void> _drainWrites() async {
-    while (_writes.isNotEmpty) {
-      final write = _writes.first;
-      try {
-        final data = await _requestWithRetry(
-          body: {'revision': _revision, 'items': write.items},
-        );
-        _departments =
-            (data['departments'] as List?)?.cast<String>() ?? _departments;
-        _revision = data['revision'] as int;
-        _confirmedItems = (data['items'] as List)
-            .map((item) => Map<String, dynamic>.from(item as Map))
-            .toList();
-        _serverLoaded = true;
+    try {
+      final data = await widget.request(_path, body: {'items': items});
+      if (!mounted) return true;
+      setState(() {
+        _accept(data, remote: false);
         _disconnected = false;
-        _accessDenied = false;
-        _cacheConfirmed();
-        // Carry server-selected departments into queued snapshots, unless a
-        // later drag explicitly chose a different department for that item.
-        final sent = {for (final item in write.items) item['id']: item};
-        for (final confirmed in _confirmedItems) {
-          final original = sent[confirmed['id']];
-          if (original == null ||
-              original['department'] == confirmed['department']) {
-            continue;
-          }
-          for (final pending in _writes.skip(1)) {
-            for (var i = 0; i < pending.items.length; i++) {
-              final item = pending.items[i];
-              if (item['id'] == confirmed['id'] &&
-                  item['department'] == original['department']) {
-                pending.items[i] = {
-                  ...item,
-                  'department': confirmed['department'],
-                };
-              }
-            }
-          }
-        }
-        _writes.removeAt(0);
-        if (!write.done.isCompleted) write.done.complete(true);
-      } catch (error) {
-        String? remoteBefore;
-        if (error is ApiException && error.status == 409) {
-          try {
-            final before = jsonEncode([_confirmedItems, _departments]);
-            final data = await widget.request(_path);
-            remoteBefore = before;
-            _departments =
-                (data['departments'] as List?)?.cast<String>() ?? _departments;
-            _revision = data['revision'] as int;
-            _confirmedItems = (data['items'] as List)
-                .map((item) => Map<String, dynamic>.from(item as Map))
-                .toList();
-            _cacheConfirmed();
-          } catch (_) {
-            /* Retain the last confirmed state if refresh fails. */
-          }
-        }
-        for (final pending in _writes) {
-          if (!pending.done.isCompleted) pending.done.complete(false);
-        }
-        _writes.clear();
-        if (mounted) {
-          setState(() {
-            _setItems(_confirmedItems, remote: remoteBefore != null);
-            if (remoteBefore != null) _pauseAfterDisplayChange(remoteBefore);
-            if (_connectionFailure(error)) _disconnected = true;
-            if (error is ApiException &&
-                [401, 403, 404].contains(error.status)) {
-              _accessDenied = true;
-              _setItems([]);
-              _confirmedItems = [];
-              _revision = 0;
-              unawaited(widget.cache?.clear());
-            }
-            _saveNotice = _connectionFailure(error);
-            _error = _saveNotice
-                ? "Your change couldn't be saved. Please try again when connected."
-                : error is ApiException
-                ? error.message
-                : 'Could not save the shopping list. Please try again.';
-          });
-        }
+        _offlineChecks.clear();
+      });
+      _cacheConfirmed();
+      return true;
+    } catch (error) {
+      if (mounted) {
+        setState(() {
+          _saveNotice = _connectionFailure(error);
+          _error = _saveNotice
+              ? 'Your change wasn’t saved. Reconnect and try again.'
+              : error is ApiException
+              ? error.message
+              : 'Could not save the shopping list.';
+        });
       }
-      if (!mounted) {
-        for (final pending in _writes) {
-          if (!pending.done.isCompleted) pending.done.complete(false);
+      return false;
+    } finally {
+      if (mounted) {
+        setState(() => _saving = false);
+        if (_reloadAfterSave) {
+          _reloadAfterSave = false;
+          unawaited(_load());
         }
-        _writes.clear();
       }
     }
-    if (mounted) {
+  }
+
+  Future<void> _removeChecked() async {
+    if (_saving || childMode.value) return;
+    final ids = _items
+        .where((i) => i['checked'] == true)
+        .map((i) => i['id'] as String)
+        .toList();
+    if (ids.isEmpty) return;
+    setState(() => _saving = true);
+    try {
+      final data = await widget.request(_path, body: {'remove_ids': ids});
+      if (!mounted) return;
       setState(() {
-        _setItems(_confirmedItems);
-        _saving = false;
+        for (final id in ids) {
+          _offlineChecks.remove(id);
+        }
+        _accept(data, remote: false);
       });
+    } catch (error) {
+      if (mounted) {
+        setState(
+          () => _error = error is ApiException
+              ? error.message
+              : 'These items couldn’t be removed. Please try again.',
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _saving = false);
+        if (_reloadAfterSave) {
+          _reloadAfterSave = false;
+          unawaited(_load());
+        }
+      }
     }
   }
 
@@ -701,13 +620,7 @@ class _ShoppingListScreenState extends State<ShoppingListScreen>
     _dragging = false;
     _holding = false;
     _holdTimer?.cancel();
-    for (final entry in _retryWaiters.entries) {
-      entry.key.cancel();
-      entry.value.complete(false);
-    }
-    _retryWaiters.clear();
     localDataChanges.removeListener(_localChanged);
-    _poll?.cancel();
     _displayPause?.cancel();
     for (final timer in _pendingCompletion.values) {
       timer.cancel();
@@ -1372,11 +1285,7 @@ class _ShoppingListScreenState extends State<ShoppingListScreen>
                         onPressed:
                             busy || !_items.any((i) => i['checked'] == true)
                             ? null
-                            : () => _save(
-                                _items
-                                    .where((i) => i['checked'] != true)
-                                    .toList(),
-                              ),
+                            : _removeChecked,
                         icon: const Icon(Icons.delete_sweep_outlined),
                         label: const Text('Remove checked off'),
                       ),
@@ -1428,8 +1337,4 @@ class _ShoppingDragSource extends Draggable<String> {
           );
     return recognizer..onStart = onStart;
   }
-}
-
-class _ShoppingRequestCancelled implements Exception {
-  const _ShoppingRequestCancelled();
 }

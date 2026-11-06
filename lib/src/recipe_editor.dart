@@ -826,6 +826,26 @@ class _RecipeEditorState extends State<RecipeEditor> {
             ],
         },
       );
+      if (data['_offline_pending'] == true) {
+        if (!mounted) return;
+        final creating = _draft['id'] == null;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              creating
+                  ? 'Your recipe is saved on this device and will upload when you reconnect.'
+                  : 'Your changes are saved on this device. We’ll ask before sending them when you reconnect.',
+            ),
+          ),
+        );
+        setState(() {
+          _leaving = true;
+          _dirty = false;
+          _saving = false;
+        });
+        Navigator.pop(context, data['recipe'] as Map<String, dynamic>);
+        return;
+      }
       final savedRecipe = data['recipe'] as Map<String, dynamic>;
       for (final category
           in _blank
@@ -2139,7 +2159,7 @@ class _RecipeEditorState extends State<RecipeEditor> {
                       const Padding(
                         padding: EdgeInsets.only(bottom: 16),
                         child: Text(
-                          'Changes are saved on this device and will sync when connected.',
+                          'When you save offline, your work stays on this device until you reconnect.',
                         ),
                       ),
                     if (_draft['import_warnings'] is List)

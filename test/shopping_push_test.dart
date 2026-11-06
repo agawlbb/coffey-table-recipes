@@ -1,6 +1,3 @@
-import 'dart:convert';
-import 'dart:async';
-
 import 'package:coffey_table_recipes/src/local_data.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -19,141 +16,6 @@ void main() {
         'items': items,
         'departments': ['Other'],
       };
-  testWidgets('shopping retries stay local without overdue banners', (
-    tester,
-  ) async {
-    final disk = <String, String>{};
-    final reminders = <List<Map<String, dynamic>>>[];
-    final data = LocalData(
-      key: 'quiet-shopping',
-      fetch: (_) async => {},
-      send: (_, _) async => throw StateError('Offline'),
-      online: () => false,
-      separateShopping: true,
-      readStore: (key) async => disk[key],
-      writeStore: (key, value) async {
-        disk[key] = value;
-      },
-      onPendingChanged: (_, changes) async {
-        reminders.add(changes);
-      },
-    );
-    addTearDown(data.dispose);
-    await data.acceptShopping('1', state(1, [item('milk')]));
-    await data.save(path, {'revision': 1, 'items': []});
-    await tester.pump(const Duration(minutes: 2));
-    expect(data.pending, 1);
-    expect((await data.cached(path))!['items'], isEmpty);
-    expect(disk.values.single, contains('client_change_id'));
-    expect(reminders, isNotEmpty);
-    expect(reminders.every((changes) => changes.isEmpty), isTrue);
-  });
-
-  test(
-    'shopping can synchronize while the recipe HTTP transport is offline',
-    () async {
-      final sent = <String>[];
-      final data = LocalData(
-        key: 'independent-transports',
-        fetch: (_) async => {},
-        send: (path, body) async {
-          sent.add(path);
-          return {
-            ...state(2, []),
-            'acknowledged_change_id': body['client_change_id'],
-          };
-        },
-        online: () => false,
-        canSend: (resource) => resource == path,
-        separateShopping: true,
-        readStore: (_) async => null,
-        writeStore: (_, _) async {},
-      );
-      addTearDown(data.dispose);
-      await data.acceptShopping('1', state(1, [item('milk')]));
-      await data.save(path, {'revision': 1, 'items': []});
-      await data.synchronize();
-      expect(sent, [path]);
-      expect(data.pending, 0);
-    },
-  );
-  test(
-    'a delayed acknowledgement cannot roll back a newer committed push',
-    () async {
-      final entered = Completer<Map<String, dynamic>>();
-      final response = Completer<Map<String, dynamic>>();
-      final data = LocalData(
-        key: 'ack-race',
-        fetch: (_) async => {},
-        send: (_, body) {
-          entered.complete(body);
-          return response.future;
-        },
-        separateShopping: true,
-        readStore: (_) async => null,
-        writeStore: (_, _) async {},
-      );
-      addTearDown(data.dispose);
-      await data.acceptShopping('1', state(1, [item('milk')]));
-      await data.save(path, {
-        'revision': 1,
-        'items': [
-          {...item('milk'), 'checked': true},
-        ],
-      });
-      final body = await entered.future;
-      await data.acceptShopping(
-        '1',
-        state(3, [
-          {...item('milk'), 'checked': true},
-          item('bread'),
-        ]),
-      );
-      response.complete({
-        ...state(2, [
-          {...item('milk'), 'checked': true},
-        ]),
-        'acknowledged_change_id': body['client_change_id'],
-      });
-      await data.synchronize();
-      expect((data.readView(path)['items'] as List).map((i) => i['id']), [
-        'milk',
-        'bread',
-      ]);
-      expect(data.readView(path)['revision'], 3);
-      expect(data.pending, 0);
-    },
-  );
-  test('pushes preserve pending deletions, survive restart and reject older revisions', () async {
-    final disk = <String, String>{};
-    LocalData create() => LocalData(
-      key: 'push',
-      fetch: (_) async => {},
-      send: (_, _) async => {},
-      online: () => false,
-      separateShopping: true,
-      snapshotOnly: true,
-      readStore: (k) async => disk[k],
-      writeStore: (k, v) async {
-        disk[k] = v;
-      },
-    );
-    var data = create();
-    await data.acceptShopping('1', state(1, [item('milk')]));
-    await data.save(path, {'revision': 1, 'items': []});
-    await data.acceptShopping('1', state(2, [item('milk'), item('bread')]));
-    expect((data.readView(path)['items'] as List).map((i) => i['id']), [
-      'bread',
-    ]);
-    expect(data.pending, 1);
-    data.dispose();
-    data = create();
-    await data.acceptShopping('1', state(1, [item('milk')]));
-    expect((await data.request(path))['items'], [item('bread')]);
-    expect(data.pending, 1);
-    expect(jsonEncode(disk), contains('client_change_id'));
-    data.dispose();
-  });
 
   test(
     'legacy household snapshots cannot replace or remove VPS shopping',
@@ -162,8 +24,6 @@ void main() {
         key: 'snapshot',
         fetch: (_) async => {},
         send: (_, _) async => {},
-        separateShopping: true,
-        snapshotOnly: true,
         readStore: (_) async => null,
         writeStore: (_, _) async {},
       );
