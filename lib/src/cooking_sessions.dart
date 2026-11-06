@@ -1,4 +1,6 @@
 import 'client_log.dart';
+import 'local_data.dart';
+import 'local_sqlite.dart';
 
 import 'dart:async';
 import 'dart:convert';
@@ -43,12 +45,45 @@ class CookingSessions extends ChangeNotifier with WidgetsBindingObserver {
   CookingSessions({
     CookingRequest? request,
     this._preferences,
+    this.storage,
     String? installation,
     this._accountChanges,
     this._registerDevice,
   }) : _testRequest = request,
        installation = installation ?? '';
   final CookingRequest? _testRequest;
+  final LocalSqlite? storage;
+  LocalData? _local;
+  String? _boundUid;
+  Future<void>? _initializingLocal;
+  Future<void> bindLocal(LocalData local, String uid) async {
+    if (identical(local, _local)) return;
+    await _initializingLocal;
+    final previous = _local;
+    if (previous != null) {
+      final saved = await previous.cached('/me/cooking-sessions');
+      if (saved != null && await local.cached('/me/cooking-sessions') == null) {
+        await local.acceptCooking(saved);
+      }
+      await local.importChanges(previous.pendingChanges);
+      previous.removeListener(_localChanged);
+      if (_boundUid == null) previous.dispose();
+    }
+    _local = local;
+    _boundUid = uid;
+    if (_started) await _migrateTimers(local, uid);
+    local.addListener(_localChanged);
+    local.onAcknowledged = _acknowledged;
+    _localChanged();
+  }
+
+  void _releaseLocal() {
+    _local?.removeListener(_localChanged);
+    if (_boundUid == null) _local?.dispose();
+    _local = null;
+    _boundUid = null;
+  }
+
   final Future<void> Function()? _registerDevice;
   final Stream<String?>? _accountChanges;
   String? _lastToken;
@@ -58,7 +93,6 @@ class CookingSessions extends ChangeNotifier with WidgetsBindingObserver {
   final _api = RecipeApi(baseUrl: apiBaseUrl);
   String installation;
   String? _uid;
-  bool _syncConfirmed = false;
   bool _started = false, _foreground = true, _loaded = false, _disposed = false;
   String? visibleSession;
   String? error;
@@ -70,28 +104,88 @@ class CookingSessions extends ChangeNotifier with WidgetsBindingObserver {
   Timer? _presence;
   StreamSubscription<String?>? _auth;
   StreamSubscription<String>? _tokens;
-  Future<void> _tail = Future.value();
   Future<void> _nativeTail = Future.value();
-  Future<void> _storageTail = Future.value();
-  Future<void> _saveOutbox(String? uid) {
-    final contents = jsonEncode(_outbox);
-    final next = _storageTail
-        .catchError((Object _) {})
-        .then((_) => _prefs.setString('cooking_outbox_$uid', contents));
-    _storageTail = next;
-    return next;
+  bool get isSynchronized =>
+      available && (_testRequest != null || _api.socketsReady);
+  Future<void> _openLocal() {
+    if (_local != null) return _initializingLocal ?? Future.value();
+    return _initializingLocal ??= _initializeLocal().whenComplete(
+      () => _initializingLocal = null,
+    );
   }
 
-  List<Map<String, dynamic>> _outbox = [];
-  bool get isSynchronized =>
-      available &&
-      _loaded &&
-      _syncConfirmed &&
-      _outbox.isEmpty &&
-      error == null &&
-      (_testRequest != null || _api.socketsReady);
+  Future<void> _initializeLocal() async {
+    final local = LocalData(
+      key: '$apiStorageNamespace|${_uid ?? installation}|cooking',
+      fetch: (path) => _request(path),
+      send: (path, body) => _request(path, body: body),
+      readStore: storage?.read ?? readLocalSqlite,
+      writeStore: storage?.write ?? writeLocalSqlite,
+    );
+    _local = local;
+    local.connected = () =>
+        !_disposed && (_testRequest != null || _api.socketsReady);
+    local.onSendError = (_, e) => _failed(e);
+    local.addListener(_localChanged);
+    local.onAcknowledged = _acknowledged;
+    if (_started) await _migrateTimers(local, _uid);
+    _localChanged();
+  }
+
+  Future<void> _migrateTimers(LocalData local, String? uid) async {
+    final old = await _prefs.getString('cooking_outbox_$uid');
+    await local.cached('/me/cooking-sessions');
+    if (old != null) {
+      for (final item in jsonDecode(old) as List) {
+        if (!local.containsOperation(item['operation_id'] as String)) {
+          await local.save('/me/cooking-sessions/${item['session_id']}/timer', {
+            ...item['body'] as Map,
+            'operation_id': item['operation_id'],
+            'installation_id': installation,
+          });
+        }
+      }
+      await _prefs.remove('cooking_outbox_$uid');
+    }
+  }
+
+  void _acknowledged(Map<String, dynamic> entry) {
+    if (_disposed ||
+        !(entry['path'] as String).startsWith('/me/cooking-sessions') ||
+        !NativeTimers.supported ||
+        _testRequest != null) {
+      return;
+    }
+    unawaited(
+      NativeTimers.channel
+          .invokeMethod<void>('acknowledgeAction', {
+            'account_uid': _uid,
+            'operation_id': entry['id'],
+          })
+          .catchError((Object error) => _failed(error)),
+    );
+  }
+
+  void _localChanged() {
+    final local = _local;
+    if (local == null || _disposed) return;
+    try {
+      final data = local.readView('/me/cooking-sessions');
+      sessions
+        ..clear()
+        ..addAll(
+          (data['sessions'] as List).map(
+            (e) => Map<String, dynamic>.from(e as Map),
+          ),
+        );
+      _loaded = true;
+    } on StateError {
+      return;
+    }
+    notifyListeners();
+  }
+
   void _invalidateSync() {
-    _syncConfirmed = false;
     // Route presence can change during build; invalidate state immediately,
     // then notify mounted UI outside the build stack.
     scheduleMicrotask(() {
@@ -129,12 +223,7 @@ class CookingSessions extends ChangeNotifier with WidgetsBindingObserver {
       if (installation.isEmpty) installation = randomId();
       WidgetsBinding.instance.addObserver(this);
       _auth = _accountChanges?.listen((uid) => unawaited(_account(uid)));
-      final raw = await _prefs.getString('cooking_outbox_null');
-      _outbox = raw == null
-          ? []
-          : (jsonDecode(raw) as List)
-                .map((e) => Map<String, dynamic>.from(e))
-                .toList();
+      await _openLocal();
       return;
     }
     installation = await _prefs.getString('timer_installation') ?? randomId();
@@ -183,14 +272,12 @@ class CookingSessions extends ChangeNotifier with WidgetsBindingObserver {
 
   void _failed(Object e) {
     if (_disposed) return;
-    _syncConfirmed = false;
     clientLog.record(
       'cooking',
       'sync_failed',
       error: e,
       status: e is ApiException ? e.status : null,
       code: e is ApiException ? e.code : null,
-      pending: _outbox.length,
     );
     if (isTemporaryCommunicationFailure(e)) {
       notifyListeners();
@@ -226,23 +313,16 @@ class CookingSessions extends ChangeNotifier with WidgetsBindingObserver {
     final generation = ++_generation;
     _uid = uid;
     _loaded = false;
-    _syncConfirmed = false;
     visibleSession = null;
     sessions.clear();
     offered.clear();
-    _outbox = [];
+    if (_boundUid != uid) _releaseLocal();
     if (previous != null || uid == null) _api.resetSockets();
     notifyListeners();
     try {
       await _configure();
       if (generation != _generation || uid == null) return;
-      final raw = await _prefs.getString('cooking_outbox_$uid');
-      if (generation != _generation) return;
-      _outbox = raw == null
-          ? []
-          : (jsonDecode(raw) as List)
-                .map((e) => Map<String, dynamic>.from(e))
-                .toList();
+      await _openLocal();
 
       try {
         await _register();
@@ -366,20 +446,10 @@ class CookingSessions extends ChangeNotifier with WidgetsBindingObserver {
     final incoming = (data['sessions'] as List)
         .map((e) => Map<String, dynamic>.from(e as Map))
         .toList();
-    // A delayed response must not replace a newer session snapshot.
-    for (var i = 0; i < incoming.length; i++) {
-      final old = session('${incoming[i]['id']}');
-      if (old != null &&
-          (old['revision'] as num) > (incoming[i]['revision'] as num)) {
-        incoming[i] = old;
-      }
-    }
+    await _openLocal();
+    await _local!.acceptCooking({'sessions': incoming});
     _loaded = true;
-    _syncConfirmed = confirmed;
     error = null;
-    sessions
-      ..clear()
-      ..addAll(incoming);
     if (visibleSession != null && session(visibleSession!) == null) {
       visibleSession = null;
     }
@@ -399,13 +469,6 @@ class CookingSessions extends ChangeNotifier with WidgetsBindingObserver {
       }
       for (final t in s['timers'] as List? ?? []) {
         if (generation != _generation) return;
-        if (_outbox.any(
-          (o) =>
-              o['session_id'] == s['id'] &&
-              o['body']['action_id'] == t['action_id'],
-        )) {
-          continue;
-        }
         try {
           await NativeTimers.channel.invokeMethod<void>('applyRemote', {
             ...Map<String, dynamic>.from(t as Map),
@@ -421,26 +484,19 @@ class CookingSessions extends ChangeNotifier with WidgetsBindingObserver {
   }
 
   Future<void> importNativeActions(List<Map<String, dynamic>> actions) async {
-    final generation = _generation;
-    var changed = false;
+    await _openLocal();
     for (final action in actions) {
       if (action['account_uid'] != _uid ||
           action['installation_id'] != installation) {
         continue;
       }
-      if (_outbox.any((o) => o['operation_id'] == action['operation_id'])) {
-        continue;
-      }
-      _outbox.add({
-        'session_id': action['session_id'],
-        'operation_id': action['operation_id'],
-        'body': Map<String, dynamic>.from(action['body'] as Map),
-      });
-      changed = true;
-    }
-    if (changed) {
-      await _saveOutbox(_uid);
-      if (generation == _generation) notifyListeners();
+      if (_local!.containsOperation(action['operation_id'] as String)) continue;
+      await change(
+        '${action['session_id']}',
+        'timer',
+        Map<String, dynamic>.from(action['body'] as Map),
+        operation: action['operation_id'] as String,
+      );
     }
   }
 
@@ -479,38 +535,20 @@ class CookingSessions extends ChangeNotifier with WidgetsBindingObserver {
     Map<String, dynamic> body, {
     String? operation,
   }) async {
-    _invalidateSync();
-    final result = await _request(
-      '/me/cooking-sessions/$id/$action',
-      body: {
-        ...body,
-        'installation_id': installation,
-        'operation_id': operation ?? randomId(),
-      },
-    );
-    final updated = Map<String, dynamic>.from(result['session'] as Map);
-    // Production state comes from the shared socket's pushed snapshots.
-    // Request-only test transports have no push stream.
-    if (_testRequest != null) {
-      if (updated['ended_at'] != null) {
-        await accept({
-          'sessions': sessions.where((s) => s['id'] != id).toList(),
-          'ended_sessions': [updated],
-        }, confirmed: false);
-      } else {
-        await accept({
-          'sessions': [...sessions.where((s) => s['id'] != id), updated],
-        }, confirmed: false);
-      }
-    }
-    return updated;
+    await _openLocal();
+    final result = await _local!.save('/me/cooking-sessions/$id/$action', {
+      ...body,
+      'installation_id': installation,
+      'operation_id': operation ?? randomId(),
+    });
+    return Map<String, dynamic>.from(result['session'] as Map);
   }
 
   Future<void> _permissions() async {
     if (!NativeTimers.supported || _testRequest != null) return;
     try {
       await NativeTimers.channel.invokeMethod<void>('requestTimerPermissions');
-      await _register();
+      unawaited(_register().catchError(_failed));
     } catch (_) {
       error = 'Allow alarms in device settings to mirror cooking timers.';
       notifyListeners();
@@ -522,25 +560,17 @@ class CookingSessions extends ChangeNotifier with WidgetsBindingObserver {
     Map<String, dynamic> recipe,
   ) async {
     await _permissions();
-    _invalidateSync();
+    await _openLocal();
     final id = randomId();
-    final result = await _request(
-      '/me/cooking-sessions',
-      body: {
-        'session_id': id,
-        'household_id': household,
-        'recipe_id': '${recipe['id']}',
-        'installation_id': installation,
-        'operation_id': id,
-      },
-    );
-    final s = Map<String, dynamic>.from(result['session'] as Map);
-    if (_testRequest != null) {
-      await accept({
-        'sessions': [...sessions, s],
-      }, confirmed: false);
-    }
-    return s;
+    final result = await _local!.save('/me/cooking-sessions', {
+      'session_id': id,
+      'household_id': household,
+      'recipe_id': '${recipe['id']}',
+      'installation_id': installation,
+      'operation_id': id,
+      '_local_recipe': recipe,
+    });
+    return Map<String, dynamic>.from(result['session'] as Map);
   }
 
   Future<Map<String, dynamic>> join(String id) async {
@@ -551,11 +581,7 @@ class CookingSessions extends ChangeNotifier with WidgetsBindingObserver {
   Future<void> check(String id, String step, bool checked) async {
     final s = session(id);
     if (s == null) return;
-    await change(id, 'step', {
-      'step_id': step,
-      'checked': checked,
-      'revision': (s['step_revisions'] as Map?)?[step] ?? 0,
-    });
+    await change(id, 'step', {'step_id': step, 'checked': checked});
   }
 
   Future<void> presence(String id, bool open) async {
@@ -569,6 +595,12 @@ class CookingSessions extends ChangeNotifier with WidgetsBindingObserver {
   }
 
   Future<void> end(String id) async {
+    final alarms = NativeTimers.active.value
+        .where((t) => '${t['key']}'.startsWith('remote:session:$id:'))
+        .toList();
+    for (final alarm in alarms) {
+      await NativeTimers.cancel(alarm['key'] as String);
+    }
     await change(id, 'end', {});
   }
 
@@ -588,17 +620,6 @@ class CookingSessions extends ChangeNotifier with WidgetsBindingObserver {
       for (final t in session(id)?['timers'] as List? ?? [])
         '${t['action_id']}': Map<String, dynamic>.from(t as Map),
     };
-    for (final op in _outbox.where((o) => o['session_id'] == id)) {
-      final body = op['body'] as Map;
-      final action = '${body['action_id']}';
-      result[action] = {
-        ...?result[action],
-        'action_id': action,
-        'cancelled': body['cancelled'],
-        'extension_seconds': body['extension_seconds'] ?? 0,
-        if (body['deadline_ms'] != null) 'deadline_ms': body['deadline_ms'],
-      };
-    }
     return result.values.toList();
   }
 
@@ -619,9 +640,6 @@ class CookingSessions extends ChangeNotifier with WidgetsBindingObserver {
     final action = match[2]!;
     final s = session(id);
     if (s == null || !joined(s)) return;
-    final timer = (s['timers'] as List? ?? [])
-        .where((t) => '${t['action_id']}' == action)
-        .firstOrNull;
     final local = NativeTimers.active.value
         .where((row) => row['key'] == key)
         .firstOrNull;
@@ -635,73 +653,14 @@ class CookingSessions extends ChangeNotifier with WidgetsBindingObserver {
       'deadline_ms': deadline
           ?.add(Duration(milliseconds: _serverOffset))
           .millisecondsSinceEpoch,
-      'revision':
-          _outbox
-                  .where(
-                    (o) =>
-                        o['session_id'] == id &&
-                        o['body']['action_id'] == action,
-                  )
-                  .lastOrNull?['body']['revision']
-              is int
-          ? (_outbox
-                        .where(
-                          (o) =>
-                              o['session_id'] == id &&
-                              o['body']['action_id'] == action,
-                        )
-                        .last['body']['revision']
-                    as int) +
-                1
-          : timer?['revision'] ?? 0,
     };
-    final operation = {
-      'session_id': id,
-      'operation_id': randomId(),
-      'body': body,
-    };
-    _outbox.add(operation);
-    notifyListeners();
-    await _saveOutbox(uid);
-    if (generation != _generation) return;
-    unawaited(_flush().catchError(_failed));
+    if (uid != _uid || generation != _generation) return;
+    await change(id, 'timer', body);
   }
 
-  Future<void> _flush() {
-    final generation = _generation;
-    final uid = _uid;
-    final next = _tail.catchError((Object _) {}).then((_) async {
-      while (generation == _generation && _outbox.isNotEmpty) {
-        final op = _outbox.first;
-        try {
-          await change(
-            op['session_id'] as String,
-            'timer',
-            Map<String, dynamic>.from(op['body'] as Map),
-            operation: op['operation_id'] as String,
-          );
-        } on ApiException catch (e) {
-          if (![404, 409, 422].contains(e.status)) rethrow;
-          error = e.message;
-        }
-        if (generation != _generation) return;
-        _outbox.remove(op);
-        await _saveOutbox(uid);
-        if (NativeTimers.supported && _testRequest == null) {
-          await NativeTimers.channel.invokeMethod<void>('acknowledgeAction', {
-            'account_uid': uid,
-            'operation_id': op['operation_id'],
-          });
-        }
-        if (generation == _generation) {
-          await accept({
-            'sessions': List<Map<String, dynamic>>.from(sessions),
-          }, confirmed: false);
-        }
-      }
-    });
-    _tail = next;
-    return next;
+  Future<void> _flush() async {
+    await _openLocal();
+    await _local!.synchronize();
   }
 
   @override
@@ -727,6 +686,7 @@ class CookingSessions extends ChangeNotifier with WidgetsBindingObserver {
     _disposed = true;
     _generation++;
     _presence?.cancel();
+    _releaseLocal();
     unawaited(_auth?.cancel());
     unawaited(_tokens?.cancel());
     WidgetsBinding.instance.removeObserver(this);

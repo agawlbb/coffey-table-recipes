@@ -1,3 +1,5 @@
+import 'support/local_storage.dart';
+
 import 'package:coffey_table_recipes/src/connection_indicator.dart';
 import 'package:coffey_table_recipes/src/api.dart';
 import 'package:shared_preferences_platform_interface/in_memory_shared_preferences_async.dart';
@@ -17,6 +19,32 @@ class _WakeRecorder extends WakelockPlusMacOSPlugin {
   Future<void> toggle({required bool enable}) async {
     requested = enable;
   }
+}
+
+CookingSessions testCookingSessions({
+  required CookingRequest request,
+  String? installation,
+}) {
+  late CookingSessions service;
+  service = CookingSessions(
+    storage: MemoryLocalStorage(),
+    installation: installation,
+    request: (path, {body}) async {
+      final result = await request(path, body: body);
+      if (body != null && result['session'] is Map) {
+        final updated = Map<String, dynamic>.from(result['session'] as Map);
+        await service.accept({
+          'sessions': [
+            ...service.sessions.where((s) => s['id'] != updated['id']),
+            if (updated['ended_at'] == null) updated,
+          ],
+          if (updated['ended_at'] != null) 'ended_sessions': [updated],
+        });
+      }
+      return result;
+    },
+  );
+  return service;
 }
 
 void main() {
@@ -57,7 +85,7 @@ void main() {
       '$ending end returns to browser through recipe and timer dialog',
       (tester) async {
         final state = cookingFixture();
-        final service = CookingSessions(
+        final service = testCookingSessions(
           installation: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
           request: (path, {body}) async => {
             'session': {...state, 'ended_at': path.endsWith('/end') ? 1 : null},
@@ -126,7 +154,7 @@ void main() {
     tester,
   ) async {
     final state = cookingFixture();
-    final service = CookingSessions(
+    final service = testCookingSessions(
       request: (path, {body}) async => {'session': state},
     );
     addTearDown(service.dispose);
@@ -193,7 +221,7 @@ void main() {
         ];
       }
       var ends = 0;
-      final service = CookingSessions(
+      final service = testCookingSessions(
         installation: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
         request: (path, {body}) async {
           expect(path, endsWith('/end'));
@@ -247,11 +275,11 @@ void main() {
     });
   }
 
-  testWidgets('failed session end leaves the menu entry available', (
+  testWidgets('ending is local even when the server is unavailable', (
     tester,
   ) async {
     final state = cookingFixture();
-    final service = CookingSessions(
+    final service = testCookingSessions(
       request: (path, {body}) async => throw ApiException(503, 'Unavailable'),
     );
     addTearDown(service.dispose);
@@ -271,8 +299,8 @@ void main() {
     await tester.drag(find.byType(Dismissible), const Offset(700, 0));
     await tester.pumpAndSettle();
     expect(find.byType(SnackBar), findsNothing);
-    expect(service.sessions, hasLength(1));
-    expect(find.text('Soup'), findsOneWidget);
+    expect(service.sessions, isEmpty);
+    expect(find.text('Soup'), findsNothing);
     await tester.pumpWidget(const SizedBox());
   });
   testWidgets(
@@ -282,7 +310,7 @@ void main() {
       final state = cookingFixture(joined: []);
       final joined = cookingFixture(id: '22222222222222222222222222222222');
       (joined['recipe'] as Map)['title'] = 'Bread';
-      final service = CookingSessions(
+      final service = testCookingSessions(
         installation: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
         request: (path, {body}) async {
           if (body == null && path.endsWith('/people')) {
@@ -340,7 +368,7 @@ void main() {
       (bread['recipe'] as Map)['title'] = 'Bread';
       final states = {'${soup['id']}': soup, '${bread['id']}': bread};
       late CookingSessions service;
-      service = CookingSessions(
+      service = testCookingSessions(
         installation: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
         request: (path, {body}) async {
           final id = path.split('/')[3];
@@ -406,7 +434,7 @@ void main() {
           },
       ];
       state['completed'] = [for (var i = 1; i < 9; i++) '$i'];
-      final service = CookingSessions(
+      final service = testCookingSessions(
         request: (path, {body}) async => {'session': state},
         installation: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
       );
@@ -485,7 +513,7 @@ void main() {
           'revision': 1,
         },
       ];
-      final service = CookingSessions(
+      final service = testCookingSessions(
         installation: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
         request: (path, {body}) async {
           throw ApiException(503, 'Offline');
@@ -547,7 +575,7 @@ void main() {
         },
       ];
       var ended = 0;
-      final service = CookingSessions(
+      final service = testCookingSessions(
         installation: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
         request: (path, {body}) async {
           if (path.endsWith('/end')) {

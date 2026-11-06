@@ -987,6 +987,17 @@ class RecipePhoto extends StatelessWidget {
       color: Theme.of(context).colorScheme.surfaceContainerHighest,
       child: const Center(child: Icon(Icons.restaurant, size: 36)),
     );
+    if (uri?.scheme == 'data') {
+      try {
+        return Image.memory(
+          uri!.data!.contentAsBytes(),
+          fit: fit,
+          errorBuilder: (_, _, _) => placeholder,
+        );
+      } on FormatException {
+        return placeholder;
+      }
+    }
     if (uri == null ||
         !['http', 'https'].contains(uri.scheme) ||
         uri.host.isEmpty) {
@@ -1129,14 +1140,6 @@ class _RecipeDetailState extends State<RecipeDetail> {
 
   Future<void> _delete() async {
     if (childModeOf(context)) return;
-    if (offlineStatus.value) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Connect to the internet to delete a recipe.'),
-        ),
-      );
-      return;
-    }
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
@@ -1516,7 +1519,7 @@ class _RecipeDetailState extends State<RecipeDetail> {
     try {
       final data = await widget.save!(
         '/households/${widget.householdId}/recipes/${widget.recipeId}/attach',
-        {},
+        {'recipe': _recipe},
       );
       if (!mounted) return;
       setState(() => _recipe = data['recipe'] as Map<String, dynamic>);
@@ -2260,7 +2263,9 @@ class _RecipePhotoGalleryState extends State<RecipePhotoGallery> {
               onPageChanged: (index) => setState(() => _index = index),
               itemBuilder: (context, index) => SizedBox.expand(
                 child: RecipePhoto(
-                  url: widget.photos[index]['source_url'] as String?,
+                  url: localRecipeCover({
+                    'photos': [widget.photos[index]],
+                  }),
                   fit: BoxFit.contain,
                 ),
               ),

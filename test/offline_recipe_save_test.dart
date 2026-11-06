@@ -1,5 +1,4 @@
-import 'package:coffey_table_recipes/src/offline_changes.dart';
-import 'package:coffey_table_recipes/src/api.dart';
+import 'package:coffey_table_recipes/src/local_data.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -11,10 +10,12 @@ void main() {
       'AI recipe save explains local retention (existing=$existing)',
       (tester) async {
         final disk = <String, String>{};
-        final pending = OfflineChanges(
-          account: 'fixture',
-          read: (key) async => disk[key],
-          write: (key, value) async {
+        final pending = LocalData(
+          key: 'fixture',
+          fetch: (_) async => {},
+          send: (_, _) async => {},
+          readStore: (key) async => disk[key],
+          writeStore: (key, value) async {
             disk[key] = value;
           },
         );
@@ -27,12 +28,7 @@ void main() {
                   : null,
             );
           }
-          return pending.saveRecipe(
-            path,
-            body,
-            connected: false,
-            send: (_, _) async => throw ApiException(503, 'Unavailable'),
-          );
+          return pending.save(path, body);
         }, existing: existing);
         await send(tester, 'Make soup');
         await tester.tap(find.text('Save'));
@@ -50,8 +46,8 @@ void main() {
           ),
           findsOneWidget,
         );
-        expect(pending.recipes, hasLength(1));
-        expect(pending.recipes.single['create'], !existing);
+        expect(pending.pendingChanges, hasLength(1));
+        expect(pending.pendingChanges.single['review'], existing);
         await tester.pumpWidget(const SizedBox());
         pending.dispose();
       },

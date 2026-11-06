@@ -1,5 +1,4 @@
 import 'package:coffey_table_recipes/src/local_data.dart';
-import 'package:coffey_table_recipes/src/offline_changes.dart';
 import 'package:coffey_table_recipes/src/offline_recipes.dart';
 import 'package:coffey_table_recipes/src/shopping_list.dart';
 import 'package:flutter/material.dart';
@@ -12,13 +11,6 @@ void main() {
       offlineStatus.value = true;
       addTearDown(() => offlineStatus.value = false);
       final disk = <String, String>{};
-      final pending = OfflineChanges(
-        account: 'alice',
-        read: (key) async => disk[key],
-        write: (key, text) async {
-          disk[key] = text;
-        },
-      );
       var items = <Map<String, dynamic>>[
         {'id': 'milk', 'name': 'Milk', 'checked': false, 'department': 'Dairy'},
         {
@@ -29,6 +21,38 @@ void main() {
         },
       ];
       var serverWrites = 0;
+      var online = false;
+      late LocalData pending;
+      pending = LocalData(
+        key: 'alice',
+        fetch: (_) async => {},
+        readStore: (key) async => disk[key],
+        writeStore: (key, text) async {
+          disk[key] = text;
+        },
+        send: (path, body) async {
+          serverWrites++;
+          for (final item in body['upsert_items'] as List? ?? []) {
+            items.removeWhere((old) => old['id'] == item['id']);
+            items.add(Map<String, dynamic>.from(item as Map));
+          }
+          items.removeWhere(
+            (item) => (body['remove_ids'] as List? ?? []).contains(item['id']),
+          );
+          await pending.acceptShopping('1', {
+            'revision': 0,
+            'departments': ['Dairy'],
+            'items': items,
+          });
+          return {};
+        },
+      )..connected = () => online;
+      await pending.acceptShopping('1', {
+        'revision': 0,
+        'departments': ['Dairy'],
+        'items': items,
+      });
+
       await tester.pumpWidget(
         MaterialApp(
           home: ShoppingListScreen(
@@ -36,18 +60,8 @@ void main() {
             householdName: 'Table',
             localFirst: true,
             request: (path, {body}) async {
-              if (body != null) {
-                expect(body.keys, ['remove_ids']);
-                await pending.removeItems(
-                  path,
-                  (body['remove_ids'] as List).cast<String>(),
-                );
-              }
-              return pending.shopping(path, {
-                'revision': 0,
-                'departments': ['Dairy'],
-                'items': items,
-              });
+              if (body != null) return pending.save(path, body);
+              return pending.request(path);
             },
           ),
         ),
@@ -69,16 +83,11 @@ void main() {
         'department': 'Dairy',
       });
       offlineStatus.value = false;
-      await pending.sendAutomatic((path, body) async {
-        serverWrites++;
-        items = items
-            .where((item) => !(body['remove_ids'] as List).contains(item['id']))
-            .toList();
-        return {};
-      }, () => true);
+      online = true;
+      await pending.synchronize();
       localDataChanges.value = '/households/1/shopping-list#uploaded';
       await tester.pumpAndSettle();
-      expect(serverWrites, 1);
+      expect(serverWrites, 2);
       expect(find.text('Milk again'), findsOneWidget);
       expect(find.text('Bread'), findsOneWidget);
       expect(pending.hasAutomatic, false);

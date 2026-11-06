@@ -930,7 +930,12 @@ class _RecipeImportState extends State<RecipeImport> {
                 ],
                 AiProgressText(_aiProgress),
                 FilledButton.icon(
-                  onPressed: _busy || offlineStatus.value
+                  onPressed:
+                      _busy ||
+                          (offlineStatus.value &&
+                              (_draft == null ||
+                                  _editingSource ||
+                                  _questions.isNotEmpty))
                       ? null
                       : _draft != null && !_editingSource && _questions.isEmpty
                       ? _review

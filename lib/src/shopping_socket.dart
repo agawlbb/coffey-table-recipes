@@ -346,6 +346,7 @@ class ShoppingSocket extends ChangeNotifier {
   Future<Map<String, dynamic>> request(
     String path, {
     Map<String, dynamic>? body,
+    Duration? timeout,
   }) async {
     if (_closed) throw StateError('Data connection closed');
     if (scope == 'app'
@@ -387,23 +388,25 @@ class ShoppingSocket extends ChangeNotifier {
     _send({'type': 'request', 'id': id, 'path': path, 'body': ?body});
     try {
       return await response.future.timeout(
-        Duration(
-          seconds:
-              scope == 'ai' || isAiPath(path) || body?['source_type'] == 'blank'
-              ? 615
-              : scope == 'account'
-              ? 90
-              : scope == 'household' || scope == 'app'
-              ? 90
-              : 20,
-        ),
+        timeout ??
+            Duration(
+              seconds:
+                  scope == 'ai' ||
+                      isAiPath(path) ||
+                      body?['source_type'] == 'blank'
+                  ? 615
+                  : scope == 'account'
+                  ? 90
+                  : scope == 'household' || scope == 'app'
+                  ? 90
+                  : 20,
+            ),
         onTimeout: () {
           final error = ApiException(
             504,
-            'The data service did not confirm the request. Reconnecting.',
+            'The data service did not confirm this request. Please try again.',
             code: 'response_timeout',
           );
-          _lost(error);
           throw error;
         },
       );

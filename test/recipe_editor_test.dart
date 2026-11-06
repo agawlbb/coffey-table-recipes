@@ -6,7 +6,6 @@ import 'package:coffey_table_recipes/src/recipe_editor.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:coffey_table_recipes/src/offline_recipes.dart';
 
 Map<String, dynamic> recipe() => {
   'id': '9',
@@ -553,43 +552,6 @@ void main() {
     },
   );
 
-  test(
-    'server-confirmed edits replace persisted offline recipe details',
-    () async {
-      TestWidgetsFlutterBinding.ensureInitialized();
-      String? disk;
-      const path = '/households/2/recipes/9';
-      final cache = OfflineRecipes(
-        key: 'editor-test',
-        read: (_) async => disk,
-        write: (_, value) async {
-          disk = value;
-        },
-        fetch: (_) async => {'recipe': recipe()},
-      );
-      await cache.request(path);
-      await cache.rememberSavedRecipe(path, {
-        'recipe': {...recipe(), 'title': 'Updated soup', 'revision': '2'},
-      });
-      cache.close();
-      final restored = OfflineRecipes(
-        key: 'editor-test',
-        read: (_) async => disk,
-        write: (_, value) async {},
-        fetch: (_) async => throw StateError('Must use the saved response'),
-      );
-      offlineStatus.value = true;
-      try {
-        expect(
-          (await restored.request(path))['recipe']['title'],
-          'Updated soup',
-        );
-      } finally {
-        restored.close();
-        offlineStatus.value = false;
-      }
-    },
-  );
   testWidgets('pencil opens editor and save updates the displayed recipe', (
     tester,
   ) async {

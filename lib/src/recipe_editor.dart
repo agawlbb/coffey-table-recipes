@@ -846,37 +846,6 @@ class _RecipeEditorState extends State<RecipeEditor> {
         Navigator.pop(context, data['recipe'] as Map<String, dynamic>);
         return;
       }
-      final savedRecipe = data['recipe'] as Map<String, dynamic>;
-      for (final category
-          in _blank
-              ? <Map<String, dynamic>>[]
-              : recipeRows(savedRecipe['category_assignments'])) {
-        try {
-          await _progressRequest(
-            '/households/${widget.householdId}/category-image',
-            {'category_id': category['category_id'].toString()},
-          );
-        } on ApiException catch (error) {
-          if (error.status == 404 || error.status == 403) continue;
-          if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text('Recipe saved. Category image: ${error.message}'),
-              ),
-            );
-          }
-        } catch (_) {
-          if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text(
-                  'Recipe saved. Category image could not be generated; it will be retried when browsing.',
-                ),
-              ),
-            );
-          }
-        }
-      }
       if (!mounted) return;
       setState(() {
         _leaving = true;

@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 
 import 'api.dart';
-import 'offline_recipes.dart';
 import 'recipe_browser.dart';
 import 'recipe_editor.dart';
 
@@ -40,12 +39,6 @@ class _RecipeTrashState extends State<RecipeTrash> {
       _error = null;
     });
     try {
-      if (offlineStatus.value) {
-        throw ApiException(
-          0,
-          'Connect to the internet to view Recently Deleted.',
-        );
-      }
       final data = await widget.request(
         '$_root/deleted?offset=${more ? _next ?? 0 : 0}',
       );
@@ -70,9 +63,6 @@ class _RecipeTrashState extends State<RecipeTrash> {
     final id = '${recipe['id']}';
     setState(() => _restoring = id);
     try {
-      if (offlineStatus.value) {
-        throw ApiException(0, 'Connect to the internet to restore a recipe.');
-      }
       await widget.save('$_root/$id/restore', {});
       if (!mounted) return;
       ScaffoldMessenger.of(context)

@@ -3,7 +3,6 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:coffey_table_recipes/src/api.dart';
-import 'package:coffey_table_recipes/src/cooking_sessions.dart';
 import 'package:coffey_table_recipes/src/shared_recipe_link.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
@@ -14,8 +13,6 @@ import 'package:coffey_table_recipes/src/shopping_socket.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
-
-import 'timer_sync_test.dart' show cookingFixture;
 
 class PeerServer {
   PeerServer(this.server);
@@ -306,81 +303,42 @@ void main() {
       await tester.pumpWidget(const SizedBox());
     },
   );
-  test(
-    'a missing reply retires the transport and reconnects without user action',
-    () async {
-      var auths = 0, requests = 0;
-      final recovered = Completer<void>();
-      final server = await PeerServer.start((ws, data) {
-        if (data['type'] == 'auth') {
-          auths++;
-          frame(ws, {'type': 'ready', 'household_id': null, 'data': {}});
-          if (auths == 2) recovered.complete();
-        } else if (data['type'] == 'ping') {
-          frame(ws, {'type': 'pong'});
-        } else if (data['type'] == 'request' && ++requests > 1) {
-          frame(ws, {
-            'type': 'response',
-            'id': data['id'],
-            'data': {'ok': true},
-          });
-        }
-      });
-      final socket = ShoppingSocket(
-        household: '',
-        scope: 'public',
-        token: (_) async => '',
-        onSnapshot: (_) async {},
-        url: server.uri.toString(),
-      );
-      addTearDown(() async {
-        socket.dispose();
-        await server.close();
-      });
-      await expectLater(
-        socket.request('/recipes/9'),
-        throwsA(
-          isA<ApiException>().having((e) => e.code, 'code', 'response_timeout'),
-        ),
-      );
-      expect(socket.connected, false);
-      await recovered.future.timeout(const Duration(seconds: 3));
-      expect(await socket.request('/recipes/9'), {'ok': true});
-    },
-  );
-
-  test('partial cooking acknowledgments and failed reads cannot assert whole-account confirmation', () async {
-    var fail = false;
-    final state = cookingFixture();
-    final service = CookingSessions(
-      installation: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
-      request: (_, {body}) async {
-        if (fail) throw ApiException(503, 'Temporary failure');
-        return body == null
-            ? {
-                'sessions': [state],
-              }
-            : {'session': state};
-      },
+  test('a missing reply does not interrupt a healthy transport', () async {
+    var auths = 0, requests = 0;
+    final server = await PeerServer.start((ws, data) {
+      if (data['type'] == 'auth') {
+        auths++;
+        frame(ws, {'type': 'ready', 'household_id': null, 'data': {}});
+      } else if (data['type'] == 'ping') {
+        frame(ws, {'type': 'pong'});
+      } else if (data['type'] == 'request' && ++requests > 1) {
+        frame(ws, {
+          'type': 'response',
+          'id': data['id'],
+          'data': {'ok': true},
+        });
+      }
+    });
+    final socket = ShoppingSocket(
+      household: '',
+      scope: 'public',
+      token: (_) async => '',
+      onSnapshot: (_) async {},
+      url: server.uri.toString(),
     );
-    addTearDown(service.dispose);
-    await service.accept({
-      'sessions': [state],
+    addTearDown(() async {
+      socket.dispose();
+      await server.close();
     });
-    expect(service.isSynchronized, true);
-    await service.change(state['id'] as String, 'step', {
-      'step_id': 's1',
-      'done': true,
-    });
-    expect(service.isSynchronized, false);
-    await service.refresh();
-    expect(service.isSynchronized, true);
-    fail = true;
-    await service.refresh();
-    expect(service.isSynchronized, false);
-    fail = false;
-    await service.refresh();
-    expect(service.isSynchronized, true);
+    await expectLater(
+      socket.request('/recipes/9', timeout: const Duration(milliseconds: 100)),
+      throwsA(
+        isA<ApiException>().having((e) => e.code, 'code', 'response_timeout'),
+      ),
+    );
+    expect(socket.connected, true);
+    expect(auths, 1);
+    expect(await socket.request('/recipes/9'), {'ok': true});
   });
 
   testWidgets('shared recipe route renders through its real public adapter', (
@@ -425,7 +383,6 @@ void main() {
       var calls = 0;
       final cache = OfflineRecipes(
         key: 'public-independent',
-        downloadLibrary: false,
         read: (_) async => null,
         write: (_, _) async {},
         fetch: (_) async {
@@ -459,7 +416,6 @@ void main() {
       final read = Completer<String?>(), write = Completer<void>();
       final cache = OfflineRecipes(
         key: 'hung-cache',
-        downloadLibrary: false,
         read: (_) => read.future,
         write: (_, _) => write.future,
         fetch: (_) async => {

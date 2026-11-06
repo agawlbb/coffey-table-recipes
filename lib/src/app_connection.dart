@@ -103,6 +103,7 @@ class AppConnection extends ChangeNotifier with WidgetsBindingObserver {
     String path,
     String token, {
     Map<String, dynamic>? body,
+    Duration? timeout,
   }) async {
     final expectedOwner = token.isEmpty ? owner : identity(token);
     if (token.isNotEmpty) await open(token);
@@ -120,7 +121,8 @@ class AppConnection extends ChangeNotifier with WidgetsBindingObserver {
       };
     }
     final socket = _socket!;
-    Future<Map<String, dynamic>> send() => socket.request(path, body: body);
+    Future<Map<String, dynamic>> send() =>
+        socket.request(path, body: body, timeout: timeout);
     if (!isAccountPath(path)) return send();
     final result = _accountTail.then((_) => send());
     _accountTail = result.then<void>((_) {}, onError: (Object _) {});

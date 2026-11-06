@@ -1,3 +1,7 @@
+import 'package:coffey_table_recipes/src/local_sqlite.dart';
+
+import 'support/sqlite.dart';
+
 import 'package:coffey_table_recipes/src/api.dart';
 import 'package:coffey_table_recipes/src/offline_store_io.dart';
 
@@ -24,7 +28,7 @@ class SyncUser extends TestUser {
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
-  for (final decision in [null, 'discard', 'save', 'fail-save']) {
+  for (final decision in [null, 'discard', 'save', 'shared']) {
     testWidgets(
       'real account connection applies pushes with offline recipe decision $decision',
       (tester) async {
@@ -64,6 +68,17 @@ void main() {
           data['responses']['/households/1/restaurants'] = {
             'revision': 1,
             'items': [],
+          };
+          data['recipes'].add({'id': '2', 'title': 'Other $title'});
+          data['responses']['/households/1/recipes/2'] = {
+            'recipe': {
+              'id': '2',
+              'title': 'Other $title',
+              'category_assignments': [],
+              'photos': [],
+              'steps': [],
+              'ingredients': [],
+            },
           };
           return data;
         }
@@ -108,20 +123,22 @@ void main() {
                 final path = m['path'] as String;
                 if (path == '/households/1/recipes/1' && m['body'] is Map) {
                   savedEdits++;
-                  if (decision == 'fail-save') {
+                  if (decision == 'shared' &&
+                      (m['body'] as Map)['confirm_shared_edit'] != true) {
                     ws.add(
                       jsonEncode({
                         'type': 'error',
                         'id': m['id'],
-                        'status': 503,
+                        'status': 409,
                         'error': {
-                          'code': 'unavailable',
-                          'message': 'Unavailable',
+                          'code': 'shared_confirmation_required',
+                          'message': 'Confirm changes to the shared recipe.',
                         },
                       }),
                     );
                     return;
                   }
+                  title = (m['body'] as Map)['title'] as String;
                 }
                 if (path.endsWith('/snapshot') && holdSnapshotReads) {
                   held.add({'socket': ws, 'id': m['id']});
@@ -186,6 +203,11 @@ void main() {
         }
 
         final store = OfflineFileStore(directory: () async => directory);
+        final sqlite = LocalSqlite(
+          factory: sqliteFactory,
+          path: '${directory.path}/app.sqlite',
+          readLegacy: store.read,
+        );
         final offlineKey = 'offline-actions-$apiStorageNamespace|test-user';
         if (decision != null) {
           await tester.runAsync(
@@ -207,6 +229,7 @@ void main() {
           MaterialApp(
             home: HouseholdPanel(
               user: SyncUser(),
+              storage: sqlite,
               readPreference: (_) async => null,
               writePreference: (_, _) async {},
               socketConnect: (_) => WebSocketChannel.connect(
@@ -249,45 +272,82 @@ void main() {
               },
             }),
           );
-          await settleUntil(
-            () => find.text('Remote recipe update').evaluate().isNotEmpty,
-          );
+          var received = false;
+          for (var i = 0; i < 150; i++) {
+            final state = await tester.runAsync(
+              () =>
+                  sqlite.read('local-first-v1-$apiStorageNamespace|test-user'),
+            );
+            if (state != null &&
+                jsonDecode(
+                      state,
+                    )['data']['/households/1/recipes/2']?['recipe']?['title'] ==
+                    'Other Remote recipe update') {
+              received = true;
+              break;
+            }
+            await tester.pump(const Duration(milliseconds: 20));
+            await tester.runAsync(
+              () => Future<void>.delayed(const Duration(milliseconds: 20)),
+            );
+          }
+          expect(received, true);
+
           if (decision != null) {
             expect(find.text('Save your offline changes?'), findsOneWidget);
             expect(connectedHouseholds.value, contains('1'));
             await tester.tap(
               find.text(
-                decision == 'save' || decision == 'fail-save'
+                decision == 'save' || decision == 'shared'
                     ? 'Save to server'
                     : 'Discard my changes',
               ),
             );
-            if (decision == 'fail-save') {
-              await settleUntil(
-                () => find
-                    .textContaining('Try Save to server again')
-                    .evaluate()
-                    .isNotEmpty,
-              );
-              expect(connectedHouseholds.value, contains('1'));
-              await tester.tap(find.text('Discard my changes'));
-            }
             await settleUntil(
               () => find.text('Save your offline changes?').evaluate().isEmpty,
             );
+            if (decision == 'shared') {
+              await settleUntil(
+                () =>
+                    find.text('Save for all households').evaluate().isNotEmpty,
+              );
+              expect(connectedHouseholds.value, contains('1'));
+              await tester.tap(find.text('Save for all households'));
+              await settleUntil(
+                () => find.text('Save for all households').evaluate().isEmpty,
+              );
+            }
             for (var i = 0; i < 30; i++) {
               final retained = await tester.runAsync(
-                () => store.read(offlineKey),
+                () => sqlite.read(
+                  'local-first-v1-$apiStorageNamespace|test-user',
+                ),
               );
-              if (retained == '[]') break;
+              if (retained != null &&
+                  (jsonDecode(retained)['pending'] as List).isEmpty) {
+                break;
+              }
               await tester.runAsync(
                 () => Future<void>.delayed(const Duration(milliseconds: 20)),
               );
             }
-            expect(await tester.runAsync(() => store.read(offlineKey)), '[]');
+            expect(
+              await tester.runAsync(
+                () => sqlite.read(
+                  'local-first-v1-$apiStorageNamespace|test-user',
+                ),
+              ),
+              predicate(
+                (String text) => (jsonDecode(text)['pending'] as List).isEmpty,
+              ),
+            );
             expect(
               savedEdits,
-              decision == 'save' || decision == 'fail-save' ? 1 : 0,
+              decision == 'shared'
+                  ? 2
+                  : decision == 'save'
+                  ? 1
+                  : 0,
             );
           }
           await tester.runAsync(() async {
@@ -306,6 +366,7 @@ void main() {
             await Future<void>.delayed(const Duration(milliseconds: 30));
           });
           await tester.pump();
+          await tester.runAsync(() => sqlite.close());
         }
       },
     );

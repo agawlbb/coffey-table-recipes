@@ -2,7 +2,7 @@ import 'child_mode.dart';
 
 import 'package:flutter/material.dart';
 
-import 'api.dart';
+import 'local_data.dart';
 import 'recipe_menu.dart';
 import 'shopping_list.dart';
 
@@ -32,7 +32,18 @@ class _ShoppingDepartmentsScreenState extends State<ShoppingDepartmentsScreen> {
   @override
   void initState() {
     super.initState();
+    localDataChanges.addListener(_changed);
     _load();
+  }
+
+  void _changed() {
+    if (mounted && !_busy && localDataChanges.value.startsWith(_path)) _load();
+  }
+
+  @override
+  void dispose() {
+    localDataChanges.removeListener(_changed);
+    super.dispose();
   }
 
   void _accept(Map<String, dynamic> data) {
@@ -77,15 +88,8 @@ class _ShoppingDepartmentsScreenState extends State<ShoppingDepartmentsScreen> {
       );
       if (mounted) setState(() => _accept(data));
     } catch (error) {
-      if (error is ApiException && error.status == 409) {
-        await _load();
-      }
       if (mounted) {
-        setState(
-          () => _error = error is ApiException
-              ? error.message
-              : 'Could not save departments.',
-        );
+        setState(() => _error = 'Could not save departments on this device.');
       }
     } finally {
       if (mounted) setState(() => _busy = false);

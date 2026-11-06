@@ -5,7 +5,9 @@ import 'package:flutter/foundation.dart';
 
 import 'api.dart';
 import 'client_log.dart';
-import 'offline_store.dart';
+import 'local_sqlite.dart';
+
+import 'dart:math';
 
 String? localRecipeCover(Map recipe) {
   final photos = [
@@ -18,7 +20,10 @@ String? localRecipeCover(Map recipe) {
         ((a['is_cover'] == true || '${a['is_cover']}' == '1') ? 1 : 0),
   );
   for (final photo in photos) {
-    final url = photo['source_url'] ?? photo['photo_url'];
+    if (photo['image_base64'] is String) {
+      return 'data:image/png;base64,${photo['image_base64']}';
+    }
+    final url = photo['source_url'];
     if (url is String && url.isNotEmpty) return url;
   }
   return recipe['photo_url'] as String?;
@@ -34,21 +39,36 @@ typedef LocalWrite = Future<Map<String, dynamic>> Function(
 /// their account's repository; the network never owns their loading state.
 final localDataChanges = ValueNotifier<String>('');
 
-/// A read cache of server state. It has no edit queue, conflict state or polling.
+/// Local working data. Screens never wait for network writes.
 class LocalData extends ChangeNotifier {
   LocalData({
     required this.key,
     required this.fetch,
     required this.send,
-    this.readStore = readOfflineStore,
-    this.writeStore = writeOfflineStore,
+    this.readStore = readLocalSqlite,
+    this.writeStore = writeLocalSqlite,
   });
   final String key;
   final LocalRead fetch;
   final LocalWrite send;
   final Future<String?> Function(String) readStore;
   final Future<void> Function(String, String) writeStore;
-  Map<String, dynamic> _data = {};
+  Map<String, dynamic> _server = {}, _data = {};
+  final List<Map<String, dynamic>> _pending = [];
+  final Set<String> _sending = {};
+  bool Function() connected = () => false;
+  DateTime Function() now = DateTime.now;
+  List<Map<String, dynamic>> get decisions =>
+      _pending.where((e) => e['review'] == true).map(_copy).toList();
+  bool get hasAutomatic => _pending.any((e) => e['review'] != true);
+  static String newId() {
+    final r = Random.secure();
+    return List.generate(
+      16,
+      (_) => r.nextInt(256).toRadixString(16).padLeft(2, '0'),
+    ).join();
+  }
+
   Future<void>? _loaded;
   Future<void> _edits = Future.value();
   bool _closed = false;
@@ -61,6 +81,16 @@ class LocalData extends ChangeNotifier {
       path == prefix ||
       path.startsWith(prefix.endsWith('/') ? prefix : '$prefix/');
   String _path(String path) {
+    final aliases = _data['local-aliases'] as Map? ?? {};
+    for (final alias in (_data['photo-aliases'] as Map? ?? {}).entries) {
+      path = path.replaceAll('/photos/${alias.key}', '/photos/${alias.value}');
+    }
+    for (final alias in aliases.entries) {
+      path = path.replaceAll(
+        '/recipes/${alias.key}',
+        '/recipes/${alias.value}',
+      );
+    }
     final uri = Uri.parse(path);
     final keys = uri.queryParameters.keys.toList()..sort();
     return Uri(
@@ -75,14 +105,18 @@ class LocalData extends ChangeNotifier {
     try {
       final text = await readStore('local-first-v1-$key');
       if (text != null && text.isNotEmpty) {
-        _data = Map<String, dynamic>.from(
-          (jsonDecode(text) as Map)['data'] as Map,
+        final saved = jsonDecode(text) as Map;
+        _server = Map<String, dynamic>.from(saved['data'] as Map);
+        _pending.addAll(
+          (saved['pending'] as List? ?? []).map((e) => _copy(e as Map)),
         );
+        _rebuild();
       }
     } catch (error) {
       clientLog.record('storage', 'cache_read_failed', error: error);
       if (error is FormatException || error is TypeError) {
-        _data = {};
+        _server = {};
+        _rebuild();
         return;
       }
       _loaded = null;
@@ -90,12 +124,36 @@ class LocalData extends ChangeNotifier {
     }
   }();
   Future<void> _commit(Map<String, dynamic> data, String path) async {
-    await writeStore('local-first-v1-$key', jsonEncode({'data': data}));
-    _data = data;
+    await writeStore(
+      'local-first-v1-$key',
+      jsonEncode({'data': data, 'pending': _pending}),
+    );
+    _server = data;
+    _rebuild();
     _generation++;
     if (!_closed) {
       notifyListeners();
       localDataChanges.value = '$path#${++_epoch}';
+    }
+  }
+
+  bool _accessible(String path) {
+    final parts = Uri.parse(path).pathSegments;
+    if (parts.length < 2 || parts.first != 'households') return true;
+    final account = _server['/me'] as Map?;
+    if (account == null) return true;
+    return (account['households'] as List).any((h) => '${h['id']}' == parts[1]);
+  }
+
+  void _rebuild() {
+    _data = _copy(_server);
+    for (final entry in _pending) {
+      if (!_accessible(entry['path'] as String)) continue;
+      if (entry['expires'] is int &&
+          (entry['expires'] as int) <= now().millisecondsSinceEpoch) {
+        continue;
+      }
+      _apply(_data, entry);
     }
   }
 
@@ -136,7 +194,7 @@ class LocalData extends ChangeNotifier {
       final members = (account['households'] as List)
           .map((h) => '${h['id']}')
           .toSet();
-      final next = Map<String, dynamic>.from(_data);
+      final next = Map<String, dynamic>.from(_server);
       next.removeWhere(
         (path, _) =>
             path.startsWith('/households/') &&
@@ -157,78 +215,89 @@ class LocalData extends ChangeNotifier {
       await _commit(next, '/me');
     },
   );
-  Future<void> installSnapshot(Map<String, dynamic> snapshot) =>
-      _serial(() async {
-        await _load();
-        if (snapshot['schema'] != 1 ||
-            snapshot['household_id'] is! String ||
-            snapshot['recipes'] is! List ||
-            snapshot['responses'] is! Map ||
-            snapshot['categories'] is! List ||
-            snapshot['edit_options'] is! Map) {
-          throw const FormatException('Incomplete household snapshot');
-        }
-        final household = snapshot['household_id'] as String;
-        final prefix = '/households/$household/';
-        final responses = snapshot['responses'] as Map;
-        if (responses.entries.any(
-          (e) =>
-              e.key is! String ||
-              !(e.key as String).startsWith(prefix) ||
-              e.value is! Map,
-        )) {
-          throw const FormatException('Invalid household snapshot scope');
-        }
-        if ((snapshot['recipes'] as List).any(
-          (row) =>
-              row is! Map ||
-              responses['${prefix}recipes/${row['id']}'] is! Map ||
-              (responses['${prefix}recipes/${row['id']}'] as Map)['recipe']
-                  is! Map,
-        )) {
-          throw const FormatException('Incomplete recipe snapshot');
-        }
-        final next = Map<String, dynamic>.from(_data);
-        final shopping = next['${prefix}shopping-list'];
-        next.removeWhere((path, _) => path.startsWith(prefix));
-        for (final entry in responses.entries) {
-          next[entry.key as String] = _copy(entry.value as Map);
-        }
-        if (shopping != null) {
-          next['${prefix}shopping-list'] = shopping;
-        }
-        next['snapshot-version:$household'] = true;
-        next['snapshot-categories:$household'] = snapshot['categories'];
-        next['snapshot-options:$household'] = snapshot['edit_options'];
-        if (next['/me'] is Map &&
-            snapshot['household'] is Map &&
-            snapshot['user'] is Map) {
-          final account = _copy(next['/me'] as Map);
-          account['user'] = {
-            ...?account['user'] as Map?,
-            ...snapshot['user'] as Map,
-          };
-          account['households'] = [
-            for (final row in account['households'] as List)
-              if (row['id'] == household)
-                {...row as Map, ...snapshot['household'] as Map}
-              else
-                row,
-          ];
-          next['/me'] = account;
-        }
-        await _commit(next, '${prefix}recipes');
-        if (!_closed) {
-          for (final resource in [
-            'shopping-list',
-            'restaurants',
-            'meal-plan',
-            'people',
-          ]) {
-            localDataChanges.value = '$prefix$resource#${++_epoch}';
-          }
-        }
-      });
+  Future<void> installSnapshot(
+    Map<String, dynamic> snapshot,
+  ) => _serial(() async {
+    await _load();
+    if (snapshot['schema'] != 1 ||
+        snapshot['household_id'] is! String ||
+        snapshot['recipes'] is! List ||
+        snapshot['responses'] is! Map ||
+        snapshot['categories'] is! List ||
+        snapshot['edit_options'] is! Map) {
+      throw const FormatException('Incomplete household snapshot');
+    }
+    final household = snapshot['household_id'] as String;
+    final prefix = '/households/$household/';
+    final responses = snapshot['responses'] as Map;
+    if (responses.entries.any(
+      (e) =>
+          e.key is! String ||
+          !(e.key as String).startsWith(prefix) ||
+          e.value is! Map,
+    )) {
+      throw const FormatException('Invalid household snapshot scope');
+    }
+    if ((snapshot['recipes'] as List).any(
+      (row) =>
+          row is! Map ||
+          responses['${prefix}recipes/${row['id']}'] is! Map ||
+          (responses['${prefix}recipes/${row['id']}'] as Map)['recipe'] is! Map,
+    )) {
+      throw const FormatException('Incomplete recipe snapshot');
+    }
+    final next = Map<String, dynamic>.from(_server);
+    final shopping = next['${prefix}shopping-list'];
+    final deleted =
+        (responses['${prefix}recipes/deleted'] as Map?)?['recipes'] as List? ??
+        [];
+    for (final row in deleted) {
+      final detail = '${prefix}recipes/${row['id']}';
+      if (next[detail] is Map) next['deleted:$detail'] = next[detail];
+    }
+
+    next.removeWhere(
+      (path, _) =>
+          path.startsWith(prefix) && !path.contains('/shopping-list/photos/'),
+    );
+    for (final entry in responses.entries) {
+      next[entry.key as String] = _copy(entry.value as Map);
+    }
+    if (shopping != null) {
+      next['${prefix}shopping-list'] = shopping;
+    }
+    next['snapshot-version:$household'] = true;
+    next['snapshot-categories:$household'] = snapshot['categories'];
+    next['snapshot-options:$household'] = snapshot['edit_options'];
+    if (next['/me'] is Map &&
+        snapshot['household'] is Map &&
+        snapshot['user'] is Map) {
+      final account = _copy(next['/me'] as Map);
+      account['user'] = {
+        ...?account['user'] as Map?,
+        ...snapshot['user'] as Map,
+      };
+      account['households'] = [
+        for (final row in account['households'] as List)
+          if (row['id'] == household)
+            {...row as Map, ...snapshot['household'] as Map}
+          else
+            row,
+      ];
+      next['/me'] = account;
+    }
+    await _commit(next, '${prefix}recipes');
+    if (!_closed) {
+      for (final resource in [
+        'shopping-list',
+        'restaurants',
+        'meal-plan',
+        'people',
+      ]) {
+        localDataChanges.value = '$prefix$resource#${++_epoch}';
+      }
+    }
+  });
   Future<void> acceptShopping(String household, Map<String, dynamic> state) =>
       _serial(() async {
         await _load();
@@ -236,7 +305,7 @@ class LocalData extends ChangeNotifier {
           throw const FormatException('Invalid shopping snapshot');
         }
         final path = '/households/$household/shopping-list';
-        await _commit({..._data, path: _copy(state)}, path);
+        await _commit({..._server, path: _copy(state)}, path);
       });
   Map<String, dynamic> readView(String input) {
     final path = _path(input), uri = Uri.parse(input);
@@ -288,7 +357,7 @@ class LocalData extends ChangeNotifier {
         _revoked.add(removed);
         await _serial(
           () => _commit(
-            Map<String, dynamic>.from(_data)..removeWhere(
+            Map<String, dynamic>.from(_server)..removeWhere(
               (p, _) =>
                   removed == '/' ||
                   _under(p, removed) ||
@@ -312,7 +381,7 @@ class LocalData extends ChangeNotifier {
     } else {
       await _serial(
         () => _commit({
-          ..._data,
+          ..._server,
           path: _copy(result),
           if (Uri.parse(path).path.endsWith('/meal-plan'))
             Uri.parse(path).path: _copy(result),
@@ -350,14 +419,27 @@ class LocalData extends ChangeNotifier {
       final result = _copy(direct);
       final options =
           _data['snapshot-options:${uri.pathSegments.length > 1 ? uri.pathSegments[1] : ''}'];
-      if (result['recipe'] is Map &&
-          options is Map &&
-          !uri.path.endsWith('/recipe-blank')) {
+      if (result['recipe'] is Map && options is Map) {
         final recipe = result['recipe'] as Map;
-        final editOptions = _copy(options);
+        final editOptions = _copy(
+          uri.path.endsWith('/recipe-blank') && recipe['edit_options'] is Map
+              ? recipe['edit_options'] as Map
+              : options,
+        );
         final choices = <String, dynamic>{
           for (final choice in editOptions['recipes'] as List? ?? [])
             '${choice['id']}': choice,
+          for (final row in _data.entries)
+            if (row.key.startsWith(
+                  '/households/${uri.pathSegments[1]}/recipes/',
+                ) &&
+                Uri.parse(row.key).pathSegments.length == 4 &&
+                row.value is Map &&
+                row.value['recipe'] is Map)
+              '${row.value['recipe']['id']}': {
+                'id': row.value['recipe']['id'],
+                'title': row.value['recipe']['title'],
+              },
           for (final field in ['related', 'pairings', 'variation_family'])
             for (final choice in recipe[field] as List? ?? [])
               '${choice['id']}': {'id': choice['id'], 'title': choice['title']},
@@ -459,7 +541,10 @@ class LocalData extends ChangeNotifier {
             Uri.parse(entry.key).pathSegments.length == 4 &&
             entry.value is Map &&
             entry.value['recipe'] is Map)
-          Map<String, dynamic>.from(entry.value['recipe'] as Map),
+          {
+            ...Map<String, dynamic>.from(entry.value['recipe'] as Map),
+            'photo_url': localRecipeCover(entry.value['recipe'] as Map),
+          },
     ];
     final known = rows.map((r) => '${r['id']}').toSet();
     String representative(Map row) {
@@ -599,6 +684,684 @@ class LocalData extends ChangeNotifier {
     }).toList();
     return result;
   }
+
+  bool ownsWrite(String path) =>
+      RegExp(
+        r'^/households/[^/]+/(recipes(?:/[^/]+(?:/(?:favorites|delete|restore|attach))?)?|meal-plan|shopping-list(?:/photos)?|restaurants|name|people/me/name)$',
+      ).hasMatch(Uri.parse(path).path) ||
+      path == '/me/name' ||
+      path.startsWith('/me/cooking-sessions');
+
+  Future<Map<String, dynamic>> save(
+    String input,
+    Map<String, dynamic> value,
+  ) async {
+    final wasConnected = connected();
+    late Map<String, dynamic> result;
+    await _serial(() async {
+      await _load();
+      final path = _path(input);
+      final body = _copy(value)
+        ..remove('household_count')
+        ..remove('revision')
+        ..remove('_offline_pending')
+        ..remove('_local_pending');
+      final beforePending = _pending.map(_copy).toList();
+      if (path.endsWith('/shopping-list') && body['items'] is List) {
+        final current = (_data[path] as Map?)?['items'] as List? ?? [];
+        final items = body.remove('items') as List;
+        final old = {for (final item in current) item['id']: item};
+        body['upsert_items'] = [
+          for (final item in items)
+            if (jsonEncode(old[item['id']]) != jsonEncode(item)) item,
+        ];
+        body['remove_ids'] = [
+          for (final item in current)
+            if (!items.any((next) => next['id'] == item['id'])) item['id'],
+        ];
+        if ((body['remove_ids'] as List).isEmpty) body.remove('remove_ids');
+        if (jsonEncode(current.map((e) => e['id']).toList()) !=
+            jsonEncode(items.map((e) => e['id']).toList())) {
+          body['order'] = items.map((e) => e['id']).toList();
+        }
+      }
+
+      final photo = path.endsWith('/shopping-list/photos');
+      final recipe = RegExp(r'^/households/[^/]+/recipes(?:/[^/]+)?$')
+          .hasMatch(path);
+      final creating = recipe && Uri.parse(path).pathSegments.length == 3;
+      final priorCreate = _pending
+          .where(
+            (e) =>
+                e['local_id'] != null &&
+                path == '${e['path']}/${e['local_id']}',
+          )
+          .firstOrNull;
+      final entry = <String, dynamic>{
+        'id': body['operation_id'] ?? newId(),
+        'path': path,
+        'body': body,
+        'review':
+            !wasConnected &&
+            (path.endsWith('/meal-plan') ||
+                (recipe && !creating && priorCreate == null)),
+        if (creating) 'local_id': 'local-${newId()}',
+        if (photo) 'local_photo': newId() + newId(),
+        if (body['remove_ids'] is List)
+          'expires': now().add(const Duration(hours: 2)).millisecondsSinceEpoch,
+      };
+      if (creating) body['client_save_id'] = entry['id'];
+      if (recipe && !creating) body.remove('client_save_id');
+      if (body['_local_recipe'] is Map) {
+        entry['recipe'] = body.remove('_local_recipe');
+      }
+      if (path.endsWith('/meal-plan') && body['operation'] != 'add') {
+        final meal =
+            ((_data[path] as Map?)?['entries'] as List? ?? [])
+                    .where((e) => e['id'] == body['id'])
+                    .firstOrNull
+                as Map?;
+        if (meal != null) {
+          entry['meal'] = _copy(meal);
+          for (final field in ['kind', 'recipe_id', 'restaurant_id']) {
+            if (meal[field] != null) body[field] = meal[field];
+          }
+        }
+      }
+      if (path.endsWith('/delete')) {
+        final detail = path.substring(0, path.length - 7);
+        entry['deleted_recipe'] = _data[detail];
+        _pending.removeWhere((e) => e['path'] == detail && e['review'] == true);
+      }
+      entry['description'] = _describe(entry);
+      if (recipe && !creating && priorCreate == null) {
+        _pending.removeWhere((e) => e['path'] == path);
+      }
+      if (path.endsWith('/meal-plan')) {
+        _pending.removeWhere(
+          (e) => e['path'] == path && e['body']['id'] == body['id'],
+        );
+      }
+      _pending.add(entry);
+      try {
+        await _commit(_server, path);
+      } catch (_) {
+        _pending
+          ..clear()
+          ..addAll(beforePending);
+        _rebuild();
+        rethrow;
+      }
+      result = photo
+          ? {'photo': entry['local_photo']}
+          : recipe
+          ? {
+              'recipe': _copy(
+                (_data[creating ? '$path/${entry['local_id']}' : path]
+                        as Map)['recipe']
+                    as Map,
+              ),
+            }
+          : _copy(_data[path] as Map? ?? {'saved': true});
+      result['_local_pending'] = true;
+      if (!wasConnected && recipe) {
+        result['_offline_pending'] = true;
+        (result['recipe'] as Map)['_offline_pending'] = true;
+      }
+    });
+    if (connected()) unawaited(synchronize());
+    return result;
+  }
+
+  String _describe(Map entry) {
+    final path = entry['path'] as String, body = entry['body'] as Map;
+    if (!path.endsWith('/meal-plan')) {
+      return 'Changes to “${body['title'] ?? 'recipe'}”';
+    }
+    final rows = (_data[path] as Map?)?['entries'] as List? ?? [];
+    final previous =
+        rows.where((e) => e['id'] == body['id']).firstOrNull as Map?;
+    final household = Uri.parse(path).pathSegments[1];
+    final title =
+        previous?['title'] ??
+        (_data['/households/$household/recipes/${body['recipe_id']}']
+            as Map?)?['recipe']?['title'] ??
+        body['title'] ??
+        (body['kind'] == 'leftovers' ? 'Leftovers' : 'Restaurant');
+    return switch (body['operation']) {
+      'move' => 'Move $title from ${previous?['plan_date']} to ${body['date']}',
+      'remove' => 'Remove $title from ${previous?['plan_date']}',
+      _ => 'Add $title on ${body['date']}',
+    };
+  }
+
+  bool _resolveRecipeIds(dynamic value, Map aliases) {
+    var resolved = true;
+    if (value is Map) {
+      for (final field in value.keys.toList()) {
+        if ([
+          'recipe_id',
+          'parent_recipe_id',
+          'paired_recipe_id',
+        ].contains(field)) {
+          if (aliases.containsKey(value[field])) {
+            value[field] = aliases[value[field]];
+          }
+          if ('${value[field]}'.startsWith('local-')) resolved = false;
+        } else if (!_resolveRecipeIds(value[field], aliases)) {
+          resolved = false;
+        }
+      }
+    } else if (value is List) {
+      for (final child in value) {
+        if (!_resolveRecipeIds(child, aliases)) resolved = false;
+      }
+    }
+    return resolved;
+  }
+
+  void _apply(Map<String, dynamic> data, Map entry) {
+    final aliases = data['local-aliases'] as Map? ?? {};
+    var path = entry['path'] as String;
+    for (final alias in aliases.entries) {
+      path = path.replaceAll(
+        '/recipes/${alias.key}',
+        '/recipes/${alias.value}',
+      );
+    }
+    final body = _copy(entry['body'] as Map);
+    _resolveRecipeIds(body, aliases);
+    final parts = Uri.parse(path).pathSegments;
+    if (path.startsWith('/me/cooking-sessions')) {
+      const root = '/me/cooking-sessions';
+      final state = _copy(data[root] as Map? ?? {'sessions': []});
+      final rows = List<dynamic>.from(state['sessions'] as List);
+      final creating = path == root;
+      final id = creating ? body['session_id'] : parts[2];
+      var session = rows.where((e) => e['id'] == id).firstOrNull as Map?;
+      if (creating && session == null) {
+        session = {
+          'id': id,
+          'household_id': body['household_id'],
+          'recipe': entry['recipe'],
+          'completed': [],
+          'timers': [],
+          'joined_devices': [body['installation_id']],
+          'owned': true,
+          'invited': false,
+          'open_elsewhere': false,
+          'ended_at': null,
+        };
+        rows.add(session);
+      }
+      if (session != null) {
+        final action = creating ? 'create' : parts.last;
+        if (action == 'end') {
+          session['ended_at'] = now().millisecondsSinceEpoch;
+          rows.remove(session);
+        }
+        if (action == 'join') {
+          session['joined_devices'] = {
+            ...session['joined_devices'] as List,
+            body['installation_id'],
+          }.toList();
+        }
+        if (action == 'step') {
+          final done = List<dynamic>.from(session['completed'] as List)
+            ..remove(body['step_id']);
+          if (body['checked'] == true) done.add(body['step_id']);
+          session['completed'] = done;
+        }
+        if (action == 'timer') {
+          final timers = List<dynamic>.from(session['timers'] as List);
+          final old =
+              timers
+                      .where((e) => e['action_id'] == body['action_id'])
+                      .firstOrNull
+                  as Map?;
+          timers.removeWhere((e) => e['action_id'] == body['action_id']);
+          final recipe = session['recipe'] as Map;
+          final named = (recipe['actions'] as List? ?? [])
+              .where((e) => '${e['id']}' == '${body['action_id']}')
+              .firstOrNull;
+          timers.add({
+            ...?old,
+            ...body,
+            'timer_id': 'session:$id:${body['action_id']}',
+            'session_id': id,
+            'title':
+                '${recipe['title']} · ${named?['label'] ?? 'Cooking timer'}',
+            'deadline_ms':
+                body['deadline_ms'] ??
+                old?['deadline_ms'] ??
+                now().millisecondsSinceEpoch,
+          });
+          session['timers'] = timers;
+        }
+      }
+      state['sessions'] = rows;
+      data[root] = state;
+      data[path] = {
+        if (creating) 'sessions': rows,
+        'session':
+            session ?? {'id': id, 'ended_at': now().millisecondsSinceEpoch},
+      };
+    } else if (path.endsWith('/shopping-list/photos')) {
+      final id =
+          (data['photo-aliases'] as Map?)?[entry['local_photo']] ??
+          entry['local_photo'];
+      data['$path/$id'] = {'image_base64': body['image_base64']};
+    } else if (path.endsWith('/shopping-list') ||
+        path.endsWith('/restaurants')) {
+      final state = _copy(
+        data[path] as Map? ??
+            {
+              'items': [],
+              'departments': ['Other'],
+              'revision': 0,
+            },
+      );
+      if (body['items'] is List) {
+        state['items'] = body['items'];
+        final photos = data['photo-aliases'] as Map? ?? {};
+        for (final item in state['items'] as List) {
+          if (photos.containsKey(item['photo'])) {
+            item['photo'] = photos[item['photo']];
+          }
+        }
+      }
+      if (body['upsert_items'] is List) {
+        final rows = List<dynamic>.from(state['items'] as List);
+        for (final item in body['upsert_items'] as List) {
+          final index = rows.indexWhere((old) => old['id'] == item['id']);
+          if (index < 0) {
+            rows.add(item);
+          } else {
+            rows[index] = item;
+          }
+        }
+        state['items'] = rows;
+      }
+      if (body['order'] is List) {
+        final order = body['order'] as List;
+        (state['items'] as List).sort((a, b) {
+          final ai = order.indexOf(a['id']), bi = order.indexOf(b['id']);
+          return (ai < 0 ? order.length : ai).compareTo(
+            bi < 0 ? order.length : bi,
+          );
+        });
+      }
+      if (body['departments'] is List) {
+        state['departments'] = body['departments'];
+      }
+      if (body['remove_ids'] is List) {
+        state['items'] = (state['items'] as List)
+            .where((e) => !(body['remove_ids'] as List).contains(e['id']))
+            .toList();
+      }
+      data[path] = state;
+    } else if (path.endsWith('/meal-plan')) {
+      final state = _copy(data[path] as Map? ?? {'entries': [], 'revision': 0});
+      final rows = List<dynamic>.from(state['entries'] as List);
+      final previous =
+          (rows.where((e) => e['id'] == body['id']).firstOrNull ??
+                  entry['meal'])
+              as Map?;
+      rows.removeWhere((e) => e['id'] == body['id']);
+      if (body['operation'] != 'remove') {
+        final recipe =
+            (data['/households/${parts[1]}/recipes/${body['recipe_id']}']
+                    as Map?)?['recipe']
+                as Map?;
+        final restaurant =
+            ((data['/households/${parts[1]}/restaurants'] as Map?)?['items']
+                        as List? ??
+                    [])
+                .where((e) => e['id'] == body['restaurant_id'])
+                .firstOrNull;
+        rows.add({
+          ...?previous,
+          if (body['operation'] == 'add') ...body,
+          'id': body['id'],
+          'plan_date': body['date'],
+          if (body['operation'] == 'add')
+            'title':
+                recipe?['title'] ??
+                restaurant?['name'] ??
+                (body['kind'] == 'leftovers' ? 'Leftovers' : 'Restaurant'),
+          if (recipe != null) 'photo_url': localRecipeCover(recipe),
+          'available': true,
+        });
+      }
+      state['entries'] = rows;
+      data[path] = state;
+    } else if (parts.length >= 3 && parts[2] == 'recipes') {
+      final root = '/${parts.take(3).join('/')}';
+      if (parts.last == 'delete') {
+        final detail = '/${parts.take(4).join('/')}';
+        final old = (data.remove(detail) ?? entry['deleted_recipe']) as Map?;
+        if (old != null) data['deleted:$detail'] = old;
+        final deleted = _copy(
+          data['$root/deleted'] as Map? ?? {'recipes': [], 'next_offset': null},
+        );
+        (deleted['recipes'] as List).removeWhere(
+          (r) => '${r['id']}' == parts[3],
+        );
+        if (old?['recipe'] is Map) {
+          (deleted['recipes'] as List).add({
+            ...old!['recipe'] as Map,
+            'deleted_at': now().toIso8601String(),
+          });
+        }
+        data['$root/deleted'] = deleted;
+        data[path] = {
+          'purge_after':
+              ((old?['recipe'] as Map?)?['household_count'] as num? ?? 1) > 1
+              ? null
+              : now().add(const Duration(days: 30)).toIso8601String(),
+        };
+      } else if (parts.last == 'restore') {
+        final detail = '/${parts.take(4).join('/')}';
+        final old = data['deleted:$detail'];
+        if (old != null) data[detail] = _copy(old as Map);
+        final deleted = data['$root/deleted'] as Map?;
+        (deleted?['recipes'] as List?)?.removeWhere(
+          (r) => '${r['id']}' == parts[3],
+        );
+      } else if (parts.last == 'attach') {
+        final detail = '/${parts.take(4).join('/')}';
+        final recipe =
+            (data['deleted:$detail'] as Map?)?['recipe'] ??
+            body['recipe'] ??
+            (data[detail] as Map?)?['recipe'];
+        if (recipe is Map) {
+          data[detail] = {
+            'recipe': {...recipe, 'in_household': true},
+          };
+          data[path] = data[detail];
+        }
+      } else if (parts.last == 'favorites') {
+        final state = _copy(data[path] as Map? ?? {'people': []});
+        for (final p in state['people'] as List) {
+          if (p['id'] == body['person_id']) p['favorite'] = body['favorite'];
+        }
+        data[path] = state;
+      } else if (parts.length == 3 || parts.length == 4) {
+        final id = parts.length == 3
+            ? '${aliases[entry['local_id']] ?? entry['local_id']}'
+            : parts[3];
+        final detail = '$root/$id';
+        final old = (data[detail] as Map?)?['recipe'] as Map? ?? {};
+
+        final favorites = '$detail/favorites';
+        if (data[favorites] == null) {
+          final people =
+              (data['/households/${parts[1]}/people'] as Map?)?['people']
+                  as List? ??
+              [];
+          final user = (data['/me'] as Map?)?['user']?['id'];
+          final current = people.where((p) => p['user_id'] == user).firstOrNull;
+          data[favorites] = {
+            'people': [
+              for (final p in people)
+                {
+                  ...p as Map,
+                  'favorite': (body['favorite_people'] as List? ?? []).any(
+                    (f) => f['person_id'] == p['id'] && f['favorite'] == true,
+                  ),
+                },
+            ],
+            'current_person_id': current?['id'],
+          };
+        }
+        data[detail] = {
+          'recipe': {
+            ...old,
+            ...body,
+            'id': id,
+            'in_household': true,
+            'household_count': old['household_count'] ?? 1,
+          },
+        };
+      }
+      for (final key
+          in data.keys.where((k) => k.startsWith('$root?')).toList()) {
+        data.remove(key);
+      }
+    } else if (path == '/me/name') {
+      final account = data['/me'] as Map?;
+      if (account != null) {
+        (account['user'] as Map)['display_name'] = body['display_name'];
+      }
+      data[path] = {
+        'user': {
+          ...?account?['user'] as Map?,
+          'display_name': body['display_name'],
+        },
+      };
+    } else if (parts.length == 5 &&
+        parts[2] == 'people' &&
+        parts[3] == 'me' &&
+        parts[4] == 'name') {
+      final people =
+          (data['/households/${parts[1]}/people'] as Map?)?['people']
+              as List? ??
+          [];
+      final user = (data['/me'] as Map?)?['user']?['id'];
+      final person =
+          people.where((p) => p['user_id'] == user).firstOrNull as Map?;
+      if (person != null) person['display_name'] = body['display_name'];
+      data[path] = {'person': person ?? body};
+    } else if (parts.length == 3 && parts.last == 'name') {
+      final account = data['/me'] as Map?;
+      for (final h in account?['households'] as List? ?? []) {
+        if ('${h['id']}' == parts[1]) h['name'] = body['name'];
+      }
+      data[path] = {
+        'household': {'id': parts[1], ...body},
+      };
+    }
+  }
+
+  Future<void> expire() => _serial(() async {
+    await _load();
+    final before = _pending.length;
+    _pending.removeWhere(
+      (e) =>
+          e['expires'] is int &&
+          (e['expires'] as int) <= now().millisecondsSinceEpoch,
+    );
+    if (before != _pending.length) await _commit(_server, '/me');
+  });
+  Duration? get untilRemovalExpiry {
+    final times = _pending
+        .where((e) => e['expires'] is int)
+        .map((e) => e['expires'] as int);
+    if (times.isEmpty) return null;
+    return Duration(
+      milliseconds: max(0, times.reduce(min) - now().millisecondsSinceEpoch),
+    );
+  }
+
+  Future<void> decide(String id, bool submit) => _serial(() async {
+    await _load();
+    final entry = _pending.where((e) => e['id'] == id).firstOrNull;
+    if (entry == null) return;
+    final before = _pending.map(_copy).toList();
+    if (submit) {
+      entry['review'] = false;
+      if (entry['confirmation'] == 'shared_confirmation_required') {
+        entry['body']['confirm_shared_edit'] = true;
+      }
+      if (entry['confirmation'] == 'past_confirmation_required') {
+        entry['body']['confirm_past'] = true;
+      }
+      entry.remove('confirmation');
+    } else {
+      _pending.remove(entry);
+    }
+    try {
+      await _commit(_server, entry['path'] as String);
+    } catch (_) {
+      _pending
+        ..clear()
+        ..addAll(before);
+      _rebuild();
+      rethrow;
+    }
+    if (submit && connected()) unawaited(synchronize());
+  });
+
+  String _deliveryKey(Map entry) {
+    var path = entry['path'] as String;
+    for (final alias in (_data['local-aliases'] as Map? ?? {}).entries) {
+      path = path.replaceAll(
+        '/recipes/${alias.key}',
+        '/recipes/${alias.value}',
+      );
+    }
+    if (entry['local_id'] != null) return '$path/${entry['local_id']}';
+    if (path.endsWith('/meal-plan')) return '$path#${entry['body']['id']}';
+    if (path.startsWith('/me/cooking-sessions')) {
+      final parts = Uri.parse(path).pathSegments;
+      return '/me/cooking-sessions/${parts.length == 2 ? entry['body']['session_id'] : parts[2]}';
+    }
+    return path;
+  }
+
+  Future<void> synchronize() async {
+    await _load();
+    await expire();
+    if (_closed || !connected()) return;
+    final paths = _pending
+        .where((e) => e['review'] != true)
+        .map(_deliveryKey)
+        .toSet();
+    await Future.wait(paths.map(_deliver));
+  }
+
+  Future<void> _deliver(String lane) async {
+    if (!_sending.add(lane)) return;
+    try {
+      while (!_closed && connected()) {
+        final entry = _pending
+            .where((e) => _deliveryKey(e) == lane)
+            .firstOrNull;
+        if (entry == null) break;
+        final path = entry['path'] as String;
+        if (entry['review'] == true || !_accessible(path)) {
+          break;
+        }
+        final body = _copy(entry['body'] as Map);
+        final aliases = _data['local-aliases'] as Map? ?? {};
+        final resolved = _resolveRecipeIds(body, aliases);
+        var target = path;
+        for (final alias in aliases.entries) {
+          target = target.replaceAll(
+            '/recipes/${alias.key}',
+            '/recipes/${alias.value}',
+          );
+        }
+        if (target.contains('/local-') || !resolved) {
+          break;
+        }
+        final photos = _data['photo-aliases'] as Map? ?? {};
+        var waitingForPhoto = false;
+        for (final item
+            in (body['upsert_items'] ?? body['items']) as List? ?? []) {
+          if (photos.containsKey(item['photo'])) {
+            item['photo'] = photos[item['photo']];
+          }
+          if (item['photo'] != null &&
+              _pending.any((e) => e['local_photo'] == item['photo'])) {
+            waitingForPhoto = true;
+          }
+        }
+        if (waitingForPhoto) break;
+        try {
+          final reply = await send(target, body);
+          await _serial(() async {
+            if (!_pending.contains(entry)) return;
+            if (entry['local_id'] != null && reply['recipe'] is Map) {
+              final id = '${(reply['recipe'] as Map)['id']}';
+              _server['local-aliases'] = {
+                ...?_server['local-aliases'] as Map?,
+                entry['local_id']: id,
+              };
+              if (_server['$path/$id'] == null) {
+                _server['$path/$id'] = {'recipe': reply['recipe']};
+              }
+            }
+            if (entry['local_photo'] != null && reply['photo'] is String) {
+              _server['photo-aliases'] = {
+                ...?_server['photo-aliases'] as Map?,
+                entry['local_photo']: reply['photo'],
+              };
+              _server['$path/${reply['photo']}'] = {
+                'image_base64': body['image_base64'],
+              };
+            }
+            final position = _pending.indexOf(entry);
+            _pending.remove(entry);
+            try {
+              await _commit(_server, path);
+            } catch (_) {
+              _pending.insert(position, entry);
+              _rebuild();
+              rethrow;
+            }
+
+            onAcknowledged?.call(entry);
+            if (entry['local_id'] != null ||
+                entry['local_photo'] != null ||
+                path == '/me/cooking-sessions') {
+              scheduleMicrotask(() => unawaited(synchronize()));
+            }
+          });
+        } catch (error) {
+          if (!_pending.contains(entry)) continue;
+          if (error is ApiException &&
+              [
+                'shared_confirmation_required',
+                'past_confirmation_required',
+              ].contains(error.code)) {
+            await _serial(() async {
+              entry['review'] = true;
+              entry['confirmation'] = error.code;
+              await _commit(_server, path);
+            });
+          }
+          clientLog.record('sync', 'send_failed', path: target, error: error);
+          onSendError?.call(path, error);
+          break;
+        }
+      }
+    } finally {
+      _sending.remove(lane);
+    }
+  }
+
+  void Function(String, Object)? onSendError;
+  void Function(Map<String, dynamic>)? onAcknowledged;
+  List<Map<String, dynamic>> get pendingChanges => _pending.map(_copy).toList();
+  Future<void> importChanges(List<Map<String, dynamic>> changes) =>
+      _serial(() async {
+        await _load();
+        for (final entry in changes) {
+          if (!containsOperation(entry['id'] as String)) {
+            _pending.add(_copy(entry));
+          }
+        }
+        await _commit(_server, '/me');
+      });
+  bool containsOperation(String id) => _pending.any((e) => e['id'] == id);
+  Future<void> acceptCooking(Map<String, dynamic> state) => _serial(() async {
+    await _load();
+    await _commit({
+      ..._server,
+      '/me/cooking-sessions': _copy(state),
+    }, '/me/cooking-sessions');
+  });
 
   @override
   void dispose() {

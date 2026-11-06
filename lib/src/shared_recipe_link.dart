@@ -38,7 +38,6 @@ class _SharedRecipeLinkState extends State<SharedRecipeLink> {
   late final _cache = OfflineRecipes(
     key: '$apiStorageNamespace|public-recipes',
     fetch: (path) => _api.request(path, ''),
-    downloadLibrary: false,
   );
   final _reconnect = ValueNotifier<int>(0);
   @override

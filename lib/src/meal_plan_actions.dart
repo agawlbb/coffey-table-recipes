@@ -347,10 +347,8 @@ Future<bool> addMealPairings(
     if (!context.mounted) return false;
     final saveEpoch = mealPlanNotices.epoch;
     for (final id in selected) {
-      final current = await request('$path?from=$date&to=$date');
       if (!context.mounted || saveEpoch != mealPlanNotices.epoch) return false;
       await save(path, {
-        'revision': current['revision'],
         'operation': 'add',
         'id': newShoppingItemId(),
         'kind': 'recipe',

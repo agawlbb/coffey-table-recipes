@@ -71,11 +71,11 @@ class _RecipeChatState extends State<RecipeChat>
         _leaving ||
         _workingRecipe.trim().isEmpty ||
         _input.text.trim().isNotEmpty ||
-        offlineStatus.value ||
+        (offlineStatus.value && _draft == null && _saveAttempt == null) ||
         childMode.value) {
       return;
     }
-    if (_saveAttempt != null) {
+    if (_saveAttempt != null || (offlineStatus.value && _draft != null)) {
       await _saveDraft();
       return;
     }
@@ -649,7 +649,9 @@ class _RecipeChatState extends State<RecipeChat>
                                   _busy ||
                                       _choosingOutcome ||
                                       _saving ||
-                                      offlineStatus.value ||
+                                      (offlineStatus.value &&
+                                          _draft == null &&
+                                          _saveAttempt == null) ||
                                       _input.text.trim().isNotEmpty ||
                                       (_retryRequired &&
                                           _attempt?['action'] != 'prepare')

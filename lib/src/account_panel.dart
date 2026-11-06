@@ -1,4 +1,4 @@
-import 'offline_changes.dart';
+import 'local_sqlite.dart';
 import 'connection_notice.dart';
 import 'app_connection.dart';
 import 'client_log.dart';
@@ -210,9 +210,11 @@ class HouseholdPanel extends StatefulWidget {
     this.readPreference,
     this.writePreference,
     this.socketConnect,
+    this.storage,
   });
   @visibleForTesting
   final WebSocketChannel Function(Uri)? socketConnect;
+  final LocalSqlite? storage;
   final Future<String?> Function(String)? readPreference;
   final Future<void> Function(String, String)? writePreference;
   final Future<void> Function()? signOut;
@@ -238,12 +240,11 @@ class _HouseholdPanelState extends State<HouseholdPanel>
             refreshToken: (refresh) => _idToken(refresh),
           ),
   );
-  late final _offlineChanges = OfflineChanges(
-    account: '$apiStorageNamespace|${widget.user.uid}',
-  );
   Timer? _offlineRetry;
   bool _reviewingOffline = false;
   final _reviewedOffline = <String>{};
+  String _decisionKey(Map entry) =>
+      '${entry['id']}:${entry['confirmation'] ?? 'offline'}';
   final _reportedOffline = <String>{};
   bool get _connected =>
       widget.request != null || (_api.liveConnection?.connected ?? false);
@@ -253,21 +254,26 @@ class _HouseholdPanelState extends State<HouseholdPanel>
     localDataChanges.value =
         '/me#offline-${DateTime.now().microsecondsSinceEpoch}';
     _scheduleOffline();
+    if (_connected && (_local?.decisions.isNotEmpty ?? false)) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) unawaited(_resumeOffline());
+      });
+    }
   }
 
   void _scheduleOffline() {
     _offlineRetry?.cancel();
     if (!mounted) return;
-    var delay = _offlineChanges.untilRemovalExpiry;
+    var delay = _local?.untilRemovalExpiry;
     if (_connected &&
-        _offlineChanges.hasAutomatic &&
+        (_local?.hasAutomatic ?? false) &&
         (delay == null || delay > const Duration(seconds: 30))) {
       delay = const Duration(seconds: 30);
     }
     if (delay == null) return;
     _offlineRetry = Timer(delay, () async {
       try {
-        await _offlineChanges.expire();
+        await _local?.expire();
         if (mounted && _connected) await _resumeOffline();
       } catch (error) {
         clientLog.record('offline', 'retry_failed', error: error);
@@ -279,37 +285,19 @@ class _HouseholdPanelState extends State<HouseholdPanel>
   Future<void> _resumeOffline() async {
     if (!_connected || !mounted) return;
     // Never await this work from the socket snapshot callback.
-    try {
-      await _offlineChanges.sendAutomatic(
-        (path, body) => _onlineRequest(path, body: body),
-        () => mounted && _connected,
-        onFailure: (entry, error) {
-          if (!mounted || !_reportedOffline.add(entry['id'] as String)) return;
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(
-                entry['kind'] == 'remove'
-                    ? 'These items haven’t reached the server yet. We’ll retry the removals for up to two hours.'
-                    : 'Your new recipe couldn’t be uploaded yet. It’s still on this device and will retry when connected.',
-              ),
-            ),
-          );
-        },
-      );
-    } catch (error) {
-      clientLog.record('offline', 'resume_failed', error: error);
-      return;
-    }
+    // Delivery runs independently from prompts and incoming snapshots.
+    unawaited(_local?.synchronize() ?? Future.value());
     if (mounted) _scheduleOffline();
     if (!mounted || !_connected || _reviewingOffline) return;
     _reviewingOffline = true;
     try {
-      for (final entry in _offlineChanges.recipes.where(
-        (e) => e['create'] != true,
-      )) {
+      for (final entry in _local?.decisions ?? <Map<String, dynamic>>[]) {
         if (!_connected || !mounted) break;
-        if (!_reviewedOffline.add(entry['id'] as String)) continue;
+        if (!_reviewedOffline.add(_decisionKey(entry))) continue;
         final body = entry['body'] as Map;
+        final meal = (entry['path'] as String).endsWith('/meal-plan');
+        final shared = entry['confirmation'] == 'shared_confirmation_required';
+        final past = entry['confirmation'] == 'past_confirmation_required';
         String? failure;
         var saving = false;
         await showDialog<void>(
@@ -319,9 +307,13 @@ class _HouseholdPanelState extends State<HouseholdPanel>
             builder: (dialog, update) {
               Future<void> decide(bool save) async {
                 if (saving) return;
+                if (!save && (shared || past)) {
+                  Navigator.pop(dialog);
+                  return;
+                }
                 if (save && !_connected) {
                   update(
-                    () => failure = 'You’re not connected. Your changes are still on this device. Reconnect and try Save to server again, or discard them.',
+                    () => failure = 'You’re not connected. Your changes are still on this device. Reconnect to send them.',
                   );
                   return;
                 }
@@ -330,14 +322,7 @@ class _HouseholdPanelState extends State<HouseholdPanel>
                   failure = null;
                 });
                 try {
-                  if (save) {
-                    await _offlineChanges.submit(
-                      entry,
-                      (path, body) => _onlineRequest(path, body: body),
-                    );
-                  } else {
-                    await _offlineChanges.discard(entry['id'] as String);
-                  }
+                  await _local!.decide(entry['id'] as String, save);
                   if (dialog.mounted) Navigator.pop(dialog);
                 } catch (error) {
                   clientLog.record(
@@ -349,25 +334,49 @@ class _HouseholdPanelState extends State<HouseholdPanel>
                   if (dialog.mounted) {
                     update(() {
                       saving = false;
-                      failure = 'Your changes couldn’t be saved to the server. They’re still on this device. Try Save to server again, or discard them.';
+                      failure = 'Your changes are still on this device. They couldn’t be submitted. Please try again.';
                     });
                   }
                 }
               }
 
               return AlertDialog(
-                title: const Text('Save your offline changes?'),
+                title: Text(
+                  shared
+                      ? 'Save recipe changes?'
+                      : past
+                      ? 'Change this past meal?'
+                      : meal
+                      ? 'Save meal-plan changes?'
+                      : 'Save your offline changes?',
+                ),
                 content: Text(
-                  'You changed “${body['title']}” while offline. These changes haven’t been saved to the server. Saving now will replace the recipe currently on the server.${failure == null ? '' : '\n\n$failure'}',
+                  shared
+                      ? 'Your changes update the same recipe in every household that has added it.'
+                      : past
+                      ? 'This will update your cooking history.'
+                      : meal
+                      ? '${entry['description']}\n\nSave this change to the shared meal plan, or discard it and use the server’s plan.${failure == null ? '' : '\n\n$failure'}'
+                      : 'You changed “${body['title']}” while offline. These changes haven’t been saved to the server. Saving now will replace the recipe currently on the server.${failure == null ? '' : '\n\n$failure'}',
                 ),
                 actions: [
                   TextButton(
                     onPressed: saving ? null : () => decide(false),
-                    child: const Text('Discard my changes'),
+                    child: Text(
+                      shared || past ? 'Cancel' : 'Discard my changes',
+                    ),
                   ),
                   FilledButton(
                     onPressed: saving ? null : () => decide(true),
-                    child: const Text('Save to server'),
+                    child: Text(
+                      shared
+                          ? 'Save for all households'
+                          : past
+                          ? 'Change'
+                          : meal
+                          ? 'Save meal-plan changes'
+                          : 'Save to server',
+                    ),
                   ),
                 ],
               );
@@ -377,6 +386,16 @@ class _HouseholdPanelState extends State<HouseholdPanel>
       }
     } finally {
       _reviewingOffline = false;
+      if (mounted &&
+          _connected &&
+          (_local?.decisions.any(
+                (e) => !_reviewedOffline.contains(_decisionKey(e)),
+              ) ??
+              false)) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) unawaited(_resumeOffline());
+        });
+      }
     }
   }
 
@@ -630,17 +649,6 @@ class _HouseholdPanelState extends State<HouseholdPanel>
   @override
   void initState() {
     super.initState();
-    _offlineChanges.addListener(_offlineChanged);
-    unawaited(
-      _offlineChanges
-          .load()
-          .then((_) {
-            if (mounted) _offlineChanged();
-          })
-          .catchError((Object error) {
-            clientLog.record('offline', 'load_failed', error: error);
-          }),
-    );
     _api.refreshSocketToken = () => _idToken(true);
     _api.onAppSnapshot = _receiveAppState;
     _api.onConnectionChanged = _syncStatusChanged;
@@ -653,17 +661,44 @@ class _HouseholdPanelState extends State<HouseholdPanel>
         key: '$apiStorageNamespace|${widget.user.uid}',
         fetch: (path) => _onlineRequest(path),
         send: (path, body) => _onlineRequest(path, body: body),
+        readStore: widget.storage?.read ?? readLocalSqlite,
+        writeStore: widget.storage?.write ?? writeLocalSqlite,
       );
+      _local!.connected = () => mounted && _connected;
+      unawaited(cookingSessions.bindLocal(_local!, widget.user.uid));
+      _local!.onSendError = (path, error) {
+        if (mounted && _reportedOffline.add(path)) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                'Saved on this device. ${error is ApiException ? error.message : 'The change could not be sent.'} It will retry while connected.',
+              ),
+            ),
+          );
+        }
+      };
+      _local!.addListener(_offlineChanged);
       _local!.addListener(_syncStatusChanged);
       localDataChanges.addListener(_localChanged);
     }
     unawaited(_restoreSectionAndLoad());
+    if (widget.request == null) {
+      unawaited(
+        _idToken()
+            .then((token) async {
+              if (token != null && mounted) await _api.connect(token);
+            })
+            .catchError((Object error) {
+              clientLog.record('sync', 'connect_failed', error: error);
+            }),
+      );
+    }
   }
 
   @override
   void dispose() {
     _offlineRetry?.cancel();
-    _offlineChanges.removeListener(_offlineChanged);
+    _local?.removeListener(_offlineChanged);
     WidgetsBinding.instance.removeObserver(this);
     sharedRecipeInbox.removeListener(_sharedRecipeChanged);
     cookingSessions.removeListener(_cookingChanged);
@@ -816,44 +851,10 @@ class _HouseholdPanelState extends State<HouseholdPanel>
   }) async {
     if (body != null) requireChildModeWrite(path);
     if (widget.request != null) return widget.request!(path, body: body);
-    if (body != null &&
-        RegExp(r'^/households/[^/]+/recipes(?:/[^/]+)?$').hasMatch(path)) {
-      final result = await _offlineChanges.saveRecipe(
-        path,
-        body,
-        connected: _connected,
-        send: (route, payload) => _onlineRequest(route, body: payload),
-      );
-      if (result['_offline_pending'] == true && _connected) {
-        _api.liveConnection?.reconnect();
-      }
-      return result;
-    }
-    if (body != null &&
-        path.endsWith('/shopping-list') &&
-        body['remove_ids'] is List) {
-      await _offlineChanges.removeItems(
-        path,
-        (body['remove_ids'] as List).cast<String>(),
-      );
-      if (_connected) unawaited(_resumeOffline());
-      final current = await _local!.request(path);
-      return _offlineChanges.shopping(path, current);
-    }
     if (_local != null) {
       if (path.endsWith('/recipe-blank')) return _local!.blank(path);
-      if (body == null) {
-        try {
-          await _offlineChanges.load();
-        } catch (error) {
-          clientLog.record('offline', 'load_failed', error: error);
-        }
-        final data = await _local!.request(path);
-        return path.endsWith('/shopping-list')
-            ? _offlineChanges.shopping(path, data)
-            : data;
-      }
-      // Saves go directly to the server over the shared connection.
+      if (body == null) return _local!.request(path);
+      if (_local!.ownsWrite(path)) return _local!.save(path, body);
     }
     return _onlineRequest(path, body: body);
   }
@@ -1066,13 +1067,7 @@ class _HouseholdPanelState extends State<HouseholdPanel>
           account ??
           (_local == null
               ? await _request('/me')
-              : await _local!.refresh('/me', force: true).catchError((
-                  Object error,
-                ) async {
-                  final saved = await _local!.cached('/me');
-                  if (saved != null) return saved;
-                  throw error;
-                }));
+              : await _local!.request('/me'));
       if (!mounted) return;
       if (widget.request != null) {
         childMode.value = (data['user'] as Map?)?['child_mode'] == true;
@@ -1283,7 +1278,11 @@ class _HouseholdPanelState extends State<HouseholdPanel>
               'enabled': (account['user'] as Map)['child_mode'],
               'people_child_modes': account['people_child_modes'],
             }
-          : await _onlineRequest('/me/child-mode');
+          : {
+              'enabled':
+                  (account?['user'] as Map?)?['child_mode'] ?? childMode.value,
+              'people_child_modes': account?['people_child_modes'] ?? {},
+            };
       if (!mounted) return;
       childMode.value = policy['enabled'] == true;
       if (policy['people_child_modes'] is Map) {

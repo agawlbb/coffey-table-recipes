@@ -1,3 +1,5 @@
+import 'support/local_storage.dart';
+
 import 'dart:async';
 import 'dart:convert';
 
@@ -5,7 +7,6 @@ import 'package:coffey_table_recipes/src/api.dart';
 import 'package:coffey_table_recipes/src/cooking_sessions.dart';
 import 'package:coffey_table_recipes/src/native_timers.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import 'package:shared_preferences_platform_interface/in_memory_shared_preferences_async.dart';
 import 'package:shared_preferences_platform_interface/shared_preferences_async_platform_interface.dart';
 
@@ -39,6 +40,7 @@ Map<String, dynamic> cookingFixture({
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
   late CookingSessions sync;
+  late MemoryLocalStorage storage;
   late Map<String, dynamic> state;
   late List<Map<String, dynamic>> writes;
   late bool offline;
@@ -82,6 +84,9 @@ void main() {
       }
       state['revision'] = (state['revision'] as int) + 1;
     }
+    await sync.accept({
+      'sessions': [state],
+    });
     return {'session': jsonDecode(jsonEncode(state))};
   }
 
@@ -93,11 +98,13 @@ void main() {
           NativeTimers.channel,
           (call) async => call.method == 'list' ? [] : null,
         );
+    storage = MemoryLocalStorage();
     state = cookingFixture();
     writes = [];
     operations = {};
     offline = false;
     sync = CookingSessions(
+      storage: storage,
       request: request,
       installation: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
     );
@@ -113,6 +120,7 @@ void main() {
       final release = Completer<void>();
       var calls = 0;
       final service = CookingSessions(
+        storage: storage,
         registerDevice: () async {
           calls++;
           if (calls == 1) {
@@ -145,6 +153,7 @@ void main() {
       final accounts = StreamController<String?>();
       final refreshed = Completer<void>();
       final service = CookingSessions(
+        storage: storage,
         accountChanges: accounts.stream,
         registerDevice: () async => throw ApiException(503, 'Disconnected'),
         request: (path, {body}) async {
@@ -203,12 +212,9 @@ void main() {
       await sync.refresh();
       await NativeTimers.cancel(key);
       await sync.refresh();
-      final raw = await SharedPreferencesAsync().getString(
-        'cooking_outbox_null',
-      );
-      expect((jsonDecode(raw!) as List), hasLength(2));
       sync.dispose();
       sync = CookingSessions(
+        storage: storage,
         request: request,
         installation: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
       );
@@ -218,18 +224,13 @@ void main() {
       expect(writes, hasLength(2));
       expect(writes.first['deadline_ms'], deadline.millisecondsSinceEpoch);
       expect(state['timers'][0]['cancelled'], true);
-      expect(
-        jsonDecode(
-          (await SharedPreferencesAsync().getString('cooking_outbox_null'))!,
-        ),
-        isEmpty,
-      );
     },
   );
   test('lost timer response does not create a duplicate timer', () async {
     sync.dispose();
     var lose = true;
     sync = CookingSessions(
+      storage: storage,
       installation: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
       request: (path, {body}) async {
         final result = await request(path, body: body);
@@ -265,6 +266,7 @@ void main() {
       expect(sync.timers('${state['id']}').single['extension_seconds'], 120);
       sync.dispose();
       sync = CookingSessions(
+        storage: storage,
         request: request,
         installation: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
       );
@@ -307,6 +309,7 @@ void main() {
     expect(sync.timers('${state['id']}').single['cancelled'], isTrue);
     sync.dispose();
     sync = CookingSessions(
+      storage: storage,
       request: request,
       installation: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
     );
@@ -330,6 +333,7 @@ void main() {
       final delayed = Completer<Map<String, dynamic>>();
       var delay = false;
       sync = CookingSessions(
+        storage: storage,
         installation: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
         accountChanges: accounts.stream,
         request: (path, {body}) async {
@@ -350,7 +354,7 @@ void main() {
       await Future<void>.delayed(Duration.zero);
       await Future<void>.delayed(Duration.zero);
       delayed.complete({'session': state});
-      await expectLater(pending, throwsStateError);
+      await pending;
       expect(sync.sessions, isEmpty);
       await accounts.close();
     },

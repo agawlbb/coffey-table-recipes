@@ -1,4 +1,3 @@
-import 'offline_recipes.dart';
 import 'child_mode.dart';
 
 import 'dart:async';
@@ -257,7 +256,6 @@ class _ShoppingListScreenState extends State<ShoppingListScreen>
   Offset? _dragPosition;
   String? _error;
   bool _saveNotice = false;
-  final _offlineChecks = <String, bool>{};
   Timer? _displayPause;
   final _pendingCompletion = <String, Timer>{};
 
@@ -367,13 +365,7 @@ class _ShoppingListScreenState extends State<ShoppingListScreen>
     _revision = data['revision'] as int;
     _setItems(
       (data['items'] as List)
-          .map(
-            (item) => {
-              ...Map<String, dynamic>.from(item as Map),
-              if (_offlineChecks.containsKey(item['id']))
-                'checked': _offlineChecks[item['id']],
-            },
-          )
+          .map((item) => {...Map<String, dynamic>.from(item as Map)})
           .toList(),
       remote: remote,
       initial: !wasDisplayed,
@@ -506,29 +498,6 @@ class _ShoppingListScreenState extends State<ShoppingListScreen>
     if (childMode.value || _displayPause != null || _saving || _accessDenied) {
       return false;
     }
-    if (widget.localFirst && offlineStatus.value) {
-      // Checkboxes prepare the items to remove; only Remove checked off queues a removal.
-      final before = {for (final item in _items) item['id']: item};
-      final checksOnly =
-          items.length == _items.length &&
-          items.every(
-            (item) =>
-                before.containsKey(item['id']) &&
-                jsonEncode({...item, 'checked': false}) ==
-                    jsonEncode({...before[item['id']]!, 'checked': false}),
-          );
-      if (checksOnly) {
-        for (final item in items) {
-          _offlineChecks[item['id'] as String] = item['checked'] as bool;
-        }
-        setState(() => _setItems(items));
-        return true;
-      }
-      setState(
-        () => _error = 'Only item removals can be saved offline. Reconnect to make other shopping changes.',
-      );
-      return false;
-    }
     _saveGeneration++;
     setState(() {
       _saving = true;
@@ -540,7 +509,6 @@ class _ShoppingListScreenState extends State<ShoppingListScreen>
       setState(() {
         _accept(data, remote: false);
         _disconnected = false;
-        _offlineChecks.clear();
       });
       _cacheConfirmed();
       return true;
@@ -579,9 +547,6 @@ class _ShoppingListScreenState extends State<ShoppingListScreen>
       final data = await widget.request(_path, body: {'remove_ids': ids});
       if (!mounted) return;
       setState(() {
-        for (final id in ids) {
-          _offlineChecks.remove(id);
-        }
         _accept(data, remote: false);
       });
     } catch (error) {

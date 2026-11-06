@@ -20,7 +20,7 @@ Future<void> connectionNotice(BuildContext context, String action) async {
       ? 'Reconnecting to the server.'
       : 'We can’t reach the server right now.';
   final detail = action == 'shopping'
-      ? 'You can remove items offline. Removals are kept for two hours; other changes need a connection.'
+      ? 'You can use the list offline. Changes will sync when connected; removals are kept for two hours.'
       : action == 'add'
       ? 'A new recipe will be saved on this device and uploaded when you reconnect.'
       : 'Recipe edits will be saved on this device. We’ll ask before sending them when you reconnect.';
