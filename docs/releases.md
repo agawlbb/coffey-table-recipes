@@ -1274,3 +1274,25 @@ Backend validation: five unified-connection tests (including four-client command
   no non-exempt encryption. The first availability check timed out while Apple
   returned NOT_FOUND; the second check passed at 00:30:23 UTC. No rebuild,
   new tester invitations or public App Store submission.
+
+## 2.7.7 — staged approval, 2026-11-06
+
+For this release only, the user authorized deploying backend branch
+`feature/last-update-wins`, tagging the next app version, building signed iOS
+and uploading to TestFlight without assigning the test group. Main integration,
+branch cleanup, test-group assignment and Android build/release await approval.
+The approved iOS package must be retained without rebuilding after approval.
+This is not a standing release-policy change.
+
+Backend source `949aaa22818e13827be78d9335c039446063c119` was copied using
+the existing deployer and restarted. All 60 deployed source/lock files match;
+health and both native association endpoints return HTTP 200. CPU policy passes.
+No database schema or private configuration was changed.
+
+App version is 2.7.7/build62. Apple preflight found Family testers configured
+with `hasAccessToAllBuilds=true`; upload is held until automatic distribution
+is disabled and verified. The signed package can be built independently.
+The temporary Apple inspection workflow is solely for this staged release
+and will be restored after verification. Existing app validation is recorded
+in [simple offline saves](simple-offline-saves.md); the signed-build workflow
+runs its existing analysis/test/signing checks.

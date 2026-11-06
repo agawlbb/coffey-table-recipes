@@ -2,6 +2,16 @@
 
 Release dates and changes are reconstructed from annotated Git tags, commit history, and project release records. Versions before 1.0 are demonstration releases; 1.0 marks the first usable release. Android retains the existing signing identity; iOS delivery and signing are recorded for each release.
 
+## 2.7.7 — 2026-11-06
+
+Build 62; tag `v2.7.7`. Initially uploaded for approval without a TestFlight group assignment. Android release and main integration remain pending approval.
+
+- Apply last-update-wins saves without edit-version conflicts or a general synchronization hold.
+- Warn before recipe editing, adding, or shopping when disconnected.
+- Retain shopping item removals for up to two hours; automatically upload new recipes when reconnected.
+- Offer Save to server or Discard my changes for offline recipe edits without blocking incoming synchronization.
+- Keep pushed server state current and record only actual errors in the copyable error log.
+
 ## 2.7.6 — 2026-11-05
 
 Build 61; tag `v2.7.6`.
