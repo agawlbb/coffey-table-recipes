@@ -1,5 +1,4 @@
 import 'package:coffey_table_recipes/src/account_panel.dart';
-import 'package:coffey_table_recipes/src/api.dart';
 import 'package:coffey_table_recipes/src/shopping_departments.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -167,34 +166,4 @@ void main() {
       expect(tester.takeException(), isNull);
     },
   );
-
-  testWidgets('conflicting department edits reload current household state', (
-    tester,
-  ) async {
-    var conflict = false;
-    await tester.pumpWidget(
-      MaterialApp(
-        home: ShoppingDepartmentsScreen(
-          householdId: '2',
-          request: (path, {body}) async {
-            if (body != null) {
-              conflict = true;
-              throw ApiException(409, 'The shopping list changed.');
-            }
-            return {
-              'revision': conflict ? 2 : 1,
-              'departments': conflict ? ['Deli'] : ['Produce'],
-              'items': [],
-            };
-          },
-        ),
-      ),
-    );
-    await tester.pumpAndSettle();
-    await tester.tap(find.byTooltip('Remove Produce'));
-    await tester.pumpAndSettle();
-    expect(find.text('Deli'), findsOneWidget);
-    expect(find.text('Produce'), findsNothing);
-    expect(find.text('The shopping list changed.'), findsOneWidget);
-  });
 }

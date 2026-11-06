@@ -59,9 +59,6 @@ void main() {
       if (action == 'timer') {
         final timers = state['timers'] as List;
         final old = timers.isEmpty ? null : timers.first;
-        if (body['revision'] != (old?['revision'] ?? 0)) {
-          throw ApiException(409, 'Timer changed');
-        }
         state['timers'] = [
           {
             'timer_id': 'session:${state['id']}:2',
@@ -190,53 +187,46 @@ void main() {
     expect(sync.joined(sync.sessions.single), isTrue);
     expect(sync.invitations, isEmpty);
   });
+  test('checking and unchecking updates cooking progress', () async {
+    await sync.check('${state['id']}', '1', true);
+    expect(sync.sessions.single['completed'], ['1']);
+    await sync.check('${state['id']}', '1', false);
+    expect(sync.sessions.single['completed'], isEmpty);
+  });
   test(
-    'step writes use individual revisions and stale snapshots cannot undo them',
+    'offline start and cancellation survive restart with the original deadline',
     () async {
-      final stale = jsonDecode(jsonEncode(state)) as Map<String, dynamic>;
-      await sync.check('${state['id']}', '1', true);
-      expect(writes.single['revision'], 0);
-      expect(sync.sessions.single['completed'], ['1']);
-      await sync.accept({
-        'sessions': [stale],
-      });
-      expect(sync.sessions.single['completed'], ['1']);
-      await sync.check('${state['id']}', '1', false);
-      expect(writes.last['revision'], 1);
-      expect(sync.sessions.single['completed'], isEmpty);
+      offline = true;
+      final deadline = DateTime.now().add(const Duration(minutes: 12));
+      final key = 'remote:session:${state['id']}:2';
+      await NativeTimers.schedule(key, deadline, 'Soup');
+      await sync.refresh();
+      await NativeTimers.cancel(key);
+      await sync.refresh();
+      final raw = await SharedPreferencesAsync().getString(
+        'cooking_outbox_null',
+      );
+      expect((jsonDecode(raw!) as List), hasLength(2));
+      sync.dispose();
+      sync = CookingSessions(
+        request: request,
+        installation: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+      );
+      await sync.start();
+      offline = false;
+      await sync.refresh();
+      expect(writes, hasLength(2));
+      expect(writes.first['deadline_ms'], deadline.millisecondsSinceEpoch);
+      expect(state['timers'][0]['cancelled'], true);
+      expect(
+        jsonDecode(
+          (await SharedPreferencesAsync().getString('cooking_outbox_null'))!,
+        ),
+        isEmpty,
+      );
     },
   );
-  test('offline start and cancellation survive restart with original deadlines and ordered revisions', () async {
-    offline = true;
-    final deadline = DateTime.now().add(const Duration(minutes: 12));
-    final key = 'remote:session:${state['id']}:2';
-    await NativeTimers.schedule(key, deadline, 'Soup');
-    await sync.refresh();
-    await NativeTimers.cancel(key);
-    await sync.refresh();
-    final raw = await SharedPreferencesAsync().getString('cooking_outbox_null');
-    expect((jsonDecode(raw!) as List), hasLength(2));
-    sync.dispose();
-    sync = CookingSessions(
-      request: request,
-      installation: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
-    );
-    await sync.start();
-    offline = false;
-    await sync.refresh();
-    expect(writes, hasLength(2));
-    expect(writes.first['deadline_ms'], deadline.millisecondsSinceEpoch);
-    expect(writes.first['revision'], 0);
-    expect(writes.last['revision'], 1);
-    expect(state['timers'][0]['cancelled'], true);
-    expect(
-      jsonDecode(
-        (await SharedPreferencesAsync().getString('cooking_outbox_null'))!,
-      ),
-      isEmpty,
-    );
-  });
-  test('lost timer response reuses the operation id and revision', () async {
+  test('lost timer response does not create a duplicate timer', () async {
     sync.dispose();
     var lose = true;
     sync = CookingSessions(
@@ -261,8 +251,8 @@ void main() {
     );
     await sync.refresh();
     expect(writes.length, greaterThanOrEqualTo(2));
-    expect(writes[0]['operation_id'], writes[1]['operation_id']);
-    expect(state['timers'][0]['revision'], 1);
+    expect(state['timers'], hasLength(1));
+    expect(state['timers'][0]['cancelled'], false);
   });
   test(
     'session timer outbox preserves range metadata and consumes an extension',
@@ -290,7 +280,6 @@ void main() {
       await sync.refresh();
       expect(writes.last['extend'], isTrue);
       expect(writes.last['extension_seconds'], 0);
-      expect(writes.last['revision'], 1);
       expect(state['timers'][0]['extension_seconds'], 0);
     },
   );

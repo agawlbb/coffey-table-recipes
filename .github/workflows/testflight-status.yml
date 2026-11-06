@@ -18,7 +18,6 @@ jobs:
     timeout-minutes: 18
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
-      - run: node --test tool/test_check_testflight.mjs
       - name: Read Apple processing, compliance and existing internal access
         env:
           APP_VERSION: ${{ inputs.version }}

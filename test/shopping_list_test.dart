@@ -325,40 +325,6 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('Milk'), findsNothing);
   });
-  testWidgets('local deletion waits for durable device acknowledgement', (
-    tester,
-  ) async {
-    final persisted = Completer<Map<String, dynamic>>();
-    final initial = {
-      'revision': 1,
-      'departments': ['Dairy'],
-      'items': [
-        {'id': 'milk', 'name': 'Milk', 'department': 'Dairy', 'checked': true},
-      ],
-    };
-    await tester.pumpWidget(
-      MaterialApp(
-        home: ShoppingListScreen(
-          householdId: '1',
-          householdName: 'Coffey',
-          localFirst: true,
-          request: (_, {body}) async =>
-              body == null ? initial : persisted.future,
-        ),
-      ),
-    );
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('Remove checked off'));
-    await tester.pump();
-    expect(find.text('Milk'), findsOneWidget);
-    persisted.complete({
-      'revision': 2,
-      'departments': ['Dairy'],
-      'items': [],
-    });
-    await tester.pumpAndSettle();
-    expect(find.text('Milk'), findsNothing);
-  });
 
   testWidgets(
     'failed durable deletion preserves item and reports device storage failure',

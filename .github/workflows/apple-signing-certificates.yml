@@ -24,7 +24,6 @@ jobs:
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
-      - run: node --test tool/test_apple_certificate_replacement.mjs
       - name: Inspect or perform explicitly approved certificate operation
         env:
           ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}

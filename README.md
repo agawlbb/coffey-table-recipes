@@ -24,10 +24,12 @@ The first command uses the hosted backend. The second is only for an independent
 Override the address with `--dart-define=API_BASE_URL=https://your-host.example/api/v1`. Physical Android devices require the computer's reachable LAN address. Android debug builds allow local HTTP; deployed builds should use HTTPS.
 
 ```powershell
-flutter analyze
-flutter test
-flutter build web
+# Analyze affected files and run only the selected tests for the requested behavior.
+flutter analyze lib/src/recipe_editor.dart
+flutter test --no-pub test/recipe_editor_test.dart
 ```
+
+See [testing scope and practices](AGENTS.md#testing-scope-and-practices). A full test suite requires an explicit request. Builds are separate, explicitly authorized actions. The hosted web app is retired.
 
 During development, web builds use a custom bootstrap without an offline service worker and fetch fresh bootstrap/entry-point URLs. The web-only Reload app button reloads with a fresh URL; previous Flutter service workers for this app are unregistered on startup. Deploy `build/web/.htaccess` along with the other files to Apache hosting with `mod_headers` and header overrides enabled: it requests no browser caching for this development deployment. Other hosts need equivalent `Cache-Control: no-store` response headers. These changes take effect after deploying the new build; an already-open older build may need Ctrl+Shift+R once. Restore production caching and remove the development button when ready for release.
 
