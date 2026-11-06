@@ -2,6 +2,15 @@
 
 Release dates and changes are reconstructed from annotated Git tags, commit history, and project release records. Versions before 1.0 are demonstration releases; 1.0 marks the first usable release. Android retains the existing signing identity; iOS delivery and signing are recorded for each release.
 
+## 2.8.1 — 2026-11-06
+
+Build 64; tag `v2.8.1`. iOS and Android release.
+
+- Warn before meal-plan changes when offline. Continue offline suppresses repeat warnings until a healthy reconnection or app relaunch.
+- Add Clear log beside Copy to clipboard in the error log.
+- Remove log entries older than 24 hours and clear the log once on the first launch of a new app version.
+- Includes the SQLite local working data and independent live synchronization introduced in 2.8.0, now released on Android as well.
+
 ## 2.8.0 — 2026-11-06
 
 Build 63; tag `v2.8.0`. iOS release; Android deferred. Main integration remains pending approval.

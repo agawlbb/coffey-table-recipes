@@ -142,7 +142,12 @@ void main() {
         read: (_) async => jsonEncode([
           {'event': 'started', 'area': 'app'},
           {'event': 'transport_closed', 'area': 'socket', 'status': 1000},
-          {'event': 'failed', 'area': 'sync', 'status': 503},
+          {
+            'time': DateTime.now().toUtc().toIso8601String(),
+            'event': 'failed',
+            'area': 'sync',
+            'status': 503,
+          },
         ]),
         write: (_, _) async {},
       );
@@ -175,6 +180,46 @@ void main() {
       log.dispose();
     },
   );
+  test('log expires entries and clears once per app version', () async {
+    final disk = <String, String>{};
+    var clock = DateTime.utc(2026, 11, 6, 12);
+    ClientLog create(String version) => ClientLog(
+      read: (key) async => disk[key],
+      write: (key, value) async {
+        disk[key] = value;
+      },
+      now: () => clock,
+    )..version = version;
+    final first = create('2.8.1.64');
+    await first.start();
+    first.record('sync', 'old', status: 503);
+    await first.flush();
+    clock = clock.add(const Duration(hours: 23));
+    first.record('sync', 'recent', status: 503);
+    await first.flush();
+    first.dispose();
+    clock = clock.add(const Duration(hours: 2));
+    final same = create('2.8.1.64');
+    await same.start();
+    expect(same.text, isNot(contains('"event":"old"')));
+    expect(same.text, contains('recent'));
+    await same.clear();
+    expect(same.text, 'No errors recorded.');
+    same.record('sync', 'before_update', status: 503);
+    await same.flush();
+    same.dispose();
+    final update = create('2.8.2.65');
+    await update.start();
+    expect(update.text, 'No errors recorded.');
+    update.record('sync', 'after_update', status: 503);
+    await update.flush();
+    update.dispose();
+    final restarted = create('2.8.2.65');
+    await restarted.start();
+    expect(restarted.text, contains('after_update'));
+    restarted.dispose();
+  });
+
   testWidgets('log viewer copies displayed diagnostics to clipboard', (
     tester,
   ) async {
@@ -209,5 +254,8 @@ void main() {
     await tester.pumpAndSettle();
     expect(copied, log.text);
     expect(copied, contains('snapshot_failed'));
+    await tester.tap(find.byTooltip('Clear log'));
+    await tester.pumpAndSettle();
+    expect(find.text('No errors recorded.'), findsOneWidget);
   });
 }

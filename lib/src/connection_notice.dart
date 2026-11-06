@@ -27,3 +27,39 @@ Future<void> connectionNotice(BuildContext context, String action) async {
   ScaffoldMessenger.of(context)
       .showSnackBar(SnackBar(content: Text('$reason $detail')));
 }
+
+bool _mealOfflineAccepted = false;
+bool _mealNoticeListening = false;
+
+Future<bool> allowMealPlanChange(BuildContext context) async {
+  if (!_mealNoticeListening) {
+    _mealNoticeListening = true;
+    offlineStatus.addListener(() {
+      if (!offlineStatus.value) _mealOfflineAccepted = false;
+    });
+  }
+  if (!offlineStatus.value || _mealOfflineAccepted) return true;
+  final accepted =
+      await showDialog<bool>(
+        context: context,
+        builder: (dialog) => AlertDialog(
+          title: const Text('You’re offline'),
+          content: const Text(
+            'Your meal-plan changes will be saved on this device. When you reconnect, we’ll ask whether to send them to the server or discard them.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialog, false),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(dialog, true),
+              child: const Text('Continue offline'),
+            ),
+          ],
+        ),
+      ) ??
+      false;
+  if (accepted && offlineStatus.value) _mealOfflineAccepted = true;
+  return accepted;
+}

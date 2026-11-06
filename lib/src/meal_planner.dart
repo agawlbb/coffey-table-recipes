@@ -1,3 +1,4 @@
+import 'connection_notice.dart';
 import 'child_mode.dart';
 
 import 'dart:async';
@@ -266,6 +267,7 @@ class _MealPlannerState extends State<MealPlanner> with WidgetsBindingObserver {
     bool confirmed = false,
   }) async {
     if (_saving || !_ready || childMode.value) return false;
+    if (!await allowMealPlanChange(context) || !mounted) return false;
     final epoch = _accessEpoch;
     final past = _past(oldDate) || _past(operation['date'] as String?);
     if (past && !confirmed && !await _confirmPast()) return false;
@@ -408,6 +410,7 @@ class _MealPlannerState extends State<MealPlanner> with WidgetsBindingObserver {
 
   Future<void> _pick(String date) async {
     if (!_ready) return;
+    if (!await allowMealPlanChange(context) || !mounted) return;
     final epoch = _accessEpoch;
     final selection = await showModalBottomSheet<String>(
       context: context,

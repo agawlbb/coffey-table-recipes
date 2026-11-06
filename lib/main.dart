@@ -24,7 +24,6 @@ import 'src/native_timers.dart';
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   installClientErrorLogging();
-  await clientLog.start();
   try {
     final info = await PackageInfo.fromPlatform().timeout(
       const Duration(seconds: 2),
@@ -33,6 +32,7 @@ Future<void> main() async {
   } catch (error, stack) {
     clientLog.record('app', 'version_unavailable', error: error, stack: stack);
   }
+  await clientLog.start();
   await sharedRecipeInbox.start();
   final options = FirebaseConfig.options;
   String? initializationError;

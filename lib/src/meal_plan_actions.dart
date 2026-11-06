@@ -1,3 +1,4 @@
+import 'connection_notice.dart';
 import 'child_mode.dart';
 
 import 'dart:async';
@@ -24,6 +25,7 @@ Future<void> addDatedMeal(
   bool exactRecipe = false,
 }) async {
   if (childMode.value) return;
+  if (!await allowMealPlanChange(context) || !context.mounted) return;
   final startingEpoch = mealPlanNotices.epoch;
   try {
     final path = '/households/$householdId/meal-plan';

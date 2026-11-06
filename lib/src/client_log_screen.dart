@@ -27,6 +27,11 @@ class _ClientLogScreenState extends State<ClientLogScreen> {
         title: const Text('Error log'),
         actions: [
           IconButton(
+            tooltip: 'Clear log',
+            icon: const Icon(Icons.delete_outline),
+            onPressed: log.clear,
+          ),
+          IconButton(
             tooltip: 'Copy to clipboard',
             icon: const Icon(Icons.copy_outlined),
             onPressed: () async {

@@ -1376,3 +1376,22 @@ pending at the version tag; their outcomes will be recorded after completion.
   deletion did not occur. Native iPad/iPhone acceptance remains with the user.
   A later merge can retain this tag and existing Apple build without rebuilding
   iOS, provided application source is unchanged.
+
+
+## 2.8.1 — Meal-plan warning and error-log cleanup
+
+Owner requested the scoped warning/log changes, merging all working branches to
+main, removal of the merged branches/worktrees, and release on iOS and Android.
+Version 2.8.1/build64, tag `v2.8.1`.
+
+The meal-plan warning is shared by planner changes and recipe-to-plan additions.
+Continue offline suppresses it for the current offline period. A healthy
+connection resets the in-memory flag; a process relaunch naturally starts fresh.
+No timer or persisted warning preference. The error log adds Clear log, expires
+entries after 24 hours (including idle expiry), and remembers its last app version
+for a one-time update clear. App data and pending saves are unaffected.
+
+Validation is limited to the two focused warning/log test files and analysis of
+the eight affected Dart files. No full suite or backend tests are run for these
+client-only tweaks. Existing package signing, identity, link and delivery checks
+remain part of the release. Merge/cleanup and delivery outcomes follow below.

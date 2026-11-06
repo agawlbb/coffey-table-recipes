@@ -18,6 +18,8 @@ class ClientLog extends ChangeNotifier {
   }) : assert(limit > 0);
 
   static const _key = 'client-diagnostics-v1';
+  static const _versionKey = 'client-diagnostics-version';
+  Timer? _expiry;
   final Future<String?> Function(String) read;
   final Future<void> Function(String, String) write;
   final DateTime Function() now;
@@ -50,8 +52,18 @@ class ClientLog extends ChangeNotifier {
     } catch (_) {
       // Diagnostics must never prevent the app or synchronization from starting.
     }
+    try {
+      if (version != null && await read(_versionKey) != version) {
+        _rows.clear();
+        await write(_key, '[]');
+        await write(_versionKey, version!);
+      }
+    } catch (_) {
+      // Log maintenance must not prevent startup.
+    }
+    _trim();
     _changed();
-    if (_rows.isNotEmpty) _scheduleSave();
+    _scheduleSave();
   }
 
   static String _label(String value) =>
@@ -162,14 +174,45 @@ class ClientLog extends ChangeNotifier {
   }
 
   void _trim() {
+    final cutoff = now().toUtc().subtract(const Duration(hours: 24));
+    _rows.removeWhere((row) {
+      final time = DateTime.tryParse('${row['time']}');
+      return time == null || time.isBefore(cutoff);
+    });
     while (_rows.length > limit ||
         utf8.encode(jsonEncode(_rows)).length > 128 * 1024) {
       _rows.removeAt(0);
     }
+    _expiry?.cancel();
+    if (_rows.isNotEmpty && !_disposed) {
+      final earliest = _rows
+          .map((r) => DateTime.parse(r['time'] as String))
+          .reduce((a, b) => a.isBefore(b) ? a : b);
+      final delay = earliest
+          .add(const Duration(hours: 24, milliseconds: 1))
+          .difference(now());
+      _expiry = Timer(delay, () {
+        _trim();
+        _changed();
+        _scheduleSave();
+      });
+    }
   }
 
-  String get text =>
-      _rows.isEmpty ? 'No errors recorded.' : _rows.map(jsonEncode).join('\n');
+  String get text {
+    _trim();
+    return _rows.isEmpty
+        ? 'No errors recorded.'
+        : _rows.map(jsonEncode).join('\n');
+  }
+
+  Future<void> clear() async {
+    await start();
+    _rows.clear();
+    _expiry?.cancel();
+    _changed();
+    await flush();
+  }
 
   void _changed() {
     if (_notifying || _disposed) return;
@@ -182,6 +225,7 @@ class ClientLog extends ChangeNotifier {
 
   Future<void> flush() async {
     await start();
+    _trim();
     final data = jsonEncode(_rows);
     _writes = _writes.then((_) async {
       try {
@@ -196,6 +240,7 @@ class ClientLog extends ChangeNotifier {
   @override
   void dispose() {
     _disposed = true;
+    _expiry?.cancel();
     super.dispose();
   }
 }
