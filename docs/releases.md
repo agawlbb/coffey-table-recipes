@@ -1395,3 +1395,37 @@ Validation is limited to the two focused warning/log test files and analysis of
 the eight affected Dart files. No full suite or backend tests are run for these
 client-only tweaks. Existing package signing, identity, link and delivery checks
 remain part of the release. Merge/cleanup and delivery outcomes follow below.
+
+
+### Verified 2.8.1 delivery and cleanup
+
+- Both working branches were fast-forwarded into main and pushed. App tag
+  `v2.8.1` points to `c888450bc6573296d10f7cc4322bc7e0ed0302df`;
+  backend main is `759167faf6959ca64a61e4c146d81ff7dc4b45cc`.
+- Deleted local/remote `feature/simple-offline-saves` and
+  `feature/last-update-wins` and their worktrees after confirming the merges.
+  Both repositories then contained only main and their main worktree.
+- Eight focused warning/log tests passed. Analysis of the eight affected Dart
+  files was clean. Build workflows ran no Flutter test suite. The signed iOS
+  workflow's existing analysis check also passed.
+- [Android build 42288129256](https://github.com/agawlbb/coffey-table-recipes/actions/runs/42288129256)
+  verified version/build, tagged source, original certificate, required native
+  timer classes and hosted app links. APK SHA-256:
+  `300df67186f17ec442b206204d847756cdcdc82bb1c6ea54e76da55dd7976606`.
+- [Android APK](https://drive.google.com/file/d/1ZQxzN0IqJ2zH31Id8qKz6dpYnvr7Mg6b/view)
+  was uploaded to the pinned recipe app folder. The downloaded checksum matched;
+  the Android informational notification was sent. Only the prior release APK,
+  `CoffeyTableRecipes-2.7.6-build61.apk`, was moved to Drive trash.
+- [iOS build/upload 42288125416](https://github.com/agawlbb/coffey-table-recipes/actions/runs/42288125416)
+  passed archive/export, app/extension signatures, distribution profiles,
+  version/build and hosted iOS association verification. Exported IPA SHA-256:
+  `43d3c40db84a3b8d6f444ef69a05d5c4d4e65734077f62ea9163d7e3cbc1e8af`.
+- [Apple verification 42290882390](https://github.com/agawlbb/coffey-table-recipes/actions/runs/42290882390)
+  confirms build `1b16de89-4703-42e1-a722-02dd74344aa1` is VALID,
+  IN_BETA_TESTING, declares no non-exempt encryption and is available to Family
+  testers. No group or territory setting was changed.
+- Delivery logs, Android APK and verification/publication records are retained
+  outside Git under `.release-tools/release-2.8.1`.
+- All 63 checked deployed backend source/lock/association files match merged main.
+  No backend code changed for these tweaks, so no redeployment was necessary.
+  Physical iPad/iPhone/Android acceptance remains with the user.
