@@ -1330,3 +1330,21 @@ The signed package from tag v2.7.7 will be uploaded without rebuilding.
 - Both main branches and working branches are retained. No Android build,
   Android publication, main integration or branch/worktree deletion occurred.
   Physical-device acceptance remains with the user before further release work.
+
+
+## 2.8.0 — SQLite local working data, iOS release
+
+Requested scope: deploy backend `feature/last-update-wins`, tag and build signed
+iOS, and use normal TestFlight distribution. Android is deferred. Main integration
+and working-branch deletion are not requested.
+
+Application implementation: `28f16e4`; backend implementation: `8a51af5`.
+Version 2.8.0/build63. See [SQLite sync behavior](local-sqlite-sync.md).
+Focused development checks passed in the shared development Docker container:
+15 SQLite/account/wire/Dart-PHP integration cases, 28 cooking/timer cases, the
+individual request-timeout case, and backend data-socket, meal-plan and shopping
+fixtures. Affected-file Dart analysis reported no issues. No full test suite was
+run. Native-device acceptance remains outstanding.
+
+Backend deployment, signed iOS upload and Apple processing verification are
+pending at the version tag; their outcomes will be recorded after completion.

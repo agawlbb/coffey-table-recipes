@@ -2,6 +2,17 @@
 
 Release dates and changes are reconstructed from annotated Git tags, commit history, and project release records. Versions before 1.0 are demonstration releases; 1.0 marks the first usable release. Android retains the existing signing identity; iOS delivery and signing are recorded for each release.
 
+## 2.8.0 — 2026-11-06
+
+Build 63; tag `v2.8.0`. iOS release; Android deferred. Main integration remains pending approval.
+
+- Store local working data and unsent changes in SQLite, importing existing local data without clearing it.
+- Show meal-plan moves and other ordinary edits immediately, online or offline, without waiting for server acknowledgement.
+- Automatically send new offline recipes; ask whether to save or discard existing recipe edits and meal-plan changes after reconnecting.
+- Keep shopping removals for up to two hours across restart, and preserve unrelated server items when sending item changes.
+- Keep unrelated incoming and outgoing synchronization running while a decision or another save is pending or fails.
+- Keep a healthy connection open when an individual request times out; retain existing shared-edit and past-meal confirmations.
+
 ## 2.7.7 — 2026-11-06
 
 Build 62; tag `v2.7.7`. iOS is staged for approval through TestFlight. Android release and main integration remain pending approval.
