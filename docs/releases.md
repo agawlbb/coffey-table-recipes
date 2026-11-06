@@ -1234,4 +1234,43 @@ no backend redeployment needed for these client-only changes.
 
 User authorized implementation, merging both repositories, deleting working branches and releasing the apps. Version 2.7.6/build 61 clears old local recipe state and pending edits once, preserving authentication. Server data becomes the source of truth. The comparison screen and recipe outbox are removed from production operation. Green means an open server connection. See [connection behavior](server-first-sync.md).
 
-Backend validation: five unified-connection tests (including four-client commands and updates), ten account websocket tests, seven legacy data websocket tests, two cooking websocket tests, PHP identity/account/cooking and data-contract checks passed. App analysis is clean; final suite and delivery evidence follow.
+Backend validation: five unified-connection tests (including four-client commands and updates), ten account websocket tests, seven legacy data websocket tests, two cooking websocket tests, PHP identity/account/cooking and data-contract checks passed. App analysis is clean. Final local app suite: 665 passed, two optional real-server tests skipped in that invocation (both passed separately). An earlier local runner stalled and was restarted; the completed run passed. The immutable iOS release workflow also passed its app analysis/tests before archiving.
+
+### Verified 2.7.6 delivery — 2026-11-06
+
+- App source tag `v2.7.6`: `21bbfeca5ce825416feaba5bf12eab7e497bce61`.
+  Backend main `d122df5` deployed by existing copy/restart script. All 60 live PHP
+  source files match. Health, public recipe links and both native associations
+  return HTTP 200. Live app-scope authentication and public recipe read passed.
+- Both task branches are merged and deleted locally/on GitHub. Both repositories
+  have only main and one primary worktree.
+- [Android run 42132630041](https://github.com/agawlbb/coffey-table-recipes/actions/runs/42132630041)
+  passed. Artifact `13464427570` ZIP SHA-256
+  `6798a6364d2ebc2e12d7a0e807a84cc009fbfebd8412c52e363b4a545e464988`.
+  Downloaded APK source/version/build and bytes verified; APK SHA-256
+  `f194af2353cc48619f8e34f4fe157b84beb65b3ffaebeabb91e21a16c492275d`.
+  Independent apksigner check confirms the existing distribution certificate
+  `f8de933f14b9bb4b3191a94aedc8637972c5ab224565f6abd7808f8038d12097`;
+  hosted app-link association matches.
+- [Android APK in Drive](https://drive.google.com/file/d/18HNfVxCaqdOO-s2266Um0JnZyHb-CxCI/view).
+  Uploaded bytes downloaded and hashed by publisher; informational notification
+  sent and only the older 2.7.5/build60 release APK trashed.
+- Physical affected-device acceptance remains unverified. On first launch,
+  unsent local edits are intentionally discarded and server data reloads.
+  Settings → Error log → Copy to clipboard remains available.
+
+- [iOS run 42132632663](https://github.com/agawlbb/coffey-table-recipes/actions/runs/42132632663)
+  passed on its first attempt. Analysis, app tests, native tooling, archive,
+  export and strict signatures/profiles passed. App and both extensions are
+  2.7.6/build61 from the immutable source commit. Production APNs and the hosted
+  association match the exported signed app. IPA SHA-256
+  `29cd7fed29ecf925fbd4baec9057e349a6f822c9d83e4e1a9de13a1bfdf4e348`.
+  Xcode confirmed upload success at 00:18:21 UTC on November 6.
+  The upload-enabled workflow retains verification logs rather than an IPA artifact.
+
+- [Apple verification 42137104688](https://github.com/agawlbb/coffey-table-recipes/actions/runs/42137104688)
+  confirms build `c25a9343-47ac-4757-99ec-c8fa1fb33f3c` is VALID,
+  IN_BETA_TESTING and available to the existing Family testers group, with
+  no non-exempt encryption. The first availability check timed out while Apple
+  returned NOT_FOUND; the second check passed at 00:30:23 UTC. No rebuild,
+  new tester invitations or public App Store submission.
