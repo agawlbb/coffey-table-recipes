@@ -158,3 +158,25 @@ the reported old soup/bread session was removed from active plans and its single
 matching cached AI response deleted; recipes and personal context were preserved.
 The standard cancellation tombstone remains for device reconciliation. Android
 test build 66 is dispatched from immutable source `591bc307bebe7b70019e81239b76d443f748c90c`.
+
+## Verified follow-up Android test APK — 2026-11-07
+
+[Android run 42402856114](https://github.com/agawlbb/coffey-table-recipes/actions/runs/42402856114)
+successfully compiled source `591bc307bebe7b70019e81239b76d443f748c90c` in test
+mode. Package `com.coffeytable.coffey_table_recipes`, version
+`2.8.1-account-test`, build **66**. The verified file is
+[CoffeyTableRecipes-2.8.1-combined-cooking-test-build66.apk](https://drive.google.com/file/d/1qDLuueVdBrYSYqvp3hNt_zHKvT1NeGDq/view),
+71,775,897 bytes, SHA-256
+`e5c0b21e8ba516eec87baf35a16d35d0574f33454e9b7500363b0c60a37fdb5e`.
+
+Workflow and independent local verification passed original signing identity
+`f8de933f14b9bb4b3191a94aedc8637972c5ab224565f6abd7808f8038d12097`,
+package/version/build, non-debuggable status, exact source/checksum, 16 KiB
+alignment and hosted Android app links. The workflow also verified timer JNI
+classes. The Drive APK was downloaded and its SHA-256 matched. Existing files
+and sharing settings were retained; no release announcement was sent.
+
+No full test suite, iOS/web build, release tag, main integration or device
+installation was performed. Actual Android navigation and alarm behavior remain
+for device acceptance with this APK. AI evaluations remain bounded to the three
+recorded fixtures; user feedback can refine future estimates.
