@@ -288,3 +288,42 @@ to the existing recipe app Drive folder and downloaded it for matching SHA-256:
 `b23076d56f35070a7bc07d7fbbc3cf90017fe845b31b9b5156ccfedbf449229f` (71775897 bytes).
 No older files were removed, release notification sent, live AI evaluation run,
 or app/full test suite repeated. Physical-device installation is unverified.
+
+
+## Notes, Today label, low reasoning evaluation — 2026-11-07
+
+Continued app task from `ffbc903`, backend `6369764`. The cooking screen no
+longer renders plan_message above the first step, for existing or new sessions.
+Feedback explanations remain in chat; no usefulness classifier, extra provider
+request, schema change or connection behavior was added. Today is centered above
+its day card, 16 logical pixels and bold. Existing action-row layout remains.
+
+31 focused Flutter checks passed in combined_cooking_test.dart (8) and
+meal_planner_test.dart (23), including absence of saved notes, feedback behavior,
+Today centering and 320/390px layout. Scoped analysis is clean, changed Dart files
+are formatted and diff checks passed. No full suite or new APK was requested/run.
+
+Six live calls compared Luna low and medium with the same current generation
+prompt, synthetic raw-ingredient meals, 25,000-token cap and evaluation output
+schema. They did not use production recipe or personal-context fixtures.
+
+| Sample meal | Low seconds | Medium seconds | Low result |
+| --- | ---: | ---: | --- |
+| Soup and garlic bread | 11.10 | 49.90 | Bread finished about 29 minutes early; explanation contradicted its ordering. |
+| Soup, bread, vegetables and rice | 11.06 | 94.80 | Butter melting and rice rinsing omitted. |
+| Chicken and garlic bread | 9.14 | 28.46 | Slicing chicken overlapped watching the broiler. |
+
+Median elapsed time: low 11.06 seconds, medium 49.90. Median output tokens:
+low 1,042, medium 5,346. Medium passed the narrow ingredient-preparation,
+explicit-duration and selected hands-on overlap checks in all three samples.
+These checks do not establish every implicit heating interval or serving-quality
+assumption; manual review still found imprecise heating language in the complex
+medium result. Low was faster but inadequate on these samples, so production
+remains medium. No automatic fallback or model/settings change was introduced.
+The diagnostic's preparation-first assertion was disregarded: preheating before
+ingredient preparation is valid. Results remain in ignored build/low-medium-evaluation.
+
+The latest reported soup/bread session had already ended. Its unique matching
+reusable cache entry was removed, ensuring the next generation calls AI again.
+The normal ended-session tombstone remains for device cleanup. Recipes, personal
+context and other plans were untouched. No backend source deployment was needed.

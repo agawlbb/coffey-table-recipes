@@ -364,6 +364,10 @@ void main() {
         tester.getRect(marker).bottom,
         lessThanOrEqualTo(tester.getRect(cook).top),
       );
+      expect(
+        tester.getRect(marker).center.dx,
+        closeTo(tester.getRect(section).center.dx, 1),
+      );
       final pictures = find.descendant(
         of: section,
         matching: find.byType(RecipePhoto),

@@ -806,8 +806,16 @@ class _MealPlannerState extends State<MealPlanner> with WidgetsBindingObserver {
         children: [
           if (today)
             Padding(
-              padding: const EdgeInsets.only(left: 28, top: 4),
-              child: Text('Today', style: TextStyle(color: colors.primary)),
+              padding: const EdgeInsets.only(top: 4),
+              child: Text(
+                'Today',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  color: colors.primary,
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
             ),
           Container(
             margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),

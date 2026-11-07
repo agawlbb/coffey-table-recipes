@@ -766,11 +766,6 @@ class _CookingModeState extends State<CookingMode>
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
-                        if (combined && _session!['plan_message'] != null)
-                          Padding(
-                            padding: const EdgeInsets.only(bottom: 12),
-                            child: Text('${_session!['plan_message']}'),
-                          ),
                         for (final step in steps)
                           Card(
                             key: _stepKeys.putIfAbsent(

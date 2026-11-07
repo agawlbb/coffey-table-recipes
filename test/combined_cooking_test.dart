@@ -341,6 +341,7 @@ void main() {
       addTearDown(tester.view.resetDevicePixelRatio);
 
       var state = planFixture();
+      state['plan_message'] = 'Planned for one cook with overlapping steps.';
       final calls = <Map<String, dynamic>>[];
       final service = CookingSessions(
         storage: MemoryLocalStorage(),
@@ -376,6 +377,7 @@ void main() {
         ),
       );
       await tester.pumpAndSettle();
+      expect(find.text('${state['plan_message']}'), findsNothing);
       expect(find.text('Start cooking'), findsOneWidget);
       expect(
         (tester.getCenter(find.byTooltip('Dinner time')).dy -
