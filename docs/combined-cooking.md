@@ -355,3 +355,26 @@ no automatic request, failed retry and successful upgrade. Backend validation is
 scenario extended to verify low generation, medium upgrade and shared delivery.
 Provider fixtures are fake with disposable SQL. No live AI call, full suite,
 new APK, database reset or new connection was introduced.
+
+
+## Android test build 68 — 2026-11-07
+
+Requested signed test APK from `4234ceb0c1745f9f230a3cd25335fe6a40242e9a` using successful
+[Actions run 42414484733](https://github.com/agawlbb/coffey-table-recipes/actions/runs/42414484733).
+Version `2.8.1-account-test`, build 68, package
+`com.coffeytable.coffey_table_recipes`. Includes low-first planning and the
+explicit More reasoning button, removed notes, centered bold Today label and
+all previous task changes. Source build counter is 67; test workflow adds one.
+
+Original certificate verified:
+`f8de933f14b9bb4b3191a94aedc8637972c5ab224565f6abd7808f8038d12097`.
+Exact package/version/provenance, nondebuggable status, native preferences JNI,
+16KiB alignment and hosted Android app links passed verification. Uploaded
+[CoffeyTableRecipes-2.8.1-combined-cooking-test-build68.apk](https://drive.google.com/file/d/1dJ1VSB560AwK2DPAJeQ-Lh5td9BDiP6K/view)
+to the existing recipe app Drive folder and downloaded for matching SHA-256:
+`fd5e521cda64c211c46ad51db2d4d713511795b6f959d70bc0f3e2416e2d4a59` (71775897 bytes).
+
+No older Drive files were removed, notification sent, full/app test suite rerun,
+backend deployment or live AI evaluation performed as part of this build.
+Physical-device installation is unverified. Source and delivery records remain
+on the task branch; main was not changed.
