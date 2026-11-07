@@ -89,3 +89,28 @@ The backend implementation `38db9ec` is deployed. Its 66 checked installed sourc
 files match the task branch; HTTPS health returned 200/ok and required CPU settings
 were verified. Deployment ownership/read-permission failures were corrected before
 verification; details are in the backend's COOKING-PLANS.md. No app package was built.
+
+## Signed Android test APK — 2026-11-07
+
+At the user's explicit request, [Android build 42397924161](https://github.com/agawlbb/coffey-table-recipes/actions/runs/42397924161)
+successfully built immutable source `207314b8f9b795f246290dba1d3d0605925f603e`
+in the existing test-build mode. Package `com.coffeytable.coffey_table_recipes`,
+version `2.8.1-account-test`, build **65**. The source version was not changed.
+
+Delivered [CoffeyTableRecipes-2.8.1-combined-cooking-test-build65.apk](https://drive.google.com/file/d/1zB2yKqo6R3BhDCjZuSarKhnn7gzFF7RS/view)
+to the existing recipe-app Drive folder (71,775,897 bytes).
+
+- APK SHA-256: `3c347b152ec29a841e4868964a6479bbcc3590c1373904a36a44b42d84c26143`.
+- Original certificate SHA-256: `f8de933f14b9bb4b3191a94aedc8637972c5ab224565f6abd7808f8038d12097`.
+- Workflow verification passed exact source/version/package identity, signature,
+  non-debuggable status, required timer-preferences JNI classes and hosted app links.
+- Independent local checks passed APK checksum, apksigner certificate/signature,
+  aapt package/version/non-debuggable metadata, 16 KiB alignment and
+  `python3 tool/verify-app-links.py --fingerprint ACTUAL_CERTIFICATE_SHA256`.
+- The uploaded Drive APK was downloaded and its SHA-256 matched. All existing
+  files and sharing settings were retained. No release notification was sent.
+
+This supersedes the earlier no-build status for Android only. No full test suite,
+iOS/web build, release tag, main integration, device installation or live AI call
+was performed. Actual alarm delivery and cooking quality still need user/device
+acceptance. Generated packages and private credentials remain outside Git.
