@@ -655,36 +655,6 @@ class _CookingModeState extends State<CookingMode>
                   style: Theme.of(context).textTheme.headlineMedium,
                 ),
                 if (combined) ...[
-                  TextButton.icon(
-                    icon: const Icon(Icons.schedule),
-                    label: Text(
-                      'Dinner · ${TimeOfDay.fromDateTime(DateTime.fromMillisecondsSinceEpoch((_session!['dinner_at'] as num).toInt())).format(context)}',
-                    ),
-                    onPressed: () async {
-                      final session = _session!;
-                      final dinner = DateTime.fromMillisecondsSinceEpoch(
-                        (session['dinner_at'] as num).toInt(),
-                      );
-                      final time = await showTimePicker(
-                        context: context,
-                        initialTime: TimeOfDay.fromDateTime(dinner),
-                      );
-                      if (time == null) return;
-                      try {
-                        await _sessions.change(widget.sessionId!, 'dinner', {
-                          'dinner_at': DateTime(
-                            dinner.year,
-                            dinner.month,
-                            dinner.day,
-                            time.hour,
-                            time.minute,
-                          ).millisecondsSinceEpoch,
-                        });
-                      } catch (e) {
-                        if (context.mounted) cookingError(context, e);
-                      }
-                    },
-                  ),
                   if (_session!['started_at'] == null)
                     FilledButton(
                       onPressed: () async {
@@ -704,18 +674,89 @@ class _CookingModeState extends State<CookingMode>
                       true)
                     const Text('Start time has passed.'),
                 ],
-                const SizedBox(height: 12),
-                SwitchListTile(
-                  contentPadding: EdgeInsets.zero,
-                  title: const Text('Keep screen awake'),
-                  value: _keepAwake,
-                  onChanged: (value) {
-                    setState(() {
-                      _keepAwake = value;
-                    });
-                    _syncWake();
-                  },
-                ),
+                if (combined)
+                  Row(
+                    children: [
+                      Flexible(
+                        child: Tooltip(
+                          message: 'Dinner time',
+                          child: TextButton.icon(
+                            style: TextButton.styleFrom(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 8,
+                              ),
+                            ),
+                            icon: const Icon(Icons.schedule, size: 18),
+                            label: Text(
+                              TimeOfDay.fromDateTime(
+                                DateTime.fromMillisecondsSinceEpoch(
+                                  (_session!['dinner_at'] as num).toInt(),
+                                ),
+                              ).format(context),
+                            ),
+                            onPressed: () async {
+                              final session = _session!;
+                              final dinner =
+                                  DateTime.fromMillisecondsSinceEpoch(
+                                    (session['dinner_at'] as num).toInt(),
+                                  );
+                              final time = await showTimePicker(
+                                context: context,
+                                initialTime: TimeOfDay.fromDateTime(dinner),
+                              );
+                              if (time == null) return;
+                              try {
+                                await _sessions.change(
+                                  widget.sessionId!,
+                                  'dinner',
+                                  {
+                                    'dinner_at': DateTime(
+                                      dinner.year,
+                                      dinner.month,
+                                      dinner.day,
+                                      time.hour,
+                                      time.minute,
+                                    ).millisecondsSinceEpoch,
+                                  },
+                                );
+                              } catch (e) {
+                                if (context.mounted) cookingError(context, e);
+                              }
+                            },
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Row(
+                          children: [
+                            const Expanded(child: Text('Keep awake')),
+                            Switch(
+                              value: _keepAwake,
+                              onChanged: (value) {
+                                setState(() => _keepAwake = value);
+                                _syncWake();
+                              },
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                if (!combined) ...[
+                  const SizedBox(height: 12),
+                  SwitchListTile(
+                    contentPadding: EdgeInsets.zero,
+                    title: const Text('Keep screen awake'),
+                    value: _keepAwake,
+                    onChanged: (value) {
+                      setState(() {
+                        _keepAwake = value;
+                      });
+                      _syncWake();
+                    },
+                  ),
+                ],
                 LinearProgressIndicator(
                   value: steps.isEmpty ? 0 : _completed.length / steps.length,
                 ),

@@ -114,3 +114,40 @@ This supersedes the earlier no-build status for Android only. No full test suite
 iOS/web build, release tag, main integration, device installation or live AI call
 was performed. Actual alarm delivery and cooking quality still need user/device
 acceptance. Generated packages and private credentials remain outside Git.
+
+## Follow-up: reasoning and Android layout — 2026-11-07
+
+The reported saved response really compressed a 12–15 minute simmer to eight
+minutes and an 8–10 minute bake to one minute; this was AI output, not clock
+conversion. Initial diagnostic calls used the globally pinned Mini model with its
+default no-reasoning setting. Prompt wording alone did not repair the fixture;
+reasoning attempts could exhaust the previous 10,000 output-token allowance.
+
+Cooking generation and feedback now use `gpt-6-luna`, explicit high reasoning and
+a 25,000 output-token allowance. Other recipe AI operations retain their existing
+settings. The prompt explicitly works backwards from all dishes ready to serve,
+uses upper timer ranges, reserves handling/heat-up time and coordinates one cook.
+AI still chooses the schedule; no server scheduling engine or recipe-step estimate
+columns were added. Cache identity includes the actual planner settings and prompt,
+so previous results do not satisfy the corrected request. Incomplete responses
+preserve the current plan and report an actionable error; only failure metadata is
+logged. Successful usage metadata is retained with the private saved result.
+
+The planner now has a Cook together text action. The cooking header puts editable
+time and Keep awake on one row, using flexible text on narrow phones. The selector,
+long-press alarm/share sheet and member selector protect their bottom controls
+with explicit safe areas. Existing controls and start rules retain their behavior.
+
+Validation: scoped analysis passed; all five combined-cooking tests passed with
+navigation insets, button/member tap flows and a 320-pixel header. The other 40
+cooking-session/planner cases passed during the focused runs; initial genuine
+narrow-layout failures were fixed and the affected files rerun. Backend: 30 plan
+checks and the real local cooking-plan WebSocket scenario passed. Live isolated
+fixtures passed soup/bread (6,222 total tokens), four dishes (11,702 tokens), and
+progress-aware feedback (5,904 tokens), including full explicit duration ranges
+and no broiler/soup-finishing conflict. These are bounded evaluations, not proof
+of all cooking estimates. No production recipes were used as test fixtures.
+
+The source build counter advances to 65 so the existing test workflow produces
+Android build 66, distinct from the previous test APK; version remains 2.8.1.
+Main integration and physical-device acceptance remain pending.

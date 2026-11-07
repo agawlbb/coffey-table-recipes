@@ -81,12 +81,15 @@ Future<void> showCombinedCooking(
     useSafeArea: true,
     showDragHandle: true,
     constraints: const BoxConstraints(maxWidth: 600),
-    builder: (_) => _PlanSelector(
-      household: household,
-      date: date,
-      dishes: dishes,
-      time: time,
-      sessions: coordinator,
+    builder: (_) => SafeArea(
+      top: false,
+      child: _PlanSelector(
+        household: household,
+        date: date,
+        dishes: dishes,
+        time: time,
+        sessions: coordinator,
+      ),
     ),
   );
   if (session == null || !context.mounted) return;

@@ -144,25 +144,28 @@ class CookingSessionMenu extends StatelessWidget {
       await showModalBottomSheet<void>(
         context: context,
         useSafeArea: true,
-        builder: (sheet) => ListView(
-          shrinkWrap: true,
-          children: [
-            const ListTile(title: Text('Share with')),
-            if (people.isEmpty)
-              const ListTile(title: Text('No other household members')),
-            for (final person in people)
-              ListTile(
-                title: Text('${person['display_name']}'),
-                onTap: () async {
-                  Navigator.pop(sheet);
-                  try {
-                    await coordinator.share(id, '${person['id']}');
-                  } catch (e) {
-                    if (context.mounted) cookingError(context, e);
-                  }
-                },
-              ),
-          ],
+        builder: (sheet) => SafeArea(
+          top: false,
+          child: ListView(
+            shrinkWrap: true,
+            children: [
+              const ListTile(title: Text('Share with')),
+              if (people.isEmpty)
+                const ListTile(title: Text('No other household members')),
+              for (final person in people)
+                ListTile(
+                  title: Text('${person['display_name']}'),
+                  onTap: () async {
+                    Navigator.pop(sheet);
+                    try {
+                      await coordinator.share(id, '${person['id']}');
+                    } catch (e) {
+                      if (context.mounted) cookingError(context, e);
+                    }
+                  },
+                ),
+            ],
+          ),
         ),
       );
     } catch (e) {
@@ -183,24 +186,27 @@ class CookingSessionMenu extends StatelessWidget {
     final action = await showModalBottomSheet<String>(
       context: context,
       useSafeArea: true,
-      builder: (sheet) => Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          if (NativeTimers.supported &&
-              (alarm || (start?.isAfter(coordinator.now) ?? false)))
-            ListTile(
-              leading: Icon(
-                alarm ? Icons.alarm_off_outlined : Icons.alarm_add_outlined,
+      builder: (sheet) => SafeArea(
+        top: false,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (NativeTimers.supported &&
+                (alarm || (start?.isAfter(coordinator.now) ?? false)))
+              ListTile(
+                leading: Icon(
+                  alarm ? Icons.alarm_off_outlined : Icons.alarm_add_outlined,
+                ),
+                title: Text(alarm ? 'Remove start alarm' : 'Set start alarm'),
+                onTap: () => Navigator.pop(sheet, 'alarm'),
               ),
-              title: Text(alarm ? 'Remove start alarm' : 'Set start alarm'),
-              onTap: () => Navigator.pop(sheet, 'alarm'),
+            ListTile(
+              leading: const Icon(Icons.person_add_outlined),
+              title: const Text('Share'),
+              onTap: () => Navigator.pop(sheet, 'share'),
             ),
-          ListTile(
-            leading: const Icon(Icons.person_add_outlined),
-            title: const Text('Share'),
-            onTap: () => Navigator.pop(sheet, 'share'),
-          ),
-        ],
+          ],
+        ),
       ),
     );
     if (!context.mounted) return;

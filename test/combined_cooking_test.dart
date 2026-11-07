@@ -86,6 +86,15 @@ void main() {
   testWidgets(
     'selector defaults all dishes, remembers dinner setting, and submits selected entries',
     (tester) async {
+      tester.view.physicalSize = const Size(390, 844);
+      tester.view.devicePixelRatio = 1;
+      tester.view.padding = const FakeViewPadding(bottom: 48);
+      tester.view.viewPadding = const FakeViewPadding(bottom: 48);
+      addTearDown(tester.view.resetViewPadding);
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      addTearDown(tester.view.resetPadding);
+
       final calls = <Map<String, dynamic>>[];
       final pending = Completer<Map<String, dynamic>>();
       final service = CookingSessions(
@@ -161,6 +170,12 @@ void main() {
             .every((w) => w.value == true),
         isTrue,
       );
+      expect(
+        tester
+            .getBottomRight(find.widgetWithText(FilledButton, 'Create plan'))
+            .dy,
+        lessThanOrEqualTo(844 - 48),
+      );
       await tester.tap(find.text('Bread'));
       await tester.tap(find.text('Create plan'));
       await tester.pump();
@@ -181,6 +196,11 @@ void main() {
   testWidgets(
     'saved combined session renders timeline and feedback uses current session',
     (tester) async {
+      tester.view.physicalSize = const Size(320, 780);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
       var state = planFixture();
       final calls = <Map<String, dynamic>>[];
       final service = CookingSessions(
@@ -218,6 +238,16 @@ void main() {
       );
       await tester.pumpAndSettle();
       expect(find.text('Start cooking'), findsOneWidget);
+      expect(
+        (tester.getCenter(find.byTooltip('Dinner time')).dy -
+                tester.getCenter(find.byType(Switch)).dy)
+            .abs(),
+        lessThan(4),
+      );
+      await tester.tap(find.byType(Switch));
+      await tester.pump();
+      expect(tester.widget<Switch>(find.byType(Switch)).value, isFalse);
+
       expect(find.textContaining('· Soup'), findsWidgets);
       final feedback = find.text('Provide feedback');
       await tester.ensureVisible(feedback);
@@ -245,6 +275,15 @@ void main() {
   testWidgets(
     'device start alarms persist, shift without AI, show in menu and cancel on starting',
     (tester) async {
+      tester.view.physicalSize = const Size(390, 844);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      tester.view.padding = const FakeViewPadding(bottom: 48);
+      tester.view.viewPadding = const FakeViewPadding(bottom: 48);
+      addTearDown(tester.view.resetViewPadding);
+      addTearDown(tester.view.resetPadding);
+
       final alarms = <String, Map<String, dynamic>>{};
       tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
         NativeTimers.channel,
@@ -268,7 +307,13 @@ void main() {
       final service = CookingSessions(
         storage: MemoryLocalStorage(),
         installation: 'a' * 32,
-        request: (path, {body}) async => {'session': state},
+        request: (path, {body}) async => path.endsWith('/people')
+            ? {
+                'people': [
+                  {'id': '20', 'display_name': 'Alex'},
+                ],
+              }
+            : {'session': state},
       );
       addTearDown(service.dispose);
       await service.accept({
@@ -295,6 +340,20 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.text('Remove start alarm'), findsOneWidget);
       expect(find.text('Share'), findsOneWidget);
+      expect(
+        tester.getBottomRight(find.widgetWithText(ListTile, 'Share')).dy,
+        lessThanOrEqualTo(844 - 48),
+      );
+      await tester.tap(find.text('Share'));
+      await tester.pumpAndSettle();
+      expect(
+        tester.getBottomRight(find.widgetWithText(ListTile, 'Alex')).dy,
+        lessThanOrEqualTo(844 - 48),
+      );
+      await tester.tap(find.text('Alex'));
+      await tester.pumpAndSettle();
+      await tester.longPress(find.text('Soup + Bread'));
+      await tester.pumpAndSettle();
       await tester.tap(find.text('Remove start alarm'));
       await tester.pumpAndSettle();
       expect(alarms, isEmpty);

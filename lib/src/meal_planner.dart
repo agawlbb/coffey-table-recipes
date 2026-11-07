@@ -833,54 +833,57 @@ class _MealPlannerState extends State<MealPlanner> with WidgetsBindingObserver {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Row(
+            Wrap(
+              alignment: WrapAlignment.spaceBetween,
+              crossAxisAlignment: WrapCrossAlignment.center,
+              spacing: 8,
               children: [
-                Expanded(
-                  child: Wrap(
-                    spacing: 8,
-                    crossAxisAlignment: WrapCrossAlignment.center,
-                    children: [
-                      Text(
-                        label,
-                        style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                          fontSize: 20,
-                          fontWeight: FontWeight.w700,
+                Wrap(
+                  spacing: 8,
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  children: [
+                    Text(
+                      label,
+                      style: Theme.of(context).textTheme.titleLarge
+                          ?.copyWith(fontSize: 20, fontWeight: FontWeight.w700),
+                    ),
+                    if (today)
+                      Chip(
+                        side: BorderSide.none,
+                        visualDensity: VisualDensity.compact,
+                        label: Text(
+                          'Today',
+                          style: TextStyle(color: colors.onPrimary),
                         ),
+                        backgroundColor: colors.primary,
                       ),
-                      if (today)
-                        Chip(
-                          side: BorderSide.none,
-                          visualDensity: VisualDensity.compact,
-                          label: Text(
-                            'Today',
-                            style: TextStyle(color: colors.onPrimary),
-                          ),
-                          backgroundColor: colors.primary,
-                        ),
-                    ],
-                  ),
+                  ],
                 ),
-                if (!childMode.value &&
-                    entries.any(
-                      (e) => e['kind'] == 'recipe' && e['available'] != false,
-                    ))
-                  IconButton(
-                    tooltip: 'Cook together',
-                    icon: const Icon(Icons.soup_kitchen_outlined),
-                    onPressed: _saving
-                        ? null
-                        : () => showCombinedCooking(
-                            context,
-                            widget.householdId,
-                            date,
-                            entries,
-                          ),
-                  ),
-                TextButton(
-                  onPressed: _saving || childMode.value
-                      ? null
-                      : () => _pick(date),
-                  child: const Text('+ Add'),
+                Wrap(
+                  children: [
+                    if (!childMode.value &&
+                        entries.any(
+                          (e) =>
+                              e['kind'] == 'recipe' && e['available'] != false,
+                        ))
+                      TextButton(
+                        onPressed: _saving
+                            ? null
+                            : () => showCombinedCooking(
+                                context,
+                                widget.householdId,
+                                date,
+                                entries,
+                              ),
+                        child: const Text('Cook together'),
+                      ),
+                    TextButton(
+                      onPressed: _saving || childMode.value
+                          ? null
+                          : () => _pick(date),
+                      child: const Text('+ Add'),
+                    ),
+                  ],
                 ),
               ],
             ),
