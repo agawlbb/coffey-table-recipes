@@ -182,6 +182,7 @@ class CookingSessions extends ChangeNotifier with WidgetsBindingObserver {
     } on StateError {
       return;
     }
+    unawaited(reconcileStartAlarms().catchError(_failed));
     notifyListeners();
   }
 
@@ -315,6 +316,7 @@ class CookingSessions extends ChangeNotifier with WidgetsBindingObserver {
     _loaded = false;
     visibleSession = null;
     sessions.clear();
+    _feedback.clear();
     offered.clear();
     if (_boundUid != uid) _releaseLocal();
     if (previous != null || uid == null) _api.resetSockets();
@@ -363,7 +365,14 @@ class CookingSessions extends ChangeNotifier with WidgetsBindingObserver {
       throw StateError('Account changed.');
     }
     _lastToken = token;
-    final result = await _api.request(path, token, body: body);
+    final result = await _api.request(
+      path,
+      token,
+      body: body,
+      timeout: path.endsWith('/cooking-plan')
+          ? const Duration(seconds: 570)
+          : const Duration(seconds: 20),
+    );
     if (generation != _generation) throw StateError('Account changed.');
     return result;
   }
@@ -455,6 +464,7 @@ class CookingSessions extends ChangeNotifier with WidgetsBindingObserver {
     }
     notifyListeners();
     await _configure();
+    await reconcileStartAlarms();
     if (generation != _generation ||
         !NativeTimers.supported ||
         _testRequest != null) {
@@ -481,6 +491,7 @@ class CookingSessions extends ChangeNotifier with WidgetsBindingObserver {
       }
     }
     await NativeTimers.restore();
+    await reconcileStartAlarms();
   }
 
   Future<void> importNativeActions(List<Map<String, dynamic>> actions) async {
@@ -541,6 +552,7 @@ class CookingSessions extends ChangeNotifier with WidgetsBindingObserver {
       'installation_id': installation,
       'operation_id': operation ?? randomId(),
     });
+    await reconcileStartAlarms();
     return Map<String, dynamic>.from(result['session'] as Map);
   }
 
@@ -553,6 +565,128 @@ class CookingSessions extends ChangeNotifier with WidgetsBindingObserver {
       error = 'Allow alarms in device settings to mirror cooking timers.';
       notifyListeners();
     }
+  }
+
+  final Map<String, List<Map<String, dynamic>>> _feedback = {};
+  List<Map<String, dynamic>> feedbackMessages(String id) => _feedback[id] ?? [];
+
+  Future<Map<String, dynamic>> planRequest(
+    String household,
+    Map<String, dynamic> body,
+  ) async {
+    if (!available) throw ApiException(401, 'Sign in to plan cooking.');
+    final generation = _generation;
+    if (body['action'] == 'feedback') await _flush();
+    if (generation != _generation) throw StateError('Account changed.');
+    final result = await _request(
+      '/households/$household/cooking-plan',
+      body: {...body, 'installation_id': installation},
+    );
+    if (generation != _generation) throw StateError('Account changed.');
+    await _openLocal();
+    if (generation != _generation) throw StateError('Account changed.');
+    final updated = Map<String, dynamic>.from(result['session'] as Map);
+    await _local!.acceptCooking({
+      'sessions': [...sessions.where((s) => s['id'] != updated['id']), updated],
+    });
+    if (result['messages'] is List) {
+      _feedback['${updated['id']}'] = (result['messages'] as List)
+          .map((e) => Map<String, dynamic>.from(e as Map))
+          .toList();
+    }
+    await reconcileStartAlarms();
+    return result;
+  }
+
+  DateTime? planStart(Map<String, dynamic> s) {
+    if (s['combined'] != true ||
+        s['started_at'] != null ||
+        s['ended_at'] != null) {
+      return null;
+    }
+    final steps = (s['recipe'] as Map)['steps'] as List;
+    if (steps.isEmpty) return null;
+    final offset = steps
+        .map((e) => (e['offset_seconds'] as num).toInt())
+        .reduce(min);
+    return DateTime.fromMillisecondsSinceEpoch(
+      (s['dinner_at'] as num).toInt() + offset * 1000,
+    );
+  }
+
+  String startAlarmKey(String id) => 'plan-start:${_uid ?? 'test'}:$id';
+  bool hasStartAlarm(String id) => NativeTimers.active.value.any(
+    (a) =>
+        a['key'] == startAlarmKey(id) &&
+        (a['deadline'] as num) > DateTime.now().millisecondsSinceEpoch,
+  );
+  Future<void> setStartAlarm(String id) async {
+    final generation = _generation;
+    final original = session(id);
+    if (original == null) throw ApiException(404, 'Cooking session ended.');
+    if (!NativeTimers.supported) {
+      throw ApiException(422, 'Start alarms are available on Android and iOS.');
+    }
+    if (!joined(original)) await join(id);
+    await _configure();
+    await NativeTimers.channel.invokeMethod<void>('requestTimerPermissions');
+    if (generation != _generation) throw StateError('Account changed.');
+    final current = session(id);
+    final start = current == null ? null : planStart(current);
+    if (start == null || !start.isAfter(now)) {
+      throw ApiException(422, 'Start time has passed.');
+    }
+    final key = startAlarmKey(id);
+    await NativeTimers.schedule(
+      key,
+      start.subtract(Duration(milliseconds: _serverOffset)),
+      '${(current!['recipe'] as Map)['title']} · Start cooking',
+    );
+    if (generation != _generation) {
+      await NativeTimers.cancel(key);
+      throw StateError('Account changed.');
+    }
+    await reconcileStartAlarms();
+    notifyListeners();
+  }
+
+  Future<void> removeStartAlarm(String id) async {
+    await NativeTimers.cancel(startAlarmKey(id));
+    notifyListeners();
+  }
+
+  Future<void> _alarmTail = Future.value();
+  Future<void> reconcileStartAlarms() {
+    final next = _alarmTail.catchError((Object _) {}).then((_) async {
+      if (!NativeTimers.supported || !_loaded) return;
+      for (final alarm in List<Map<String, dynamic>>.from(
+        NativeTimers.active.value,
+      )) {
+        final key = '${alarm['key']}';
+        if (!key.startsWith('plan-start:')) continue;
+        final id = key.split(':').last;
+        final s = key == startAlarmKey(id) ? session(id) : null;
+        final start = s == null ? null : planStart(s);
+        if (start == null || !start.isAfter(now)) {
+          await NativeTimers.cancel(key);
+        } else {
+          final deadline = start.subtract(
+            Duration(milliseconds: _serverOffset),
+          );
+          if ((deadline.millisecondsSinceEpoch - (alarm['deadline'] as num))
+                  .abs() >
+              1000) {
+            await NativeTimers.schedule(
+              key,
+              deadline,
+              '${(s!['recipe'] as Map)['title']} · Start cooking',
+            );
+          }
+        }
+      }
+    });
+    _alarmTail = next;
+    return next;
   }
 
   Future<Map<String, dynamic>> create(

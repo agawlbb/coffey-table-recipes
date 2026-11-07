@@ -1,3 +1,5 @@
+import 'package:coffey_table_recipes/src/client_log.dart';
+
 import 'support/local_storage.dart';
 
 import 'package:coffey_table_recipes/src/connection_indicator.dart';
@@ -48,6 +50,8 @@ CookingSessions testCookingSessions({
 }
 
 void main() {
+  // Diagnostics have their own tests; this UI fixture must not retain log-expiry timers.
+  setUpAll(clientLog.dispose);
   testWidgets(
     'cooking communication failures stay silent; actionable errors remain',
     (tester) async {

@@ -1,3 +1,4 @@
+import 'combined_cooking.dart';
 import 'local_sqlite.dart';
 import 'connection_notice.dart';
 import 'app_connection.dart';
@@ -1639,6 +1640,7 @@ class _HouseholdPanelState extends State<HouseholdPanel>
                         ),
                       ),
                     ),
+                    if (!childMode.value) const DinnerTimeSetting(),
                     if (NativeTimers.supported && !childMode.value) ...[
                       const Divider(),
                       const ListTile(title: Text('This device')),

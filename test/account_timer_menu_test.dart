@@ -1,3 +1,5 @@
+import 'package:shared_preferences_platform_interface/in_memory_shared_preferences_async.dart';
+import 'package:shared_preferences_platform_interface/shared_preferences_async_platform_interface.dart';
 import 'package:coffey_table_recipes/src/account_menu.dart';
 import 'package:coffey_table_recipes/src/account_panel.dart';
 import 'package:coffey_table_recipes/src/child_mode.dart';
@@ -10,6 +12,10 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  setUp(() {
+    SharedPreferencesAsyncPlatform.instance =
+        InMemorySharedPreferencesAsync.empty();
+  });
   testWidgets('account menu fits a narrow phone and routes every action', (
     tester,
   ) async {

@@ -336,7 +336,9 @@ extension RecipeTimers {
         var versions = defaults.dictionary(forKey: "timerSyncRevisions") ?? [:]
         let current = (versions[id] as? NSNumber)?.int64Value ?? 0
         guard version > current else { return }
-        let key = "remote:" + id
+        let startAlarm = id.hasSuffix(":__plan_start")
+        let key = startAlarm ? "plan-start:\(uid):\(parts[1])" : "remote:" + id
+        if startAlarm && rows[key] == nil { return }
         let cancelled = ["1", "true"].contains(String(describing: data["cancelled"] ?? ""))
         let extensionSeconds = Int(String(describing: data["extension_seconds"] ?? "0")) ?? 0
         if cancelled || (deadline <= Date().timeIntervalSince1970 * 1000 && extensionSeconds <= 0) {

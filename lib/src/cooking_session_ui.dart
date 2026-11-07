@@ -1,3 +1,5 @@
+import 'native_timers.dart';
+
 import 'dart:async';
 
 import 'package:flutter/material.dart';
@@ -168,6 +170,54 @@ class CookingSessionMenu extends StatelessWidget {
     }
   }
 
+  Future<void> _actions(
+    BuildContext context,
+    Map<String, dynamic> session,
+  ) async {
+    final id = '${session['id']}';
+    if (session['combined'] != true) return _share(context, id);
+    await NativeTimers.restore();
+    if (!context.mounted) return;
+    final alarm = coordinator.hasStartAlarm(id);
+    final start = coordinator.planStart(session);
+    final action = await showModalBottomSheet<String>(
+      context: context,
+      useSafeArea: true,
+      builder: (sheet) => Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (NativeTimers.supported &&
+              (alarm || (start?.isAfter(coordinator.now) ?? false)))
+            ListTile(
+              leading: Icon(
+                alarm ? Icons.alarm_off_outlined : Icons.alarm_add_outlined,
+              ),
+              title: Text(alarm ? 'Remove start alarm' : 'Set start alarm'),
+              onTap: () => Navigator.pop(sheet, 'alarm'),
+            ),
+          ListTile(
+            leading: const Icon(Icons.person_add_outlined),
+            title: const Text('Share'),
+            onTap: () => Navigator.pop(sheet, 'share'),
+          ),
+        ],
+      ),
+    );
+    if (!context.mounted) return;
+    if (action == 'share') return _share(context, id);
+    if (action == 'alarm') {
+      try {
+        if (alarm) {
+          await coordinator.removeStartAlarm(id);
+        } else {
+          await coordinator.setStartAlarm(id);
+        }
+      } catch (e) {
+        if (context.mounted) cookingError(context, e);
+      }
+    }
+  }
+
   Future<bool> _end(BuildContext context, String id) async {
     final session = coordinator.session(id);
     if (session == null || childMode.value) return false;
@@ -207,7 +257,7 @@ class CookingSessionMenu extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => AnimatedBuilder(
-    animation: coordinator,
+    animation: Listenable.merge([coordinator, NativeTimers.active]),
     builder: (context, _) {
       if (childModeOf(context) || coordinator.sessions.isEmpty) {
         return const SizedBox.shrink();
@@ -235,7 +285,24 @@ class CookingSessionMenu extends StatelessWidget {
               ),
               child: ListTile(
                 title: Text('${(session['recipe'] as Map)['title']}'),
-                trailing: Text(coordinator.joined(session) ? 'Open' : 'Join'),
+                subtitle: session['combined'] == true
+                    ? Text(
+                        '${MaterialLocalizations.of(context).formatShortDate(DateTime.fromMillisecondsSinceEpoch((session['dinner_at'] as num).toInt()))} · ${TimeOfDay.fromDateTime(DateTime.fromMillisecondsSinceEpoch((session['dinner_at'] as num).toInt())).format(context)}',
+                      )
+                    : null,
+                trailing: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (coordinator.hasStartAlarm('${session['id']}')) ...[
+                      const Tooltip(
+                        message: 'Start alarm set on this device',
+                        child: Icon(Icons.alarm, size: 18),
+                      ),
+                      const SizedBox(width: 8),
+                    ],
+                    Text(coordinator.joined(session) ? 'Open' : 'Join'),
+                  ],
+                ),
                 onTap: () {
                   final navigator = Navigator.of(context);
                   final routeContext = Scaffold.of(context).context;
@@ -252,7 +319,7 @@ class CookingSessionMenu extends StatelessWidget {
                     }
                   });
                 },
-                onLongPress: () => _share(context, '${session['id']}'),
+                onLongPress: () => _actions(context, session),
               ),
             ),
         ],

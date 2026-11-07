@@ -95,7 +95,9 @@ object TimerSyncNative {
         val version = data.getLong("revision")
         val revisions = JSONObject(p.getString("revisions", "{}")!!)
         if (version <= revisions.optLong(id, 0)) return
-        val key = "remote:$id"
+        val startAlarm = id.endsWith(":__plan_start")
+        val key = if (startAlarm) "plan-start:$uid:$session" else "remote:$id"
+        if (startAlarm && !RecipeTimers.rows(c).has(key)) return
         val cancelled = data.optString("cancelled") in listOf("1", "true")
         val deadline = data.getLong("deadline_ms") - p.getLong("clockOffset", 0L)
         val extension = data.optInt("extension_seconds", 0)

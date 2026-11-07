@@ -906,6 +906,13 @@ class LocalData extends ChangeNotifier {
             body['installation_id'],
           }.toList();
         }
+        if (session['combined'] == true) {
+          if (action == 'start' ||
+              (action == 'step' && body['checked'] == true)) {
+            session['started_at'] ??= now().millisecondsSinceEpoch;
+          }
+          if (action == 'dinner') session['dinner_at'] = body['dinner_at'];
+        }
         if (action == 'step') {
           final done = List<dynamic>.from(session['completed'] as List)
             ..remove(body['step_id']);

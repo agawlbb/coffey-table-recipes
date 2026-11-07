@@ -1,3 +1,4 @@
+import 'combined_cooking.dart';
 import 'connection_notice.dart';
 import 'child_mode.dart';
 
@@ -859,6 +860,22 @@ class _MealPlannerState extends State<MealPlanner> with WidgetsBindingObserver {
                     ],
                   ),
                 ),
+                if (!childMode.value &&
+                    entries.any(
+                      (e) => e['kind'] == 'recipe' && e['available'] != false,
+                    ))
+                  IconButton(
+                    tooltip: 'Cook together',
+                    icon: const Icon(Icons.soup_kitchen_outlined),
+                    onPressed: _saving
+                        ? null
+                        : () => showCombinedCooking(
+                            context,
+                            widget.householdId,
+                            date,
+                            entries,
+                          ),
+                  ),
                 TextButton(
                   onPressed: _saving || childMode.value
                       ? null

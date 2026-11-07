@@ -1,3 +1,4 @@
+import 'combined_cooking.dart';
 import 'connection_indicator.dart';
 import 'cooking_sessions.dart';
 import 'cooking_session_ui.dart';
@@ -217,7 +218,9 @@ class _CookingModeState extends State<CookingMode>
   Future<void> _wakeQueue = Future.value();
 
   List<Map<String, dynamic>> _rows(String key) =>
-      List<Map<String, dynamic>>.from(widget.recipe[key] as List? ?? []);
+      List<Map<String, dynamic>>.from(
+        (_session?['recipe'] as Map? ?? widget.recipe)[key] as List? ?? [],
+      );
 
   @override
   void initState() {
@@ -582,6 +585,20 @@ class _CookingModeState extends State<CookingMode>
     ),
   );
 
+  String? _viewedStep() {
+    for (final entry in _stepKeys.entries) {
+      final box = entry.value.currentContext?.findRenderObject();
+      if (box is RenderBox && box.hasSize) {
+        final y = box.localToGlobal(Offset.zero).dy;
+        if (y + box.size.height > 200 &&
+            y < MediaQuery.sizeOf(context).height - 100) {
+          return entry.key;
+        }
+      }
+    }
+    return null;
+  }
+
   @override
   Widget build(BuildContext context) {
     childModeOf(context);
@@ -594,6 +611,7 @@ class _CookingModeState extends State<CookingMode>
     }
     final steps = _rows('steps');
     final actions = _rows('actions');
+    final combined = _session?['combined'] == true;
     return Scaffold(
       drawer: (widget.menuBuilder ?? cookingMenuBuilder)?.call(context),
       appBar: AppBar(
@@ -630,8 +648,62 @@ class _CookingModeState extends State<CookingMode>
               children: [
                 Text(
                   widget.recipe['title'] as String,
+                  maxLines: combined ? 2 : null,
+                  overflow: combined
+                      ? TextOverflow.ellipsis
+                      : TextOverflow.visible,
                   style: Theme.of(context).textTheme.headlineMedium,
                 ),
+                if (combined) ...[
+                  TextButton.icon(
+                    icon: const Icon(Icons.schedule),
+                    label: Text(
+                      'Dinner · ${TimeOfDay.fromDateTime(DateTime.fromMillisecondsSinceEpoch((_session!['dinner_at'] as num).toInt())).format(context)}',
+                    ),
+                    onPressed: () async {
+                      final session = _session!;
+                      final dinner = DateTime.fromMillisecondsSinceEpoch(
+                        (session['dinner_at'] as num).toInt(),
+                      );
+                      final time = await showTimePicker(
+                        context: context,
+                        initialTime: TimeOfDay.fromDateTime(dinner),
+                      );
+                      if (time == null) return;
+                      try {
+                        await _sessions.change(widget.sessionId!, 'dinner', {
+                          'dinner_at': DateTime(
+                            dinner.year,
+                            dinner.month,
+                            dinner.day,
+                            time.hour,
+                            time.minute,
+                          ).millisecondsSinceEpoch,
+                        });
+                      } catch (e) {
+                        if (context.mounted) cookingError(context, e);
+                      }
+                    },
+                  ),
+                  if (_session!['started_at'] == null)
+                    FilledButton(
+                      onPressed: () async {
+                        try {
+                          await _sessions.change(
+                            widget.sessionId!,
+                            'start',
+                            {},
+                          );
+                        } catch (e) {
+                          if (context.mounted) cookingError(context, e);
+                        }
+                      },
+                      child: const Text('Start cooking'),
+                    ),
+                  if (_sessions.planStart(_session!)?.isBefore(_sessions.now) ==
+                      true)
+                    const Text('Start time has passed.'),
+                ],
                 const SizedBox(height: 12),
                 SwitchListTile(
                   contentPadding: EdgeInsets.zero,
@@ -653,6 +725,11 @@ class _CookingModeState extends State<CookingMode>
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
+                        if (combined && _session!['plan_message'] != null)
+                          Padding(
+                            padding: const EdgeInsets.only(bottom: 12),
+                            child: Text('${_session!['plan_message']}'),
+                          ),
                         for (final step in steps)
                           Card(
                             key: _stepKeys.putIfAbsent(
@@ -669,7 +746,9 @@ class _CookingModeState extends State<CookingMode>
                                     controlAffinity:
                                         ListTileControlAffinity.leading,
                                     title: Text(
-                                      'Step ${step['position']}${step['section_title']?.toString().trim().isNotEmpty == true ? ' · ${step['section_title']}' : ''}',
+                                      combined
+                                          ? '${cookingPlanTime(context, _session!, (step['offset_seconds'] as num).toInt())} · ${step["dish_title"]}'
+                                          : 'Step ${step['position']}${step['section_title']?.toString().trim().isNotEmpty == true ? ' · ${step['section_title']}' : ''}',
                                       style: Theme.of(context)
                                           .textTheme
                                           .titleLarge,
@@ -732,6 +811,17 @@ class _CookingModeState extends State<CookingMode>
                               'All steps completed. Enjoy your meal!',
                               style: TextStyle(fontSize: 22),
                             ),
+                          ),
+                        if (combined)
+                          TextButton.icon(
+                            onPressed: () => showCookingFeedback(
+                              context,
+                              _sessions,
+                              widget.sessionId!,
+                              _viewedStep(),
+                            ),
+                            icon: const Icon(Icons.chat_bubble_outline),
+                            label: const Text('Provide feedback'),
                           ),
                         OutlinedButton(
                           key: _endKey,

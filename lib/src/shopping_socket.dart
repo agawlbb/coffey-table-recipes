@@ -25,14 +25,14 @@ bool isAccountPath(String path) => RegExp(
 ).hasMatch(Uri.parse(path).path);
 
 bool isAiPath(String path) => RegExp(
-  r'^/(?:households/[1-9][0-9]*/(?:recipe-chat|recipe-import|recipe-photo|recipe-category|category-image|recipes/[1-9][0-9]*/variation)|admin/parent-categories(?:/[1-9][0-9]*/category-image)?)$',
+  r'^/(?:households/[1-9][0-9]*/(?:cooking-plan|recipe-chat|recipe-import|recipe-photo|recipe-category|category-image|recipes/[1-9][0-9]*/variation)|admin/parent-categories(?:/[1-9][0-9]*/category-image)?)$',
 ).hasMatch(Uri.parse(path).path);
 
 bool isVpsDataPath(String path) {
   final route = Uri.parse(path).path;
   return RegExp(r'^/recipes/[1-9][0-9]*$').hasMatch(route) ||
       RegExp(
-        r'^/me/(?:cooking-sessions(?:/[a-f0-9]{32}/(?:join|step|timer|presence|end|share|people))?|timers|timer-devices(?:/remove)?)$',
+        r'^/me/(?:cooking-sessions(?:/[a-f0-9]{32}/(?:join|step|timer|presence|end|share|people|start|dinner))?|timers|timer-devices(?:/remove)?)$',
       ).hasMatch(route) ||
       RegExp(
         r'^/households/[1-9][0-9]*/(?:snapshot|name|people(?:/me/name)?|restaurants|recipe-blank|shopping-list(?:/sync-request|/photos(?:/[a-f0-9]{64})?)?|meal-plan(?:/(?:ingredients|history|pairings/[1-9][0-9]*))?|recipes(?:/deleted|/[1-9][0-9]*(?:/(?:edit-options|share|favorites|attach|delete|restore))?)?)$',
