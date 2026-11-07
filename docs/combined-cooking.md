@@ -268,3 +268,23 @@ The backend retains its existing request-rate and AI capacity protection.
 Rate errors identify only the rejected request; heartbeats and authentication
 continue on the open connection. Same-account authentication renewal preserves
 running workers; changing identity/scope still isolates their work.
+
+
+## Android test build 67 — 2026-11-07
+
+Requested test APK built from `78a77ffc5b11660a79c96d0f0259037cea962395` using Actions run
+[42411830740](https://github.com/agawlbb/coffey-table-recipes/actions/runs/42411830740).
+Version `2.8.1-account-test`, build 67, package
+`com.coffeytable.coffey_table_recipes`. This includes the complete preparation,
+absolute start-alarm times, clearing confirmation, shared-connection fixes and
+Today label adjustment. The source build counter advances to 66; the existing
+test workflow adds one. Main remains unchanged.
+
+Signed, nondebuggable APK verification passed for the original certificate
+`f8de933f14b9bb4b3191a94aedc8637972c5ab224565f6abd7808f8038d12097`. Package/version, 16KiB alignment, native preferences
+JNI and hosted Android app links were verified. Uploaded
+[CoffeyTableRecipes-2.8.1-combined-cooking-test-build67.apk](https://drive.google.com/file/d/1I8arQ3qscol0hvh5FzmzJCsTodeHiSlS/view)
+to the existing recipe app Drive folder and downloaded it for matching SHA-256:
+`b23076d56f35070a7bc07d7fbbc3cf90017fe845b31b9b5156ccfedbf449229f` (71775897 bytes).
+No older files were removed, release notification sent, live AI evaluation run,
+or app/full test suite repeated. Physical-device installation is unverified.
