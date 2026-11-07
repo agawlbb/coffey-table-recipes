@@ -15,6 +15,18 @@ String timerCountdown(Map<String, dynamic> timer, DateTime now) {
   return seconds <= 0 ? 'Time is up' : formatRecipeTime(seconds, clock: true);
 }
 
+String cookingTimerStatus(
+  BuildContext context,
+  Map<String, dynamic> timer,
+  DateTime now,
+) => isCookingStartAlarm(timer)
+    ? formatStartAlarmTime(
+        context,
+        DateTime.fromMillisecondsSinceEpoch((timer['deadline'] as num).toInt()),
+        now: now,
+      )
+    : timerCountdown(timer, now);
+
 /// Keeps native timers visible independently of the current page or recipe.
 class ActiveTimerHost extends StatefulWidget {
   const ActiveTimerHost({
@@ -125,15 +137,23 @@ class _ActiveTimerHostState extends State<ActiveTimerHost>
             bottom: false,
             child: ListTile(
               dense: true,
-              leading: const Icon(Icons.timer_outlined),
+              leading: Icon(
+                isCookingStartAlarm(timers.first)
+                    ? Icons.alarm_outlined
+                    : Icons.timer_outlined,
+              ),
               title: Text(
                 timers.length == 1
                     ? '${timers.first['title'] ?? 'Cooking timer'}'
+                    : timers.any(isCookingStartAlarm)
+                    ? '${timers.length} timers and alarms'
                     : '${timers.length} cooking timers',
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
               ),
-              subtitle: Text(timerCountdown(timers.first, DateTime.now())),
+              subtitle: Text(
+                cookingTimerStatus(context, timers.first, DateTime.now()),
+              ),
               trailing: extension > 0
                   ? TextButton(
                       onPressed: _adding
@@ -251,9 +271,15 @@ class _RunningTimersSheetState extends State<RunningTimersSheet> {
                       final key = row['key'] as String;
                       final extension = NativeTimers.remainingExtension(row);
                       return ListTile(
-                        leading: const Icon(Icons.timer_outlined),
+                        leading: Icon(
+                          isCookingStartAlarm(row)
+                              ? Icons.alarm_outlined
+                              : Icons.timer_outlined,
+                        ),
                         title: Text('${row['title'] ?? 'Cooking timer'}'),
-                        subtitle: Text(timerCountdown(row, DateTime.now())),
+                        subtitle: Text(
+                          cookingTimerStatus(context, row, DateTime.now()),
+                        ),
                         trailing: Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [

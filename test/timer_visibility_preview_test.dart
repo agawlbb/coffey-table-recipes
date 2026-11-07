@@ -17,6 +17,65 @@ void main() {
   });
 
   testWidgets(
+    'start alarms show absolute times and cooking timers keep counting down',
+    (tester) async {
+      final now = DateTime.now();
+      final deadline = now.add(const Duration(minutes: 20));
+      final alarm = {
+        'key': 'plan-start:account:session',
+        'deadline': deadline.millisecondsSinceEpoch,
+        'title': 'Dinner · Start cooking',
+      };
+      final cooking = {
+        'key': 'recipe:step',
+        'deadline': deadline.millisecondsSinceEpoch,
+        'title': 'Simmer',
+      };
+      final rows = [alarm, cooking];
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(
+            NativeTimers.channel,
+            (call) async => call.method == 'list' ? rows : null,
+          );
+      final navigator = GlobalKey<NavigatorState>();
+      await tester.pumpWidget(
+        MaterialApp(
+          navigatorKey: navigator,
+          builder: (_, child) => Overlay.wrap(
+            child: ActiveTimerHost(navigatorKey: navigator, child: child!),
+          ),
+          home: const Scaffold(body: Text('Recipe')),
+        ),
+      );
+      await tester.pumpAndSettle();
+      final context = tester.element(find.text('Recipe'));
+      final scheduled = formatStartAlarmTime(context, deadline, now: now);
+      expect(find.text(scheduled), findsOneWidget);
+      expect(
+        cookingTimerStatus(context, alarm, now.add(const Duration(minutes: 1))),
+        scheduled,
+      );
+      expect(
+        timerCountdown(cooking, now),
+        isNot(timerCountdown(cooking, now.add(const Duration(minutes: 1)))),
+      );
+      await tester.tap(find.text('2 timers and alarms'));
+      await tester.pumpAndSettle();
+      expect(find.text(scheduled), findsWidgets);
+      expect(find.text('Dinner · Start cooking'), findsOneWidget);
+      expect(find.text('Simmer'), findsOneWidget);
+      final tomorrow = DateTime(now.year, now.month, now.day + 1, 17, 2);
+      final dated = formatStartAlarmTime(context, tomorrow, now: now);
+      expect(
+        dated,
+        contains(MaterialLocalizations.of(context).formatShortDate(tomorrow)),
+      );
+      await tester.pumpWidget(const SizedBox());
+    },
+    variant: TargetPlatformVariant.only(TargetPlatform.android),
+  );
+
+  testWidgets(
     'timers remain visible across pages and stop safely from the global sheet',
     (tester) async {
       final rows = <Map<String, dynamic>>[];

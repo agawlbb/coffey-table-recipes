@@ -60,13 +60,23 @@ void main() {
       final storage = MemoryLocalStorage();
       final state = planFixture();
       state['dinner_at'] = DateTime(2026, 11, 8, 0, 30).millisecondsSinceEpoch;
+      for (final step in (state['recipe'] as Map)['steps'] as List) {
+        step['offset_seconds'] = -2280;
+      }
+      ((state['recipe'] as Map)['steps'] as List).add({
+        'id': 'prep:ingredients',
+        'instruction': 'Slice potatoes and mince garlic',
+        'offset_seconds': -3480,
+        'dish_title': 'Preparation',
+        'position': 0,
+      });
       final first = CookingSessions(
         storage: storage,
         installation: 'a' * 32,
         request: (path, {body}) async => {'session': state},
       );
       await first.planRequest('1', {'session_id': state['id']});
-      expect(first.planStart(state), DateTime(2026, 11, 7, 23, 30));
+      expect(first.planStart(state), DateTime(2026, 11, 7, 23, 32));
       first.dispose();
       final reopened = CookingSessions(
         storage: storage,
@@ -336,6 +346,14 @@ void main() {
       );
       await tester.pumpAndSettle();
       expect(find.byIcon(Icons.alarm), findsOneWidget);
+      await tester.drag(find.byType(Dismissible), const Offset(-500, 0));
+      await tester.pumpAndSettle();
+      expect(find.text('End cooking session?'), findsOneWidget);
+      await tester.tap(find.text('Cancel'));
+      await tester.pumpAndSettle();
+      expect(service.session('${state['id']}'), isNotNull);
+      expect(alarms.length, 1);
+
       await tester.longPress(find.text('Soup + Bread'));
       await tester.pumpAndSettle();
       expect(find.text('Remove start alarm'), findsOneWidget);
@@ -357,7 +375,34 @@ void main() {
       await tester.tap(find.text('Remove start alarm'));
       await tester.pumpAndSettle();
       expect(alarms, isEmpty);
-      await service.setStartAlarm('${state['id']}');
+      await tester.longPress(find.text('Soup + Bread'));
+      await tester.pumpAndSettle();
+      expect(find.textContaining('Set start alarm for '), findsOneWidget);
+      await tester.tap(find.textContaining('Set start alarm for '));
+      await tester.pumpAndSettle();
+      expect(alarms.length, 1);
+      await service.removeStartAlarm('${state['id']}');
+
+      unawaited(
+        offerStartAlarm(
+          tester.element(find.byType(CookingSessionMenu)),
+          service,
+          state,
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(find.textContaining('Set start alarm for '), findsOneWidget);
+      expect(
+        find.textContaining(
+          formatStartAlarmTime(
+            tester.element(find.byType(AlertDialog)),
+            service.planStart(state)!,
+          ),
+        ),
+        findsOneWidget,
+      );
+      await tester.tap(find.text('Set alarm'));
+      await tester.pumpAndSettle();
       final oldDeadline = alarms.values.single['deadline'] as int;
       state['dinner_at'] = (state['dinner_at'] as int) + 3600000;
       await service.accept({

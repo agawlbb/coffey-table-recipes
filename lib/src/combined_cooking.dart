@@ -267,9 +267,8 @@ Future<void> offerStartAlarm(
   final set = await showDialog<bool>(
     context: context,
     builder: (dialog) => AlertDialog(
-      title: const Text('Set start alarm?'),
-      content: Text(
-        '${MaterialLocalizations.of(dialog).formatFullDate(start.toLocal())} · ${TimeOfDay.fromDateTime(start.toLocal()).format(dialog)}',
+      title: Text(
+        'Set start alarm for ${formatStartAlarmTime(dialog, start)}?',
       ),
       actions: [
         TextButton(

@@ -180,3 +180,47 @@ No full test suite, iOS/web build, release tag, main integration or device
 installation was performed. Actual Android navigation and alarm behavior remain
 for device acceptance with this APK. AI evaluations remain bounded to the three
 recorded fixtures; user feedback can refine future estimates.
+
+## Full preparation, start-alarm times and clearing — 2026-11-07
+
+AI can now add session-only `prep:` entries alongside every original recipe step.
+Each added entry has instructions, selected-dish references and an AI-chosen time;
+its stable identity survives session snapshots, feedback, sharing and offline
+reopening. Original recipe instructions, quantities and timer actions stay intact.
+The prompt requires every task in the checklist rather than preparation before
+its first action hidden in notes. There is no server scheduling engine or recipe
+schema change. Completing preparation starts cooking under the existing rules.
+The earliest checklist entry drives the suggested start and device start alarm,
+including the reported 58-minute preparation example.
+
+Start alarms now show scheduled local time in the app-wide bar and alarm list;
+other cooking timers retain countdowns. Non-today alarms include a date. Both
+setting entry points show the intended time before the user accepts; existing
+menu alarms also show their scheduled time. Clearing from the hamburger menu
+always confirms, including unstarted or completed sessions. Cancel preserves the
+plan and alarms.
+
+Cooking AI now uses Luna with explicit **medium** reasoning and the existing
+25,000-token cap. A paired three-meal fixture comparison measured medium median
+36.02 seconds and high median 173.91 seconds. Manual review found a crowded
+hands-on interval in one medium four-dish result, so the prompt was tightened.
+A further three-meal medium check, including explicit active-work overlap checks,
+passed at 30.63, 62.03 and 81.93 seconds (median 62.03). This supports medium for
+this revision but does not guarantee sub-minute latency or correctness for all
+meals. The high baseline was not rerun after that final prompt clarification.
+All comparisons used disposable raw-ingredient fixtures, not hosted recipes.
+Model/effort/prompt/response-format participate in saved-plan matching; old results
+cannot satisfy the new request. Private usage metadata now includes request time.
+
+Validation: the focused three-file Flutter command passed 27 tests covering
+combined cooking, session confirmation and timer visibility. The five combined
+cooking tests were rerun after adding checks for both alarm-setting entry points
+and passed. Scoped analysis of the four affected libraries and three affected
+test files passed. Backend passed 37 plan checks plus the targeted real local
+cooking-plan WebSocket test, now including a generated preparation entry. The
+WebSocket fixture checks prep storage and broadcast; the live model comparison
+checks culinary planning and does not prove device behavior.
+
+No app build or main integration is included in this revision. The backend's
+complete checklist can be viewed by the existing test app, but the new confirmation
+and alarm-display UI needs a future explicitly requested APK build.

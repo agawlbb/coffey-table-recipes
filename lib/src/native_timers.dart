@@ -6,6 +6,25 @@ import 'package:flutter/services.dart';
 
 import 'cooking_sessions.dart';
 
+bool isCookingStartAlarm(Map<String, dynamic> timer) =>
+    '${timer['key']}'.startsWith('plan-start:');
+
+String formatStartAlarmTime(
+  BuildContext context,
+  DateTime deadline, {
+  DateTime? now,
+}) {
+  final local = deadline.toLocal();
+  final today = (now ?? DateTime.now()).toLocal();
+  final time = TimeOfDay.fromDateTime(local).format(context);
+  if (local.year == today.year &&
+      local.month == today.month &&
+      local.day == today.day) {
+    return time;
+  }
+  return '${MaterialLocalizations.of(context).formatShortDate(local)} · $time';
+}
+
 class NativeTimers {
   static const channel = MethodChannel('coffey_table_recipes/timers');
   static final active = ValueNotifier<List<Map<String, dynamic>>>([]);

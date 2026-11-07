@@ -199,12 +199,12 @@ void main() {
     await tester.pumpWidget(const SizedBox());
   });
   for (final scenario in [
-    (count: 0, timer: 'none', confirms: false),
-    (count: 2, timer: 'none', confirms: false),
+    (count: 0, timer: 'none', confirms: true),
+    (count: 2, timer: 'none', confirms: true),
     (count: 1, timer: 'none', confirms: true),
     (count: 0, timer: 'running', confirms: true),
     (count: 2, timer: 'ringing', confirms: true),
-    (count: 0, timer: 'cancelled', confirms: false),
+    (count: 0, timer: 'cancelled', confirms: true),
   ]) {
     testWidgets('swipe ends session: $scenario', (tester) async {
       final state = cookingFixture(joined: []);
@@ -301,6 +301,8 @@ void main() {
       ),
     );
     await tester.drag(find.byType(Dismissible), const Offset(700, 0));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('End'));
     await tester.pumpAndSettle();
     expect(find.byType(SnackBar), findsNothing);
     expect(service.sessions, isEmpty);

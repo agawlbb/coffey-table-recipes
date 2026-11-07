@@ -183,6 +183,15 @@ class CookingSessionMenu extends StatelessWidget {
     if (!context.mounted) return;
     final alarm = coordinator.hasStartAlarm(id);
     final start = coordinator.planStart(session);
+    final alarmTime = alarm
+        ? DateTime.fromMillisecondsSinceEpoch(
+            (NativeTimers.active.value.firstWhere(
+                      (row) => row['key'] == coordinator.startAlarmKey(id),
+                    )['deadline']
+                    as num)
+                .toInt(),
+          )
+        : start;
     final action = await showModalBottomSheet<String>(
       context: context,
       useSafeArea: true,
@@ -197,7 +206,14 @@ class CookingSessionMenu extends StatelessWidget {
                 leading: Icon(
                   alarm ? Icons.alarm_off_outlined : Icons.alarm_add_outlined,
                 ),
-                title: Text(alarm ? 'Remove start alarm' : 'Set start alarm'),
+                title: Text(
+                  alarm
+                      ? 'Remove start alarm'
+                      : 'Set start alarm for ${formatStartAlarmTime(sheet, alarmTime!)}',
+                ),
+                subtitle: alarm
+                    ? Text(formatStartAlarmTime(sheet, alarmTime!))
+                    : null,
                 onTap: () => Navigator.pop(sheet, 'alarm'),
               ),
             ListTile(
@@ -227,32 +243,27 @@ class CookingSessionMenu extends StatelessWidget {
   Future<bool> _end(BuildContext context, String id) async {
     final session = coordinator.session(id);
     if (session == null || childMode.value) return false;
-    final steps = ((session['recipe'] as Map)['steps'] as List? ?? []);
-    final completed = (session['completed'] as List? ?? []).toSet();
-    final count = steps.where((s) => completed.contains('${s['id']}')).length;
     final hasTimers = coordinator.timers(id).any((t) => t['cancelled'] != true);
-    if (hasTimers || (count > 0 && count < steps.length)) {
-      final confirmed = await showDialog<bool>(
-        context: context,
-        builder: (dialog) => AlertDialog(
-          title: const Text('End cooking session?'),
-          content: hasTimers
-              ? const Text('Running timers will be canceled.')
-              : null,
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(dialog, false),
-              child: const Text('Cancel'),
-            ),
-            FilledButton(
-              onPressed: () => Navigator.pop(dialog, true),
-              child: const Text('End'),
-            ),
-          ],
-        ),
-      );
-      if (confirmed != true || !context.mounted) return false;
-    }
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialog) => AlertDialog(
+        title: const Text('End cooking session?'),
+        content: hasTimers
+            ? const Text('Running timers will be canceled.')
+            : null,
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialog, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(dialog, true),
+            child: const Text('End'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !context.mounted) return false;
     try {
       await coordinator.end(id);
     } catch (e) {
