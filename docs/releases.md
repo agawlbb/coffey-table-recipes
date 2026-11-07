@@ -1429,3 +1429,33 @@ remain part of the release. Merge/cleanup and delivery outcomes follow below.
 - All 63 checked deployed backend source/lock/association files match merged main.
   No backend code changed for these tweaks, so no redeployment was necessary.
   Physical iPad/iPhone/Android acceptance remains with the user.
+
+
+## 2.9.0 — Combined cooking plans
+
+Owner requested the feedback-sheet safe area and bordered side-by-side cooking
+actions, clearing the queued plan, merging the completed cooking task into main,
+removing its branches/worktrees and releasing Android and iOS. Version
+2.9.0/build69, immutable tag v2.9.0.
+
+Includes the complete combined-cooking task since 2.8.1: dinner-based AI timelines,
+explicit preparation, low-first planning with an explicit More reasoning upgrade,
+private feedback/context, reusable plans, device start alarms and scheduled-time
+displays, session clearing confirmation, shared-connection fixes and compact day
+headers. General plan notes are omitted from the cooking screen. See
+[combined cooking](combined-cooking.md) for implementation and earlier validation.
+
+The final repair adds bottom SafeArea to feedback and equal-width outlined
+More reasoning/Provide feedback actions in one row. Labels wrap inside their
+buttons at narrow widths. Existing medium-upgrade behavior is preserved.
+26 focused combined-cooking/session checks and scoped Dart analysis passed.
+Tests cover keyboard/nav insets, 320px action geometry, chat sending, progress,
+alarms and existing session navigation. No full suite or backend/tooling suite
+was run for these final client-only changes.
+
+The latest requested soup/bread session was already ended. Its unique matching
+reusable cache entry was removed; its normal ended-session tombstone remains for
+device cleanup. Recipes, cooking context and unrelated plans were preserved.
+Backend source already matches its task branch and requires no redeployment.
+Native encryption declarations remain unchanged; existing France restrictions
+are preserved. Merge, branch cleanup and signed delivery results follow below.

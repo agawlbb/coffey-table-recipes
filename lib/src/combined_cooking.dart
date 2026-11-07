@@ -302,10 +302,13 @@ Future<void> showCookingFeedback(
   useSafeArea: true,
   showDragHandle: true,
   constraints: const BoxConstraints(maxWidth: 700),
-  builder: (_) => _FeedbackChat(
-    sessions: sessions,
-    sessionId: sessionId,
-    viewedStep: viewedStep,
+  builder: (_) => SafeArea(
+    top: false,
+    child: _FeedbackChat(
+      sessions: sessions,
+      sessionId: sessionId,
+      viewedStep: viewedStep,
+    ),
   ),
 );
 

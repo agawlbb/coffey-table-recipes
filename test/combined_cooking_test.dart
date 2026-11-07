@@ -340,6 +340,11 @@ void main() {
       tester.view.devicePixelRatio = 1;
       addTearDown(tester.view.resetPhysicalSize);
       addTearDown(tester.view.resetDevicePixelRatio);
+      tester.view.padding = const FakeViewPadding(bottom: 48);
+      tester.view.viewPadding = const FakeViewPadding(bottom: 48);
+      addTearDown(tester.view.resetPadding);
+      addTearDown(tester.view.resetViewPadding);
+      addTearDown(tester.view.resetViewInsets);
 
       var state = planFixture();
       state['plan_message'] = 'Planned for one cook with overlapping steps.';
@@ -396,6 +401,27 @@ void main() {
       await tester.tap(feedback);
       await tester.pumpAndSettle();
       expect(calls.single['action'], 'history');
+      expect(
+        tester.getRect(find.byType(TextField)).bottom,
+        lessThanOrEqualTo(780 - 48),
+      );
+      expect(
+        tester.getRect(find.byTooltip('Send')).bottom,
+        lessThanOrEqualTo(780 - 48),
+      );
+      tester.view.viewInsets = const FakeViewPadding(bottom: 300);
+      tester.view.padding = const FakeViewPadding();
+      await tester.pumpAndSettle();
+      expect(
+        tester.getRect(find.byType(TextField)).bottom,
+        lessThanOrEqualTo(780 - 300),
+      );
+      expect(
+        tester.getRect(find.byTooltip('Send')).bottom,
+        lessThanOrEqualTo(780 - 300),
+      );
+      expect(tester.takeException(), isNull);
+
       state = {
         ...state,
         'completed': ['1'],
@@ -417,6 +443,10 @@ void main() {
   testWidgets(
     'More reasoning is below the steps and upgrades only when requested',
     (tester) async {
+      tester.view.physicalSize = const Size(320, 780);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
       var state = planFixture();
       var attempts = 0;
       var fail = true;
@@ -452,8 +482,20 @@ void main() {
       );
       await tester.pumpAndSettle();
       expect(attempts, 0);
-      final more = find.widgetWithText(TextButton, 'More reasoning');
+      final more = find.widgetWithText(OutlinedButton, 'More reasoning');
       await tester.ensureVisible(more);
+      final feedback = find.widgetWithText(OutlinedButton, 'Provide feedback');
+      expect(
+        tester.getRect(more).center.dy,
+        closeTo(tester.getRect(feedback).center.dy, 1),
+      );
+      expect(tester.getRect(more).width, tester.getRect(feedback).width);
+      expect(
+        tester.getRect(more).right,
+        lessThan(tester.getRect(feedback).left),
+      );
+      expect(tester.takeException(), isNull);
+
       expect(
         tester.getTopLeft(more).dy,
         greaterThan(tester.getTopLeft(find.textContaining('· Soup').last).dy),

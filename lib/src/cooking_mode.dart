@@ -884,23 +884,57 @@ class _CookingModeState extends State<CookingMode>
                             ),
                           ),
                         if (combined) AiProgressText(_reasoningProgress),
-                        if (combined &&
-                            (_session!['reasoning_effort'] ?? 'medium') ==
-                                'low')
-                          TextButton(
-                            onPressed: _reasoningBusy ? null : _moreReasoning,
-                            child: const Text('More reasoning'),
-                          ),
                         if (combined)
-                          TextButton.icon(
-                            onPressed: () => showCookingFeedback(
-                              context,
-                              _sessions,
-                              widget.sessionId!,
-                              _viewedStep(),
+                          Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 8),
+                            child: Row(
+                              children: [
+                                if ((_session!['reasoning_effort'] ??
+                                        'medium') ==
+                                    'low') ...[
+                                  Expanded(
+                                    child: OutlinedButton(
+                                      onPressed: _reasoningBusy
+                                          ? null
+                                          : _moreReasoning,
+                                      style: OutlinedButton.styleFrom(
+                                        minimumSize: const Size(0, 48),
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 10,
+                                          vertical: 12,
+                                        ),
+                                      ),
+                                      child: const Text(
+                                        'More reasoning',
+                                        textAlign: TextAlign.center,
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 8),
+                                ],
+                                Expanded(
+                                  child: OutlinedButton(
+                                    onPressed: () => showCookingFeedback(
+                                      context,
+                                      _sessions,
+                                      widget.sessionId!,
+                                      _viewedStep(),
+                                    ),
+                                    style: OutlinedButton.styleFrom(
+                                      minimumSize: const Size(0, 48),
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 10,
+                                        vertical: 12,
+                                      ),
+                                    ),
+                                    child: const Text(
+                                      'Provide feedback',
+                                      textAlign: TextAlign.center,
+                                    ),
+                                  ),
+                                ),
+                              ],
                             ),
-                            icon: const Icon(Icons.chat_bubble_outline),
-                            label: const Text('Provide feedback'),
                           ),
                         OutlinedButton(
                           key: _endKey,

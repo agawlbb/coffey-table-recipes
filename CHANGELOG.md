@@ -2,6 +2,18 @@
 
 Release dates and changes are reconstructed from annotated Git tags, commit history, and project release records. Versions before 1.0 are demonstration releases; 1.0 marks the first usable release. Android retains the existing signing identity; iOS delivery and signing are recorded for each release.
 
+## 2.9.0 — 2026-11-07
+
+Build 69; tag `v2.9.0`. iOS and Android release.
+
+- Plan combined cooking from the meal planner with a dinner time, overlapping recipe steps and explicit preparation.
+- Start with low reasoning and offer More reasoning to replan on medium. Save reusable plans and shift dinner time without another AI call.
+- Provide cooking feedback with current progress and remember personal cooking context for the feedback author.
+- Offer device start alarms, show their scheduled time and confirm before clearing sessions.
+- Keep AI requests, token renewal and native alarm updates from holding up unrelated communication on the shared connection.
+- Keep the cooking screen focused on steps, with clear side-by-side actions and feedback controls above Android navigation and the keyboard.
+- Center and emphasize Today while keeping meal-planner actions together on phones.
+
 ## 2.8.1 — 2026-11-06
 
 Build 64; tag `v2.8.1`. iOS and Android release.
