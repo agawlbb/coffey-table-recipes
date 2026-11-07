@@ -151,3 +151,10 @@ of all cooking estimates. No production recipes were used as test fixtures.
 The source build counter advances to 65 so the existing test workflow produces
 Android build 66, distinct from the previous test APK; version remains 2.8.1.
 Main integration and physical-device acceptance remain pending.
+
+The follow-up backend `bf0cf2c` is deployed with 66 matching installed source
+files, HTTPS health 200/ok and required CPU policy verified. At the user's request,
+the reported old soup/bread session was removed from active plans and its single
+matching cached AI response deleted; recipes and personal context were preserved.
+The standard cancellation tombstone remains for device reconciliation. Android
+test build 66 is dispatched from immutable source `591bc307bebe7b70019e81239b76d443f748c90c`.
