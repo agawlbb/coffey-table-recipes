@@ -222,14 +222,7 @@ class ShoppingSocket extends ChangeNotifier {
 
   Future<void> reauthenticate({bool refresh = false}) async {
     final generation = _generation;
-    try {
-      await Future.wait(_pending.values.map((c) => c.future).toList());
-    } catch (_) {
-      /* The original requests report their errors. */
-    }
     if (_closed || !connected || generation != _generation) return;
-    final ready = _ready = Completer<void>();
-    unawaited(ready.future.catchError((Object _) {}));
     try {
       final credential = await token(refresh)
           .timeout(const Duration(seconds: 10));
@@ -241,7 +234,6 @@ class ShoppingSocket extends ChangeNotifier {
         'household_id': household.isEmpty ? null : household,
         'scope': scope,
       });
-      await ready.future.timeout(const Duration(seconds: 90));
       _scheduleRenewal();
     } catch (error) {
       if (!_closed && generation == _generation) _lost(error);

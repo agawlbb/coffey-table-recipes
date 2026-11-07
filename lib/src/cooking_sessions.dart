@@ -463,8 +463,11 @@ class CookingSessions extends ChangeNotifier with WidgetsBindingObserver {
       visibleSession = null;
     }
     notifyListeners();
+    unawaited(_applyNative(data, generation).catchError(_failed));
+  }
+
+  Future<void> _applyNative(Map<String, dynamic> data, int generation) async {
     await _configure();
-    await reconcileStartAlarms();
     if (generation != _generation ||
         !NativeTimers.supported ||
         _testRequest != null) {
@@ -576,25 +579,27 @@ class CookingSessions extends ChangeNotifier with WidgetsBindingObserver {
   ) async {
     if (!available) throw ApiException(401, 'Sign in to plan cooking.');
     final generation = _generation;
-    if (body['action'] == 'feedback') await _flush();
-    if (generation != _generation) throw StateError('Account changed.');
+    final current = session('${body['session_id']}');
+    if (body['action'] == 'feedback' && current != null) {
+      body = {
+        ...body,
+        'current_progress': {
+          for (final key in ['completed', 'timers', 'started_at', 'dinner_at'])
+            key: current[key],
+        },
+      };
+    }
     final result = await _request(
       '/households/$household/cooking-plan',
       body: {...body, 'installation_id': installation},
     );
     if (generation != _generation) throw StateError('Account changed.');
-    await _openLocal();
-    if (generation != _generation) throw StateError('Account changed.');
     final updated = Map<String, dynamic>.from(result['session'] as Map);
-    await _local!.acceptCooking({
-      'sessions': [...sessions.where((s) => s['id'] != updated['id']), updated],
-    });
     if (result['messages'] is List) {
       _feedback['${updated['id']}'] = (result['messages'] as List)
           .map((e) => Map<String, dynamic>.from(e as Map))
           .toList();
     }
-    await reconcileStartAlarms();
     return result;
   }
 

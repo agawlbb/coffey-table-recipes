@@ -800,127 +800,137 @@ class _MealPlannerState extends State<MealPlanner> with WidgetsBindingObserver {
           _add(Map<String, dynamic>.from(details.data['recipe'] as Map), date);
         }
       },
-      builder: (context, candidates, rejected) => Container(
+      builder: (context, candidates, rejected) => Column(
         key: ValueKey('meal-day-$date'),
-        margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-        padding: const EdgeInsets.fromLTRB(12, 4, 12, 10),
-        decoration: BoxDecoration(
-          color: candidates.isNotEmpty
-              ? colors.primaryContainer
-              : past
-              ? colors.onSurface.withValues(alpha: .12)
-              : colors.surface,
-          border: Border.all(color: const Color(0xffdfd1bb)),
-          borderRadius: BorderRadius.circular(20),
-          boxShadow: today
-              ? [
-                  BoxShadow(
-                    color: colors.onSurface.withValues(alpha: .10),
-                    blurRadius: 8,
-                    offset: const Offset(0, 2),
-                  ),
-                ]
-              : null,
-        ),
-        foregroundDecoration: today
-            ? BoxDecoration(
-                border: Border(
-                  left: BorderSide(color: colors.primary, width: 3),
-                ),
-                borderRadius: BorderRadius.circular(20),
-              )
-            : null,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Wrap(
-              alignment: WrapAlignment.spaceBetween,
-              crossAxisAlignment: WrapCrossAlignment.center,
-              spacing: 8,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          if (today)
+            Padding(
+              padding: const EdgeInsets.only(left: 28, top: 4),
+              child: Text('Today', style: TextStyle(color: colors.primary)),
+            ),
+          Container(
+            margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+            padding: const EdgeInsets.fromLTRB(12, 4, 12, 10),
+            decoration: BoxDecoration(
+              color: candidates.isNotEmpty
+                  ? colors.primaryContainer
+                  : past
+                  ? colors.onSurface.withValues(alpha: .12)
+                  : colors.surface,
+              border: Border.all(color: const Color(0xffdfd1bb)),
+              borderRadius: BorderRadius.circular(20),
+              boxShadow: today
+                  ? [
+                      BoxShadow(
+                        color: colors.onSurface.withValues(alpha: .10),
+                        blurRadius: 8,
+                        offset: const Offset(0, 2),
+                      ),
+                    ]
+                  : null,
+            ),
+            foregroundDecoration: today
+                ? BoxDecoration(
+                    border: Border(
+                      left: BorderSide(color: colors.primary, width: 3),
+                    ),
+                    borderRadius: BorderRadius.circular(20),
+                  )
+                : null,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                Wrap(
-                  spacing: 8,
-                  crossAxisAlignment: WrapCrossAlignment.center,
+                Row(
                   children: [
-                    Text(
-                      label,
-                      style: Theme.of(context).textTheme.titleLarge
-                          ?.copyWith(fontSize: 20, fontWeight: FontWeight.w700),
-                    ),
-                    if (today)
-                      Chip(
-                        side: BorderSide.none,
-                        visualDensity: VisualDensity.compact,
-                        label: Text(
-                          'Today',
-                          style: TextStyle(color: colors.onPrimary),
-                        ),
-                        backgroundColor: colors.primary,
+                    Expanded(
+                      child: Text(
+                        label,
+                        style: Theme.of(context).textTheme.titleMedium
+                            ?.copyWith(fontWeight: FontWeight.w700),
                       ),
-                  ],
-                ),
-                Wrap(
-                  children: [
-                    if (!childMode.value &&
-                        entries.any(
-                          (e) =>
-                              e['kind'] == 'recipe' && e['available'] != false,
-                        ))
-                      TextButton(
-                        onPressed: _saving
-                            ? null
-                            : () => showCombinedCooking(
-                                context,
-                                widget.householdId,
-                                date,
-                                entries,
+                    ),
+                    Flexible(
+                      flex: 3,
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          if (!childMode.value &&
+                              entries.any(
+                                (e) =>
+                                    e['kind'] == 'recipe' &&
+                                    e['available'] != false,
+                              ))
+                            Flexible(
+                              flex: 2,
+                              child: TextButton(
+                                onPressed: _saving
+                                    ? null
+                                    : () => showCombinedCooking(
+                                        context,
+                                        widget.householdId,
+                                        date,
+                                        entries,
+                                      ),
+                                child: const Text(
+                                  'Cook together',
+                                  textAlign: TextAlign.center,
+                                ),
                               ),
-                        child: const Text('Cook together'),
+                            ),
+                          Flexible(
+                            child: TextButton(
+                              onPressed: _saving || childMode.value
+                                  ? null
+                                  : () => _pick(date),
+                              child: const Text(
+                                '+ Add',
+                                textAlign: TextAlign.center,
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
-                    TextButton(
-                      onPressed: _saving || childMode.value
-                          ? null
-                          : () => _pick(date),
-                      child: const Text('+ Add'),
                     ),
                   ],
                 ),
+                if (entries.isNotEmpty)
+                  LayoutBuilder(
+                    builder: (context, constraints) {
+                      final width =
+                          ((constraints.maxWidth - 10) / 2).clamp(0.0, 200.0) /
+                          2;
+                      final captionWidth = (width + 20).clamp(
+                        0.0,
+                        ((constraints.maxWidth - 8) / 3).clamp(
+                          0.0,
+                          double.infinity,
+                        ),
+                      );
+                      return Padding(
+                        padding: const EdgeInsets.only(top: 2),
+                        child: Wrap(
+                          spacing: 4,
+                          runSpacing: 12,
+                          children: entries
+                              .map(
+                                (entry) => _tile(
+                                  entry,
+                                  width.clamp(0.0, captionWidth),
+                                  captionWidth,
+                                ),
+                              )
+                              .toList(),
+                        ),
+                      );
+                    },
+                  )
+                else
+                  const SizedBox(height: 24),
               ],
             ),
-            if (entries.isNotEmpty)
-              LayoutBuilder(
-                builder: (context, constraints) {
-                  final width =
-                      ((constraints.maxWidth - 10) / 2).clamp(0.0, 200.0) / 2;
-                  final captionWidth = (width + 20).clamp(
-                    0.0,
-                    ((constraints.maxWidth - 8) / 3).clamp(
-                      0.0,
-                      double.infinity,
-                    ),
-                  );
-                  return Padding(
-                    padding: const EdgeInsets.only(top: 2),
-                    child: Wrap(
-                      spacing: 4,
-                      runSpacing: 12,
-                      children: entries
-                          .map(
-                            (entry) => _tile(
-                              entry,
-                              width.clamp(0.0, captionWidth),
-                              captionWidth,
-                            ),
-                          )
-                          .toList(),
-                    ),
-                  );
-                },
-              )
-            else
-              const SizedBox(height: 24),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }

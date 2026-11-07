@@ -75,6 +75,9 @@ void main() {
         installation: 'a' * 32,
         request: (path, {body}) async => {'session': state},
       );
+      await first.accept({
+        'sessions': [state],
+      });
       await first.planRequest('1', {'session_id': state['id']});
       expect(first.planStart(state), DateTime(2026, 11, 7, 23, 32));
       first.dispose();
@@ -90,6 +93,132 @@ void main() {
         reopened.session('${state['id']}')!['dinner_at'],
         state['dinner_at'],
       );
+    },
+  );
+
+  test('late plan replies cannot replace pushed cooking progress', () async {
+    final original = planFixture();
+    final response = Completer<Map<String, dynamic>>();
+    Map<String, dynamic>? sent;
+    final service = CookingSessions(
+      storage: MemoryLocalStorage(),
+      installation: 'a' * 32,
+      request: (path, {body}) {
+        sent = body;
+        return response.future;
+      },
+    );
+    addTearDown(service.dispose);
+    await service.accept({
+      'sessions': [original],
+    });
+    final pending = service.planRequest('1', {
+      'action': 'feedback',
+      'session_id': original['id'],
+      'message': 'I am chopping.',
+    });
+    final newer = {
+      ...original,
+      'completed': ['1'],
+      'dinner_at': (original['dinner_at'] as int) + 3600000,
+    };
+    await service.accept({
+      'sessions': [newer],
+    });
+    response.complete({
+      'session': original,
+      'messages': <Map<String, dynamic>>[],
+    });
+    await pending;
+    expect(sent!['current_progress']['completed'], original['completed']);
+    expect(service.session('${original['id']}')!['completed'], ['1']);
+    expect(
+      service.session('${original['id']}')!['dinner_at'],
+      newer['dinner_at'],
+    );
+  });
+
+  test(
+    'feedback sends current progress while a cooking save is unanswered',
+    () async {
+      final state = planFixture();
+      final held = Completer<Map<String, dynamic>>();
+      Map<String, dynamic>? feedback;
+      final service = CookingSessions(
+        storage: MemoryLocalStorage(),
+        installation: 'a' * 32,
+        request: (path, {body}) async {
+          if (path.endsWith('/step')) return held.future;
+          feedback = body;
+          return {'session': state, 'messages': <Map<String, dynamic>>[]};
+        },
+      );
+      addTearDown(service.dispose);
+      await service.accept({
+        'sessions': [state],
+      });
+      await service.check('${state['id']}', '1', true);
+      await service
+          .planRequest('1', {
+            'action': 'feedback',
+            'session_id': state['id'],
+            'message': 'This is taking longer.',
+          })
+          .timeout(const Duration(seconds: 2));
+      expect(feedback!['current_progress']['completed'], ['1']);
+      held.complete({'session': state});
+    },
+  );
+
+  testWidgets(
+    'waiting for a device alarm does not hold incoming cooking updates',
+    (tester) async {
+      final nativeCall = Completer<void>();
+      final release = Completer<void>();
+      tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+        NativeTimers.channel,
+        (call) async {
+          if (call.method == 'schedule') {
+            if (!nativeCall.isCompleted) nativeCall.complete();
+            await release.future;
+          }
+          return null;
+        },
+      );
+      addTearDown(
+        () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+          NativeTimers.channel,
+          null,
+        ),
+      );
+      final state = planFixture();
+      final service = CookingSessions(
+        storage: MemoryLocalStorage(),
+        installation: 'a' * 32,
+        request: (path, {body}) async => {},
+      );
+      addTearDown(service.dispose);
+      NativeTimers.active.value = [
+        {
+          'key': service.startAlarmKey('${state['id']}'),
+          'deadline': (state['dinner_at'] as int) - 1000,
+        },
+      ];
+      await service.accept({
+        'sessions': [state],
+      });
+      await tester.pump();
+      expect(nativeCall.isCompleted, true);
+      final newer = {
+        ...state,
+        'completed': ['1'],
+      };
+      await service.accept({
+        'sessions': [newer],
+      });
+      expect(service.session('${state['id']}')!['completed'], ['1']);
+      release.complete();
+      await tester.pumpAndSettle();
     },
   );
 
@@ -374,6 +503,7 @@ void main() {
       await tester.pumpAndSettle();
       await tester.tap(find.text('Remove start alarm'));
       await tester.pumpAndSettle();
+      await tester.pumpAndSettle();
       expect(alarms, isEmpty);
       await tester.longPress(find.text('Soup + Bread'));
       await tester.pumpAndSettle();
@@ -408,11 +538,13 @@ void main() {
       await service.accept({
         'sessions': [state],
       });
+      await tester.pumpAndSettle();
       expect(alarms.values.single['deadline'], oldDeadline + 3600000);
       state['started_at'] = DateTime.now().millisecondsSinceEpoch;
       await service.accept({
         'sessions': [state],
       });
+      await tester.pumpAndSettle();
       expect(alarms, isEmpty);
       expect(service.hasStartAlarm('${state['id']}'), isFalse);
     },

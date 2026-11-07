@@ -64,6 +64,90 @@ void main() {
     expect(states.every((v) => v), true);
   });
 
+  test('slow and timed-out AI requests do not hold token renewal or other traffic', () async {
+    final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+    final peers = <WebSocket>[];
+    final aiReceived = Completer<void>();
+    final renewalReceived = Completer<void>();
+    final releaseRenewal = Completer<void>();
+    var authentications = 0;
+    server.listen((request) async {
+      final ws = await WebSocketTransformer.upgrade(request);
+      peers.add(ws);
+      ws.listen((raw) async {
+        final frame = jsonDecode(raw as String) as Map;
+        if (frame['type'] == 'auth') {
+          if (++authentications == 2) {
+            renewalReceived.complete();
+            await releaseRenewal.future;
+          }
+          ws.add(
+            jsonEncode({'type': 'ready', 'household_id': null, 'data': {}}),
+          );
+        } else if (frame['type'] == 'request') {
+          if (frame['path'] == '/households/1/cooking-plan') {
+            aiReceived.complete();
+          } else {
+            ws.add(
+              jsonEncode({
+                'type': 'response',
+                'id': frame['id'],
+                'data': {'ok': true},
+              }),
+            );
+          }
+        }
+      });
+    });
+    String token(int expiry) =>
+        'header.${base64Url.encode(utf8.encode(jsonEncode({'sub': 'same-user', 'exp': expiry})))}.signature';
+    var opens = 0;
+    final connection = AppConnection(
+      connect: (_) {
+        opens++;
+        return WebSocketChannel.connect(
+          Uri.parse('ws://127.0.0.1:${server.port}'),
+        );
+      },
+      networkChanges: const Stream<bool>.empty(),
+    );
+    addTearDown(() async {
+      if (!releaseRenewal.isCompleted) releaseRenewal.complete();
+      connection.dispose();
+      for (final ws in peers) {
+        unawaited(ws.close());
+      }
+      await server.close(force: true);
+    });
+    await connection.open(token(1));
+    final ai = connection.request(
+      '/households/1/cooking-plan',
+      token(1),
+      body: {},
+      timeout: const Duration(milliseconds: 200),
+    );
+    final timedOut = expectLater(ai, throwsA(isA<ApiException>()));
+    await aiReceived.future;
+    await connection.open(token(2)).timeout(const Duration(seconds: 2));
+    await renewalReceived.future.timeout(const Duration(seconds: 2));
+    expect(
+      await connection
+          .request('/me/timers', token(2))
+          .timeout(const Duration(seconds: 2)),
+      {'ok': true},
+    );
+    await timedOut;
+    expect(
+      await connection
+          .request('/me/cooking-sessions', token(2))
+          .timeout(const Duration(seconds: 2)),
+      {'ok': true},
+    );
+    releaseRenewal.complete();
+    expect(opens, 1);
+    expect(connection.connected, true);
+  });
+
   test(
     'real Dart app shares one authenticated connection and applies writes and pushes',
     () async {

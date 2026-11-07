@@ -350,6 +350,20 @@ void main() {
       await tester.pumpWidget(fixture.app());
       await tester.pumpAndSettle();
       final section = find.byKey(const ValueKey('meal-day-2026-10-22'));
+      final cook = find.descendant(
+        of: section,
+        matching: find.widgetWithText(TextButton, 'Cook together'),
+      );
+      final add = find.descendant(
+        of: section,
+        matching: find.widgetWithText(TextButton, '+ Add'),
+      );
+      final marker = find.descendant(of: section, matching: find.text('Today'));
+      expect(tester.getRect(cook).center.dy, tester.getRect(add).center.dy);
+      expect(
+        tester.getRect(marker).bottom,
+        lessThanOrEqualTo(tester.getRect(cook).top),
+      );
       final pictures = find.descendant(
         of: section,
         matching: find.byType(RecipePhoto),
@@ -548,7 +562,12 @@ void main() {
       await tester.pumpWidget(fixture.app());
       await tester.pumpAndSettle();
       final today = tester.widget<Container>(
-        find.byKey(const ValueKey('meal-day-2026-10-22')),
+        find
+            .descendant(
+              of: find.byKey(const ValueKey('meal-day-2026-10-22')),
+              matching: find.byType(Container),
+            )
+            .first,
       );
       expect(
         (today.decoration as BoxDecoration).color,

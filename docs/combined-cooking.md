@@ -230,3 +230,41 @@ health is 200/ok and the required CPU policy is verified. The user-reported curr
 soup/bread plan is cleared from active sessions and its one matching saved AI
 result deleted. Normal cancellation covers all joined devices; recipes, personal
 context and unrelated plans remain intact. No new app build was requested or made.
+
+
+## Shared connection and day-header follow-up — 2026-11-07
+
+Continued the existing task from app `1166583` and backend `c4bf94b`, without
+main integration. Token renewal no longer waits for outstanding requests or
+replaces the established connection-ready signal. Same-account renewal runs on
+the existing socket while ordinary requests continue. Native cooking/alarm
+updates run independently after accepting pushed cooking data; device failures
+are reported without failing the incoming socket frame.
+
+Cooking-plan responses no longer write session state back into the cache.
+Pushed server state owns it, including changes received while AI or chat history
+is loading. Feedback no longer awaits the shared repository's pending saves;
+it includes the device's displayed completion, timers, start and dinner state
+alongside the server's current progress. Existing stale AI-result handling and
+private author context are retained. No new queue, connection, comparison gate,
+model setting, database timing field or background polling was introduced.
+
+The Today marker sits above its day card. Date text and both actions share one
+row, with flexible text space rather than overflowing or moving the action group
+below the date. Current-day styling and toolbar Today navigation remain.
+
+Focused validation passed across `app_connection_test.dart` (3),
+`shopping_socket_test.dart` (3), `combined_cooking_test.dart` (8),
+`meal_planner_test.dart` (23), and `cooking_sessions_test.dart` (17).
+This includes a real Dart/PHP shared connection, pending/timed-out AI traffic
+through token renewal, delayed native alarm handling, stale replies, feedback
+with an unanswered save, and 320/390px action alignment. Scoped Dart analysis is
+clean; changed Dart files are formatted and diffs checked. An existing test was
+adapted to find the day card below the new label; alarm tests now allow native
+updates to finish independently of accepting server data. No full suite, app
+build, live AI call, plan deletion or physical-device check was performed.
+
+The backend retains its existing request-rate and AI capacity protection.
+Rate errors identify only the rejected request; heartbeats and authentication
+continue on the open connection. Same-account authentication renewal preserves
+running workers; changing identity/scope still isolates their work.

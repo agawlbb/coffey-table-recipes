@@ -60,8 +60,10 @@ class AppConnection extends ChangeNotifier with WidgetsBindingObserver {
       _refreshing ??= _socket!.reauthenticate().whenComplete(
         () => _refreshing = null,
       );
+      unawaited(_refreshing!.catchError((Object _) {}));
     }
-    if (_refreshing != null) await _refreshing;
+    // Existing traffic continues while the same account renews its token.
+    if (!connected && _refreshing != null) await _refreshing;
     if (!_observing) {
       WidgetsBinding.instance.addObserver(this);
       _observing = true;
