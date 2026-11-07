@@ -84,3 +84,8 @@ requested native build and a real cooking trial.
 
 No live AI-provider evaluation, physical-device alarm test or app build was run.
 Main integration remains pending explicit acceptance.
+
+The backend implementation `38db9ec` is deployed. Its 66 checked installed source
+files match the task branch; HTTPS health returned 200/ok and required CPU settings
+were verified. Deployment ownership/read-permission failures were corrected before
+verification; details are in the backend's COOKING-PLANS.md. No app package was built.
