@@ -1459,3 +1459,47 @@ device cleanup. Recipes, cooking context and unrelated plans were preserved.
 Backend source already matches its task branch and requires no redeployment.
 Native encryption declarations remain unchanged; existing France restrictions
 are preserved. Merge, branch cleanup and signed delivery results follow below.
+
+
+### Verified 2.9.0 delivery and cleanup
+
+- App and backend tasks were fast-forwarded into main and pushed. Immutable
+  `v2.9.0` points to `05fa06eb2634e4d1eee009217df60518cb76f672`;
+  backend implementation is `e42f47e09894c9628485bfd751a4196451936dbc`.
+- Local/remote feature/combined-cooking and both working worktrees were removed
+  after verifying merge ancestry, clean source and matching task heads. Existing
+  test APKs and evaluation artifacts were preserved outside Git in
+  `.release-tools/combined-cooking-work-artifacts-20261107`.
+- 26 focused combined-cooking/session cases passed and scoped Dart analysis was
+  clean. iOS workflow analysis passed as well. Build workflows ran no app/tooling
+  test suites. No full test suite was run.
+- [Android build 42416424442](https://github.com/agawlbb/coffey-table-recipes/actions/runs/42416424442)
+  passed original signing identity, exact package/version/build/source, native
+  preferences JNI, nondebuggable status, 16KiB alignment and hosted Android app
+  links against certificate
+  `f8de933f14b9bb4b3191a94aedc8637972c5ab224565f6abd7808f8038d12097`.
+  APK SHA-256:
+  `d2e68107c55ce81d80a1a80bdabb76fc0eb69911bb3abaeb7a5084f400d11845`.
+- [Android release APK](https://drive.google.com/file/d/143buXBGpRCzng3qx_W_o7zO1v6kkfr88/view)
+  was uploaded to the pinned recipe app Drive folder. Downloaded bytes matched
+  SHA-256; informational Android notification was sent. No older release APKs
+  required trashing; test APKs and unrelated files were retained.
+- [Signed iOS build/upload 42416424974](https://github.com/agawlbb/coffey-table-recipes/actions/runs/42416424974)
+  passed app and both extension signatures/profiles, source/version/build,
+  production APNs and hosted iOS association against the actual signed identity.
+  Exported IPA SHA-256:
+  `b10d2bb9ef13e613cd630ee2a8d640c323300ffe6d98106c2ed3d89a5d71ce9d`.
+- [Apple verification 42418749617](https://github.com/agawlbb/coffey-table-recipes/actions/runs/42418749617)
+  confirms build `28ab6448-47b7-4474-93ec-841c56dfd852` is VALID,
+  IN_BETA_TESTING, declares no non-exempt encryption and is available to Family
+  testers. The first status check did not find the build before Apple processing
+  completed; only status verification was repeated, not build/upload. Existing
+  group and France distribution restrictions were unchanged.
+- All 64 checked deployed backend source/lock/association files match merged
+  main. No backend source changed during the final UI repair, so no redeployment
+  was necessary. The requested matching plan cache was removed without changing
+  recipes/context or other plans; the session was already ended.
+- Logs, Android artifact, publication receipt and signed iOS verification are
+  retained outside Git under `.release-tools/release-2.9.0`. The existing upload
+  workflow does not publish an IPA artifact. Physical-device installation and
+  OS link-opening acceptance remain unverified.
