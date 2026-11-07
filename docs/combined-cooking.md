@@ -224,3 +224,9 @@ checks culinary planning and does not prove device behavior.
 No app build or main integration is included in this revision. The backend's
 complete checklist can be viewed by the existing test app, but the new confirmation
 and alarm-display UI needs a future explicitly requested APK build.
+
+Backend `83f4614` is deployed: 66 checked installed files match, public HTTPS
+health is 200/ok and the required CPU policy is verified. The user-reported current
+soup/bread plan is cleared from active sessions and its one matching saved AI
+result deleted. Normal cancellation covers all joined devices; recipes, personal
+context and unrelated plans remain intact. No new app build was requested or made.
