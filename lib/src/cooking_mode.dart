@@ -1,3 +1,4 @@
+import 'ai_progress.dart';
 import 'combined_cooking.dart';
 import 'connection_indicator.dart';
 import 'cooking_sessions.dart';
@@ -102,6 +103,39 @@ class _CookingModeState extends State<CookingMode>
             : _stepKeys['${first['id']}']?.currentContext;
         if (target != null) Scrollable.ensureVisible(target, alignment: 0);
       });
+    }
+  }
+
+  final _reasoningProgress = AiRunProgress();
+  bool _reasoningBusy = false;
+  String? _reasoningAttempt;
+  Future<void> _moreReasoning() async {
+    final session = _session;
+    if (session == null || _reasoningBusy) return;
+    setState(() => _reasoningBusy = true);
+    try {
+      _reasoningAttempt ??= CookingSessions.randomId();
+      final result = await _reasoningProgress.run(
+        () => _sessions.planRequest('${session['household_id']}', {
+          'action': 'more_reasoning',
+          'session_id': widget.sessionId,
+          'operation_id': _reasoningAttempt,
+        }),
+      );
+      _reasoningAttempt = null;
+      if (mounted && result['progress_changed'] == true) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Cooking progressed while AI replied. Try again to replan the latest steps.',
+            ),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) cookingError(context, e);
+    } finally {
+      if (mounted) setState(() => _reasoningBusy = false);
     }
   }
 
@@ -265,6 +299,7 @@ class _CookingModeState extends State<CookingMode>
 
   @override
   void dispose() {
+    _reasoningProgress.dispose();
     cookingRouteObserver.unsubscribe(this);
     _sessions.removeListener(_sessionChanged);
     WidgetsBinding.instance.removeObserver(this);
@@ -847,6 +882,14 @@ class _CookingModeState extends State<CookingMode>
                               'All steps completed. Enjoy your meal!',
                               style: TextStyle(fontSize: 22),
                             ),
+                          ),
+                        if (combined) AiProgressText(_reasoningProgress),
+                        if (combined &&
+                            (_session!['reasoning_effort'] ?? 'medium') ==
+                                'low')
+                          TextButton(
+                            onPressed: _reasoningBusy ? null : _moreReasoning,
+                            child: const Text('More reasoning'),
                           ),
                         if (combined)
                           TextButton.icon(

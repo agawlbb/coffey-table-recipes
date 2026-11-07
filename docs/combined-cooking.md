@@ -327,3 +327,31 @@ The latest reported soup/bread session had already ended. Its unique matching
 reusable cache entry was removed, ensuring the next generation calls AI again.
 The normal ended-session tombstone remains for device cleanup. Recipes, personal
 context and other plans were untouched. No backend source deployment was needed.
+
+
+## Low first with More reasoning — 2026-11-07
+
+Continued app `5243666` and backend `6369764`. Per the owner's choice after the
+low/medium comparison, new combined sessions use low reasoning. A quiet
+**More reasoning** text button below the steps, above Provide feedback, requests
+a full medium replan through the existing shared connection. Its progress text
+also stays below the steps. Nothing switches automatically. A successful update
+hides the button and persists medium for the session and subsequent feedback;
+shared participants receive the same updated plan. Older sessions, created with
+medium, retain medium. This requires a new native app package for the button;
+none was requested/built for this change.
+
+The request supplies displayed progress as feedback already does. Completed steps
+and running timers remain intact; existing stale-result handling avoids applying
+an obsolete AI timeline while cooking progresses. An unsuccessful request leaves
+the plan and button available. Repeating an accepted upgrade returns the saved
+medium session without another provider call. Existing low generation caching
+remains scoped to user, recipes, context and planner settings.
+
+Validation: nine combined-cooking widget/session checks, scoped Dart analysis,
+formatting and diff checks passed. The new UI case covers bottom placement,
+no automatic request, failed retry and successful upgrade. Backend validation is
+48 PHP cooking-plan checks plus the existing real combined-plan WebSocket
+scenario extended to verify low generation, medium upgrade and shared delivery.
+Provider fixtures are fake with disposable SQL. No live AI call, full suite,
+new APK, database reset or new connection was introduced.

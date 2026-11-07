@@ -18,6 +18,7 @@ import 'timer_sync_test.dart' show cookingFixture;
 Map<String, dynamic> planFixture() {
   final s = cookingFixture();
   s['combined'] = true;
+  s['reasoning_effort'] = 'low';
   s['started_at'] = null;
   s['dinner_at'] = DateTime.now()
       .add(const Duration(hours: 8))
@@ -410,6 +411,66 @@ void main() {
       expect(calls.last['action'], 'feedback');
       expect(find.text('Allow extra chopping time.'), findsOneWidget);
       expect(service.session('${state['id']}')!['completed'], ['1']);
+    },
+  );
+
+  testWidgets(
+    'More reasoning is below the steps and upgrades only when requested',
+    (tester) async {
+      var state = planFixture();
+      var attempts = 0;
+      var fail = true;
+      late CookingSessions service;
+      service = CookingSessions(
+        storage: MemoryLocalStorage(),
+        installation: 'a' * 32,
+        request: (path, {body}) async {
+          if (body?['action'] == 'more_reasoning') {
+            attempts++;
+            expect(body!['current_progress']['completed'], state['completed']);
+            if (fail) throw StateError('AI unavailable');
+            state = {...state, 'reasoning_effort': 'medium'};
+            await service.accept({
+              'sessions': [state],
+            });
+          }
+          return {'session': state};
+        },
+      );
+      addTearDown(service.dispose);
+      await service.accept({
+        'sessions': [state],
+      });
+      await tester.pumpWidget(
+        MaterialApp(
+          home: CookingMode(
+            recipe: Map<String, dynamic>.from(state['recipe'] as Map),
+            sessionId: '${state['id']}',
+            sessions: service,
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(attempts, 0);
+      final more = find.widgetWithText(TextButton, 'More reasoning');
+      await tester.ensureVisible(more);
+      expect(
+        tester.getTopLeft(more).dy,
+        greaterThan(tester.getTopLeft(find.textContaining('· Soup').last).dy),
+      );
+      await tester.tap(more);
+      await tester.pumpAndSettle();
+      expect(attempts, 1);
+      expect(more, findsOneWidget);
+      expect(service.session('${state['id']}')!['reasoning_effort'], 'low');
+      fail = false;
+      await tester.tap(more);
+      await tester.pumpAndSettle();
+      expect(attempts, 2);
+      expect(more, findsNothing);
+      expect(find.text('Provide feedback'), findsOneWidget);
+      expect(service.session('${state['id']}')!['reasoning_effort'], 'medium');
+      await tester.pumpWidget(const SizedBox());
     },
   );
 

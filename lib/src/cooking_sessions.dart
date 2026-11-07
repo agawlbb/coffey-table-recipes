@@ -580,7 +580,8 @@ class CookingSessions extends ChangeNotifier with WidgetsBindingObserver {
     if (!available) throw ApiException(401, 'Sign in to plan cooking.');
     final generation = _generation;
     final current = session('${body['session_id']}');
-    if (body['action'] == 'feedback' && current != null) {
+    if ((body['action'] == 'feedback' || body['action'] == 'more_reasoning') &&
+        current != null) {
       body = {
         ...body,
         'current_progress': {
