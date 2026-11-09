@@ -116,7 +116,12 @@ void main() {
         ),
       );
       await tester.pumpAndSettle();
+      expect(find.text('Request variation'), findsNothing);
+      await tester.tap(find.byTooltip('Recipe actions'));
+      await tester.pumpAndSettle();
       expect(find.text('Request variation'), findsOneWidget);
+      await tester.tapAt(const Offset(10, 450));
+      await tester.pumpAndSettle();
       expect(find.text('Variation'), findsOneWidget);
       for (final entry in [
         ('Original soup', '10', 'Parent recipe'),
@@ -125,43 +130,17 @@ void main() {
         ('Slow cooker ginger soup', '14', 'Family variation'),
       ]) {
         expect(find.text('Variations'), findsOneWidget);
-        expect(
-          tester.getTopLeft(find.byTooltip('Edit recipe')).dx,
-          closeTo(28, 0.1),
-        );
-        expect(
-          tester.getTopRight(find.byType(PopupMenuButton<String>)).dx,
-          closeTo(376, 0.1),
-        );
-        expect(
-          tester.getTopRight(find.byTooltip('Delete recipe')).dx,
-          lessThan(tester.getTopLeft(find.byType(PopupMenuButton<String>)).dx),
-        );
+        expect(find.byTooltip('Recipe actions'), findsOneWidget);
         expect(
           find.descendant(
             of: find.byType(ListView),
             matching: find.text('Dairy-free soup'),
           ),
-          findsNothing,
-        );
-        expect(
-          find.descendant(
-            of: find.byType(AppBar),
-            matching: find.text('Dairy-free soup'),
-          ),
           findsOneWidget,
-        );
-        expect(
-          tester.getCenter(find.byType(PopupMenuButton<String>)).dy,
-          closeTo(tester.getCenter(find.byTooltip('Edit recipe')).dy, 0.1),
-        );
-        expect(
-          tester.getTopLeft(find.byType(PopupMenuButton<String>)).dy,
-          lessThan(tester.getTopLeft(find.text('Start cooking')).dy),
         );
         expect(find.text('Recipe family'), findsNothing);
         expect(find.text(entry.$1), findsNothing);
-        await tester.tap(find.byType(PopupMenuButton<String>));
+        await tester.tap(find.byTooltip('Choose a recipe variation'));
         await tester.pumpAndSettle();
         await tester.tap(find.text(entry.$1).last);
         await tester.pumpAndSettle();

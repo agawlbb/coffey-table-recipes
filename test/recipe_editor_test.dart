@@ -552,43 +552,46 @@ void main() {
     },
   );
 
-  testWidgets('pencil opens editor and save updates the displayed recipe', (
-    tester,
-  ) async {
-    final original = recipe();
-    Map<String, dynamic>? submitted;
-    await tester.pumpWidget(
-      MaterialApp(
-        home: RecipeDetail(
-          householdId: '2',
-          recipeId: '9',
-          title: 'Soup',
-          request: (_) async => {'recipe': original},
-          save: (path, body) async {
-            submitted = jsonDecode(jsonEncode(body)) as Map<String, dynamic>;
-            return {
-              'recipe': {...body, 'title': 'New soup', 'revision': '2'},
-            };
-          },
+  testWidgets(
+    'action menu opens editor and save updates the displayed recipe',
+    (tester) async {
+      final original = recipe();
+      Map<String, dynamic>? submitted;
+      await tester.pumpWidget(
+        MaterialApp(
+          home: RecipeDetail(
+            householdId: '2',
+            recipeId: '9',
+            title: 'Soup',
+            request: (_) async => {'recipe': original},
+            save: (path, body) async {
+              submitted = jsonDecode(jsonEncode(body)) as Map<String, dynamic>;
+              return {
+                'recipe': {...body, 'title': 'New soup', 'revision': '2'},
+              };
+            },
+          ),
         ),
-      ),
-    );
-    await tester.pumpAndSettle();
-    await tester.tap(find.byTooltip('Edit recipe'));
-    await tester.pumpAndSettle();
-    final name = find.widgetWithText(TextFormField, 'Recipe name');
-    await tester.enterText(name, 'New soup');
-    await tester.tap(find.text('Save recipe'));
-    await tester.pumpAndSettle();
-    expect(submitted?['title'], 'New soup');
-    expect(original['title'], 'Soup');
-    expect(find.text('Recipe saved'), findsOneWidget);
-    expect(find.text('New soup'), findsOneWidget);
-    expect(
-      find.descendant(of: find.byType(AppBar), matching: find.text('New soup')),
-      findsOneWidget,
-    );
-  });
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.byTooltip('Recipe actions'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Edit recipe'));
+      await tester.pumpAndSettle();
+      final name = find.widgetWithText(TextFormField, 'Recipe name');
+      await tester.enterText(name, 'New soup');
+      await tester.tap(find.text('Save recipe'));
+      await tester.pumpAndSettle();
+      expect(submitted?['title'], 'New soup');
+      expect(original['title'], 'Soup');
+      expect(find.text('Recipe saved'), findsOneWidget);
+      expect(find.text('New soup'), findsOneWidget);
+      expect(
+        find.descendant(of: find.byType(AppBar), matching: find.text('Recipe')),
+        findsOneWidget,
+      );
+    },
+  );
   testWidgets('discard protects text edits and save failure retains draft', (
     tester,
   ) async {

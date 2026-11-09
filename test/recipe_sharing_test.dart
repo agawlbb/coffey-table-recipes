@@ -61,7 +61,9 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
-    await tester.tap(find.byTooltip('Share recipe'));
+    await tester.tap(find.byTooltip('Recipe actions'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Share recipe'));
     await tester.pumpAndSettle();
     expect(
       shared?.arguments['html'],
@@ -92,7 +94,9 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
-    await tester.tap(find.byTooltip('Share recipe'));
+    await tester.tap(find.byTooltip('Recipe actions'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Share recipe'));
     await tester.pumpAndSettle();
     expect(
       find.text(
@@ -137,7 +141,9 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
-    await tester.tap(find.byTooltip('Share recipe'));
+    await tester.tap(find.byTooltip('Recipe actions'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Share recipe'));
     await tester.pumpAndSettle();
     expect(shared?.method, 'share');
     expect(shared?.arguments['text'], 'Crêpes\n$url');
@@ -176,7 +182,9 @@ void main() {
         ),
       );
       await tester.pumpAndSettle();
-      await tester.tap(find.byTooltip('Share recipe'));
+      await tester.tap(find.byTooltip('Recipe actions'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Share recipe'));
       await tester.pumpAndSettle();
       expect(find.text('Copy HTML link'), findsNothing);
       expect(paths.length, 1);
@@ -184,11 +192,18 @@ void main() {
       expect(find.text('https://ctr.coffeybean.com/recipes/3'), findsOneWidget);
       await tester.tap(find.text('Close'));
       await tester.pumpAndSettle();
+      await tester.tap(find.byTooltip('Recipe actions'));
+      await tester.pumpAndSettle();
       expect(
         tester
-            .widget<IconButton>(find.widgetWithIcon(IconButton, Icons.share))
-            .onPressed,
-        isNotNull,
+            .widget<PopupMenuItem<String>>(
+              find.ancestor(
+                of: find.text('Share recipe'),
+                matching: find.byType(PopupMenuItem<String>),
+              ),
+            )
+            .enabled,
+        isTrue,
       );
       expect(tester.takeException(), isNull);
     },

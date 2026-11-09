@@ -200,10 +200,16 @@ void main() {
       'Start cooking',
       'Add to meal plan',
       'Request variation',
-      'Add to shopping list',
+      'Add to list',
     ]) {
       expect(find.text(label), findsNothing);
     }
+    await tester.tap(find.byTooltip('Recipe actions'));
+    await tester.pumpAndSettle();
+    expect(find.text('Edit recipe'), findsNothing);
+    expect(find.text('Delete recipe'), findsNothing);
+    expect(find.text('Request variation'), findsNothing);
+    expect(find.text('Share recipe'), findsOneWidget);
     expect(find.byTooltip('Edit recipe'), findsNothing);
     expect(find.byTooltip('Delete recipe'), findsNothing);
     expect(find.byTooltip('Favorite (hold for household)'), findsOneWidget);

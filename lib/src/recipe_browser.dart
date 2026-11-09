@@ -1684,12 +1684,58 @@ class _RecipeDetailState extends State<RecipeDetail> {
           ? BackButton(onPressed: () => Navigator.of(context).pop())
           : const RecipeMenuLeading(),
       title: Text(
-        _recipe?['source_type'] == 'blank'
-            ? 'Blank recipe'
-            : _recipe?['title'] as String? ?? widget.title,
+        _recipe?['source_type'] == 'blank' ? 'Blank recipe' : 'Recipe',
       ),
       actions: [
         ConnectionIndicator(householdId: widget.householdId),
+        if (_recipe != null && _recipe?['source_type'] != 'blank')
+          Builder(
+            builder: (anchor) => PopupMenuButton<String>(
+              tooltip: 'Recipe actions',
+              onSelected: (action) {
+                switch (action) {
+                  case 'edit':
+                    _edit();
+                  case 'share':
+                    _shareRecipe(anchor);
+                  case 'variation':
+                    _requestVariation();
+                  case 'delete':
+                    _delete();
+                }
+              },
+              itemBuilder: (_) => [
+                if (!childModeOf(context) &&
+                    widget.save != null &&
+                    _recipe?['in_household'] != false)
+                  PopupMenuItem(
+                    value: 'edit',
+                    enabled: !_deleting,
+                    child: const Text('Edit recipe'),
+                  ),
+                PopupMenuItem(
+                  value: 'share',
+                  enabled: !_sharing,
+                  child: const Text('Share recipe'),
+                ),
+                if (!childModeOf(context) &&
+                    widget.save != null &&
+                    _recipe?['in_household'] != false) ...[
+                  PopupMenuItem(
+                    value: 'variation',
+                    enabled: !_deleting && !_variationOpen,
+                    child: const Text('Request variation'),
+                  ),
+                  PopupMenuItem(
+                    value: 'delete',
+                    enabled: !_deleting,
+                    child: const Text('Delete recipe'),
+                  ),
+                ],
+              ],
+            ),
+          ),
+
         if (!childModeOf(context) &&
             _recipe?['source_type'] == 'blank' &&
             widget.save != null &&
@@ -1770,206 +1816,36 @@ class _RecipeDetailState extends State<RecipeDetail> {
     final family = recipeRows(recipe['variation_family'] ?? recipe['related'])
         .where((row) => row['id'].toString() != recipe['id'].toString())
         .toList();
+    final compactActionStyle = TextButton.styleFrom(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
+      minimumSize: const Size(0, 44),
+      textStyle: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500),
+    );
     return Center(
       child: ConstrainedBox(
         constraints: const BoxConstraints(maxWidth: 900),
         child: ListView(
           padding: const EdgeInsets.all(24),
           children: [
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                if (!childModeOf(context) &&
-                    widget.save != null &&
-                    _recipe?['in_household'] == false)
-                  TextButton.icon(
-                    onPressed: childModeOf(context) ? null : _attach,
-                    icon: const Icon(Icons.add),
-                    label: const Text('Add to my household'),
-                  ),
-                Row(
-                  children: [
-                    if (!childModeOf(context) &&
-                        widget.save != null &&
-                        _recipe?['in_household'] != false)
-                      IconButton(
-                        tooltip: 'Edit recipe',
-                        onPressed: _deleting || childModeOf(context)
-                            ? null
-                            : _edit,
-                        icon: const Icon(Icons.edit_outlined),
-                      ),
-                    Builder(
-                      builder: (anchor) => IconButton(
-                        tooltip: 'Share recipe',
-                        icon: const Icon(Icons.share),
-                        onPressed: _sharing ? null : () => _shareRecipe(anchor),
-                      ),
-                    ),
-                    if (!childModeOf(context) &&
-                        widget.save != null &&
-                        _recipe?['in_household'] != false)
-                      IconButton(
-                        tooltip: 'Delete recipe',
-                        onPressed: _deleting || childModeOf(context)
-                            ? null
-                            : _delete,
-                        icon: const Icon(Icons.delete_outline),
-                      ),
-                    if (widget.save != null && recipe['in_household'] != false)
-                      IconButton(
-                        tooltip: 'Favorite (hold for household)',
-                        onPressed: _favoriteBusy ? null : () => _favorite(),
-                        onLongPress: _favoriteBusy
-                            ? null
-                            : () => _favorite(household: true),
-                        icon: Icon(
-                          _favoriteMembers.any(
-                                (p) =>
-                                    '${p['id']}' == _currentPerson &&
-                                    _isFavorite(p),
-                              )
-                              ? Icons.favorite
-                              : Icons.favorite_border,
-                        ),
-                      ),
-                    if (family.isNotEmpty)
-                      Expanded(
-                        child: Align(
-                          alignment: Alignment.centerRight,
-                          child: PopupMenuButton<String>(
-                            tooltip: 'Choose a recipe variation',
-                            enabled: !_openingRelated && !_deleting,
-                            onSelected: (id) {
-                              if (id == recipe['id'].toString()) return;
-                              _openRelated(
-                                family.firstWhere(
-                                  (row) => row['id'].toString() == id,
-                                ),
-                              );
-                            },
-                            itemBuilder: (_) => [
-                              CheckedPopupMenuItem(
-                                value: recipe['id'].toString(),
-                                checked: true,
-                                child: Text(recipe['title'] as String),
-                              ),
-                              for (final row in family)
-                                PopupMenuItem(
-                                  value: row['id'].toString(),
-                                  child: Text(row['title'] as String),
-                                ),
-                            ],
-                            child: Container(
-                              constraints: const BoxConstraints(minHeight: 44),
-                              decoration: BoxDecoration(
-                                border: Border.all(
-                                  color: const Color(0xffa12c21)
-                                      .withValues(alpha: .35),
-                                ),
-                                borderRadius: BorderRadius.circular(10),
-                              ),
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 8,
-                                vertical: 8,
-                              ),
-                              child: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Flexible(
-                                    child: Text(
-                                      'Variations',
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
-                                      style: Theme.of(context)
-                                          .textTheme
-                                          .titleMedium
-                                          ?.copyWith(
-                                            fontSize: 18,
-                                            fontWeight: FontWeight.w600,
-                                            color: const Color(0xffa12c21),
-                                          ),
-                                    ),
-                                  ),
-                                  const Icon(
-                                    Icons.arrow_drop_down,
-                                    size: 24,
-                                    color: Color(0xffa12c21),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
-                  ],
-                ),
-              ],
-            ),
-            const SizedBox(height: 16),
-            if (!childModeOf(context))
-              FilledButton.icon(
-                onPressed: childModeOf(context) || steps.isEmpty
-                    ? null
-                    : () => startCooking(
-                        context,
-                        recipe: recipe,
-                        householdId: widget.householdId,
-                        menuBuilder: widget.menuBuilder,
-                      ),
-                icon: const Icon(Icons.soup_kitchen_outlined),
-                label: const Text('Start cooking'),
-              ),
             if (!childModeOf(context) &&
                 widget.save != null &&
-                recipe['in_household'] != false)
-              Padding(
-                padding: const EdgeInsets.only(top: 12),
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Expanded(
-                      child: OutlinedButton(
-                        onPressed: _deleting || childModeOf(context)
-                            ? null
-                            : () => addDatedMeal(
-                                context,
-                                householdId: widget.householdId,
-                                recipe: recipe,
-                                request: widget.request,
-                                save: widget.save!,
-                                viewPlan: widget.onViewMealPlan,
-                                exactRecipe: true,
-                              ),
-                        child: const Text(
-                          'Add to meal plan',
-                          textAlign: TextAlign.center,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: OutlinedButton(
-                        onPressed:
-                            childModeOf(context) || _deleting || _variationOpen
-                            ? null
-                            : _requestVariation,
-                        child: const Text(
-                          'Request variation',
-                          textAlign: TextAlign.center,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
+                _recipe?['in_household'] == false)
+              TextButton.icon(
+                onPressed: childModeOf(context) ? null : _attach,
+                icon: const Icon(Icons.add),
+                label: const Text('Add to my household'),
               ),
+            Text(
+              recipe['title'] as String? ?? widget.title,
+              style: Theme.of(context).textTheme.headlineSmall
+                  ?.copyWith(fontWeight: FontWeight.bold),
+            ),
             if (recipe['description'] != null)
               Padding(
                 padding: const EdgeInsets.only(top: 16),
                 child: Text(
                   recipe['description'] as String,
-                  style: Theme.of(context).textTheme.bodyLarge
-                      ?.copyWith(fontWeight: FontWeight.bold),
+                  style: Theme.of(context).textTheme.bodyLarge,
                 ),
               ),
             if (_favoriteMembers.any(_isFavorite))
@@ -1999,25 +1875,163 @@ class _RecipeDetailState extends State<RecipeDetail> {
                     Chip(label: Text('${tag['label']}')),
               ],
             ),
+            if (family.isNotEmpty)
+              Row(
+                children: [
+                  Expanded(
+                    child: Align(
+                      alignment: Alignment.centerRight,
+                      child: PopupMenuButton<String>(
+                        tooltip: 'Choose a recipe variation',
+                        enabled: !_openingRelated && !_deleting,
+                        onSelected: (id) {
+                          if (id == recipe['id'].toString()) return;
+                          _openRelated(
+                            family.firstWhere(
+                              (row) => row['id'].toString() == id,
+                            ),
+                          );
+                        },
+                        itemBuilder: (_) => [
+                          CheckedPopupMenuItem(
+                            value: recipe['id'].toString(),
+                            checked: true,
+                            child: Text(recipe['title'] as String),
+                          ),
+                          for (final row in family)
+                            PopupMenuItem(
+                              value: row['id'].toString(),
+                              child: Text(row['title'] as String),
+                            ),
+                        ],
+                        child: Container(
+                          constraints: const BoxConstraints(minHeight: 44),
+                          decoration: BoxDecoration(
+                            border: Border.all(
+                              color: const Color(0xffa12c21)
+                                  .withValues(alpha: .35),
+                            ),
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 8,
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Flexible(
+                                child: Text(
+                                  'Variations',
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: Theme.of(context).textTheme.titleMedium
+                                      ?.copyWith(
+                                        fontSize: 18,
+                                        fontWeight: FontWeight.w600,
+                                        color: const Color(0xffa12c21),
+                                      ),
+                                ),
+                              ),
+                              const Icon(
+                                Icons.arrow_drop_down,
+                                size: 24,
+                                color: Color(0xffa12c21),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            const SizedBox(height: 16),
+            Row(
+              spacing: 8,
+              children: [
+                if (!childModeOf(context))
+                  Expanded(
+                    child: FilledButton(
+                      style: compactActionStyle,
+                      onPressed: childModeOf(context) || steps.isEmpty
+                          ? null
+                          : () => startCooking(
+                              context,
+                              recipe: recipe,
+                              householdId: widget.householdId,
+                              menuBuilder: widget.menuBuilder,
+                            ),
+                      child: const Text(
+                        'Start cooking',
+                        textAlign: TextAlign.center,
+                      ),
+                    ),
+                  ),
+                if (!childModeOf(context) &&
+                    widget.save != null &&
+                    recipe['in_household'] != false)
+                  Expanded(
+                    child: OutlinedButton(
+                      style: compactActionStyle,
+                      onPressed: _deleting || childModeOf(context)
+                          ? null
+                          : () => addDatedMeal(
+                              context,
+                              householdId: widget.householdId,
+                              recipe: recipe,
+                              request: widget.request,
+                              save: widget.save!,
+                              viewPlan: widget.onViewMealPlan,
+                              exactRecipe: true,
+                            ),
+                      child: const Text(
+                        'Add to meal plan',
+                        textAlign: TextAlign.center,
+                      ),
+                    ),
+                  ),
+                if (widget.save != null && recipe['in_household'] != false)
+                  IconButton(
+                    tooltip: 'Favorite (hold for household)',
+                    onPressed: _favoriteBusy ? null : () => _favorite(),
+                    onLongPress: _favoriteBusy
+                        ? null
+                        : () => _favorite(household: true),
+                    icon: Icon(
+                      _favoriteMembers.any(
+                            (p) =>
+                                '${p['id']}' == _currentPerson &&
+                                _isFavorite(p),
+                          )
+                          ? Icons.favorite
+                          : Icons.favorite_border,
+                    ),
+                  ),
+              ],
+            ),
             Padding(
               padding: const EdgeInsets.only(top: 28, bottom: 12),
-              child: Wrap(
-                spacing: 16,
-                crossAxisAlignment: WrapCrossAlignment.center,
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Text(
-                    'Ingredients',
-                    style: Theme.of(context).textTheme.headlineSmall,
+                  Expanded(
+                    child: Text(
+                      'Ingredients',
+                      style: Theme.of(context).textTheme.headlineSmall,
+                    ),
                   ),
                   if (!childModeOf(context) &&
                       widget.save != null &&
                       widget.householdId.isNotEmpty)
-                    TextButton.icon(
-                      onPressed: childModeOf(context) || ingredients.isEmpty
-                          ? null
-                          : () => _shoppingIngredients(ingredients),
-                      icon: const Icon(Icons.add_shopping_cart),
-                      label: const Text('Add to shopping list'),
+                    Flexible(
+                      child: TextButton.icon(
+                        onPressed: childModeOf(context) || ingredients.isEmpty
+                            ? null
+                            : () => _shoppingIngredients(ingredients),
+                        icon: const Icon(Icons.add_shopping_cart),
+                        label: const Text('Add to list'),
+                      ),
                     ),
                 ],
               ),
