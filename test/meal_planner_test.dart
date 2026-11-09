@@ -675,12 +675,12 @@ void main() {
           'is_optional': false,
         },
       ]);
-      expect(result.length, 6);
+      expect(result.length, 3);
       expect(result[0].name, 'Flour');
-      expect(result[0].details, '1 1/2 cup');
-      expect(result[1].details, '100 g');
-      expect(result[2].details, 'to taste');
-      expect(result[3].details, 'a pinch');
+      expect(result[0].details, '1 1/2 cup; 100 g');
+      expect(result[1].details, 'to taste; a pinch');
+      expect(result[2].name, 'Onion');
+      expect(result[2].details, '2');
     },
   );
 
