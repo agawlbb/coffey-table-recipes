@@ -1835,11 +1835,80 @@ class _RecipeDetailState extends State<RecipeDetail> {
                 icon: const Icon(Icons.add),
                 label: const Text('Add to my household'),
               ),
-            Text(
-              recipe['title'] as String? ?? widget.title,
-              style: Theme.of(context).textTheme.headlineSmall
-                  ?.copyWith(fontWeight: FontWeight.bold),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
+                  child: Text(
+                    recipe['title'] as String? ?? widget.title,
+                    style: Theme.of(context).textTheme.headlineSmall
+                        ?.copyWith(fontWeight: FontWeight.bold),
+                  ),
+                ),
+                if (widget.save != null && recipe['in_household'] != false)
+                  IconButton(
+                    tooltip: 'Favorite (hold for household)',
+                    onPressed: _favoriteBusy ? null : () => _favorite(),
+                    onLongPress: _favoriteBusy
+                        ? null
+                        : () => _favorite(household: true),
+                    icon: Icon(
+                      _favoriteMembers.any(
+                            (p) =>
+                                '${p['id']}' == _currentPerson &&
+                                _isFavorite(p),
+                          )
+                          ? Icons.favorite
+                          : Icons.favorite_border,
+                    ),
+                  ),
+              ],
             ),
+            if (family.isNotEmpty)
+              Align(
+                alignment: Alignment.centerLeft,
+                child: PopupMenuButton<String>(
+                  tooltip: 'Choose a recipe variation',
+                  enabled: !_openingRelated && !_deleting,
+                  onSelected: (id) {
+                    if (id == recipe['id'].toString()) return;
+                    _openRelated(
+                      family.firstWhere((row) => row['id'].toString() == id),
+                    );
+                  },
+                  itemBuilder: (_) => [
+                    CheckedPopupMenuItem(
+                      value: recipe['id'].toString(),
+                      checked: true,
+                      child: Text(recipe['title'] as String),
+                    ),
+                    for (final row in family)
+                      PopupMenuItem(
+                        value: row['id'].toString(),
+                        child: Text(row['title'] as String),
+                      ),
+                  ],
+                  child: SizedBox(
+                    height: 44,
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          'Variations',
+                          style: Theme.of(context).textTheme.titleMedium
+                              ?.copyWith(
+                                color: Theme.of(context).colorScheme.primary,
+                              ),
+                        ),
+                        Icon(
+                          Icons.arrow_drop_down,
+                          color: Theme.of(context).colorScheme.primary,
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
             if (recipe['description'] != null)
               Padding(
                 padding: const EdgeInsets.only(top: 16),
@@ -1875,77 +1944,6 @@ class _RecipeDetailState extends State<RecipeDetail> {
                     Chip(label: Text('${tag['label']}')),
               ],
             ),
-            if (family.isNotEmpty)
-              Row(
-                children: [
-                  Expanded(
-                    child: Align(
-                      alignment: Alignment.centerRight,
-                      child: PopupMenuButton<String>(
-                        tooltip: 'Choose a recipe variation',
-                        enabled: !_openingRelated && !_deleting,
-                        onSelected: (id) {
-                          if (id == recipe['id'].toString()) return;
-                          _openRelated(
-                            family.firstWhere(
-                              (row) => row['id'].toString() == id,
-                            ),
-                          );
-                        },
-                        itemBuilder: (_) => [
-                          CheckedPopupMenuItem(
-                            value: recipe['id'].toString(),
-                            checked: true,
-                            child: Text(recipe['title'] as String),
-                          ),
-                          for (final row in family)
-                            PopupMenuItem(
-                              value: row['id'].toString(),
-                              child: Text(row['title'] as String),
-                            ),
-                        ],
-                        child: Container(
-                          constraints: const BoxConstraints(minHeight: 44),
-                          decoration: BoxDecoration(
-                            border: Border.all(
-                              color: const Color(0xffa12c21)
-                                  .withValues(alpha: .35),
-                            ),
-                            borderRadius: BorderRadius.circular(10),
-                          ),
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 8,
-                            vertical: 8,
-                          ),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Flexible(
-                                child: Text(
-                                  'Variations',
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: Theme.of(context).textTheme.titleMedium
-                                      ?.copyWith(
-                                        fontSize: 18,
-                                        fontWeight: FontWeight.w600,
-                                        color: const Color(0xffa12c21),
-                                      ),
-                                ),
-                              ),
-                              const Icon(
-                                Icons.arrow_drop_down,
-                                size: 24,
-                                color: Color(0xffa12c21),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
             const SizedBox(height: 16),
             Row(
               spacing: 8,
@@ -1989,23 +1987,6 @@ class _RecipeDetailState extends State<RecipeDetail> {
                         'Add to meal plan',
                         textAlign: TextAlign.center,
                       ),
-                    ),
-                  ),
-                if (widget.save != null && recipe['in_household'] != false)
-                  IconButton(
-                    tooltip: 'Favorite (hold for household)',
-                    onPressed: _favoriteBusy ? null : () => _favorite(),
-                    onLongPress: _favoriteBusy
-                        ? null
-                        : () => _favorite(household: true),
-                    icon: Icon(
-                      _favoriteMembers.any(
-                            (p) =>
-                                '${p['id']}' == _currentPerson &&
-                                _isFavorite(p),
-                          )
-                          ? Icons.favorite
-                          : Icons.favorite_border,
                     ),
                   ),
               ],

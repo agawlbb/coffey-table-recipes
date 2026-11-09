@@ -22,6 +22,10 @@ void main() {
                     'recipe': {
                       'id': '7',
                       'title': 'Homemade Hamburger Buns',
+                      'variation_family': [
+                        {'id': '7', 'title': 'Homemade Hamburger Buns'},
+                        {'id': '8', 'title': 'Whole wheat buns'},
+                      ],
                       'description': 'Soft, tender hamburger buns.',
                       'photos': [
                         {'url': '', 'attribution': 'Marie'},
@@ -52,12 +56,25 @@ void main() {
         lessThan(tester.getTopLeft(cook).dy),
       );
       expect(tester.getCenter(cook).dy, tester.getCenter(plan).dy);
-      expect(tester.getCenter(plan).dy, tester.getCenter(favorite).dy);
-      expect(tester.getRect(cook).right, lessThan(tester.getRect(plan).left));
-      expect(
-        tester.getRect(plan).right,
-        lessThan(tester.getRect(favorite).left),
+      final title = tester.getRect(find.text('Homemade Hamburger Buns'));
+      final heart = tester.getRect(
+        find.ancestor(of: favorite, matching: find.byType(IconButton)),
       );
+      final variations = tester.getRect(
+        find.byTooltip('Choose a recipe variation'),
+      );
+      expect(heart.top, title.top);
+      expect(title.right, lessThanOrEqualTo(heart.left));
+      expect(variations.top, greaterThanOrEqualTo(title.bottom));
+      expect(variations.left, title.left);
+      expect(
+        variations.bottom,
+        lessThan(
+          tester.getTopLeft(find.text('Soft, tender hamburger buns.')).dy,
+        ),
+      );
+      expect(tester.getRect(cook).right, lessThan(tester.getRect(plan).left));
+      expect(tester.getRect(plan).right, lessThanOrEqualTo(width - 24));
       expect(tester.getRect(favorite).right, lessThanOrEqualTo(width - 24));
       expect(find.text('Request variation'), findsNothing);
       expect(
