@@ -1503,3 +1503,82 @@ are preserved. Merge, branch cleanup and signed delivery results follow below.
   retained outside Git under `.release-tools/release-2.9.0`. The existing upload
   workflow does not publish an IPA artifact. Physical-device installation and
   OS link-opening acceptance remain unverified.
+
+## 2.9.1 — 2026-11-09: planner and recipe layout refinements
+
+The owner explicitly approved merging all completed changes and deleting all seven
+included task/test branches. App source was fast-forwarded into main, and immutable
+`v2.9.1` points to `01c047022347a4c5faccb65e13afe631f5ba99c4` (build 71).
+The backend remains synchronized at `fde81a024a9b5b8cd47ad18953cc6a40e1457de0`;
+there are no backend changes to deploy. Both repositories' local branches and tags
+were synchronized before tagging.
+
+This release includes compact planner date actions, planner picture-caption removal,
+combined shopping ingredients, clearer device settings, recipe-detail overflow actions,
+and favorite/variation controls beside and below the full recipe title.
+`CHANGELOG.md` records the supported changes since 2.9.0. `AGENTS.md` now records
+that sequential work may reuse one task branch and checkout when no simultaneous
+work is running; main remains integration-only.
+
+Focused analysis passed. The 35 cases in `meal_planner_test.dart`,
+`meal_plan_ingredient_review_test.dart`, and `recipe_detail_layout_test.dart`, plus
+four selected settings section/platform/child-mode cases, passed on release source.
+Earlier task checks cover favorite tap/hold, variation navigation, sharing,
+delete/undo and existing shared-edit confirmations. No full suite or tooling suite
+was run. Two previously documented, unrelated cooking-navigation/offline-trash test
+failures also reproduce with unchanged pre-release main source; no behavior was
+added to satisfy them.
+
+### Android delivery
+
+[Android build 42549446730](https://github.com/agawlbb/coffey-table-recipes/actions/runs/42549446730)
+succeeded. [Download 2.9.1 build 71](https://drive.google.com/file/d/1dSSxSyQwzA0wJPsbGyyjm_CjChf6pNSW/view).
+
+- APK: `CoffeyTableRecipes-2.9.1-build71.apk`, 71,775,897 bytes.
+- SHA-256: `ab2f279759af86a80b63d9836e4e1f9fcd020e7a9f103ca6d17c9dcd4cd4285a`.
+- Original certificate SHA-256: `f8de933f14b9bb4b3191a94aedc8637972c5ab224565f6abd7808f8038d12097`.
+- Workflow and independent local verification passed exact source, package,
+  version/build, signature, non-debuggable status, 16 KiB alignment and hosted
+  app links against the APK's actual signing certificate. Workflow also verified
+  required native timer-preferences JNI classes.
+- The pinned Drive-folder upload was downloaded and its SHA-256 matched. The
+  informational Android release notification was sent without a link or click
+  action. No older release APKs required trashing; unrelated/test files and
+  sharing settings were preserved.
+
+### Signed iOS delivery
+
+[Signed iOS build/upload 42549448910](https://github.com/agawlbb/coffey-table-recipes/actions/runs/42549448910)
+succeeded for release source, version `2.9.1`, build 71. The signed-package receipt
+verifies the app, TimerWidget and ShareExtension signatures and App Store profiles,
+matching versions/builds/source, production APNs, associated-domain entitlements and
+the hosted iOS association against the actual exported app identity. All targets
+retain the no-non-exempt-encryption declaration. Existing France distribution and
+tester restrictions remain unchanged; no testers, groups or territories were added.
+
+Exported IPA SHA-256:
+`0591ca3abae770164b3d7b07e435f94aa2e2b4a8326789bf917e19507272119a`.
+The workflow confirmed successful upload. Its existing upload mode does not publish
+an IPA artifact; logs and the extracted signed-package verification receipt are
+retained outside Git under `.release-tools/release-2.9.1`.
+
+[Apple verification 42550593307](https://github.com/agawlbb/coffey-table-recipes/actions/runs/42550593307)
+confirmed build `3a38426f-a329-4094-809b-748b318969d6` is VALID,
+IN_BETA_TESTING, declares no non-exempt encryption, and is available to the
+existing Family testers internal group. No repeat build/upload was needed.
+
+### Final cleanup and limits
+
+All seven approved app task/test branches are removed locally and on GitHub only
+after verifying their commits are ancestors of published main and their remote
+heads match the local branches. There were no extra active worktrees in either
+repository; recovery archives and generated/test artifacts were preserved. The
+last task branch was reused for release preparation and delivery documentation.
+Both repositories finish with clean main checkouts synchronized to GitHub.
+
+No web build/publication, backend redeployment, physical-device installation or OS
+link-opening check was performed. Android association was checked against the
+actual APK certificate; the iOS workflow checked the hosted association against
+the actual exported app identity/entitlements. Native device behavior still needs
+physical-device acceptance. Release evidence is retained outside Git under
+`.release-tools/release-2.9.1`; private credentials and packages remain excluded.
