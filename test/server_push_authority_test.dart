@@ -51,8 +51,10 @@ void main() {
         ),
       );
       await tester.pumpAndSettle();
-      await tester.ensureVisible(find.byTooltip('Edit recipe'));
-      await tester.tap(find.byTooltip('Edit recipe'));
+      await tester.ensureVisible(find.byTooltip('Recipe actions'));
+      await tester.tap(find.byTooltip('Recipe actions'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Edit recipe'));
       await tester.pumpAndSettle();
       await tester.tap(find.text('Save recipe'));
       await tester.pumpAndSettle();

@@ -744,7 +744,13 @@ class _MealPlannerState extends State<MealPlanner> with WidgetsBindingObserver {
                         width: width,
                         height: width / 1.28,
                         child: entry['kind'] == 'recipe'
-                            ? RecipePhoto(url: entry['photo_url'] as String?)
+                            ? Tooltip(
+                                message: '${entry['title']}',
+                                triggerMode: TooltipTriggerMode.manual,
+                                child: RecipePhoto(
+                                  url: entry['photo_url'] as String?,
+                                ),
+                              )
                             : ColoredBox(
                                 color: Theme.of(context)
                                     .colorScheme
@@ -759,10 +765,11 @@ class _MealPlannerState extends State<MealPlanner> with WidgetsBindingObserver {
                       ),
                     ),
                   ),
-                  Padding(
-                    padding: const EdgeInsets.only(top: 6),
-                    child: MealPlanDishTitle(title: '${entry['title']}'),
-                  ),
+                  if (entry['kind'] != 'recipe')
+                    Padding(
+                      padding: const EdgeInsets.only(top: 6),
+                      child: MealPlanDishTitle(title: '${entry['title']}'),
+                    ),
                 ],
               ),
             ),

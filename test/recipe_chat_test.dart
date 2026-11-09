@@ -662,6 +662,8 @@ void main() {
         ),
       );
       await tester.pumpAndSettle();
+      await tester.tap(find.byTooltip('Recipe actions'));
+      await tester.pumpAndSettle();
       await tester.tap(find.text('Request variation'));
       await tester.pumpAndSettle();
       expect(find.byType(RecipeChat), findsOneWidget);

@@ -331,7 +331,7 @@ void main() {
   }
 
   for (final screenWidth in [320.0, 390.0, 900.0]) {
-    testWidgets('dish pictures and captions fit a $screenWidth wide planner', (
+    testWidgets('recipe pictures fit without captions at $screenWidth wide', (
       tester,
     ) async {
       await tester.binding.setSurfaceSize(Size(screenWidth, 900));
@@ -392,9 +392,10 @@ void main() {
       expect(first.width, lessThanOrEqualTo(100));
       expect(first.height, lessThan(80));
       for (final title in ['Today soup', 'A second dish with a longer name']) {
-        final caption = tester.getRect(find.byTooltip(title));
-        expect(caption.top, greaterThanOrEqualTo(first.bottom));
-        expect(caption.bottom, lessThan(bounds.bottom));
+        expect(find.textContaining(title), findsNothing);
+        final picture = tester.getRect(find.byTooltip(title));
+        expect(picture.top, first.top);
+        expect(picture.bottom, first.bottom);
       }
       expect(tester.takeException(), isNull);
       await tester.pumpWidget(const SizedBox());
@@ -682,12 +683,12 @@ void main() {
           'is_optional': false,
         },
       ]);
-      expect(result.length, 6);
+      expect(result.length, 3);
       expect(result[0].name, 'Flour');
-      expect(result[0].details, '1 1/2 cup');
-      expect(result[1].details, '100 g');
-      expect(result[2].details, 'to taste');
-      expect(result[3].details, 'a pinch');
+      expect(result[0].details, '1 1/2 cup; 100 g');
+      expect(result[1].details, 'to taste; a pinch');
+      expect(result[2].name, 'Onion');
+      expect(result[2].details, '2');
     },
   );
 

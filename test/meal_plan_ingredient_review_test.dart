@@ -29,6 +29,76 @@ void main() {
     expect(rows[1].details, '1');
   });
 
+  test(
+    'identical displayed names share one row and retain distinct amounts',
+    () {
+      final items = mealPlanIngredients([
+        {'ingredient_name': ' Salt ', 'quantity_text': 'to taste'},
+        {'ingredient_name': 'SALT', 'quantity_text': 'a pinch'},
+        {'ingredient_name': 'salt', 'quantity_text': 'to taste'},
+        {'ingredient_name': 'Onion, chopped', 'quantity_decimal': 1},
+        {'ingredient_name': 'onion (diced)', 'quantity_decimal': 2},
+        {'ingredient_name': 'Red onion', 'quantity_decimal': 1},
+      ]);
+      expect(items.map((item) => item.name), ['Salt', 'Onion', 'Red onion']);
+      expect(items.map((item) => item.details), [
+        'to taste; a pinch',
+        '3',
+        '1',
+      ]);
+    },
+  );
+
+  test('conjunctions split ingredient names before combining duplicates', () {
+    for (final separator in [
+      'and',
+      'AND',
+      '+',
+      '&',
+      '/',
+      'plus',
+      'with',
+      'or',
+      'as well as',
+    ]) {
+      final items = mealPlanIngredients([
+        {
+          'ingredient_name': 'Salt $separator pepper',
+          'quantity_text': 'to taste',
+        },
+        {'ingredient_name': 'SALT', 'quantity_text': 'to taste'},
+        {'ingredient_name': 'Pepper'},
+        {'ingredient_name': 'Coriander'},
+      ]);
+      expect(items.map((item) => item.name), ['Salt', 'pepper', 'Coriander']);
+      expect(items.first.details, 'to taste');
+    }
+    final items = mealPlanIngredients([
+      {'ingredient_name': 'Salt + pepper & oil and vinegar'},
+    ]);
+    expect(items.map((item) => item.name), [
+      'Salt',
+      'pepper',
+      'oil',
+      'vinegar',
+    ]);
+  });
+
+  test('a shared numeric amount is not assigned to every split ingredient', () {
+    final row = <String, dynamic>{
+      'ingredient_name': 'Salt and pepper',
+      'quantity_decimal': 1,
+      'quantity_text': '1',
+      'original_unit': 'tsp',
+      'original_text': '1 tsp salt and pepper',
+    };
+    final items = mealPlanIngredients([row]);
+    expect(items.map((item) => item.name), ['Salt', 'pepper']);
+    expect(items.every((item) => item.details.isEmpty), isTrue);
+    expect(row['quantity_decimal'], 1);
+    expect(row['ingredient_name'], 'Salt and pepper');
+  });
+
   test('customary amounts round upward to standard cooking measures', () {
     for (final pair in [
       ('1.0833333', '1 1/8 cup'),
@@ -192,6 +262,9 @@ void main() {
                 if (path.contains('/ingredients?')) {
                   return {
                     'ingredients': [
+                      {'ingredient_name': 'SALT'},
+                      {'ingredient_name': 'Salt and pepper'},
+                      {'ingredient_name': 'Pepper'},
                       {
                         'ingredient_name': 'Flour',
                         'original_unit': 'cup',
@@ -212,6 +285,9 @@ void main() {
       await tester.tap(find.text('Ingredients'));
       await tester.pumpAndSettle();
       expect(paths.any((p) => p.endsWith('to=2199-12-31')), isTrue);
+      expect(find.text('SALT'), findsOneWidget);
+      expect(find.text('pepper'), findsOneWidget);
+      expect(find.text('Salt and pepper'), findsNothing);
       expect(find.text('Flour'), findsOneWidget);
       expect(find.text('1 1/2 cup'), findsOneWidget);
       expect(find.byType(DateRangePickerDialog), findsNothing);

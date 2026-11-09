@@ -27,7 +27,7 @@ List<ShoppingIngredient> mealPlanIngredients(List<Map<String, dynamic>> rows) {
   };
   final combined = <String, Map<String, dynamic>>{};
   final result = <Map<String, dynamic>>[];
-  for (final row in rows) {
+  for (final row in rows.expand(_separateIngredients)) {
     final name = '${row['ingredient_name'] ?? ''}'.trim();
     final unit = '${row['unit_code'] ?? row['original_unit'] ?? ''}'
         .trim()
@@ -49,8 +49,7 @@ List<ShoppingIngredient> mealPlanIngredients(List<Map<String, dynamic>> rows) {
         ('${row['quantity_text'] ?? ''}'.trim().isEmpty ||
             RegExp(r'^[\d\s./¼½¾⅛⅜⅝⅞⅓⅔]+$')
                 .hasMatch('${row['quantity_text']}'));
-    final key =
-        '${name.toLowerCase()}|$normalizedUnit|${row['preparation'] ?? ''}|${row['is_optional'] ?? false}';
+    final key = '${name.toLowerCase()}|$normalizedUnit';
     if (canCombine) {
       final existing = combined[key];
       if (existing != null) {
@@ -68,6 +67,7 @@ List<ShoppingIngredient> mealPlanIngredients(List<Map<String, dynamic>> rows) {
           'quantity_denominator': null,
           'quantity_text': null,
           'original_unit': normalizedUnit,
+          'unit_code': normalizedUnit,
         });
       combined[key] = copy;
       result.add(copy);
@@ -75,10 +75,59 @@ List<ShoppingIngredient> mealPlanIngredients(List<Map<String, dynamic>> rows) {
       result.add(Map<String, dynamic>.from(row));
     }
   }
-  return result
-      .map(_displayIngredient)
-      .where((i) => i.name.isNotEmpty)
+  final grouped = <String, ShoppingIngredient>{};
+  final details = <String, Set<String>>{};
+  for (final row in result) {
+    final item = _displayIngredient(row);
+    if (item.name.isEmpty) continue;
+    final key = item.name.toLowerCase();
+    final existing = grouped[key];
+    final amounts = details.putIfAbsent(key, () => <String>{});
+    if (item.details.isNotEmpty) amounts.add(item.details);
+    grouped[key] = ShoppingIngredient(
+      existing?.name ?? item.name,
+      details: amounts.join('; '),
+    );
+  }
+  return grouped.values.toList();
+}
+
+Iterable<Map<String, dynamic>> _separateIngredients(
+  Map<String, dynamic> row,
+) sync* {
+  final name = ShoppingIngredient.fromRecipe(row).name;
+  final names = name
+      .split(
+        RegExp(
+          r'\b(?:as well as|and|or|plus|with)\b|[+&/]',
+          caseSensitive: false,
+        ),
+      )
+      .map((part) => part.trim().replaceAll(RegExp(r'\s+'), ' '))
+      .where((part) => part.isNotEmpty)
       .toList();
+  for (final part in names) {
+    final copy = Map<String, dynamic>.from(row)..['ingredient_name'] = part;
+    if (names.length > 1) {
+      // A shared amount does not specify how much of each ingredient is needed.
+      for (final key in [
+        'original_text',
+        'quantity_decimal',
+        'quantity_numerator',
+        'quantity_denominator',
+        'quantity_max_decimal',
+        'unit_code',
+        'original_unit',
+      ]) {
+        copy[key] = null;
+      }
+      final text = '${copy['quantity_text'] ?? ''}'.trim();
+      if (RegExp(r'[0-9¼½¾⅛⅜⅝⅞⅓⅔]').hasMatch(text)) {
+        copy['quantity_text'] = null;
+      }
+    }
+    yield copy;
+  }
 }
 
 ShoppingIngredient _displayIngredient(Map<String, dynamic> row) {

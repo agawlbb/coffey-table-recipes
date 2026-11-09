@@ -8,6 +8,7 @@ import 'home_design_test.dart' show TestUser;
 
 import 'package:coffey_table_recipes/src/native_timers.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -53,74 +54,110 @@ void main() {
     }
   });
 
-  for (final restricted in [false, true]) {
-    testWidgets('settings and administration respect child mode: $restricted', (
-      tester,
-    ) async {
-      addTearDown(() => childMode.value = false);
-      await tester.pumpWidget(
-        MaterialApp(
-          home: HouseholdPanel(
-            user: TestUser(),
-            request: (path, {body}) async {
-              if (path == '/me') {
-                return {
-                  'user': {
-                    'id': '42',
-                    'account_role': 'administrator',
-                    'child_mode': restricted,
-                  },
-                  'households': [
-                    {'id': '2', 'name': 'Family', 'role': 'owner'},
-                  ],
-                };
-              }
-              if (path.endsWith('/people')) return {'people': []};
-              return {'recipes': [], 'next_offset': null};
-            },
-          ),
-        ),
+  for (final platform in [TargetPlatform.android, TargetPlatform.linux]) {
+    for (final restricted in [false, true]) {
+      testWidgets(
+        'settings sections on $platform respect child mode: $restricted',
+        (tester) async {
+          debugDefaultTargetPlatformOverride = platform;
+          addTearDown(() => debugDefaultTargetPlatformOverride = null);
+          addTearDown(() => childMode.value = false);
+          await tester.pumpWidget(
+            MaterialApp(
+              home: HouseholdPanel(
+                user: TestUser(),
+                request: (path, {body}) async {
+                  if (path == '/me') {
+                    return {
+                      'user': {
+                        'id': '42',
+                        'account_role': 'administrator',
+                        'child_mode': restricted,
+                      },
+                      'households': [
+                        {'id': '2', 'name': 'Family', 'role': 'owner'},
+                      ],
+                    };
+                  }
+                  if (path.endsWith('/people')) return {'people': []};
+                  return {'recipes': [], 'next_offset': null};
+                },
+              ),
+            ),
+          );
+          await tester.pumpAndSettle();
+          await tester.tap(find.byTooltip('User menu'));
+          await tester.pumpAndSettle();
+          expect(find.text('Household members'), findsNothing);
+          expect(find.text('Administration'), findsNothing);
+          expect(find.text('Timer settings'), findsNothing);
+          final change = tester.widget<PopupMenuItem<String>>(
+            find.ancestor(
+              of: find.text('Full name'),
+              matching: find.byType(PopupMenuItem<String>),
+            ),
+          );
+          expect(change.enabled, !restricted);
+          expect(
+            find.text('Child mode: ${restricted ? 'On' : 'Off'}'),
+            findsOneWidget,
+          );
+          await tester.tap(find.text('Log out'));
+          await tester.pumpAndSettle();
+          await tester.tap(find.text('Cancel'));
+          await tester.pumpAndSettle();
+          await tester.tap(find.byTooltip('Open navigation menu'));
+          await tester.pumpAndSettle();
+          expect(
+            find.text('Administration'),
+            restricted ? findsNothing : findsOneWidget,
+          );
+          await tester.tap(find.text('Settings'));
+          await tester.pumpAndSettle();
+          expect(find.text('This device'), findsOneWidget);
+          expect(find.text('Error log'), findsOneWidget);
+          expect(
+            tester.getTopLeft(find.text('This device')).dy,
+            greaterThan(
+              tester.getBottomLeft(find.text('Shopping list departments')).dy,
+            ),
+          );
+          expect(
+            tester.getTopLeft(find.text('Error log')).dy,
+            greaterThan(tester.getBottomLeft(find.text('This device')).dy),
+          );
+          expect(
+            find.text('Dinner time'),
+            restricted ? findsNothing : findsOneWidget,
+          );
+          if (!restricted) {
+            expect(
+              tester.getTopLeft(find.text('Dinner time')).dy,
+              greaterThan(tester.getBottomLeft(find.text('This device')).dy),
+            );
+          }
+          expect(
+            find.text('Notifications'),
+            !restricted && NativeTimers.supported
+                ? findsOneWidget
+                : findsNothing,
+          );
+          final departments = tester.widget<ListTile>(
+            find.widgetWithText(ListTile, 'Shopping list departments'),
+          );
+          expect(departments.enabled, !restricted);
+          expect(
+            find.text('Cooking timers'),
+            !restricted && NativeTimers.supported
+                ? findsOneWidget
+                : findsNothing,
+          );
+          expect(tester.takeException(), isNull);
+          await tester.pumpWidget(const SizedBox());
+          debugDefaultTargetPlatformOverride = null;
+        },
       );
-      await tester.pumpAndSettle();
-      await tester.tap(find.byTooltip('User menu'));
-      await tester.pumpAndSettle();
-      expect(find.text('Household members'), findsNothing);
-      expect(find.text('Administration'), findsNothing);
-      expect(find.text('Timer settings'), findsNothing);
-      final change = tester.widget<PopupMenuItem<String>>(
-        find.ancestor(
-          of: find.text('Full name'),
-          matching: find.byType(PopupMenuItem<String>),
-        ),
-      );
-      expect(change.enabled, !restricted);
-      expect(
-        find.text('Child mode: ${restricted ? 'On' : 'Off'}'),
-        findsOneWidget,
-      );
-      await tester.tap(find.text('Log out'));
-      await tester.pumpAndSettle();
-      await tester.tap(find.text('Cancel'));
-      await tester.pumpAndSettle();
-      await tester.tap(find.byTooltip('Open navigation menu'));
-      await tester.pumpAndSettle();
-      expect(
-        find.text('Administration'),
-        restricted ? findsNothing : findsOneWidget,
-      );
-      await tester.tap(find.text('Settings'));
-      await tester.pumpAndSettle();
-      expect(find.text('Error log'), findsOneWidget);
-      final departments = tester.widget<ListTile>(
-        find.widgetWithText(ListTile, 'Shopping list departments'),
-      );
-      expect(departments.enabled, !restricted);
-      expect(
-        find.text('Cooking timers'),
-        !restricted && NativeTimers.supported ? findsOneWidget : findsNothing,
-      );
-      expect(tester.takeException(), isNull);
-    });
+    }
   }
 
   testWidgets(

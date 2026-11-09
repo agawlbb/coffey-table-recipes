@@ -1630,6 +1630,8 @@ class _HouseholdPanelState extends State<HouseholdPanel>
                         ],
                       ),
                     ),
+                    const Divider(),
+                    const ListTile(title: Text('This device')),
                     ListTile(
                       leading: const Icon(Icons.receipt_long_outlined),
                       title: const Text('Error log'),
@@ -1642,8 +1644,6 @@ class _HouseholdPanelState extends State<HouseholdPanel>
                     ),
                     if (!childMode.value) const DinnerTimeSetting(),
                     if (NativeTimers.supported && !childMode.value) ...[
-                      const Divider(),
-                      const ListTile(title: Text('This device')),
                       ListTile(
                         leading: const Icon(Icons.notifications_outlined),
                         title: const Text('Notifications'),
