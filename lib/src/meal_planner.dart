@@ -790,6 +790,15 @@ class _MealPlannerState extends State<MealPlanner> with WidgetsBindingObserver {
     final colors = Theme.of(context).colorScheme;
     final label = MaterialLocalizations.of(context)
         .formatMediumDate(DateTime.parse(date));
+    final actionStyle = OutlinedButton.styleFrom(
+      padding: const EdgeInsets.symmetric(horizontal: 8),
+      minimumSize: const Size(0, 32),
+      textStyle: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+      visualDensity: VisualDensity.compact,
+      side: BorderSide(color: colors.outlineVariant),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+    );
     return DragTarget<Map<String, dynamic>>(
       onWillAcceptWithDetails: (_) => !_saving && !childMode.value,
       onAcceptWithDetails: (details) {
@@ -850,6 +859,7 @@ class _MealPlannerState extends State<MealPlanner> with WidgetsBindingObserver {
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Expanded(
                       child: Text(
@@ -858,10 +868,12 @@ class _MealPlannerState extends State<MealPlanner> with WidgetsBindingObserver {
                             ?.copyWith(fontWeight: FontWeight.w700),
                       ),
                     ),
-                    Flexible(
+                    Expanded(
                       flex: 3,
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
+                        mainAxisAlignment: MainAxisAlignment.end,
+                        spacing: 4,
                         children: [
                           if (!childMode.value &&
                               entries.any(
@@ -870,8 +882,8 @@ class _MealPlannerState extends State<MealPlanner> with WidgetsBindingObserver {
                                     e['available'] != false,
                               ))
                             Flexible(
-                              flex: 2,
-                              child: TextButton(
+                              child: OutlinedButton(
+                                style: actionStyle,
                                 onPressed: _saving
                                     ? null
                                     : () => showCombinedCooking(
@@ -881,18 +893,19 @@ class _MealPlannerState extends State<MealPlanner> with WidgetsBindingObserver {
                                         entries,
                                       ),
                                 child: const Text(
-                                  'Cook together',
+                                  'Timeline',
                                   textAlign: TextAlign.center,
                                 ),
                               ),
                             ),
                           Flexible(
-                            child: TextButton(
+                            child: OutlinedButton(
+                              style: actionStyle,
                               onPressed: _saving || childMode.value
                                   ? null
                                   : () => _pick(date),
                               child: const Text(
-                                '+ Add',
+                                'Add dish',
                                 textAlign: TextAlign.center,
                               ),
                             ),

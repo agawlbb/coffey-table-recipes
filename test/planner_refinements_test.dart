@@ -94,7 +94,7 @@ void main() {
     );
     await tester.pumpAndSettle();
     final day = find.byKey(const ValueKey('meal-day-2026-10-22'));
-    await tester.tap(find.descendant(of: day, matching: find.text('+ Add')));
+    await tester.tap(find.descendant(of: day, matching: find.text('Add dish')));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Restaurant outing'));
     await tester.pumpAndSettle();

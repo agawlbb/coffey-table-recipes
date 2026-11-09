@@ -352,14 +352,21 @@ void main() {
       final section = find.byKey(const ValueKey('meal-day-2026-10-22'));
       final cook = find.descendant(
         of: section,
-        matching: find.widgetWithText(TextButton, 'Cook together'),
+        matching: find.widgetWithText(OutlinedButton, 'Timeline'),
       );
       final add = find.descendant(
         of: section,
-        matching: find.widgetWithText(TextButton, '+ Add'),
+        matching: find.widgetWithText(OutlinedButton, 'Add dish'),
       );
       final marker = find.descendant(of: section, matching: find.text('Today'));
-      expect(tester.getRect(cook).center.dy, tester.getRect(add).center.dy);
+      expect(tester.getRect(cook).top, tester.getRect(add).top);
+      expect(tester.getRect(cook).height, lessThanOrEqualTo(32));
+      expect(tester.getRect(add).height, lessThanOrEqualTo(32));
+      expect(tester.getRect(cook).right, lessThan(tester.getRect(add).left));
+      expect(
+        tester.getRect(add).right,
+        closeTo(tester.getRect(section).right - 28, 1),
+      );
       expect(
         tester.getRect(marker).bottom,
         lessThanOrEqualTo(tester.getRect(cook).top),
@@ -719,7 +726,7 @@ void main() {
     await tester.pumpWidget(fixture.app());
     await tester.pumpAndSettle();
     final day = find.byKey(const ValueKey('meal-day-2026-10-22'));
-    await tester.tap(find.descendant(of: day, matching: find.text('+ Add')));
+    await tester.tap(find.descendant(of: day, matching: find.text('Add dish')));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Leftovers'));
     await tester.pumpAndSettle();
@@ -769,7 +776,9 @@ void main() {
       await tester.pumpWidget(fixture.app());
       await tester.pumpAndSettle();
       final day = find.byKey(const ValueKey('meal-day-2026-10-22'));
-      await tester.tap(find.descendant(of: day, matching: find.text('+ Add')));
+      await tester.tap(
+        find.descendant(of: day, matching: find.text('Add dish')),
+      );
       await tester.pumpAndSettle();
       await tester.tap(find.text('Recipe'));
       await tester.pumpAndSettle();

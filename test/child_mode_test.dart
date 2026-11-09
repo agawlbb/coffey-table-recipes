@@ -163,8 +163,8 @@ void main() {
     expect(find.byTooltip('Today soup'), findsOneWidget);
     expect(find.byType(RecipeBrowser), findsNothing);
     expect(find.byType(LongPressDraggable<Map<String, dynamic>>), findsNothing);
-    final buttons = tester.widgetList<TextButton>(
-      find.widgetWithText(TextButton, '+ Add'),
+    final buttons = tester.widgetList<OutlinedButton>(
+      find.widgetWithText(OutlinedButton, 'Add dish'),
     );
     expect(buttons.every((b) => b.onPressed == null), isTrue);
     await tester.pumpWidget(const SizedBox());

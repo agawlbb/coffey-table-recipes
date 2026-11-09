@@ -141,7 +141,7 @@ void main() {
         expect(find.byTooltip('Bread plan'), findsNothing);
         expect(find.text('Unscheduled'), findsNothing);
         expect(find.byType(RecipeBrowser), findsNothing);
-        expect(find.text('+ Add'), findsNothing);
+        expect(find.text('Add dish'), findsNothing);
         expect(find.text('Ingredients'), findsNothing);
         expect(find.text(failure.message), findsOneWidget);
         // A temporary failure after access loss must not resurrect old entries.
@@ -158,7 +158,7 @@ void main() {
         expect(find.byTooltip('Today soup'), findsNothing);
         final day = find.byKey(const ValueKey('meal-day-2026-10-22'));
         await tester.tap(
-          find.descendant(of: day, matching: find.text('+ Add')),
+          find.descendant(of: day, matching: find.text('Add dish')),
         );
         await tester.pumpAndSettle();
         await tester.tap(find.text('Leftovers'));
@@ -257,7 +257,7 @@ void main() {
       update(() => active = true);
       await tester.pumpAndSettle();
       expect(find.byTooltip('Today soup'), findsNothing);
-      expect(find.text('+ Add'), findsNothing);
+      expect(find.text('Add dish'), findsNothing);
       expect(find.text('Household not found.'), findsOneWidget);
       await tester.pumpWidget(const SizedBox());
     },
