@@ -2,6 +2,18 @@
 
 Release dates and changes are reconstructed from annotated Git tags, commit history, and project release records. Versions before 1.0 are demonstration releases; 1.0 marks the first usable release. Android retains the existing signing identity; iOS delivery and signing are recorded for each release.
 
+## 2.9.1 — 2026-11-09
+
+Build 71; tag `v2.9.1`. iOS and Android release.
+
+- Rename meal-planner actions to Timeline and Add dish, with compact outlined buttons at the date tile's top right.
+- Remove recipe-picture captions from the meal planner.
+- Combine identical planner shopping ingredients regardless of capitalization and split names joined by conjunctions or symbols. Sum compatible amounts and retain distinct amounts in one row.
+- Group Error log and Dinner time under This device in Settings.
+- Show full recipe titles and move Edit, Share, Request variation and Delete into the overflow menu.
+- Place favorite beside the recipe title and a compact Variations selector below it; keep cooking and meal-planning actions together below the photo.
+- Align the shorter Add to list action beside Ingredients.
+
 ## 2.9.0 — 2026-11-07
 
 Build 69; tag `v2.9.0`. iOS and Android release.
