@@ -28,9 +28,53 @@ HA date updates preserve the household color, and color edits preserve dates.
 Backend setup requires the explicit one-time `bin/work-calendar.sql` schema step
 before deploying the changed backend. Then install the changed HA integration and
 select its calendar. App installation requires a separately requested build or
-release. Source implementation does not install or deploy these changes.
+release. The initial source implementation did not install or deploy these changes;
+the subsequent authorized rollout is recorded below.
 
 Validation: affected Dart files formatted; affected sources and new tests analyzed
 without issues. Three new Flutter tests cover markers and incoming changes,
 settings color selection, and offline restart/delivery/account separation. All 37 existing
 planner and access regressions passed in a separate serial run. No app build or full suite was requested.
+
+## Authorized rollout and temporary Android APK — 2026-11-10
+
+The owner explicitly requested backend setup/deployment, HA installation and a
+temporary Android APK. The backend calendar table was created once and its
+foreign key verified. Backend source `a5da643` was deployed; a new-file mode 600
+startup failure was corrected to 644, then the service recovered. The live health
+endpoint and source checksum comparisons passed, with CPU shares 1024 and
+`cpu.max` starting with `max`. See the backend's WORK-CALENDAR.md rollout record.
+
+HACS installed HA source `d8ffc96` from `feat/work-calendar`. All 16 installed
+component files matched source. Home Assistant 2026.11.0 restarted and CTR loaded.
+Selected `calendar.joe_s_work_schedule_work_calendar`, retaining existing shopping
+selections and scan interval. All nine current calendar event dates matched the
+nine dates received by the backend. No production events, meals or synthetic
+shopping items were changed for validation. See the HA VALIDATION.md record.
+
+[Android test build 42729933301](https://github.com/agawlbb/coffey-table-recipes/actions/runs/42729933301)
+succeeded from immutable app source
+`4d35236065818b4d424923bd97dae3bd89d0df96`. This uses the existing workflow's
+generic test version name `2.9.1-account-test`, build 72; no release tag was made.
+Workflow validation includes original distribution signing identity, package,
+version/source, Kotlin classes needed by native timer preferences and hosted
+Android app links. Downloaded-artifact verification independently confirmed the
+SHA-256, certificate, package/version and non-debuggable status;
+`python3 tool/verify-app-links.py --fingerprint
+f8de933f14b9bb4b3191a94aedc8637972c5ab224565f6abd7808f8038d12097`
+passed. No app/tooling suites were rerun for this operational delivery.
+
+- [Temporary work-calendar APK](https://drive.google.com/file/d/11eKt3nNUuiqZ2gYgVo9WB3Hz8uD032de/view)
+- Filename: `CoffeyTableRecipes-2.9.1-work-calendar-test-build72.apk`
+- Size: 71,874,201 bytes
+- SHA-256: `60789fe418f92e69069b00c8ed37c1316806f613cea4d5eb6e4c0cec2a2b8cea`
+
+Uploaded through the existing folder-pinned Drive helper to the authorized recipe
+app folder, then downloaded and verified by SHA-256. Existing files/sharing were
+retained; no release notification was sent. Artifact and verification reports are
+retained outside Git at
+`/home/debian/projects/.release-tools/test-work-calendar-72/`.
+
+Physical Android installation/rendering and OS link resolution were not tested.
+No full suite, iOS/web build, release or main integration was performed. All
+implementation and rollout records remain on the three existing task branches.
