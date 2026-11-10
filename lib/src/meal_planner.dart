@@ -899,10 +899,20 @@ class _MealPlannerState extends State<MealPlanner> with WidgetsBindingObserver {
                         color: _workColor,
                       ),
                     Expanded(
-                      child: Text(
-                        label,
-                        style: Theme.of(context).textTheme.titleMedium
-                            ?.copyWith(fontWeight: FontWeight.w700),
+                      flex: 2,
+                      child: Padding(
+                        padding: const EdgeInsets.only(right: 8),
+                        child: FittedBox(
+                          fit: BoxFit.scaleDown,
+                          alignment: Alignment.centerLeft,
+                          child: Text(
+                            label,
+                            maxLines: 1,
+                            softWrap: false,
+                            style: Theme.of(context).textTheme.titleMedium
+                                ?.copyWith(fontWeight: FontWeight.w700),
+                          ),
+                        ),
                       ),
                     ),
                     Expanded(

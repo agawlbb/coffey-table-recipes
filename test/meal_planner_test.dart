@@ -3,6 +3,7 @@ import 'package:coffey_table_recipes/src/meal_planner.dart';
 import 'package:coffey_table_recipes/src/meal_plan_ingredients.dart';
 import 'package:coffey_table_recipes/src/recipe_browser.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 Future<void> trashMeal(WidgetTester tester, String title) async {
@@ -142,6 +143,82 @@ class PlanFixture {
 }
 
 void main() {
+  testWidgets(
+    'phone date headers stay on one line with work bars and actions',
+    (tester) async {
+      await tester.binding.setSurfaceSize(const Size(320, 850));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+      final fixture = PlanFixture();
+      const dates = ['2026-10-21', '2026-10-22', '2026-10-24'];
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: MealPlanner(
+              householdId: '1',
+              householdName: 'Table',
+              now: () => DateTime(2026, 10, 22),
+              request: (path) async => path.endsWith('/work-calendar')
+                  ? {'dates': dates, 'color': '#1976D2'}
+                  : fixture.request(path),
+              save: fixture.save,
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      for (final date in dates) {
+        final day = find.byKey(ValueKey('meal-day-$date'));
+        await tester.scrollUntilVisible(
+          day,
+          date.compareTo('2026-10-22') < 0 ? -120 : 120,
+          scrollable: find
+              .descendant(
+                of: find.byType(CustomScrollView),
+                matching: find.byType(Scrollable),
+              )
+              .first,
+        );
+        await tester.pumpAndSettle();
+        final label = MaterialLocalizations.of(tester.element(day))
+            .formatMediumDate(DateTime.parse(date));
+        final text = find.descendant(of: day, matching: find.text(label));
+        final paragraph = tester.renderObject<RenderParagraph>(text);
+        final lines = paragraph.getBoxesForSelection(
+          TextSelection(baseOffset: 0, extentOffset: label.length),
+        );
+        expect(lines, hasLength(1), reason: '$date should fit on one line');
+        expect(paragraph.didExceedMaxLines, isFalse);
+        expect(
+          lines.single.right - lines.single.left,
+          lessThanOrEqualTo(paragraph.size.width),
+        );
+        expect(
+          find.descendant(
+            of: day,
+            matching: find.byKey(ValueKey('workday-bar-$date')),
+          ),
+          findsOneWidget,
+        );
+        expect(
+          find.descendant(
+            of: day,
+            matching: find.widgetWithText(OutlinedButton, 'Timeline'),
+          ),
+          findsOneWidget,
+        );
+        expect(
+          find.descendant(
+            of: day,
+            matching: find.widgetWithText(OutlinedButton, 'Add dish'),
+          ),
+          findsOneWidget,
+        );
+        expect(tester.takeException(), isNull);
+      }
+      await tester.pumpWidget(const SizedBox());
+    },
+  );
+
   testWidgets('each day displays main dishes first with stable group order', (
     tester,
   ) async {

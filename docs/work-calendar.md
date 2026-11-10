@@ -78,3 +78,20 @@ retained outside Git at
 Physical Android installation/rendering and OS link resolution were not tested.
 No full suite, iOS/web build, release or main integration was performed. All
 implementation and rollout records remain on the three existing task branches.
+
+## Phone date header follow-up — 2026-11-10
+
+Past, today and future date labels now stay on one line beside the workday bar.
+The date receives two fifths of the remaining header width instead of one quarter,
+with a scale-down fit only when its full label would otherwise wrap. The existing
+Timeline/Add dish controls retain their compact side-by-side layout.
+
+The new 320px regression reproduced multiline dates before the fix and verifies
+past/today/future labels fit completely on one line with bars and both actions.
+The initial planner/calendar file run passed 26 tests but exposed one 320px compact
+button-height regression. After adjusting header proportions, the four directly
+affected date/header layout checks passed at 320px, 390px and 900px. Both changed
+Dart files were formatted and analyzed without issues. The other passing planner
+and calendar scenarios were not repeated after that final proportion adjustment.
+No full suite, new APK, deployment or main integration was requested or performed
+for this follow-up; the previously delivered test APK predates this fix.
