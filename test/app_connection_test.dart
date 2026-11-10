@@ -4,6 +4,10 @@ import 'dart:io';
 
 import 'package:coffey_table_recipes/src/api.dart';
 import 'package:coffey_table_recipes/src/app_connection.dart';
+import 'package:coffey_table_recipes/src/local_data.dart';
+import 'package:flutter/widgets.dart';
+import 'package:http/http.dart' as http;
+import 'package:http/testing.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
 
@@ -185,15 +189,37 @@ void main() {
       );
       final api = RecipeApi(
         baseUrl: 'https://unused.test',
+        client: MockClient(
+          (_) async =>
+              http.Response('{"error":{"message":"Endpoint not found."}}', 404),
+        ),
+        socketConnect: (_) => throw StateError('Use the shared AppConnection'),
         connection: connection,
       );
       final cookingApi = RecipeApi(
         baseUrl: 'https://unused.test',
         connection: connection,
       );
+      final disk = <String, String>{};
+      final local = LocalData(
+        key: 'calendar-foreground-wire',
+        fetch: (path) => api.request(path, 'alice'),
+        send: (path, body) => api.request(path, 'alice', body: body),
+        readStore: (key) async => disk[key],
+        writeStore: (key, value) async {
+          disk[key] = value;
+        },
+      )..connected = () => connection.connected;
+      final sendErrors = <Object>[];
+      local.onSendError = (_, error) => sendErrors.add(error);
       final state = <String, dynamic>{};
       api.onAppSnapshot = (data) async {
         state.addAll(data);
+        for (final household in (data['households'] as Map? ?? {}).values) {
+          await local.installSnapshot(
+            Map<String, dynamic>.from(household['library'] as Map),
+          );
+        }
       };
       cookingApi.onAppSnapshot = (data) async {
         state.addAll(data);
@@ -201,6 +227,7 @@ void main() {
       addTearDown(() async {
         api.close();
         cookingApi.close();
+        local.dispose();
         connection.dispose();
         await Process.run('kill', ['-TERM', '--', '-${process.pid}']);
         await process.exitCode;
@@ -247,12 +274,29 @@ void main() {
         ),
       ]);
       expect(state['account']['user']['display_name'], 'Last name');
+      const calendarPath = '/households/1/work-calendar';
+      local.connected = () => false;
+      await local.save(calendarPath, {'color': '#1976D2'});
+      local.connected = () => connection.connected;
+      connection.didChangeAppLifecycleState(AppLifecycleState.paused);
+      connection.didChangeAppLifecycleState(AppLifecycleState.resumed);
+      await api.request('/me/timers', 'alice');
+      await local.synchronize();
+      expect((await api.request(calendarPath, 'alice'))['color'], '#1976D2');
+      expect(sendErrors, isEmpty);
+      connection.didChangeAppLifecycleState(AppLifecycleState.paused);
+      connection.didChangeAppLifecycleState(AppLifecycleState.resumed);
+      await api.request('/me/timers', 'alice');
+      await local.synchronize();
+      expect((await api.request(calendarPath, 'alice'))['color'], '#1976D2');
+      expect(sendErrors, isEmpty);
+      expect(connection.connected, true);
       api.close();
       await cookingApi.request('/me/timers', 'alice');
-      expect(opens, 1);
+      expect(opens, 3);
       connection.reconnect();
       await cookingApi.request('/me', 'alice');
-      expect(opens, 2);
+      expect(opens, 4);
       expect(
         state['households']['1']['library']['responses']['/households/1/meal-plan']['entries'],
         hasLength(1),

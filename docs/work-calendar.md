@@ -108,3 +108,42 @@ IN_BETA_TESTING for the existing Family testers group. HA now tracks main and
 retains the selected work calendar; its already deployed code was unchanged by
 main integration. See docs/releases.md for source, checksums, signing/link checks,
 the iOS provisioning-timeout retry, processing evidence and merged-branch cleanup.
+
+## Foreground Endpoint not found repair — 2026-11-10
+
+Task `fix/calendar-connection`, base app main `09e5894`; companion backend base
+`44c1261`. The generic Saved on this device / Endpoint not found / retry notice
+is raised when a durable local write fails to send. Work-calendar was missing
+from isVpsDataPath, so the production RecipeApi fell back to HTTP for calendar
+color writes even with the shared WebSocket connected. The HTTP service has no
+calendar data endpoint. Foregrounding retried the pending write and the same
+notice appeared again. A mock-transport audit reproduced that misrouting; the
+separate live-backend failure audit reproduced calendar-read startup/disconnect
+failures using disposable SQLite fixtures, not production data.
+
+Added work-calendar to the existing socket route allowlist. Reads and color saves
+now use the authenticated shared app connection. Existing durable pending writes
+are retained and can deliver after reconnect; no cache reset, operation deletion,
+new controls or suppressed send-error messages were introduced.
+
+Extended the real Dart-to-PHP connection regression to queue a color change while
+offline, resume the app twice, verify the saved color on the server and verify no
+send-error callback. The same scenario retains account, timer, meal and shared
+connection behavior. HTTP is mocked to fail immediately so fallback cannot pass
+silently. The selected real transport check passed against the companion backend
+fixture. Both changed Dart files were formatted/analyzed without issues. No app
+build or full app/tooling suite was run; the released 2.10.0 still needs replacing
+with a build containing this client fix.
+
+The companion backend catches exceptions from its optional calendar snapshot
+read, logs a safe error and returns empty dates/default amber while unreadable.
+Core startup and updates remain available; stored calendar data is not changed,
+and subsequent good snapshots restore its dates/color. Four selected server
+WebSocket regressions and calendar/data-socket fixtures passed; three new checks
+were repeated after fixture connection cleanup. This guards read exceptions,
+not unrelated network/database failures or an indefinitely stalled SQL query.
+
+Backend source `1439d90` was deployed and health/source/CPU-policy checks passed.
+See backend WORK-CALENDAR.md for the operational record. No schema setup or HA
+integration change was needed. Both repairs remain on fix/calendar-connection
+branches for owner review/main acceptance; no new app build or release was made.
