@@ -2,6 +2,14 @@
 
 Release dates and changes are reconstructed from annotated Git tags, commit history, and project release records. Versions before 1.0 are demonstration releases; 1.0 marks the first usable release. Android retains the existing signing identity; iOS delivery and signing are recorded for each release.
 
+## 2.10.1 — 2026-11-10
+
+Build 74; tag `v2.10.1`. iOS and Android release.
+
+- Fix calendar color saves using the wrong endpoint, which caused a Saved on this device / Endpoint not found notice after foregrounding.
+- Deliver existing pending color changes through the shared app connection without clearing locally saved changes.
+- Keep calendar read errors from blocking the server's required app snapshot or disconnecting the shared connection. Calendar bars temporarily disappear while calendar data is unreadable and return after recovery.
+
 ## 2.10.0 — 2026-11-10
 
 Build 73; tag `v2.10.0`. iOS and Android release.

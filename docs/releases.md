@@ -1684,3 +1684,31 @@ additional backend setup, Home Assistant Core/OS upgrade or full app/tooling sui
 Android and iOS hosted associations passed against actual release signing
 identities. Device-level link resolution and physical UI acceptance remain
 untested: this environment has no adb executable or attached native iOS device.
+
+## 2.10.1 / build 74 — 2026-11-10
+
+The owner explicitly approved merging the calendar connection repairs into main,
+deleting the merged working branches and releasing the app. Branch inspection
+found only fix/calendar-connection in the app and VPS backend; HA has only main.
+Fetched and integrated main into both repair branches; no conflicts or additional
+source updates. All task work/tags are synchronized before the release tag.
+
+This patch adds work-calendar to the existing authenticated WebSocket route list,
+so existing pending calendar color saves deliver instead of falling back to a
+missing HTTP endpoint on foregrounding. No pending changes or caches are cleared,
+and no send-error messages are suppressed. The backend isolates calendar read
+exceptions from the mandatory household snapshot, logging a safe error and
+providing empty markers/default color until its stored data becomes readable.
+This preserves core app startup and updates while calendar data is unavailable;
+it does not guarantee against unrelated network/database failures or stalled SQL.
+The backend repair was already deployed from 1439d90 and is not redeployed or
+migrated for this release. No HA changes or additional setup are needed.
+
+Focused validation on release source: affected Dart analysis clean; all three
+app_connection_test cases passed, including token renewal, slow AI isolation and
+real Dart-to-PHP traffic with a queued calendar color save plus two foreground
+reconnections. Four backend app WebSocket checks (three calendar-failure/recovery
+cases and normal bootstrap/bidirectional updates), plus PHP work_calendar and
+data_socket fixtures passed against disposable data. No full app/tooling suites
+were run. No dependency or encryption-related change; retain existing accurate
+export declarations and France distribution/tester restrictions.
