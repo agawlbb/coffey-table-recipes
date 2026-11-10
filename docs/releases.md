@@ -1712,3 +1712,69 @@ cases and normal bootstrap/bidirectional updates), plus PHP work_calendar and
 data_socket fixtures passed against disposable data. No full app/tooling suites
 were run. No dependency or encryption-related change; retain existing accurate
 export declarations and France distribution/tester restrictions.
+
+### Android delivery
+
+[Android build 42740740504](https://github.com/agawlbb/coffey-table-recipes/actions/runs/42740740504)
+succeeded from immutable `v2.10.1` source
+`ad45604e9c2df8cfa9bdcc3b050e4ffe4a404b97`.
+[Download 2.10.1 build 74](https://drive.google.com/file/d/1t77Iuvn0u7cvjTbZwrsP9wcCO_nkgmvh/view).
+
+- APK: `CoffeyTableRecipes-2.10.1-build74.apk`, 71,874,201 bytes.
+- SHA-256: `ee91cb7827eeec7fd8cf4505b23d43d28b537b7f76875e518e6943a7ca3f3b8c`.
+- Original certificate SHA-256: `f8de933f14b9bb4b3191a94aedc8637972c5ab224565f6abd7808f8038d12097`.
+- Workflow and independent checks verified signature, package, version/build,
+  source/checksum, non-debuggable status and hosted app links against the actual
+  APK certificate. Independent 16 KiB alignment passed; workflow also checked
+  Kotlin classes required by native timer preferences.
+- The pinned-folder publisher uploaded the APK, downloaded and verified its
+  SHA-256, then sent the informational Android notification without a link/click
+  action. Only the precisely named older `CoffeyTableRecipes-2.10.0-build73.apk`
+  was moved to Drive trash afterward. All other files and sharing were preserved.
+
+### Signed iOS delivery
+
+[Signed iOS build/upload 42740743094](https://github.com/agawlbb/coffey-table-recipes/actions/runs/42740743094)
+succeeded on its first attempt for exact release source and build 74. The
+signed-package receipt verifies the app, TimerWidget and ShareExtension signatures
+and App Store profiles, matching versions/builds/source, production APNs and
+app-group/associated-domain entitlements. The hosted iOS association passed
+against the actual exported signed app identity. All targets retain accurate
+no-non-exempt-encryption declarations. Existing France restrictions remain;
+no testers, groups or territories were added.
+
+Exported IPA SHA-256:
+`d598897b47b8631a26aff6993308a8cffdf4a0fcde7bde4b3eba563da4fe3130`.
+Upload to App Store Connect was confirmed. The existing upload mode does not
+publish an IPA artifact; successful logs and the extracted verification receipt
+are retained outside Git. Apple processing/internal-access verification is running
+in [status check 42743320852](https://github.com/agawlbb/coffey-table-recipes/actions/runs/42743320852).
+
+
+Apple verification confirmed build `6b2f88de-60a3-4188-aed0-755bb360f163` is VALID,
+IN_BETA_TESTING, declares no non-exempt encryption and is available to the existing
+Family testers internal group. No retry, duplicate upload, or tester/group/territory
+change was needed for this release.
+
+### Integration, cleanup and limits
+
+The app and backend repair branches were fast-forwarded into their canonical main
+branches after fresh remote checks and the focused validations recorded above.
+Backend main `486b10b` matches the already deployed repair code from `1439d90`;
+its merged task branch was then removed locally and remotely. HA remained clean
+on main `59fefbf`, with no source or installation change required.
+
+The app working branch is removed locally and remotely after this delivery record
+is integrated and its exact head/merged ancestry is verified. The immutable tag
+remains at `ad45604`; the later main commit records delivery only. All three
+canonical main checkouts, GitHub main heads, local/remote branch inventories and
+tags are checked before reporting completion. Accepted detached task worktrees
+and unique recovery evidence are retained. No unmerged work was discarded.
+
+Release artifacts and verification logs/reports remain outside Git under
+`/home/debian/projects/.release-tools/release-2.10.1/`. No credentials, private
+configuration or generated packages were committed. No web build/publication,
+new backend setup, HA/Core/OS upgrade or full app/tooling suite was run. The
+foreground repair was exercised with real Dart-to-PHP fixtures; physical-device
+UI acceptance and OS link opening remain untested. Hosted Android/iOS link
+associations were checked against the actual signed release identities.

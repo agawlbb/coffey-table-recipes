@@ -147,3 +147,14 @@ Backend source `1439d90` was deployed and health/source/CPU-policy checks passed
 See backend WORK-CALENDAR.md for the operational record. No schema setup or HA
 integration change was needed. Both repairs remain on fix/calendar-connection
 branches for owner review/main acceptance; no new app build or release was made.
+
+## Released repair — 2.10.1 build 74
+
+The owner accepted main integration, merged-branch cleanup and release on
+2026-11-10. The calendar endpoint routing repair is included in
+[Android 2.10.1 build 74](https://drive.google.com/file/d/1t77Iuvn0u7cvjTbZwrsP9wcCO_nkgmvh/view)
+and the verified TestFlight 2.10.1/build 74. Apple reports VALID and IN_BETA_TESTING
+for the existing Family testers group. Existing pending color writes can deliver
+through the corrected shared connection after installing this build; no cache or
+change reset is required. See docs/releases.md for native signature/source/link
+checks, delivery records and final main/branch synchronization evidence.
