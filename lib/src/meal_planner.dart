@@ -47,6 +47,9 @@ class _MealPlannerState extends State<MealPlanner> with WidgetsBindingObserver {
   ModalRoute<dynamic>? _route;
   bool _background = false;
   List<Map<String, dynamic>> _entries = [];
+  Set<String> _workDates = {};
+  Color _workColor = const Color(0xffe09f3e);
+  String get _calendarPath => '/households/${widget.householdId}/work-calendar';
   late DateTime _today;
   int _pastDays = 30, _futureDays = 45, _generation = 0;
   bool _loading = true, _saving = false, _fetching = false;
@@ -74,6 +77,7 @@ class _MealPlannerState extends State<MealPlanner> with WidgetsBindingObserver {
     setState(() {
       _ready = false;
       _entries = [];
+      _workDates = {};
       _accessEpoch++;
       _generation++;
       _fetching = false;
@@ -136,6 +140,7 @@ class _MealPlannerState extends State<MealPlanner> with WidgetsBindingObserver {
     if (mounted &&
         !_saving &&
         (localDataChanges.value.startsWith(_path) ||
+            localDataChanges.value.startsWith(_calendarPath) ||
             localDataChanges.value.startsWith('/me#'))) {
       _load(quiet: true);
     }
@@ -164,6 +169,23 @@ class _MealPlannerState extends State<MealPlanner> with WidgetsBindingObserver {
         _loading = false;
         _ready = true;
       });
+      try {
+        final calendar = await widget.request(_calendarPath);
+        if (!mounted || generation != _generation) return false;
+        setState(() {
+          _workDates = (calendar['dates'] as List? ?? [])
+              .whereType<String>()
+              .toSet();
+          final hex = calendar['color']?.toString();
+          if (hex != null && RegExp(r'^#[0-9a-fA-F]{6}$').hasMatch(hex)) {
+            _workColor = Color(
+              0xff000000 | int.parse(hex.substring(1), radix: 16),
+            );
+          }
+        });
+      } catch (error) {
+        if (_invalidateAccess(error)) return false;
+      }
       final mainRecipes = <String>{};
       for (final id
           in entries
@@ -868,6 +890,14 @@ class _MealPlannerState extends State<MealPlanner> with WidgetsBindingObserver {
                 Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
+                    if (_workDates.contains(date))
+                      Container(
+                        key: ValueKey('workday-bar-$date'),
+                        width: 4,
+                        height: 22,
+                        margin: const EdgeInsets.only(right: 6),
+                        color: _workColor,
+                      ),
                     Expanded(
                       child: Text(
                         label,

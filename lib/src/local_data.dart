@@ -291,6 +291,7 @@ class LocalData extends ChangeNotifier {
       for (final resource in [
         'shopping-list',
         'restaurants',
+        'work-calendar',
         'meal-plan',
         'people',
       ]) {
@@ -687,7 +688,7 @@ class LocalData extends ChangeNotifier {
 
   bool ownsWrite(String path) =>
       RegExp(
-        r'^/households/[^/]+/(recipes(?:/[^/]+(?:/(?:favorites|delete|restore|attach))?)?|meal-plan|shopping-list(?:/photos)?|restaurants|name|people/me/name)$',
+        r'^/households/[^/]+/(recipes(?:/[^/]+(?:/(?:favorites|delete|restore|attach))?)?|meal-plan|work-calendar|shopping-list(?:/photos)?|restaurants|name|people/me/name)$',
       ).hasMatch(Uri.parse(path).path) ||
       path == '/me/name' ||
       path.startsWith('/me/cooking-sessions');
@@ -872,7 +873,9 @@ class LocalData extends ChangeNotifier {
     final body = _copy(entry['body'] as Map);
     _resolveRecipeIds(body, aliases);
     final parts = Uri.parse(path).pathSegments;
-    if (path.startsWith('/me/cooking-sessions')) {
+    if (path.endsWith('/work-calendar')) {
+      data[path] = {...?data[path] as Map?, 'color': body['color']};
+    } else if (path.startsWith('/me/cooking-sessions')) {
       const root = '/me/cooking-sessions';
       final state = _copy(data[root] as Map? ?? {'sessions': []});
       final rows = List<dynamic>.from(state['sessions'] as List);

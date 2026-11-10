@@ -5,6 +5,7 @@ import 'app_connection.dart';
 import 'client_log.dart';
 import 'client_log_screen.dart';
 import 'notification_settings.dart';
+import 'work_calendar_setting.dart';
 import 'connection_indicator.dart';
 import 'cooking_sessions.dart';
 import 'cooking_session_ui.dart';
@@ -1626,6 +1627,13 @@ class _HouseholdPanelState extends State<HouseholdPanel>
                               ),
                             ),
                           ),
+                          if (_selected != null && !childMode.value)
+                            WorkCalendarSetting(
+                              key: ValueKey('work-calendar-$_selected'),
+                              householdId: _selected!,
+                              request: _request,
+                              save: _saveRecipe,
+                            ),
                           ..._householdControls(routeContext),
                         ],
                       ),
