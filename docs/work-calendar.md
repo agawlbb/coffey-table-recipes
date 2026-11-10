@@ -95,3 +95,16 @@ Dart files were formatted and analyzed without issues. The other passing planner
 and calendar scenarios were not repeated after that final proportion adjustment.
 No full suite, new APK, deployment or main integration was requested or performed
 for this follow-up; the previously delivered test APK predates this fix.
+
+## Accepted release — 2.10.0 build 73
+
+On 2026-11-10 the owner approved merging all three repositories to main, deleting
+the merged calendar branches and releasing the app. The release includes the
+phone date-header fix, superseding the earlier temporary APK.
+
+[Android release APK](https://drive.google.com/file/d/1UhScyd89qM0kiupnHhPEogMA0HMVitpT/view)
+and TestFlight 2.10.0/build 73 are verified delivered; Apple reports VALID and
+IN_BETA_TESTING for the existing Family testers group. HA now tracks main and
+retains the selected work calendar; its already deployed code was unchanged by
+main integration. See docs/releases.md for source, checksums, signing/link checks,
+the iOS provisioning-timeout retry, processing evidence and merged-branch cleanup.

@@ -1609,3 +1609,78 @@ release/signing tooling tests were run. Native workflows retain their signature,
 profile, package/source and hosted association verification. No encryption or
 dependency change; no-non-exempt-encryption declarations and France restrictions
 remain in effect. Platform delivery evidence follows after builds complete.
+
+### Android delivery
+
+[Android build 42733440225](https://github.com/agawlbb/coffey-table-recipes/actions/runs/42733440225)
+succeeded from immutable `v2.10.0` source
+`04d045798c9428aa91e1d8fe07f3206a33e57547`.
+[Download 2.10.0 build 73](https://drive.google.com/file/d/1UhScyd89qM0kiupnHhPEogMA0HMVitpT/view).
+
+- APK: `CoffeyTableRecipes-2.10.0-build73.apk`, 71,874,201 bytes.
+- SHA-256: `9a019b61ca7d66696aba12320ee356150eba21b7226cc1ef3c15495477cf289e`.
+- Original certificate SHA-256: `f8de933f14b9bb4b3191a94aedc8637972c5ab224565f6abd7808f8038d12097`.
+- Workflow checked source, signature, package/version, non-debuggable status,
+  retained Kotlin classes needed by native timer preferences and hosted app links.
+- Independent downloaded-artifact verification passed SHA-256, certificate,
+  package/build, non-debuggable status, 16 KiB alignment and the hosted Android
+  association against the actual APK certificate.
+- The existing publisher uploaded to the pinned recipe app Drive folder,
+  downloaded the uploaded bytes and verified SHA-256. The informational Android
+  release notification was sent without a link/click action. No older release
+  APKs were eligible for cleanup (`removed=[]`); other files and sharing were
+  preserved. No APK was published on the VPS.
+
+### Signed iOS delivery
+
+[Signed iOS build/upload 42733443472](https://github.com/agawlbb/coffey-table-recipes/actions/runs/42733443472)
+uses immutable `v2.10.0` source and build 73. The first attempt compiled the
+unsigned app successfully, then Apple's automatic provisioning request timed out
+for the ShareExtension development profile during archive. No export/upload
+occurred. Retried only the failed signing job on the same release tag, without
+source changes, another Android build or changing the version/build number.
+The second attempt succeeded. Its signed-package receipt verifies the app,
+TimerWidget and ShareExtension signatures and App Store profiles, exact release
+source and version/build, production APNs, app-group/associated-domain entitlements,
+and the hosted iOS association against the actual exported app identity. All
+three targets retain the no-non-exempt-encryption declaration. The workflow
+confirmed upload to App Store Connect. No testers, groups or territories were
+added; France restrictions are retained.
+
+Exported IPA SHA-256:
+`92c06f526fda64d68ab66d146b51c2a51fbb43d094a3c2faca6430814ff16222`.
+The upload workflow does not publish an IPA artifact; its successful logs and
+extracted verification receipt are retained outside Git. The early read-only
+TestFlight monitor returned NOT_FOUND while signing/upload was still running;
+reran it after confirmed upload to verify processing and existing internal access.
+[Apple verification 42736059298](https://github.com/agawlbb/coffey-table-recipes/actions/runs/42736059298)
+confirmed build `dff6e887-e773-4cd1-b0b1-6bef1e68f986` is VALID,
+IN_BETA_TESTING, declares no non-exempt encryption and is available to the existing
+Family testers internal group. No repeat upload or tester/group/territory changes
+were needed. The monitor's second attempt ran after the confirmed upload.
+
+### Integration, cleanup and limits
+
+All three accepted calendar task branches were fast-forwarded into their canonical
+main branches after fetching, diff review and focused validation. The backend and
+HA task branches were deleted locally and on GitHub only after verifying their
+exact heads were merged. HACS now tracks HA main `59fefbf`; the component source
+is identical to the previously installed/verified `d8ffc96`, so no further restart
+was required. Its integration remained loaded with the selected work calendar.
+Backend main `44c1261` likewise matches the deployed application source; the
+one-time setup was not repeated. The live health endpoint remained healthy.
+
+The app task branch is removed locally and on GitHub after this delivery record
+is integrated into main and its merged ancestry/remote head is checked. The
+immutable release tag remains on `04d0457`; the later main commit records delivery
+only. All canonical main checkouts and GitHub heads are checked clean/matching
+before completion. Accepted detached task worktrees and unique recovery evidence
+are retained; no unmerged work or unrelated branch was deleted.
+
+All release artifacts and verification logs/reports are retained outside Git in
+`/home/debian/projects/.release-tools/release-2.10.0/`. No credentials, generated
+packages or private configuration were committed. No web build/publication,
+additional backend setup, Home Assistant Core/OS upgrade or full app/tooling suite was run.
+Android and iOS hosted associations passed against actual release signing
+identities. Device-level link resolution and physical UI acceptance remain
+untested: this environment has no adb executable or attached native iOS device.
