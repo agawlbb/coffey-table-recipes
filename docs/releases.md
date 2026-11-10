@@ -1582,3 +1582,30 @@ actual APK certificate; the iOS workflow checked the hosted association against
 the actual exported app identity/entitlements. Native device behavior still needs
 physical-device acceptance. Release evidence is retained outside Git under
 `.release-tools/release-2.9.1`; private credentials and packages remain excluded.
+
+
+## 2.10.0 / build 73 — 2026-11-10
+
+The owner explicitly authorized merging all three work-calendar repositories to
+main, deleting the merged task branches and releasing the app. The branch audit
+found only `feat/work-calendar` alongside main in the Flutter, VPS backend and
+HA repositories; no unrelated feature work needs integration. All task branches
+were synchronized before release preparation.
+
+This release adds the optional HA work calendar, any-event occupied-date markers,
+a household color palette, offline calendar/color availability and automatic
+calendar updates. It includes the final single-line phone date header repair.
+The earlier temporary Android APK predates that repair. CHANGELOG.md records
+the supported changes since 2.9.1. The sync window and date/timezone behavior are
+documented in docs/work-calendar.md. Backend setup/deployment and HA installation
+were already verified during the task and are not repeated as release setup.
+
+Fetched and integrated canonical main into each task branch; all were already
+up to date, with no conflicts or unaccepted changes. Affected Dart analysis was
+clean and all seven selected calendar/date-header layout checks passed on the
+release source. Five HA calendar/options/real-loopback-transport checks and the
+PHP work_calendar, data_socket and meal_plans fixtures passed. No full suite or
+release/signing tooling tests were run. Native workflows retain their signature,
+profile, package/source and hosted association verification. No encryption or
+dependency change; no-non-exempt-encryption declarations and France restrictions
+remain in effect. Platform delivery evidence follows after builds complete.

@@ -2,6 +2,15 @@
 
 Release dates and changes are reconstructed from annotated Git tags, commit history, and project release records. Versions before 1.0 are demonstration releases; 1.0 marks the first usable release. Android retains the existing signing identity; iOS delivery and signing are recorded for each release.
 
+## 2.10.0 — 2026-11-10
+
+Build 73; tag `v2.10.0`. iOS and Android release.
+
+- Show a color bar beside meal-planner dates covered by any event on the selected Home Assistant work calendar, including dates without planned meals.
+- Add a household Workday color setting and retain calendar markers and color offline.
+- Update workday markers automatically when the linked calendar changes, with a periodic refresh fallback.
+- Keep past, today and future date labels on one line on phones while retaining compact planner actions.
+
 ## 2.9.1 — 2026-11-09
 
 Build 71; tag `v2.9.1`. iOS and Android release.
