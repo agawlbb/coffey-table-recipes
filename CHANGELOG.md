@@ -2,6 +2,12 @@
 
 Release dates and changes are reconstructed from annotated Git tags, commit history, and project release records. Versions before 1.0 are demonstration releases; 1.0 marks the first usable release. Android retains the existing signing identity; iOS delivery and signing are recorded for each release.
 
+## 2.10.2 — 2026-11-12
+
+Build 76; tag `v2.10.2`. iOS and Android release.
+
+- Restore visible dish names beneath recipe photos in the meal planner.
+
 ## 2.10.1 — 2026-11-10
 
 Build 74; tag `v2.10.1`. iOS and Android release.
