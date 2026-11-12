@@ -408,75 +408,92 @@ void main() {
   }
 
   for (final screenWidth in [320.0, 390.0, 900.0]) {
-    testWidgets('recipe pictures fit without captions at $screenWidth wide', (
-      tester,
-    ) async {
-      await tester.binding.setSurfaceSize(Size(screenWidth, 900));
-      addTearDown(() => tester.binding.setSurfaceSize(null));
-      final fixture = PlanFixture();
-      fixture.entries.add({
-        ...fixture.entries.firstWhere((entry) => entry['id'] == 'today'),
-        'id': 'second-dish',
-        'title': 'A second dish with a longer name',
-      });
-      fixture.entries.add({
-        ...fixture.entries.firstWhere((entry) => entry['id'] == 'today'),
-        'id': 'third-dish',
-        'title': 'Third dish',
-      });
-      await tester.pumpWidget(fixture.app());
-      await tester.pumpAndSettle();
-      final section = find.byKey(const ValueKey('meal-day-2026-10-22'));
-      final cook = find.descendant(
-        of: section,
-        matching: find.widgetWithText(OutlinedButton, 'Timeline'),
-      );
-      final add = find.descendant(
-        of: section,
-        matching: find.widgetWithText(OutlinedButton, 'Add dish'),
-      );
-      final marker = find.descendant(of: section, matching: find.text('Today'));
-      expect(tester.getRect(cook).top, tester.getRect(add).top);
-      expect(tester.getRect(cook).height, lessThanOrEqualTo(32));
-      expect(tester.getRect(add).height, lessThanOrEqualTo(32));
-      expect(tester.getRect(cook).right, lessThan(tester.getRect(add).left));
-      expect(
-        tester.getRect(add).right,
-        closeTo(tester.getRect(section).right - 28, 1),
-      );
-      expect(
-        tester.getRect(marker).bottom,
-        lessThanOrEqualTo(tester.getRect(cook).top),
-      );
-      expect(
-        tester.getRect(marker).center.dx,
-        closeTo(tester.getRect(section).center.dx, 1),
-      );
-      final pictures = find.descendant(
-        of: section,
-        matching: find.byType(RecipePhoto),
-      );
-      expect(pictures, findsNWidgets(3));
-      final first = tester.getRect(pictures.at(0));
-      final second = tester.getRect(pictures.at(1));
-      final third = tester.getRect(pictures.at(2));
-      final bounds = tester.getRect(section);
-      expect(first.top, second.top);
-      expect(second.top, third.top);
-      expect(first.right, lessThan(second.left));
-      expect(second.right, lessThan(third.left));
-      expect(third.right, lessThan(bounds.right));
-      expect(first.width, lessThanOrEqualTo(100));
-      expect(first.height, lessThan(80));
-      for (final title in ['Today soup', 'A second dish with a longer name']) {
-        expect(find.textContaining(title), findsNothing);
-        final picture = tester.getRect(find.byTooltip(title));
-        expect(picture.top, first.top);
-        expect(picture.bottom, first.bottom);
-      }
-      expect(tester.takeException(), isNull);
-      await tester.pumpWidget(const SizedBox());
-    });
+    testWidgets(
+      'recipe pictures and visible dish names fit at $screenWidth wide',
+      (tester) async {
+        await tester.binding.setSurfaceSize(Size(screenWidth, 900));
+        addTearDown(() => tester.binding.setSurfaceSize(null));
+        final fixture = PlanFixture();
+        fixture.entries.add({
+          ...fixture.entries.firstWhere((entry) => entry['id'] == 'today'),
+          'id': 'second-dish',
+          'title': 'A second dish with a longer name',
+        });
+        fixture.entries.add({
+          ...fixture.entries.firstWhere((entry) => entry['id'] == 'today'),
+          'id': 'third-dish',
+          'title': 'Third dish',
+        });
+        await tester.pumpWidget(fixture.app());
+        await tester.pumpAndSettle();
+        final section = find.byKey(const ValueKey('meal-day-2026-10-22'));
+        final cook = find.descendant(
+          of: section,
+          matching: find.widgetWithText(OutlinedButton, 'Timeline'),
+        );
+        final add = find.descendant(
+          of: section,
+          matching: find.widgetWithText(OutlinedButton, 'Add dish'),
+        );
+        final marker = find.descendant(
+          of: section,
+          matching: find.text('Today'),
+        );
+        expect(tester.getRect(cook).top, tester.getRect(add).top);
+        expect(tester.getRect(cook).height, lessThanOrEqualTo(32));
+        expect(tester.getRect(add).height, lessThanOrEqualTo(32));
+        expect(tester.getRect(cook).right, lessThan(tester.getRect(add).left));
+        expect(
+          tester.getRect(add).right,
+          closeTo(tester.getRect(section).right - 28, 1),
+        );
+        expect(
+          tester.getRect(marker).bottom,
+          lessThanOrEqualTo(tester.getRect(cook).top),
+        );
+        expect(
+          tester.getRect(marker).center.dx,
+          closeTo(tester.getRect(section).center.dx, 1),
+        );
+        final pictures = find.descendant(
+          of: section,
+          matching: find.byType(RecipePhoto),
+        );
+        expect(pictures, findsNWidgets(3));
+        final first = tester.getRect(pictures.at(0));
+        final second = tester.getRect(pictures.at(1));
+        final third = tester.getRect(pictures.at(2));
+        final bounds = tester.getRect(section);
+        expect(first.top, second.top);
+        expect(second.top, third.top);
+        expect(first.right, lessThan(second.left));
+        expect(second.right, lessThan(third.left));
+        expect(third.right, lessThan(bounds.right));
+        expect(first.width, lessThanOrEqualTo(100));
+        expect(first.height, lessThan(80));
+        for (final title in [
+          'Today soup',
+          'A second dish with a longer name',
+        ]) {
+          final caption = find.descendant(
+            of: find.byTooltip(title),
+            matching: find.byType(Text),
+          );
+          expect(caption, findsOneWidget);
+          final text = tester.widget<Text>(caption).data!;
+          expect(
+            text.replaceAll('\n', ' '),
+            startsWith(title.split(' ').first),
+          );
+          final label = tester.getRect(caption);
+          expect(label.top, greaterThan(first.bottom));
+          expect(label.left, greaterThanOrEqualTo(bounds.left));
+          expect(label.right, lessThanOrEqualTo(bounds.right));
+        }
+        expect(tester.takeException(), isNull);
+        await tester.pumpWidget(const SizedBox());
+      },
+    );
   }
 
   testWidgets('opens at today with past dates above and Today returns to top', (
