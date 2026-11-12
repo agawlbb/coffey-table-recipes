@@ -1778,3 +1778,80 @@ new backend setup, HA/Core/OS upgrade or full app/tooling suite was run. The
 foreground repair was exercised with real Dart-to-PHP fixtures; physical-device
 UI acceptance and OS link opening remain untested. Hosted Android/iOS link
 associations were checked against the actual signed release identities.
+
+## 2.10.2 / build 76 — 2026-11-12
+
+The owner approved merging the dish-name repair, deleting working branches and
+releasing Android/iOS. Inspection found only `fix/meal-planner-dish-names` in the
+app and only `main` in the backend. Both repositories' task heads and local tags
+were synchronized with GitHub before tagging. Main was fetched and integrated
+into the repair branch without source changes; focused analysis and all 32 tests
+across `meal_planner_test.dart`, `meal_plan_dish_title_test.dart`, and
+`meal_planner_drag_stop_test.dart` passed. No full test suite was run.
+
+This patch restores visible dish names beneath recipe photos in the meal planner.
+The changelog and version were committed before immutable tag `v2.10.2`, source
+`2553e986e0f0a7bed98977f126b7fa3069dd2855`. Build 76 upgrades test build 75.
+Backend main remains `486b10b7557031c7cc21af89bc6cced8586daa6d`; no backend
+source, database or deployment change is needed. No encryption-related change;
+existing no-non-exempt-encryption declarations and France restrictions remain.
+No distribution territories, testers or groups were changed.
+
+### Android delivery
+
+Built locally inside the VM development container from the immutable release
+source, using the existing private Firebase configuration and original signing key.
+[Download Android 2.10.2 build 76](https://drive.google.com/file/d/1ha-3DkTerfzJkmk7YbNtMqBOeFH_u3ow/view).
+
+- APK: `CoffeyTableRecipes-2.10.2-build76.apk`.
+- SHA-256: `f73dd36f419cbfeef12c4d227533fca80f59281fa0986e2ab25ef76ceae776d4`.
+- Certificate SHA-256: `f8de933f14b9bb4b3191a94aedc8637972c5ab224565f6abd7808f8038d12097`.
+- Signature, package/version/source, non-debuggable status, 16 KiB ZIP alignment,
+  required Kotlin classes for native timer preferences and hosted app links passed.
+- `tool/publish-android.py` uploaded to the existing pinned recipe app folder and
+  downloaded/verified SHA-256 before sending the informational Android notification.
+  It reported `removed=[]`; no older matching release was visible at publication.
+  Final listing contains the new release and the unrelated NEGA APK.
+
+### iOS delivery
+
+Signed build/upload run:
+[43255613225](https://github.com/agawlbb/coffey-table-recipes/actions/runs/43255613225),
+using release tag `v2.10.2`, build 76, succeeded. The signed receipt verifies the
+app, TimerWidget and ShareExtension signatures and App Store profiles, matching
+release source/version/build, production APNs, app-group/associated-domain
+entitlements and hosted iOS association against the actual signed app identity.
+All three targets retain accurate no-non-exempt-encryption declarations.
+
+Exported IPA SHA-256:
+`78effd439ab9a5be0c8e0afa61a0e3746e3ce80128688510e068bd40baf98dab`.
+Upload succeeded; this workflow mode retains no downloadable IPA artifact.
+Successful logs and the extracted verification receipt are saved outside Git.
+The [combined-query status checker](https://github.com/agawlbb/coffey-table-recipes/actions/runs/43259823333)
+timed out: Apple's combined build query returned `VALID` and the correct encryption
+declaration but omitted beta-detail/group relationships. Direct read-only API
+checks subsequently verified build `29725d6f-2968-4db1-b8f7-8ce4ceb56297` is
+`VALID`, `IN_BETA_TESTING`, unexpired and declares no non-exempt encryption.
+Its direct beta-detail relationship confirms the internal state; the existing
+Family testers group's builds endpoint contains this exact build. That internal
+group already has access to all builds. No group assignment, tester invitation or
+territory change was required. These direct responses and the asserted delivery
+receipt are saved outside Git; the timed-out checker is not reported as passing.
+
+### Integration, cleanup and limits
+
+The approved fix and release preparation were fast-forwarded into main before
+tagging. The later delivery documentation is committed on the same task branch,
+then merged to main; the merged working branch is removed locally and remotely.
+App/backend main heads and clean working trees are checked against GitHub at
+handback. The immutable release tag remains on `2553e98`.
+
+Artifacts and verification receipts remain outside Git under
+`build/android-delivery/`. No private configuration, signing material or generated
+packages were committed. No web build/publication, backend deployment, database
+change, new testers or full app/tooling test suites were performed. The iOS
+workflow's existing analysis step also passed. Hosted Android/iOS recipe-link
+associations were checked against actual signed identities. `adb devices -l`
+found no connected device; native installation, visual acceptance and OS link
+opening remain physical-device checks. No further deployment is needed for this
+source change.

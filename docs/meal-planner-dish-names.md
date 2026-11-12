@@ -36,6 +36,6 @@ installation and visual acceptance remain untested.
 The first two build attempts failed because `--no-pub` retained integration-test
 plugin registration. The successful build used the existing workflow's
 build-time pub registration regeneration. Dependency versions and tracked
-source remained unchanged. No release notification, release tag, iOS build,
-backend deployment or main integration was performed. Merge awaits approval;
-shipping the fix to all users still requires a release.
+source remained unchanged. This test delivery performed no release notification, release tag, iOS build,
+backend deployment or main integration. The owner subsequently approved main
+integration and release 2.10.2; see [release delivery](releases.md#2102--build-76--2026-11-12).
