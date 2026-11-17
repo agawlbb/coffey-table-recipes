@@ -5,16 +5,17 @@
 Canonical repository: `agawlbb/home-assistant-coffey-table-recipes`; default branch: `main`.
 Follow the VM-wide working procedure in `/home/dev/projects/AGENTS.md`.
 Use the existing checkout on `main`, one task at a time; no routine task
-branches, extra worktrees or ownership claims. Complete the requested outcome,
-including deployment when applicable, then commit and push to `main`.
+branches, extra worktrees or ownership claims. Commit and push completed source changes to `main`.
 Use only relevant checks; do not repeat passing checks without a concrete reason.
 Questions and status checks are read-only. Preserve unrelated work and credentials.
+Deploy only when the user explicitly requests deployment. In every answer state
+whether deployment and an app build are needed; do not automatically do either.
 
 ## Project boundaries
 
 - This standalone Home Assistant integration, the Flutter client and PHP server remain separate repositories. Existing laptop integration checkout: `C:\Users\mailb\StudioProjects\home-assistant-coffey-table-recipes`.
 - Keep credentials, tokens, private Firebase settings, Home Assistant account backups and personal data out of Git. Do not create another remote repository or rewrite published history without explicit authorization.
-- Follow the user's requested scope. Instruction changes do not authorize functionality/dependency changes, builds, installation, deployment, releases, or repository/security settings changes. A requested fix to the running integration includes deployment and verification through its documented access.
+- Follow the user's requested scope. Instruction changes do not authorize functionality/dependency changes, builds, installation, deployment, releases, or repository/security settings changes. Do not automatically update a running Home Assistant installation; deploy only when explicitly requested.
 
 ## Keep the project simple
 
