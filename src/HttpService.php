@@ -25,7 +25,7 @@ final class HttpService {
                 $this->readOnly($method);
                 $recipe=RecipeShare::load($this->database(),$match[1]);
                 foreach ($recipe['photos'] as &$photo) {
-                    if (preg_match('#^(?:media|vps)/recipes/((?:[a-f0-9]{48}|[a-f0-9]{64}|[a-z][a-z0-9-]*-ai-v[1-9][0-9]*)\.(?:jpg|png|webp))$#D',$photo['storage_key']??'',$file)) $photo['source_url']='https://ctr.coffeybean.com/media/recipes/'.$file[1];
+                    if (preg_match('#^(?:media|vps)/recipes/((?:[a-f0-9]{48}|[a-f0-9]{64}|[a-z][a-z0-9-]*-ai-v[1-9][0-9]*)\.(?:jpg|png|webp))$#D',$photo['storage_key']??'',$file)) $photo['source_url']='https://coffeybean.com/ctr/media/recipes/'.$file[1];
                 }
                 unset($photo);
                 $html=recipeSharePage($recipe);

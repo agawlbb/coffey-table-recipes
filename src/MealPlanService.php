@@ -5,7 +5,7 @@ declare(strict_types=1);
 final class MealPlanService
 {
     public function __construct(private PDO $pdo, private HouseholdService $households,
-        private string $mediaUrl = 'https://ctr.coffeybean.com/media/recipes',
+        private string $mediaUrl = 'https://coffeybean.com/ctr/media/recipes',
         private ?Closure $clock = null) {}
 
     private function rows(string $sql, array $args = []): array {

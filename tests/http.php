@@ -53,7 +53,7 @@ try {
     $page=$service->handle('GET','/recipes/1');
     httpCheck($page['status']===200 && str_contains($page['body'],'Soup &lt;script&gt;'));
     httpCheck(!str_contains($page['body'],'PRIVATE') && !str_contains($page['body'],'<script>x'));
-    httpCheck(str_contains($page['body'],'https://ctr.coffeybean.com/recipes/1') && str_contains($page['body'],'https://ctr.coffeybean.com/media/recipes/'.$name));
+    httpCheck(str_contains($page['body'],'https://coffeybean.com/ctr/recipes/1') && str_contains($page['body'],'https://coffeybean.com/ctr/media/recipes/'.$name));
     httpCheck(!str_contains($page['body'],'coffeybean.com/CoffeyTableRecipes/') && !str_contains($page['body'],'Add to my household'));
     $head=$service->handle('HEAD','/recipes/1');
     httpCheck($head['body']==='' && $head['headers']['Content-Length']===(string)strlen($page['body']));

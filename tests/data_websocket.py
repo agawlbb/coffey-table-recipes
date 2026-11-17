@@ -42,7 +42,9 @@ class DataWireTests(unittest.IsolatedAsyncioTestCase):
         async with self.session.get(base+'/recipes/1') as response:
             self.assertEqual(response.status,200)
             content=await response.read()
-            self.assertIn(b'https://ctr.coffeybean.com/recipes/1',content)
+            self.assertIn(b'https://coffeybean.com/ctr/recipes/1',content)
+            self.assertIn(b'src="/ctr/assets/email/coffey_table.jpg"',content)
+            self.assertNotIn(b'ctr.coffeybean.com',content)
             self.assertNotIn(b'PRIVATE SOURCE',content)
             self.assertEqual(len(response.headers.getall('Content-Length')),1)
         async with self.session.head(base+'/recipes/1') as response:
@@ -54,7 +56,9 @@ class DataWireTests(unittest.IsolatedAsyncioTestCase):
         for name in ('assetlinks.json','apple-app-site-association'):
             async with self.session.get(base+'/.well-known/'+name) as response:
                 self.assertEqual(response.status,200)
-                await response.json()
+                association = await response.json()
+                if name == 'apple-app-site-association':
+                    self.assertIn({'/': '/ctr/recipes/*'}, association['applinks']['details'][0]['components'])
 
     async def auth(self, ws, scope='household', token='alice', household='1'):
         await ws.send_json(dict(v=1, type='auth', scope=scope, token=token, household_id=household))
@@ -128,7 +132,7 @@ class DataWireTests(unittest.IsolatedAsyncioTestCase):
     async def test_new_uploads_and_existing_managed_photos_use_vps_media(self):
         await self.auth(self.app)
         old = await self.request(self.app, '/households/1/recipes/1')
-        self.assertEqual(old['data']['recipe']['photos'][0]['source_url'], 'https://ctr.coffeybean.com/media/recipes/' + 'a'*48 + '.jpg')
+        self.assertEqual(old['data']['recipe']['photos'][0]['source_url'], 'https://coffeybean.com/ctr/media/recipes/' + 'a'*48 + '.jpg')
         import base64
         from pathlib import Path
         image = base64.b64decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jFuoAAAAASUVORK5CYII=')
@@ -139,7 +143,7 @@ class DataWireTests(unittest.IsolatedAsyncioTestCase):
         result = await self.request(self.app, '/households/1/recipes', body)
         self.assertEqual(result['type'], 'response', result)
         photo = result['data']['recipe']['photos'][0]
-        self.assertTrue(photo['source_url'].startswith('https://ctr.coffeybean.com/media/recipes/'))
+        self.assertTrue(photo['source_url'].startswith('https://coffeybean.com/ctr/media/recipes/'))
         self.assertTrue(photo['storage_key'].startswith('vps/recipes/'))
         self.assertEqual((Path(self.runtime) / 'state/media/recipes' / photo['source_url'].split('/')[-1]).read_bytes(), image)
         await self.message(self.app)

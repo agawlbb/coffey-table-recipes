@@ -3,7 +3,7 @@ declare(strict_types=1);
 
 final class RecipeService
 {
-    public function __construct(private PDO $pdo, private HouseholdService $households, private string $mediaUrl = 'https://ctr.coffeybean.com/media/recipes') {}
+    public function __construct(private PDO $pdo, private HouseholdService $households, private string $mediaUrl = 'https://coffeybean.com/ctr/media/recipes') {}
 
     private function rows(string $sql, array $parameters): array {
         $statement = $this->pdo->prepare($sql);

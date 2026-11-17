@@ -381,7 +381,7 @@ class AiWireTests(unittest.IsolatedAsyncioTestCase):
         await self.send_ai('/admin/parent-categories/10/category-image', {}, request_id='cover')
         response, _ = await self.result()
         self.assertEqual(response['type'], 'response', response)
-        self.assertEqual(response['data']['image_url'], 'https://ctr.coffeybean.com/media/recipes/category-10.jpg')
+        self.assertEqual(response['data']['image_url'], 'https://coffeybean.com/ctr/media/recipes/category-10.jpg')
         async with self.session.get(f'http://127.0.0.1:{self.media_port}/media/recipes/category-10.jpg') as image:
             self.assertEqual(image.status, 200)
             self.assertEqual(image.headers['Access-Control-Allow-Origin'], '*')
@@ -438,7 +438,7 @@ class AiWireTests(unittest.IsolatedAsyncioTestCase):
             row=next(c for c in frame['data']['library']['categories'] if str(c['id'])==str(category))
             if row['image_key']=='ai-'+str(category):
                 break
-        self.assertEqual(row['image_url'],f'https://ctr.coffeybean.com/media/recipes/category-{category}.jpg')
+        self.assertEqual(row['image_url'],f'https://coffeybean.com/ctr/media/recipes/category-{category}.jpg')
         async with self.session.get(f'http://127.0.0.1:{self.media_port}/media/recipes/category-{category}.jpg') as image:
             self.assertEqual(image.status,200)
         # An explicit app follow-up must reuse the owned cover instead of regenerating.

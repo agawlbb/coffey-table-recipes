@@ -22,8 +22,8 @@ try {
     $result=migrateRecipeMedia($pdo,$manifest,$directory);
     if ($result!==['updated_photos'=>3,'verified_categories'=>1]) throw new RuntimeException('Wrong migration result');
     $rows=$pdo->query('SELECT * FROM recipe_photos ORDER BY id')->fetchAll(PDO::FETCH_ASSOC);
-    if ($rows[0]['source_url']!=='https://ctr.coffeybean.com/media/recipes/'.$name || $rows[0]['storage_key']!=='vps/recipes/'.$name || $rows[1]['source_url']!=='https://external.test/image.jpg') throw new RuntimeException('Incorrect media ownership rewrite');
-    if ($rows[2]['storage_key']!=='vps/recipes/'.$legacy || $rows[2]['source_url']!=='https://ctr.coffeybean.com/media/recipes/'.$legacy) throw new RuntimeException('Legacy stored photo did not migrate');
+    if ($rows[0]['source_url']!=='https://coffeybean.com/ctr/media/recipes/'.$name || $rows[0]['storage_key']!=='vps/recipes/'.$name || $rows[1]['source_url']!=='https://external.test/image.jpg') throw new RuntimeException('Incorrect media ownership rewrite');
+    if ($rows[2]['storage_key']!=='vps/recipes/'.$legacy || $rows[2]['source_url']!=='https://coffeybean.com/ctr/media/recipes/'.$legacy) throw new RuntimeException('Legacy stored photo did not migrate');
     if ($rows[3]['storage_key']!=='vps/recipes/'.$illustration) throw new RuntimeException('Named illustration did not migrate');
     if (migrateRecipeMedia($pdo,$manifest,$directory)['updated_photos']!==0) throw new RuntimeException('Repeat changed media');
     echo "Media migration validates files, rolls back incomplete sets, preserves external URLs and is idempotent.\n";

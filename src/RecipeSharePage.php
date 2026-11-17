@@ -61,7 +61,7 @@ function recipeSharePage(array $r): string {
 <!doctype html>
 <html lang="<?= $e($r['original_language'] ?? 'en') ?>"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="robots" content="noindex,nofollow"><title><?= $e($r['title']) ?> · Coffey Table Recipes</title>
 <?php if (isset($r['id'])): ?>
-<link rel="canonical" href="https://ctr.coffeybean.com/recipes/<?= $e($r['id']) ?>"><meta property="og:url" content="https://ctr.coffeybean.com/recipes/<?= $e($r['id']) ?>"><meta property="og:type" content="article"><meta property="og:title" content="<?= $e($r['title']) ?>"><meta property="og:description" content="<?= $e($r['description'] ?? $r['title']) ?>">
+<link rel="canonical" href="https://coffeybean.com/ctr/recipes/<?= $e($r['id']) ?>"><meta property="og:url" content="https://coffeybean.com/ctr/recipes/<?= $e($r['id']) ?>"><meta property="og:type" content="article"><meta property="og:title" content="<?= $e($r['title']) ?>"><meta property="og:description" content="<?= $e($r['description'] ?? $r['title']) ?>">
 <?php $preview=$r['photos'][0]['source_url'] ?? ''; if (filter_var($preview,FILTER_VALIDATE_URL) && in_array(strtolower(parse_url($preview,PHP_URL_SCHEME)??''),['http','https'],true)): ?><meta property="og:image" content="<?= $e($preview) ?>"><?php endif ?>
 <?php endif ?>
 <?php if (($structured=recipeStructuredData($r))!==null): ?>
@@ -76,7 +76,7 @@ h2{font-size:24px;font-weight:500;color:#465334;margin:32px 0 12px;padding-botto
 @media(max-width:600px){main{padding:28px 24px}.photos img{height:260px}}@media print{.branding{display:none}.photos{display:block}.photos figure{break-inside:avoid}body{background:white}}
 </style></head><body><main><header class="recipe-header">
 <h1><?= $e($r['title']) ?></h1>
-<div class="branding"><img class="brand" src="/assets/email/coffey_table.jpg" alt="Coffey Table Recipes"><span>Coffey Table Recipes</span></div>
+<div class="branding"><img class="brand" src="/ctr/assets/email/coffey_table.jpg" alt="Coffey Table Recipes"><span>Coffey Table Recipes</span></div>
 </header>
 <?php if ($summary): ?><p><?= $e(implode(' · ', $summary)) ?></p><?php endif ?>
 <?php if (isset($r['description'])): ?><p><strong><?= $e($r['description']) ?></strong></p><?php endif ?>

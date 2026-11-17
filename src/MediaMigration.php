@@ -19,7 +19,7 @@ function migrateRecipeMedia(PDO $pdo,array $manifest,string $directory): array {
             elseif (preg_match('#^https?://(?:www\.)?coffeybean\.com/CoffeyTableRecipes/media/(?:recipes|recipe-photos|recipe-illustrations)/((?:[a-f0-9]{48}|[a-f0-9]{64}|[a-z][a-z0-9-]*-ai-v[1-9][0-9]*)\.(?:jpg|png|webp))$#D',$photo['source_url']??'',$match)) $name=$match[1];
             elseif (preg_match('#^https?://(?:www\.)?coffeybean\.com/CoffeyTableRecipes/media/#i',$photo['source_url']??'')) throw new RuntimeException('An owned image URL requires review before migration.');
             if ($name===null) continue;
-            $verified($name); $url='https://ctr.coffeybean.com/media/recipes/'.$name; $key='vps/recipes/'.$name;
+            $verified($name); $url='https://coffeybean.com/ctr/media/recipes/'.$name; $key='vps/recipes/'.$name;
             if ($photo['source_url']!==$url || $photo['storage_key']!==$key) { $update->execute([$url,$key,$photo['id']]); $count++; }
         }
         $categories=$pdo->query("SELECT id,image_key FROM recipe_categories WHERE image_key LIKE 'ai-%'")->fetchAll(PDO::FETCH_ASSOC);

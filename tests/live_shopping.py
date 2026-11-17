@@ -35,7 +35,7 @@ async def check():
     async with aiohttp.ClientSession() as session:
         for attempt in range(12):
             try:
-                ws=await session.ws_connect('wss://ctr.coffeybean.com/shopping',timeout=aiohttp.ClientWSTimeout(ws_receive=15),max_msg_size=5*1024*1024)
+                ws=await session.ws_connect('wss://coffeybean.com/ctr/shopping',timeout=aiohttp.ClientWSTimeout(ws_receive=15),max_msg_size=5*1024*1024)
                 break
             except (aiohttp.ClientError,asyncio.TimeoutError):
                 if attempt==11:raise

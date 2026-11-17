@@ -82,7 +82,7 @@ final class DataSocket
             'shopping'=>$this->shopping->snapshot($actor),
             'household'=>['shopping'=>$this->shopping->snapshot($actor),
                 'library'=>(new HouseholdSnapshot($this->pdo,new HouseholdService($this->pdo),
-                    'https://ctr.coffeybean.com/media/recipes'))->read($actor['user'],$actor['household'])],
+                    'https://coffeybean.com/ctr/media/recipes'))->read($actor['user'],$actor['household'])],
             'cooking'=>(new CookingSessions($this->pdo,$this->push,null,null,true))->snapshot($actor['user']),
             'timers'=>(new TimerSyncService($this->pdo))->list($actor['user']),
             default=>[],
@@ -174,7 +174,7 @@ final class DataSocket
             if ($body===null && $action==='share') {
                 $recipe=$recipes->detail($user,$household,$id);
                 if ($recipe['source_type']==='blank') throw new HttpError(422,'blank_recipe','Import this recipe before sharing it.');
-                return ['url'=>'https://ctr.coffeybean.com/recipes/'.$id];
+                return ['url'=>'https://coffeybean.com/ctr/recipes/'.$id];
             }
             if ($body!==null && $action==='attach') return (new RecipeMembership($this->pdo,$h))->attach($user,$household,$id);
             if ($body!==null && $action==='delete') return (new RecipeDeletionService($this->pdo,$h))->delete($user,$household,$id,$body);
@@ -183,7 +183,7 @@ final class DataSocket
             if ($body!==null) {
                 $categorize=$this->categorize===null ? null : fn($title,$catalog,$user)=>($this->categorize)($token,$household,$title);
                 return ['recipe'=>(new RecipeEditorService($this->pdo,$h,CTR_STORAGE.'/media/recipes',
-                    'https://ctr.coffeybean.com/media/recipes',$categorize))->save($user,$household,$id,$body)];
+                    'https://coffeybean.com/ctr/media/recipes',$categorize))->save($user,$household,$id,$body)];
             }
             if ($id!=='') return ['recipe'=>$recipes->detail($user,$household,$id)];
             foreach (['q','category','scope','favorite_people'] as $key) if (isset($query[$key]) && !is_string($query[$key])) throw new HttpError(400,'invalid_filter','Invalid recipe filter.');

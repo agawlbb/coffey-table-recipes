@@ -17,7 +17,7 @@ final class AiService {
 
     public function handle(array $actor,string $path,?array $body): array {
         $user=$actor['user']; $h=new HouseholdService($this->pdo); $recipes=new RecipeService($this->pdo,$h);
-        $url='https://ctr.coffeybean.com/media/recipes';
+        $url='https://coffeybean.com/ctr/media/recipes';
         $config=$this->config; $config['progress']=$this->progress;
         $photos=new RecipePhotoService($config,$this->storage,$this->transport);
         $images=new CategoryImageService($this->pdo,$photos,$this->storage.'/media/recipes',$url);

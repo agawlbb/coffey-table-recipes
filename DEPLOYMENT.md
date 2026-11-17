@@ -35,7 +35,7 @@ Private settings and persistent media/state are outside the code directory.
     ssh vps-admin 'sudo -n /usr/bin/docker inspect --format {{.State.Status}} ctr-backend'
     ssh vps-admin 'sudo -n /usr/bin/docker logs --tail 60 ctr-backend'
 
-Check https://ctr.coffeybean.com/health and affected read-only public behavior.
+Check https://coffeybean.com/ctr/health and affected read-only public behavior.
 Authenticated account/shopping/timer checks must use authorized test identities;
 never change live recipes or send notifications as an unsolicited smoke test.
 The fixed source/state/private mounts and production CPU/memory policy are
@@ -43,3 +43,32 @@ unchanged. The service has no Docker healthcheck, so running is not a health cla
 Do not rerun migrations, image builds, media cutover, credential imports or Caddy
 reloads for routine source deployment. Those need separate administration.
 Source rollback repeats this procedure from canonical main, retaining current data.
+
+
+## Pending public hostname migration
+
+Source-generated share links and managed recipe/category/photo URLs now use
+`https://coffeybean.com/ctr`; internal HTTP and WebSocket paths remain unchanged.
+The existing proxy must continue stripping `/ctr` before forwarding. Public
+branding assets use `/ctr/assets/email/`. `backend.caddy` is the retained legacy
+subdomain configuration; do not replace the main site's configuration with it.
+
+On an explicitly requested deployment, publish the updated backend source and
+merge this app's association entries into the domain-root
+`https://coffeybean.com/.well-known/assetlinks.json` and
+`https://coffeybean.com/.well-known/apple-app-site-association`, preserving other
+apps' entries. Serve HTTPS 200 JSON without redirects. The iOS association
+component is `/ctr/recipes/*`; Android package and signing certificate are unchanged.
+No Caddy configuration or production data was modified during source preparation.
+
+The Flutter app must be rebuilt/released with its new associated domain and
+recipe path. The separate Home Assistant integration must also be updated.
+Keep the old DNS entry until deployment and client updates are verified; old
+shared links/bookmarks require that entry even afterward.
+
+Focused source validation: 34 HTTP fixture assertions, category-artwork and
+media-migration fixtures, and four selected data/AI WebSocket scenarios passed
+with disposable SQLite and fake AI providers. The page scenario checks canonical
+URLs, image/branding URLs and the association route. No complete suite, live
+mutations or deployment was run. Live `/ctr/recipes/12` returned 200 but still
+contained the old hostname, and both new domain-root associations returned 404.
