@@ -10,24 +10,19 @@ flags or abstractions for hypothetical scale. Preserve authentication, credentia
 privacy and protection against real data loss. Explain a concrete need before
 adding complexity. Stay within the requested behavior; no unsolicited features.
 
-## Repository and branches
+## Repository workflow
 
-- Canonical repository: `agawlbb/coffey-table-recipes-vps`; default branch `main`.
-  This is the VPS backend only. inMotion is a separate server repository.
-- Before editing, inspect instructions, worktrees, edits, live remote heads and
-  active writers. Preserve unrelated and unpushed work. Fetch origin first.
-- For new tasks use an isolated worktree and temporary branch from fetched
-  `origin/main`. Record its purpose/base. For resumed tasks inspect divergence
-  before integrating. Do not blindly pull, overwrite edits or rewrite history.
-- Test appropriately, commit and push completed work to the existing origin.
-  Verify a clean tree and matching local/GitHub heads before declaring completion.
-- Merge only accepted work with user approval. Fetch/integrate main first and
-  rerun relevant checks. Delete temporary branches only after verified merge or
-  explicit abandonment. Preserve historical evidence and unique work.
-- Do not create repositories, force-push or delete another task's work without
-  explicit authorization. Do not introduce branch protection/rulesets.
-- Inspect workflow triggers before every push. Publishing source does not itself
-  authorize builds, deployment or installation. Honor explicit local-only requests.
+Canonical repository: `agawlbb/coffey-table-recipes-vps`; default branch: `main`.
+Follow the VM-wide working procedure in `/home/dev/projects/AGENTS.md`.
+Use the existing checkout on `main`, one task at a time; no routine task
+branches, extra worktrees or ownership claims. Complete the requested outcome,
+including deployment when applicable, then commit and push to `main`.
+Use only relevant checks; do not repeat passing checks without a concrete reason.
+Questions and status checks are read-only. Preserve unrelated work and credentials.
+
+This is the VPS backend only. InMotion remains a separate server repository.
+Do not create repositories, rewrite published history or change protections
+unless explicitly requested.
 
 ## Development, data and deployment
 
