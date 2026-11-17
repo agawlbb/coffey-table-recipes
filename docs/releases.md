@@ -1888,3 +1888,63 @@ VM-laptop; signed iOS builds/uploads on the existing macOS runner. No backend
 source/deployment, database, web build/publication, dependency or encryption
 change is included. Existing exempt-encryption declarations and France exclusion
 remain; no tester, group or territory settings are changed.
+
+
+### Android delivery
+
+Built on VM-laptop from immutable `v2.10.3`, source
+`b88d7aa72a7898517f13a474d3ee9327249e6a01`, with the existing private Firebase
+configuration and original signing key.
+[Download Android 2.10.3 build 77](https://drive.google.com/file/d/1fh9XG_atGhys4EbNfAN_CT_trTkQJmeU/view).
+
+- APK: `CoffeyTableRecipes-2.10.3-build77.apk`, 71,874,201 bytes.
+- SHA-256: `eecf3ef367737aa1351aa0aa2f6d8d1df3e218d4f135291d1e30c10119c89419`.
+- Certificate SHA-256: `f8de933f14b9bb4b3191a94aedc8637972c5ab224565f6abd7808f8038d12097`.
+- Signature, package/version/source, non-debuggable status, 16 KiB ZIP alignment,
+  native timer Kotlin classes and compiled HTTP/native WebSocket URLs verified.
+- `tool/verify-app-links.py --fingerprint` passed using the actual APK certificate.
+- `tool/publish-android.py` uploaded to the pinned recipe app Drive folder,
+  downloaded and verified SHA-256, then sent the informational Android release
+  notification. Its receipt reports `removed=[]`; no older matching release APK
+  was visible. Final listing contains this release and the unrelated NEGA APK.
+
+No connected device was available (`adb devices -l`); installed-app cold/warm
+link opening and physical-device acceptance were not performed. Android build,
+signing, publication and verification receipts are in ignored
+`build/release-2.10.3/`; credentials and packages remain outside Git.
+
+
+### iOS delivery
+
+Signed iOS build/upload run
+[44194785449](https://github.com/agawlbb/coffey-table-recipes/actions/runs/44194785449)
+succeeded from immutable `v2.10.3`, build 77. Its exported signed receipt matches
+release source `b88d7aa72a7898517f13a474d3ee9327249e6a01` and verifies Runner,
+TimerWidget and ShareExtension signatures, App Store Connect profiles, version
+and build, accurate exempt-encryption declarations, production APNs and App Group
+entitlements. Hosted AASA passed against the actual signed app identity and
+associated domain. IPA SHA-256:
+`cf5a47ded1ba4fd3ce1c761606957033b2b9512c0bf65f98e0cb24a2fb329888`.
+Archive succeeded at 23:12:36 UTC, export at 23:15:53 UTC and upload at 23:20:19 UTC
+on November 17. Upload mode retains no downloadable IPA artifact.
+
+Direct read-only App Store Connect queries verified build
+`4c284962-d9cf-46da-a150-89ac368b2361`: processing `VALID`, unexpired,
+`usesNonExemptEncryption=false`, internal state `IN_BETA_TESTING`. The existing
+Family testers group's direct builds endpoint contains this exact build; the
+group already has access to all builds. No tester, group or territory changes
+were needed; the France exclusion remains in effect. Signed receipt, successful
+run log and asserted TestFlight report are saved in ignored
+`build/release-2.10.3/`. No additional build or upload was dispatched.
+
+### Completion and limits
+
+Android Drive checksum/signature delivery and internal TestFlight delivery are
+finished and verified. The workflow's existing Flutter analysis also passed.
+No full app/tooling suite, web build/publication, backend deployment, database
+change or physical-device test was performed. Native domain associations were
+verified against the actual signed package identities; installed-device cold/warm
+link resolution, native timer operation and authenticated end-to-end use remain
+unperformed device checks. No further deployment or app build is needed for this
+release. Final release verification documentation is committed and pushed to main;
+the immutable tag continues to reference the release source above.
