@@ -36,11 +36,11 @@ class ClientTests(unittest.IsolatedAsyncioTestCase):
         await client.request("DELETE", "/home-assistant/connection")
         calls = client._http.call_args_list
         self.assertEqual([c.args[1] for c in calls], [
-            "https://ctr.coffeybean.com/api/v1/home-assistant/auth-config",
+            "https://coffeybean.com/ctr/api/v1/home-assistant/auth-config",
             "https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword",
-            "https://ctr.coffeybean.com/api/v1/households",
-            "https://ctr.coffeybean.com/api/v1/households/9/home-assistant-connections",
-            "https://ctr.coffeybean.com/api/v1/home-assistant/connection"])
+            "https://coffeybean.com/ctr/api/v1/households",
+            "https://coffeybean.com/ctr/api/v1/households/9/home-assistant-connections",
+            "https://coffeybean.com/ctr/api/v1/home-assistant/connection"])
         self.assertEqual(calls[2].kwargs["headers"], {"Authorization":"Bearer identity-fixture"})
         self.assertEqual(calls[4].kwargs["headers"], {"Authorization":"Bearer ctrha_fixture"})
         self.assertFalse(hasattr(client, "password"))

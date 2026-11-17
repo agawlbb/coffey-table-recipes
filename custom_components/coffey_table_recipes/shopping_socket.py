@@ -5,7 +5,7 @@ import time
 from uuid import uuid4
 import aiohttp
 
-URL = "wss://ctr.coffeybean.com/shopping"
+URL = "wss://coffeybean.com/ctr/shopping"
 
 
 class SocketError(Exception):

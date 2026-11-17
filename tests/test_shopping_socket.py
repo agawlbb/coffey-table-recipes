@@ -105,7 +105,10 @@ class ShoppingSocketTests(unittest.IsolatedAsyncioTestCase):
             async def receive(state):
                 if state["revision"] == 2:
                     pushed.set()
-            socket = api.ShoppingSocket(session, "fixture", receive, url=f"http://127.0.0.1:{port}/shopping")
+            def connect(url, **options):
+                self.assertEqual(url, "wss://coffeybean.com/ctr/shopping")
+                return session.ws_connect(f"http://127.0.0.1:{port}/shopping", **options)
+            socket = api.ShoppingSocket(SimpleNamespace(ws_connect=connect), "fixture", receive)
             try:
                 self.assertEqual((await socket.request())["revision"], 1)
                 await socket.request({"dates": ["2026-11-10"]}, resource="work-calendar")

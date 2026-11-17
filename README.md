@@ -8,7 +8,7 @@ The list preserves each item's department and the app's department memory.
 
 ## Install
 
-Requires Home Assistant 2025.12 or later and internet access to ctr.coffeybean.com
+Requires Home Assistant 2025.12 or later and internet access to coffeybean.com
 and Google's Firebase Authentication service. This is a custom integration,
 not an official Home Assistant Core integration.
 
@@ -218,7 +218,7 @@ MIT. See [LICENSE](LICENSE).
 ## Shopping WebSocket migration branch
 
 `migration/shopping-websocket` (base `aa5fc4f`) moves shopping traffic to
-`wss://ctr.coffeybean.com/shopping`. Account sign-in and integration credential
+`wss://coffeybean.com/ctr/shopping`. Account sign-in and integration credential
 management remain on inMotion. Backend deployment retires the old shopping HTTP routes; no separate switch is required.
 
 The integration maintains an authenticated household connection, immediately
@@ -253,3 +253,14 @@ This requires the companion CTR backend and app calendar changes. Apply the
 backend's explicit one-time `bin/work-calendar.sql` setup before deploying its
 source. Installing this source into a running HA instance is a separate rollout
 step. Task branch `feat/work-calendar` starts at `73f5a3a`; main integration is pending.
+
+
+### Endpoint migration to coffeybean.com/ctr
+
+HTTP bootstrap, sign-in setup and revocation use
+`https://coffeybean.com/ctr/api/v1`; the persistent connection uses
+`wss://coffeybean.com/ctr/shopping`. Existing credentials and local/outbox state
+are unchanged. Source validation passed the focused HTTP setup/revocation test
+and the real WebSocket authentication/push test, including the default outbound
+URL. No running Home Assistant installation was updated and no release was made.
+Install the updated integration before retiring `ctr.coffeybean.com` DNS.
