@@ -1,3 +1,13 @@
+> Current workflow (November 17, 2026): all development, dependencies, tests,
+> packaging and image builds run on VM-laptop under `/home/dev/projects`, using
+> `dev COMMAND...` and VM-only test databases. The VPS is production only;
+> deploy VM-prepared files/prebuilt images through the existing `vps-admin`
+> pairing only when requested. Older VPS development paths, `vps-host` aliases,
+> host-side build commands and Windows checkout instructions below are historical
+> and must not be followed. Never start the retained VPS development/BuildKit
+> containers. See the repository AGENTS.md and `/home/dev/projects/AGENTS.md`.
+> Requested Apple builds retain the existing macOS runner exception.
+
 > 2026-11-05: InMotion CTR web hosting is retired; only SMTP mail hosting is retained.
 > See [INMOTION-RETIREMENT.md](INMOTION-RETIREMENT.md) for current behavior, archive and removal scope.
 > Earlier references to InMotion CTR hosting below are historical.
@@ -53,7 +63,7 @@ explicitly authorized administration; routine deployment does not repeat them.
 
 ## Development
 
-Use `/home/debian/.local/bin/dev exec` for development commands. Install locked
+Use `dev COMMAND...` on VM-laptop for development commands. Install locked
 PHP dependencies with `composer install --no-dev`. For wire tests, create this
 project's `.venv` and install `requirements-test.txt`.
 

@@ -1,3 +1,13 @@
+> Current workflow (November 17, 2026): all development, dependencies, tests,
+> packaging and image builds run on VM-laptop under `/home/dev/projects`, using
+> `dev COMMAND...` and VM-only test databases. The VPS is production only;
+> deploy VM-prepared files/prebuilt images through the existing `vps-admin`
+> pairing only when requested. Older VPS development paths, `vps-host` aliases,
+> host-side build commands and Windows checkout instructions below are historical
+> and must not be followed. Never start the retained VPS development/BuildKit
+> containers. See the repository AGENTS.md and `/home/dev/projects/AGENTS.md`.
+> Requested Apple builds retain the existing macOS runner exception.
+
 # Recipe timer ranges
 
 Task `task/timer-ranges`, based on fetched main `c28b633f7b46faedc9547e218f0f814417b40ed3`.

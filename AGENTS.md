@@ -1,5 +1,13 @@
 # Working rules
 
+## Development location
+
+All development and image builds use VM-laptop. Follow the canonical VM/build,
+checkout and deployment procedure in `/home/dev/projects/AGENTS.md`; older VPS
+build commands and former laptop/VPS workspace paths in this repository are
+superseded. The VPS only receives prepared artifacts for requested deployments.
+Apple builds retain the existing macOS runner exception under that procedure.
+
 ## Keep it simple
 
 This is a small personal project. Use the simplest maintainable implementation.
@@ -27,8 +35,7 @@ unless explicitly requested.
 
 ## Development, data and deployment
 
-- Use the existing shared development container through
-  `/home/debian/.local/bin/dev exec`. Respect workspace instructions.
+- Use VM-laptop development through `dev COMMAND...`. Respect workspace instructions.
 - Keep credentials, private config, dependencies, logs and generated files out
   of Git. Dependencies are project-local and locked. Never print secrets.
 - The persistent MariaDB database runs on the VPS private database network. Never use production data
