@@ -2,6 +2,14 @@
 
 Release dates and changes are reconstructed from annotated Git tags, commit history, and project release records. Versions before 1.0 are demonstration releases; 1.0 marks the first usable release. Android retains the existing signing identity; iOS delivery and signing are recorded for each release.
 
+## 2.10.4 — 2026-11-17
+
+Build 78; tag `v2.10.4`. iOS and Android release.
+
+- Move shared recipe links and native Android/iOS link associations to `coffeybean.com/ctr/recipes/`.
+- Resolve previously cached managed images through the new media path without clearing offline data.
+- Complete the matching backend page/media and Home Assistant endpoint deployment.
+
 ## 2.10.3 — 2026-11-17
 
 Build 77; tag `v2.10.3`. iOS and Android release.

@@ -1948,3 +1948,28 @@ link resolution, native timer operation and authenticated end-to-end use remain
 unperformed device checks. No further deployment or app build is needed for this
 release. Final release verification documentation is committed and pushed to main;
 the immutable tag continues to reference the release source above.
+
+
+## 2.10.4 / build 78 — 2026-11-17
+
+Owner explicitly authorized backend/association deployment, Home Assistant update,
+and corrected Android/iOS release to complete the hostname migration. Release
+source includes app `4934210`; backend `a016376` and HA `071b76b` were committed
+and pushed before deployment. Ten affected backend files were checked against
+expected prior/current hashes, transferred from VM-laptop and verified against
+committed source after restart. Backend is healthy, CpuShares=1024 and cpu.max
+is unlimited. No database/schema, credentials or runtime-image change was made.
+
+VPS configuration `3ef667c` adds only the two apex association routes, preserving
+other site handlers and the transitional subdomain. Candidate Caddy config was
+validated, the exact old live hash checked, then installed and gracefully reloaded.
+Both root association checks passed. Recipe page, health, recipe image, branding
+asset and HA auth-config returned HTTPS 200; rendered recipe contains the new
+canonical URL and no `ctr.coffeybean.com` reference.
+
+Prior focused validation remains applicable: changed Dart analysis, 30 Flutter
+tests, six iOS and three Android association tooling checks, 34 backend HTTP
+assertions plus category/media fixtures, four selected data/AI WebSocket scenarios,
+and two HA transport scenarios passed. No full suite was run. No dependency,
+encryption or signing-identity change; retain exempt-encryption declarations and
+France exclusion. New Android/iOS packages and delivery verification follow below.
