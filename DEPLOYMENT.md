@@ -45,7 +45,7 @@ reloads for routine source deployment. Those need separate administration.
 Source rollback repeats this procedure from canonical main, retaining current data.
 
 
-## Pending public hostname migration
+## Public hostname migration
 
 Source-generated share links and managed recipe/category/photo URLs now use
 `https://coffeybean.com/ctr`; internal HTTP and WebSocket paths remain unchanged.
@@ -72,3 +72,22 @@ with disposable SQLite and fake AI providers. The page scenario checks canonical
 URLs, image/branding URLs and the association route. No complete suite, live
 mutations or deployment was run. Live `/ctr/recipes/12` returned 200 but still
 contained the old hostname, and both new domain-root associations returned 404.
+
+
+### Authorized deployment — November 17, 2026
+
+Backend `a016376` is deployed. The ten changed source/association files were
+checked against expected prior/current source before transfer and read-back
+verified against VM hashes afterward. Root-owned code required sudo rsync;
+file ownership and persistent data were preserved. Backend restart is healthy,
+CpuShares=1024 and cpu.max=`max 100000`. No dependency/image/schema change.
+
+VPS config `3ef667c` adds the two apex association routes to the existing root
+site. Caddy candidate validation and exact-live-hash check passed before its
+graceful reload, retaining unrelated handlers and the transitional hostname.
+No other apps' association entries were present. Both root association checkers
+passed; public page, image, branding, health and HA bootstrap returned 200.
+The rendered recipe no longer contains the old hostname. No live data mutation,
+DNS change, app build or full test suite was performed in this backend repository.
+Corrected native app release is 2.10.4/build 78; its delivery and actual signed
+association verification are tracked in the Flutter repository.
