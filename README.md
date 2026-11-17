@@ -262,5 +262,5 @@ HTTP bootstrap, sign-in setup and revocation use
 `wss://coffeybean.com/ctr/shopping`. Existing credentials and local/outbox state
 are unchanged. Source validation passed the focused HTTP setup/revocation test
 and the real WebSocket authentication/push test, including the default outbound
-URL. No running Home Assistant installation was updated and no release was made.
+URL. The authorized November 17 installation was read-back verified across all 16 component files; CTR loaded after restart with existing settings retained and no filtered CTR system-log errors. See `VALIDATION.md`.
 Install the updated integration before retiring `ctr.coffeybean.com` DNS.

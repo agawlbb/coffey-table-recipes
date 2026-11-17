@@ -309,3 +309,27 @@ The HomeAssistant plugin and its
 HACS, the validating restart, options and verification. No Core/OS upgrade, main
 integration, full suite or release was performed. The prior main source remains
 the source rollback; existing HA configuration/data was retained.
+
+
+## Authorized apex endpoint installation — 2026-11-17
+
+The owner authorized completing the CTR migration, including the installed HA
+integration. Marketplace/HACS refreshed information and downloaded default branch
+main at source `071b76b`. All 16 tracked Python/JSON/YAML component files were
+read back via File editor under `/homeassistant/custom_components/coffey_table_recipes`
+and compared with the canonical checkout: zero differences. Actual installed
+HTTP and WebSocket constants use `coffeybean.com/ctr`.
+
+The configuration-validating restart succeeded. CTR returned `loaded`; the
+Google Keep and iCloud selections, work calendar and 10-second interval were
+retained. A filtered system-log read after restart returned no CTR entries.
+Canonical public HA auth-config returned HTTPS 200 and the WebSocket endpoint
+upgraded with 101 without credentials or live mutations. This confirms installed
+code and integration startup, not user shopping edits or calendar changes.
+No user data was synthesized, no Core/OS upgrade was performed and no complete
+suite was run. The two focused source HTTP/real-socket tests had already passed.
+
+The [Home Assistant best-practices skill](skill://home-assistant-best-practices/SKILL.md)
+and Marketplace, File editor proxy, validating restart and integration/log tools
+were used. No entity IDs or existing configuration options were changed. Old-host
+DNS is still needed for clients not yet updated and existing old-host shared links.
