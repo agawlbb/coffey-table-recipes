@@ -1,5 +1,13 @@
 # Repository workflow
 
+## Development location
+
+All development and image builds use VM-laptop. Follow the canonical VM/build,
+checkout and deployment procedure in `/home/dev/projects/AGENTS.md`; older VPS
+build commands and former laptop/VPS workspace paths in this repository are
+superseded. The VPS only receives prepared artifacts for requested deployments.
+Apple builds retain the existing macOS runner exception under that procedure.
+
 ## Requested scope
 
 - Keep bug fixes within the user's requested behavior. Do not add unrequested user-facing features, controls, dialogs, screens, or workflows as part of a repair. If an additional feature seems useful, describe the concrete proposal and obtain the user's explicit approval before implementing it. Internal reliability changes needed for the requested fix remain in scope. Report any necessary visible behavior changes clearly before release; do not hide feature additions in technical repair summaries.

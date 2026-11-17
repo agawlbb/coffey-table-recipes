@@ -1,3 +1,13 @@
+> Current workflow (November 17, 2026): all development, dependencies, tests,
+> packaging and image builds run on VM-laptop under `/home/dev/projects`, using
+> `dev COMMAND...` and VM-only test databases. The VPS is production only;
+> deploy VM-prepared files/prebuilt images through the existing `vps-admin`
+> pairing only when requested. Older VPS development paths, `vps-host` aliases,
+> host-side build commands and Windows checkout instructions below are historical
+> and must not be followed. Never start the retained VPS development/BuildKit
+> containers. See the repository AGENTS.md and `/home/dev/projects/AGENTS.md`.
+> Requested Apple builds retain the existing macOS runner exception.
+
 # Releases
 
 Historical record: named chats, checkout ownership and branch locations below describe past work, not current workflow requirements. Follow [AGENTS.md](../AGENTS.md) for GitHub-canonical development, task coordination, merging and branch cleanup.
