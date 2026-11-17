@@ -24,17 +24,18 @@
 - Commit completed changes after appropriate verification. Include documentation and meaningful validation in the commit where applicable.
 - Keep credentials, local Firebase configuration, signing keys, generated builds and personal import source files out of Git.
 - This repository contains the Flutter app. The PHP server is a separate repository at `C:\xampp\htdocs\CoffeyTableRecipes`. When changing both, commit each repository independently.
-- Do not create remote repositories, overwrite unrelated changes, or rewrite history without explicit authorization. Inspect workflow push triggers before pushing; do not trigger unrelated builds or releases. Deployment needed for the requested outcome is part of completion.
+- Do not create remote repositories, overwrite unrelated changes, or rewrite history without explicit authorization. Inspect workflow push triggers before pushing; do not trigger unrelated builds or releases. Do not deploy automatically; deployment requires an explicit user request.
 
 ## Repository workflow
 
 Canonical repository: `agawlbb/coffey-table-recipes`; default branch: `main`.
 Follow the VM-wide working procedure in `/home/dev/projects/AGENTS.md`.
 Use the existing checkout on `main`, one task at a time; no routine task
-branches, extra worktrees or ownership claims. Complete the requested outcome,
-including deployment when applicable, then commit and push to `main`.
+branches, extra worktrees or ownership claims. Commit and push completed source changes to `main`.
 Use only relevant checks; do not repeat passing checks without a concrete reason.
 Questions and status checks are read-only. Preserve unrelated work and credentials.
+Deploy only when the user explicitly requests deployment. In every answer state
+whether deployment and an app build are needed; do not automatically do either.
 
 ## Project history and preservation
 
@@ -58,7 +59,7 @@ Questions and status checks are read-only. Preserve unrelated work and credentia
 - Future iOS builds include the accurate export-compliance declaration. Current app and share extension declare no non-exempt encryption; review this whenever encryption-related code or dependencies change. Do not distribute the iOS app in France. Keep France excluded from future App Store territory selections and do not include testers in France. Territory restrictions are distribution settings, not an Info.plist flag.
 
 - CTR backend and persistent MariaDB run on the VPS at ctr.coffeybean.com. InMotion CTR web hosting was retired on 2026-11-05; InMotion retains SMTP only. Do not rebuild or publish the retired web app as part of a release, re-enable its workflows, or recreate its hosted files/databases without an explicit user request. See docs/inmotion-retirement.md.
-- Deploying and pushing changes to the hosted backend and database are authorized without additional permission within the requested work, including Git pushes needed for backend deployment.
+- Commit and push requested backend source changes. Deploy backend or database changes only when the user explicitly requests deployment; identify pending deployment in every answer.
 - Changes to the app itself are developed and tested in the chosen working environment using coffeybean.com as the backend. The existing laptop PHP checkout is `C:\xampp\htdocs\CoffeyTableRecipes`; use the existing VM checkout for current work. Flutter source changes belong in this repository.
 - The hosted web app is retired. A release/tag does not authorize restoring web hosting.
 - Native app builds require an explicit build or release request as stated above; future releases omit web builds/publication.
