@@ -78,13 +78,20 @@ String managedRecipeImageUrl(String value) {
   final uri = Uri.tryParse(value);
   if (uri == null ||
       !['http', 'https'].contains(uri.scheme) ||
-      !['coffeybean.com', 'www.coffeybean.com'].contains(uri.host) ||
+      ![
+        'coffeybean.com',
+        'www.coffeybean.com',
+        'ctr.coffeybean.com',
+      ].contains(uri.host) ||
       uri.hasPort ||
       uri.userInfo.isNotEmpty) {
     return value;
   }
+  final prefix = uri.host == 'ctr.coffeybean.com'
+      ? r'^/media/recipes/'
+      : r'^/CoffeyTableRecipes/media/(?:recipes|recipe-photos|recipe-illustrations)/';
   final match = RegExp(
-    r'^/CoffeyTableRecipes/media/(?:recipes|recipe-photos|recipe-illustrations)/((?:[a-f0-9]{48}|[a-f0-9]{64}|[a-z][a-z0-9-]*-ai-v[1-9][0-9]*)\.(?:jpg|png|webp)|category-[1-9][0-9]*\.jpg)$',
+    prefix + r'((?:[a-f0-9]{48}|[a-f0-9]{64}|[a-z][a-z0-9-]*-ai-v[1-9][0-9]*)\.(?:jpg|png|webp)|category-[1-9][0-9]*\.jpg)$',
   ).firstMatch(uri.path);
   if (match == null) {
     return value;

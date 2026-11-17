@@ -1,6 +1,6 @@
 # Recipe sharing
 
-Use the standard share icon on a recipe display page, then choose **Send a link**. The app constructs `https://coffeybean.com/CoffeyTableRecipes/share.php?id={database recipe ID}` directly and opens native sharing. No API call or signing token is needed to create a link; if native sharing is unavailable, the selectable link and **Copy link** remain available.
+Use the standard share icon on a recipe display page, then choose **Send a link**. The app constructs `https://coffeybean.com/ctr/recipes/{database recipe ID}` directly and opens native sharing. No API call or signing token is needed to create a link; if native sharing is unavailable, the selectable link and **Copy link** remain available.
 
 The backend reads the current recipe by ID without requiring an account. Anyone can view an existing recipe by its ID. Missing recipes show a useful branded error. The cream, green and brown page includes the existing branding image, original measurements, photos, grouped ingredients, method, notes, nutrition and source. Photo surrounds match the page background. Step action chips and private import/edit data are omitted.
 

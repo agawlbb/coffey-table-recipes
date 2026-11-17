@@ -22,7 +22,7 @@ void main() {
   test('HTML recipe links escape titles and use the public rendered page', () {
     expect(
       recipeShareHtml('3', 'Fish & "Chips" <hot>'),
-      '<a href="https://ctr.coffeybean.com/recipes/3">Fish &amp; &quot;Chips&quot; &lt;hot&gt;</a>',
+      '<a href="https://coffeybean.com/ctr/recipes/3">Fish &amp; &quot;Chips&quot; &lt;hot&gt;</a>',
     );
   });
   testWidgets('native rich sharing includes HTML and readable fallback', (
@@ -67,11 +67,11 @@ void main() {
     await tester.pumpAndSettle();
     expect(
       shared?.arguments['html'],
-      '<a href="https://ctr.coffeybean.com/recipes/3">Crêpes &amp; cream</a>',
+      '<a href="https://coffeybean.com/ctr/recipes/3">Crêpes &amp; cream</a>',
     );
     expect(
       shared?.arguments['text'],
-      'Crêpes & cream\nhttps://ctr.coffeybean.com/recipes/3',
+      'Crêpes & cream\nhttps://coffeybean.com/ctr/recipes/3',
     );
     expect(shared?.arguments['origin'][2], greaterThan(0));
     expect(shared?.arguments['origin'][3], greaterThan(0));
@@ -125,7 +125,7 @@ void main() {
         null,
       ),
     );
-    const url = 'https://ctr.coffeybean.com/recipes/3';
+    const url = 'https://coffeybean.com/ctr/recipes/3';
     await tester.pumpWidget(
       MaterialApp(
         home: RecipeDetail(
@@ -189,7 +189,7 @@ void main() {
       expect(find.text('Copy HTML link'), findsNothing);
       expect(paths.length, 1);
       expect(find.text('Copy link'), findsOneWidget);
-      expect(find.text('https://ctr.coffeybean.com/recipes/3'), findsOneWidget);
+      expect(find.text('https://coffeybean.com/ctr/recipes/3'), findsOneWidget);
       await tester.tap(find.text('Close'));
       await tester.pumpAndSettle();
       await tester.tap(find.byTooltip('Recipe actions'));

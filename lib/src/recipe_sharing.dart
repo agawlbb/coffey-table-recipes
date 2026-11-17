@@ -7,7 +7,7 @@ String recipeShareLink(String recipeId) {
   if (!RegExp(r'^[1-9][0-9]{0,18}$').hasMatch(recipeId)) {
     throw ArgumentError('Invalid recipe ID');
   }
-  return 'https://ctr.coffeybean.com/recipes/$recipeId';
+  return 'https://coffeybean.com/ctr/recipes/$recipeId';
 }
 
 String recipeShareHtml(String recipeId, String title) {

@@ -4,7 +4,7 @@ import 'package:http/testing.dart';
 import 'package:coffey_table_recipes/src/api.dart';
 
 void main() {
-  test('only owned cached image URLs move to the VPS', () {
+  test('owned cached image URLs use the current media endpoint', () {
     final name = '${List.filled(48, 'a').join()}.jpg';
     expect(
       managedRecipeImageUrl(
@@ -12,11 +12,24 @@ void main() {
       ),
       'https://coffeybean.com/ctr/media/recipes/$name',
     );
+    expect(
+      managedRecipeImageUrl('https://ctr.coffeybean.com/media/recipes/$name'),
+      'https://coffeybean.com/ctr/media/recipes/$name',
+    );
+    expect(
+      managedRecipeImageUrl(
+        'https://ctr.coffeybean.com/media/recipes/category-32.jpg',
+      ),
+      'https://coffeybean.com/ctr/media/recipes/category-32.jpg',
+    );
     for (final url in [
       'https://example.com/CoffeyTableRecipes/media/recipes/$name',
       'https://coffeybean.com:444/CoffeyTableRecipes/media/recipes/$name',
       'https://user@coffeybean.com/CoffeyTableRecipes/media/recipes/$name',
       'https://coffeybean.com/other/$name',
+      'https://ctr.coffeybean.com/other/$name',
+      'https://user@ctr.coffeybean.com/media/recipes/$name',
+      'https://ctr.coffeybean.com:444/media/recipes/$name',
     ]) {
       expect(managedRecipeImageUrl(url), url);
     }

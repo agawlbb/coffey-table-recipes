@@ -14,12 +14,12 @@ String? recipeIdFromLink(String value) {
       uri.hasFragment ||
       (uri.hasAuthority &&
           (uri.scheme != 'https' ||
-              uri.host != 'ctr.coffeybean.com' ||
+              uri.host != 'coffeybean.com' ||
               uri.hasPort ||
               uri.userInfo.isNotEmpty))) {
     return null;
   }
-  return RegExp(r'^/recipes/([1-9][0-9]{0,18})$')
+  return RegExp(r'^/ctr/recipes/([1-9][0-9]{0,18})$')
       .firstMatch(uri.path)
       ?.group(1);
 }
