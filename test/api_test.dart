@@ -10,7 +10,7 @@ void main() {
       managedRecipeImageUrl(
         'https://coffeybean.com/CoffeyTableRecipes/media/recipes/$name',
       ),
-      'https://ctr.coffeybean.com/media/recipes/$name',
+      'https://coffeybean.com/ctr/media/recipes/$name',
     );
     for (final url in [
       'https://example.com/CoffeyTableRecipes/media/recipes/$name',
@@ -24,14 +24,14 @@ void main() {
       managedRecipeImageUrl(
         'https://coffeybean.com/CoffeyTableRecipes/media/recipe-illustrations/crab-mushroom-wine-sauce-ai-v1.jpg',
       ),
-      'https://ctr.coffeybean.com/media/recipes/crab-mushroom-wine-sauce-ai-v1.jpg',
+      'https://coffeybean.com/ctr/media/recipes/crab-mushroom-wine-sauce-ai-v1.jpg',
     );
     final legacy = '${List.filled(64, 'b').join()}.png';
     expect(
       managedRecipeImageUrl(
         'https://coffeybean.com/CoffeyTableRecipes/media/recipe-photos/$legacy',
       ),
-      'https://ctr.coffeybean.com/media/recipes/$legacy',
+      'https://coffeybean.com/ctr/media/recipes/$legacy',
     );
     expect(
       apiStorageNamespaceFor('https://example.test'),
@@ -216,8 +216,20 @@ void main() {
     );
   });
 
+  test('production endpoint changes preserve offline storage', () {
+    for (final url in [
+      'https://coffeybean.com/ctr/api/v1',
+      'https://ctr.coffeybean.com/api/v1',
+    ]) {
+      expect(
+        apiStorageNamespaceFor(url),
+        'https://coffeybean.com/CoffeyTableRecipes/api/v1',
+      );
+    }
+  });
+
   test('all platforms default to the hosted HTTPS API', () {
-    expect(resolveApiBaseUrl(), 'https://ctr.coffeybean.com/api/v1');
+    expect(resolveApiBaseUrl(), 'https://coffeybean.com/ctr/api/v1');
   });
   test('an explicit API override supports local development', () {
     expect(

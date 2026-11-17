@@ -63,12 +63,13 @@ final apiBaseUrl = resolveApiBaseUrl(
 
 String resolveApiBaseUrl({String override = ''}) {
   if (override.isNotEmpty) return override;
-  return 'https://ctr.coffeybean.com/api/v1';
+  return 'https://coffeybean.com/ctr/api/v1';
 }
 
-// Keep existing persisted queues when only the production request host changes.
+// Keep existing persisted queues when the production request URL changes.
 String apiStorageNamespaceFor(String baseUrl) =>
-    baseUrl == 'https://ctr.coffeybean.com/api/v1'
+    (baseUrl == 'https://coffeybean.com/ctr/api/v1' ||
+        baseUrl == 'https://ctr.coffeybean.com/api/v1')
     ? 'https://coffeybean.com/CoffeyTableRecipes/api/v1'
     : baseUrl;
 final apiStorageNamespace = apiStorageNamespaceFor(apiBaseUrl);
@@ -88,7 +89,7 @@ String managedRecipeImageUrl(String value) {
   if (match == null) {
     return value;
   }
-  return 'https://ctr.coffeybean.com/media/recipes/${match.group(1)}';
+  return 'https://coffeybean.com/ctr/media/recipes/${match.group(1)}';
 }
 
 bool isPublicRecipeRead(String path) =>

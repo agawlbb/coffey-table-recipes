@@ -12,7 +12,7 @@ further Flutter commands. Coordinate changes to a shared SDK with its other
 project owners. Updating source or an SDK does not patch installed apps;
 rebuilding and distributing them requires an explicit build/release request.
 
-The app defaults to https://coffeybean.com/CoffeyTableRecipes/api/v1 on every platform. The local PHP source remains available for development; the persistent database is hosted exclusively.
+The app defaults to https://coffeybean.com/ctr/api/v1 on every platform. The local PHP source remains available for development; the persistent database is hosted exclusively.
 
 ```powershell
 flutter run -d emulator-5554 --dart-define-from-file=config/firebase.local.json

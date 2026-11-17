@@ -103,7 +103,7 @@ object TimerActions {
             if (!task.isSuccessful) { finish(); return@addOnCompleteListener }
             val token = task.result?.token
             if (token == null || FirebaseAuth.getInstance().currentUser?.uid != user.uid) { finish(); return@addOnCompleteListener }
-            socket = client.newWebSocket(Request.Builder().url("wss://ctr.coffeybean.com/shopping").build(), object : WebSocketListener() {
+            socket = client.newWebSocket(Request.Builder().url("wss://coffeybean.com/ctr/shopping").build(), object : WebSocketListener() {
                 override fun onOpen(ws: WebSocket, response: Response) {
                     ws.send(JSONObject().put("v", 1).put("type", "auth").put("token", token).put("scope", "cooking").put("household_id", JSONObject.NULL).toString())
                 }

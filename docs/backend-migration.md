@@ -3,7 +3,7 @@
 Task branch: `backend_migration`, based on fetched `origin/main` `882e392`.
 The matching branches start at InMotion `5424e9d` and VPS `eb49ad5`.
 
-The existing shopping WebSocket at `wss://ctr.coffeybean.com/shopping` now carries
+The existing shopping WebSocket at `wss://coffeybean.com/ctr/shopping` now carries
 recipe reads/adds/edits, favorites, deletion/restoration, shared-recipe attachment,
 household snapshots, restaurants and meal plans. LocalData still owns local reads
 and the durable outbox. Existing save IDs, revision checks and replay receipts

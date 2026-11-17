@@ -5,7 +5,7 @@ The backend uses its existing `migration/vps-backend` branch; the HA repository
 uses its own `migration/shopping-websocket`. All three await user approval before
 merging. Source changes do not authorize app builds, installation or cutover.
 
-Shopping transport defaults to `wss://ctr.coffeybean.com/shopping`, overridable
+Shopping transport defaults to `wss://coffeybean.com/ctr/shopping`, overridable
 with `SHOPPING_SOCKET_URL` for an isolated test environment. Other operations keep
 the existing inMotion API. Firebase credentials are sent in the first encrypted
 WebSocket message, never in a URL. The socket becomes ready only after server

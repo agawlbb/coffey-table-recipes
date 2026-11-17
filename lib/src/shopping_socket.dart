@@ -12,7 +12,7 @@ import 'api.dart';
 
 const shoppingSocketUrl = String.fromEnvironment(
   'SHOPPING_SOCKET_URL',
-  defaultValue: 'wss://ctr.coffeybean.com/shopping',
+  defaultValue: 'wss://coffeybean.com/ctr/shopping',
 );
 
 bool isShoppingPath(String path) => RegExp(

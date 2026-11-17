@@ -479,7 +479,7 @@ extension RecipeTimers {
                 configuration.timeoutIntervalForRequest = 8
                 configuration.timeoutIntervalForResource = 8
                 let session = URLSession(configuration: configuration)
-                let socket = session.webSocketTask(with: URL(string: "wss://ctr.coffeybean.com/shopping")!)
+                let socket = session.webSocketTask(with: URL(string: "wss://coffeybean.com/ctr/shopping")!)
                 socket.resume()
                 defer { socket.cancel(with: .normalClosure, reason: nil); session.invalidateAndCancel() }
                 func send(_ value: [String: Any]) async throws {
