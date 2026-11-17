@@ -1865,3 +1865,26 @@ associations were checked against actual signed identities. `adb devices -l`
 found no connected device; native installation, visual acceptance and OS link
 opening remain physical-device checks. No further deployment is needed for this
 source change.
+
+
+## 2.10.3 / build 77 — 2026-11-17
+
+Owner-requested Android and iOS release of the endpoint migration. App and VPS
+backend main checkouts were clean and matched fetched GitHub heads. Since
+2.10.2, the only application change is the move of HTTP API, WebSocket/native
+timer connections and managed image destinations to `coffeybean.com/ctr`.
+Public recipe-sharing links and native associated domains remain unchanged.
+The production storage namespace is retained to preserve offline data/outbox.
+
+Changed Dart files were formatted; focused analysis and all 22 tests in
+`test/api_test.dart` passed before release preparation. No full suite was run.
+Read-only live checks returned health JSON 200, image JPEG 200 and a valid
+WebSocket 101 handshake. HTTP GET `/ctr/api/v1/me` returns an API JSON 404;
+authenticated account operations were not exercised. Android hosted association
+preflight passed; actual artifact identity checks and delivery follow below.
+
+Version/changelog are committed before immutable `v2.10.3`. Android builds on
+VM-laptop; signed iOS builds/uploads on the existing macOS runner. No backend
+source/deployment, database, web build/publication, dependency or encryption
+change is included. Existing exempt-encryption declarations and France exclusion
+remain; no tester, group or territory settings are changed.
