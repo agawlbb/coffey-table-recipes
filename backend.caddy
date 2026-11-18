@@ -1,13 +1,4 @@
-# Public recipe service. The main domain and static Flutter hosting stay unchanged.
-ctr.coffeybean.com {
-    handle /shopping {
-        reverse_proxy ctr-backend:8080
-    }
-    @http path /recipes/* /api/v1/* /health /media/recipes/* /assets/email/coffey_table.jpg /.well-known/assetlinks.json /.well-known/apple-app-site-association
-    handle @http {
-        reverse_proxy ctr-backend:8081
-    }
-    handle {
-        respond 404
-    }
-}
+# ctr.coffeybean.com is retired; do not restore its host block.
+# Recipe HTTP and WebSocket routing lives under coffeybean.com/ctr in the
+# vps_admin root Caddyfile. This placeholder keeps future backend deployments
+# from recreating the legacy host while preserving their existing file contract.

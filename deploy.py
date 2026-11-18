@@ -62,7 +62,7 @@ def deploy():
     run('sudo', '-n', 'docker', 'compose', '-f', str(HOME / 'compose.yaml'),
         'exec', '-T', 'backend', 'php', '-r',
         "$s=@fsockopen('127.0.0.1',8080);exit($s===false?1:0);")
-    # The same site gains a narrowly scoped route for persistent recipe uploads.
+    # Install the retired-host placeholder; active apex routing belongs to vps_admin.
     run('sudo', '-n', 'install', '-m', '644', str(ROOT / 'backend.caddy'),
         '/opt/vps/caddy/conf/sites/ctr-backend.caddy')
     run('sudo', '-n', 'docker', 'exec', 'edge-caddy-1', 'caddy', 'reload',

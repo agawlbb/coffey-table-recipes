@@ -91,3 +91,9 @@ The rendered recipe no longer contains the old hostname. No live data mutation,
 DNS change, app build or full test suite was performed in this backend repository.
 Corrected native app release is 2.10.4/build 78; its delivery and actual signed
 association verification are tracked in the Flutter repository.
+
+The ctr.coffeybean.com alias is retired. backend.caddy is intentionally a
+comment-only placeholder: deploy.py can still install it, but it must not recreate
+the old host. Active HTTP/WSS routes are maintained in vps_admin at
+https://coffeybean.com/ctr and wss://coffeybean.com/ctr/shopping. No backend restart
+or image build is needed for the hostname retirement itself.
