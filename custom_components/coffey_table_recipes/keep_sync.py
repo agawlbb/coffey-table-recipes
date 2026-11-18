@@ -244,7 +244,7 @@ class KeepSync:
         if self.closed:
             return
         if self.lock.locked() or (self.task and not self.task.done()):
-            if reason in ("ctr_request", "keep_ha_change", "icloud_ha_change"):
+            if reason in ("ctr_request", "keep_ha_change"):
                 self.again = True
             return  # Own writes emit CTR change events: never feed them back.
 
@@ -299,7 +299,7 @@ class KeepSync:
             if self.status == "synced":
                 persistent_notification.async_dismiss(self.hass, notification_id)
             else:
-                source_name = "Apple Reminders" if "icloud_entry" in self.selection else "Google Keep"
+                source_name = "Google Keep"
                 persistent_notification.async_create(
                     self.hass,
                     f"Shopping-list sync with {source_name} is paused. "

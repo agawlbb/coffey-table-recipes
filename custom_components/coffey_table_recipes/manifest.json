@@ -2,8 +2,7 @@
   "domain": "coffey_table_recipes",
   "name": "CoffeyTableRecipes",
   "after_dependencies": [
-    "google_keep_sync",
-    "icloud"
+    "google_keep_sync"
   ],
   "codeowners": [
     "@agawlbb"

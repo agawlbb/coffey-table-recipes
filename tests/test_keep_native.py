@@ -121,5 +121,5 @@ async def test_optional_selector_validates_identity_and_can_disable(hass, pair):
 
 
 async def test_only_native_sync_services_are_registered(hass, pair):
-    assert set(hass.services.async_services()[DOMAIN]) == {"sync_google_keep", "sync_icloud"}
+    assert set(hass.services.async_services()[DOMAIN]) == {"sync_google_keep"}
 

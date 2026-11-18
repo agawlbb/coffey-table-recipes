@@ -11,7 +11,6 @@ from .api import ApiError, Client
 from .work_calendar import async_setup_work_calendar
 from .const import DEFAULT_SCAN_INTERVAL, DOMAIN, EVENT_CHANGED, EVENT_SYNC_REQUESTED
 from .keep_sync import async_register_keep_service, async_setup_keep_sync, async_stop_keep_sync
-from .icloud_sync import async_register_icloud_service, async_setup_icloud_sync, async_stop_icloud_sync
 
 PLATFORMS = [Platform.TODO, Platform.EVENT, Platform.SENSOR]
 _LOGGER = logging.getLogger(__name__)
@@ -98,9 +97,7 @@ async def async_setup_entry(hass, entry):
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
     await async_setup_work_calendar(hass, entry)
     await async_setup_keep_sync(hass, entry)
-    await async_setup_icloud_sync(hass, entry)
     async_register_keep_service(hass)
-    async_register_icloud_service(hass)
     entry.async_on_unload(entry.add_update_listener(_options_updated))
     return True
 
@@ -111,7 +108,6 @@ async def _options_updated(hass, entry):
 
 
 async def async_unload_entry(hass, entry):
-    await async_stop_icloud_sync(entry)
     await async_stop_keep_sync(entry)
     unloaded = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
     if unloaded:
