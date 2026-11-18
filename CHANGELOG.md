@@ -2,6 +2,16 @@
 
 Release dates and changes are reconstructed from annotated Git tags, commit history, and project release records. Versions before 1.0 are demonstration releases; 1.0 marks the first usable release. Android retains the existing signing identity; iOS delivery and signing are recorded for each release.
 
+## 2.11.0 — 2026-11-18
+
+Build 79; tag `v2.11.0`. iOS and Android release preparation; delivery verification pending.
+
+- Add Siri shopping additions with “Add to my CTR list”, prompting for an item and confirming server readback.
+- Add “Ask CTR what’s for dinner” with optional “tonight”, and the tomorrow variant with optional “night”.
+- Use household-local meal-plan dates and ask which household when an account has more than one.
+- Use the existing CTR account directly, without Apple Reminders or Home Assistant authentication.
+- Build iOS using Xcode 27 and the iOS 27 SDK.
+
 ## 2.10.4 — 2026-11-17
 
 Build 78; tag `v2.10.4`. iOS released; Android signed build is ready, with Google Drive publication blocked by its API project quota.
