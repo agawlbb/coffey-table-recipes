@@ -6,6 +6,16 @@ DOMAIN = 'applinks:coffeybean.com'
 ROUTE = '/ctr/recipes/*'
 
 
+def validate_siri_configuration(info, build_config):
+    settings = info.get('CTRFirebaseOptions')
+    keys = ('FIREBASE_IOS_APP_ID', 'FIREBASE_IOS_API_KEY', 'GOOGLE_IOS_CLIENT_ID',
+            'FIREBASE_PROJECT_ID', 'FIREBASE_SENDER_ID')
+    if not isinstance(settings, dict) or any(
+            not isinstance(settings.get(key), str) or not settings[key]
+            or settings[key] != build_config.get(key) for key in keys):
+        raise ValueError('Exported app is missing or mismatches the native Siri Firebase configuration')
+
+
 def validate_entitlements(signed, provisioned):
     if signed.get('aps-environment') != 'production' or provisioned.get('aps-environment') != 'production':
         raise ValueError('Production APNs entitlement required in signed app and distribution profile')

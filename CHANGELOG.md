@@ -2,6 +2,15 @@
 
 Release dates and changes are reconstructed from annotated Git tags, commit history, and project release records. Versions before 1.0 are demonstration releases; 1.0 marks the first usable release. Android retains the existing signing identity; iOS delivery and signing are recorded for each release.
 
+## 2.11.1 — 2026-11-18
+
+Build 80; tag `v2.11.1`. iOS-only release preparation; delivery verification pending.
+
+- Fix Siri cold-start failures by providing native Firebase settings from the existing private build configuration.
+- Wait for Firebase to restore the saved sign-in state before running Siri actions.
+- Return actionable spoken errors for connection and sign-in failures, with a reminder to check uncertain shopping additions before retrying.
+- Verify the exported iOS package contains the Firebase settings required by Siri.
+
 ## 2.11.0 — 2026-11-18
 
 Build 79; tag `v2.11.0`. iOS TestFlight and Android release; delivery verified.

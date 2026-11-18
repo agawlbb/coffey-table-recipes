@@ -10,7 +10,7 @@ import subprocess
 import sys
 import tempfile
 import zipfile
-from ios_release_checks import validate_entitlements, verify_hosted_association
+from ios_release_checks import validate_entitlements, verify_hosted_association, validate_siri_configuration
 
 ipa = Path(sys.argv[1])
 team = os.environ["IOS_TEAM_ID"]
@@ -60,6 +60,8 @@ with tempfile.TemporaryDirectory() as directory:
         assert signed_entitlements["com.apple.developer.team-identifier"] == team, "Wrong signing team"
         assert not signed_entitlements.get("get-task-allow", False), "Development signing entitlements"
         if relative == "Runner.app":
+            validate_siri_configuration(info, json.loads(Path(os.environ["IOS_FIREBASE_CONFIG"]).read_text(encoding="utf-8-sig")))
+            print("Verified native Siri Firebase configuration in the exported signed app")
             validate_entitlements(signed_entitlements, entitlements)
             verify_hosted_association(signed_entitlements['application-identifier'])
             print('Verified production APNs and hosted iOS association against the exported signed app')
@@ -74,6 +76,6 @@ with tempfile.TemporaryDirectory() as directory:
                         "signature": "verified", "profile": "App Store Connect"})
     report = {"ipa": ipa.name, "sha256": hashlib.sha256(ipa.read_bytes()).hexdigest(),
               "source_commit": os.environ["GITHUB_SHA"], "export_method": "app-store-connect",
-              "targets": checked}
+              "targets": checked, "siri_native_firebase_configuration": "verified"}
     (ipa.parent / "verification.json").write_text(json.dumps(report, indent=2) + "\n")
     print(json.dumps(report, indent=2))

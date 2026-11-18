@@ -1,6 +1,6 @@
 import copy
 import unittest
-from ios_release_checks import validate_association, validate_entitlements
+from ios_release_checks import validate_association, validate_entitlements, validate_siri_configuration
 
 
 class DistributionChecks(unittest.TestCase):
@@ -44,3 +44,22 @@ class DistributionChecks(unittest.TestCase):
 
     def test_legacy_association(self):
         validate_association({'applinks': {'details': [{'appID': self.identifier, 'paths': ['/ctr/recipes/*']}]}}, self.identifier)
+
+
+class SiriPackageConfigurationTests(unittest.TestCase):
+    def test_exported_settings_match_the_build_input(self):
+        config = {'FIREBASE_IOS_APP_ID': 'fixture-app', 'FIREBASE_IOS_API_KEY': 'fixture-key',
+                  'GOOGLE_IOS_CLIENT_ID': 'fixture-client', 'FIREBASE_PROJECT_ID': 'fixture-project',
+                  'FIREBASE_SENDER_ID': '123'}
+        validate_siri_configuration({'CTRFirebaseOptions': dict(config)}, config)
+
+    def test_absent_incomplete_or_wrong_project_settings_are_rejected(self):
+        config = {'FIREBASE_IOS_APP_ID': 'fixture-app', 'FIREBASE_IOS_API_KEY': 'fixture-key',
+                  'GOOGLE_IOS_CLIENT_ID': 'fixture-client', 'FIREBASE_PROJECT_ID': 'fixture-project',
+                  'FIREBASE_SENDER_ID': '123'}
+        for info in [{}, {'CTRFirebaseOptions': {}},
+                     {'CTRFirebaseOptions': {**config, 'FIREBASE_PROJECT_ID': 'another-project'}},
+                     {'CTRFirebaseOptions': {**config, 'FIREBASE_SENDER_ID': 123}}]:
+            with self.subTest(info=info):
+                with self.assertRaises(ValueError):
+                    validate_siri_configuration(info, config)
