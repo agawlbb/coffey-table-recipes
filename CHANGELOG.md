@@ -4,7 +4,7 @@ Release dates and changes are reconstructed from annotated Git tags, commit hist
 
 ## 2.11.0 — 2026-11-18
 
-Build 79; tag `v2.11.0`. iOS and Android release preparation; delivery verification pending.
+Build 79; tag `v2.11.0`. iOS TestFlight and Android release; delivery verified.
 
 - Add Siri shopping additions with “Add to my CTR list”, prompting for an item and confirming server readback.
 - Add “Ask CTR what’s for dinner” with optional “tonight”, and the tomorrow variant with optional “night”.

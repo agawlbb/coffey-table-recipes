@@ -2049,3 +2049,55 @@ old `ctr.coffeybean.com` shared links/bookmarks still need its DNS entry to reso
 No further backend deployment or app build is needed; only Android publication is
 pending. The immutable tag remains on the release source; final records are pushed
 on main and all four repositories have clean synchronized default checkouts.
+
+
+## 2.11.0 / build 79 — 2026-11-18
+
+Owner requested the app release and verification of the current Apple SDK.
+Immutable tag `v2.11.0` points to source
+`7e787810d3e7092f7cd23f280cb3543ea8e560bc`, committed and pushed before builds.
+This release adds the native Siri shopping action and today/tomorrow dinner
+actions, with `CTR` as the app-name synonym and the agreed optional words.
+Actions use the existing CTR identity and backend, without iCloud or HA.
+
+Signed iOS run
+[44365081082](https://github.com/agawlbb/coffey-table-recipes/actions/runs/44365081082)
+succeeded. Logs confirm Xcode 27.0 (27A266a) and iPhoneOS27.0.sdk. The native
+Siri sources compiled and App Intents metadata/training generation completed.
+Actual exported Runner, TimerWidget and ShareExtension match 2.11.0/build 79
+and the tagged source. Strict signatures, App Store profiles, production APNs,
+App Groups, encryption declarations and hosted AASA against the signed app
+passed. IPA SHA-256:
+`c33f35f1aa0db6f3c6b5bddc97b58ec5b8b3640fc447301a15af148f46705cc4`.
+The previous 2.10.4 build also used Xcode 27/iOS 27; this release explicitly
+verifies the SDK in its own build log. No minimum-iOS-version increase was made.
+
+Direct read-only Apple queries verified build
+`cfd3ef67-5d0d-4f2d-a88d-1a1f395ab685` as VALID, unexpired,
+usesNonExemptEncryption=false and IN_BETA_TESTING. This exact build was present
+in the existing Family testers group. No tester, territory or signing-identity
+settings changed; retain the existing France exclusion.
+
+Android was built on VM-laptop with the existing private configuration and
+original signing identity. Package/version/build/source, signature,
+non-debuggable status, 16 KiB ZIP alignment, native timer Kotlin classes,
+compiled endpoint URLs and hosted Android app links passed. APK:
+`CoffeyTableRecipes-2.11.0-build79.apk`, 71,874,201 bytes. SHA-256:
+`8ecc5d2d44e5ac474415b2f78a20187fca4748fd171f9ce01727d43c77c3d0e2`.
+Signing certificate SHA-256:
+`f8de933f14b9bb4b3191a94aedc8637972c5ab224565f6abd7808f8038d12097`.
+
+[Android delivery](https://drive.google.com/file/d/1r_PYlxd5Cbf6G1obyYV5DpvU8VZ3IIjo/view)
+was downloaded and its SHA-256 matched. The informational Android release
+notification was sent after verification; no older release APKs were present
+for removal. The prior Google Drive quota blocker did not recur.
+
+Build logs, signature and delivery receipts remain in ignored
+`build/release-2.11.0/`. Flutter analysis passed in the existing iOS workflow;
+no complete test suite or native XCTest run was performed. Siri phrase
+recognition, dictated input, locked/background execution and Apple Watch
+invocation still need checks on the owner’s devices. Installed-app OS link
+resolution was not exercised during this release; hosted associations were
+verified against the actual signed packages. No backend, HA, database or web
+deployment was performed. This later documentation commit does not move the
+immutable source tag.
