@@ -2142,3 +2142,40 @@ verification and successful upload do not prove those runtime outcomes.
 Installed-app OS link resolution was not exercised; the hosted association was
 verified against the signed package. No server, HA, database or web deployment
 was performed. This later validation commit does not move the immutable tag.
+
+
+## 2.11.2 / build 81 — 2026-11-18 — iOS only
+
+Owner explicitly requested iOS-only delivery of the Siri progress-frame fix.
+Immutable tag `v2.11.2` points to
+`8e4c0cc432f7b166e30a263418b466dac203a75b`.
+The native request loop now waits through normal account-job progress,
+snapshots and heartbeat replies before accepting a matching final response.
+The real account-job bridge was exercised locally with an isolated worker
+fixture and emitted progress followed by the final response. Swift syntax
+checks passed. Native XCTest cases cover repeated progress, final data,
+connection loss and invalid results; they remain unrun. No full suite was run.
+
+Signed run
+[44382621847](https://github.com/agawlbb/coffey-table-recipes/actions/runs/44382621847)
+succeeded with Xcode 27.0 and iPhoneOS27.0.sdk. The actual exported Runner,
+TimerWidget and ShareExtension match 2.11.2/build 81 and the tagged source.
+Strict signatures, App Store profiles, App Groups, production APNs,
+exempt-encryption declarations and hosted AASA against the signed app passed.
+The exported native Siri Firebase configuration matched the private build input.
+IPA SHA-256:
+`e3eb47e00d6da5b009e75698aff973245578850d1fa9681c079c133dd9e3babf`.
+
+Direct read-only Apple queries verified build
+`96d0178c-b95c-4602-b1a1-00d3f73779ed` as VALID, unexpired,
+usesNonExemptEncryption=false and IN_BETA_TESTING. The exact build was present
+in the existing Family testers group. No tester, territory or signing-identity
+settings changed; retain the existing France exclusion.
+
+Logs and signed-package/TestFlight receipts remain in ignored
+`build/release-2.11.2/`. Siri recognition, actual shopping/dinner replies and
+Watch/background behavior still require device validation. Installed-app OS
+link resolution was not exercised; hosted association verification passed
+against the signed package. No Android build, upload, notification or cleanup
+was performed. No server, HA, database or web deployment was performed.
+This later documentation commit does not move the immutable release tag.

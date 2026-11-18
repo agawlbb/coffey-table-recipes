@@ -4,7 +4,7 @@ Release dates and changes are reconstructed from annotated Git tags, commit hist
 
 ## 2.11.2 — 2026-11-18
 
-Build 81; tag `v2.11.2`. iOS-only release preparation; delivery verification pending.
+Build 81; tag `v2.11.2`. iOS-only TestFlight release; delivery verified.
 
 - Fix Siri requests failing when the server sends normal progress updates before its final result.
 - Continue waiting through progress, snapshots and heartbeat replies; only the matching final response confirms success.

@@ -168,7 +168,7 @@ the user to check the list before retrying. This correction is included in iOS 2
 Siri startup and Apple Watch invocation is still required.
 
 
-Siri progress-frame correction (source, not yet released): the account worker
+Siri progress-frame correction (iOS 2.11.2/build 81): the account worker
 always emits a `progress` frame before its final `response`. Siri now waits
 through progress, snapshots and heartbeat replies rather than rejecting the
 first nonterminal frame. Only a matching final response with valid data confirms
@@ -178,5 +178,6 @@ shopping addition succeeded. Focused native tests cover those message sequences.
 The real account-job bridge was exercised locally with an isolated worker fixture:
 it emitted progress followed by the matching final response. No real account,
 shopping data or production service was used. Swift syntax checks passed. The
-new XCTest cases still require execution in the Apple test environment; no app
-build or release was started for this source correction.
+new XCTest cases still require execution in the Apple test environment. The
+corrected source compiled in the signed 2.11.2/build 81 package and TestFlight
+delivery was verified; Siri behavior still requires checks on the owner's devices.
