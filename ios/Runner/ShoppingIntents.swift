@@ -136,9 +136,16 @@ final class SiriConnection {
         var request: [String: Any] = ["v": 1, "type": "request", "id": id, "path": path]
         if let body { request["body"] = body }
         try await send(request)
+        return try await Self.receiveResponse(id: id) { try await self.receive() }
+    }
+
+    static func receiveResponse(id: String,
+                                next: () async throws -> [String: Any]) async throws -> [String: Any] {
         while true {
-            let response = try await receive()
-            if response["type"] as? String == "snapshot" { continue }
+            let response = try await next()
+            // Account jobs emit progress immediately and may repeat it while
+            // working. These messages do not acknowledge completion.
+            if ["progress", "snapshot", "pong"].contains(response["type"] as? String ?? "") { continue }
             guard response["id"] as? String == id, response["type"] as? String == "response",
                   let data = response["data"] as? [String: Any] else {
                 throw Self.failure("CTR did not confirm the request. Check the app before trying again.")

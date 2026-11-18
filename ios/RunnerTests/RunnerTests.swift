@@ -26,6 +26,53 @@ class RunnerTests: XCTestCase {
         XCTAssertFalse(uncertain.contains("Added"))
     }
 
+    @MainActor
+    func testSiriWaitsForFinalResponseAfterAccountProgress() async throws {
+        var frames: [[String: Any]] = [
+            ["type": "progress", "id": "siri-1", "message": "Preparing the request…"],
+            ["type": "progress", "id": "siri-1", "elapsed_seconds": 10],
+            ["type": "snapshot", "data": [:]],
+            ["type": "pong"],
+            ["type": "response", "id": "siri-1", "data": ["households": [["id": "1", "name": "Home"]]]]
+        ]
+        let response = try await SiriConnection.receiveResponse(id: "siri-1") {
+            guard !frames.isEmpty else { throw URLError(.badServerResponse) }
+            return frames.removeFirst()
+        }
+        XCTAssertEqual((response["households"] as? [[String: String]])?.first?["name"], "Home")
+        XCTAssertTrue(frames.isEmpty)
+    }
+
+    @MainActor
+    func testSiriProgressDoesNotConfirmAWriteOrHideAFailedConnection() async {
+        var frames: [[String: Any]] = [["type": "progress", "id": "siri-1"]]
+        do {
+            _ = try await SiriConnection.receiveResponse(id: "siri-1") {
+                guard !frames.isEmpty else { throw URLError(.networkConnectionLost) }
+                return frames.removeFirst()
+            }
+            XCTFail("Progress must never count as a confirmed result")
+        } catch {
+            XCTAssertEqual((error as? URLError)?.code, .networkConnectionLost)
+        }
+    }
+
+    @MainActor
+    func testSiriRejectsWrongOrMalformedFinalResponse() async {
+        let responses: [[String: Any]] = [
+            ["type": "response", "id": "other", "data": [:]],
+            ["type": "response", "id": "siri-1", "data": "invalid"]
+        ]
+        for response in responses {
+            do {
+                _ = try await SiriConnection.receiveResponse(id: "siri-1") { response }
+                XCTFail("An unrelated or malformed result must not confirm the request")
+            } catch {
+                XCTAssertEqual((error as NSError).domain, "CTRSiri")
+            }
+        }
+    }
+
     func testDinnerUsesHouseholdDateAndIncludesEveryDish() throws {
         let plan: [String: Any] = ["today": "2026-11-18", "entries": [
             ["plan_date": "2026-11-18", "title": "Chicken"],
