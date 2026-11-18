@@ -23,14 +23,15 @@ final class SiriConnection {
               let apiKey = settings["FIREBASE_IOS_API_KEY"], !apiKey.isEmpty,
               let sender = settings["FIREBASE_SENDER_ID"], !sender.isEmpty,
               let project = settings["FIREBASE_PROJECT_ID"], !project.isEmpty,
-              let client = settings["GOOGLE_IOS_CLIENT_ID"], !client.isEmpty else {
+              let client = settings["GOOGLE_IOS_CLIENT_ID"], !client.isEmpty,
+              let bundleID = Bundle.main.bundleIdentifier, !bundleID.isEmpty else {
             throw failure("CTR’s Siri configuration is missing. Install the latest app update.")
         }
         let options = FirebaseOptions(googleAppID: appID, gcmSenderID: sender)
         options.apiKey = apiKey
         options.projectID = project
         options.clientID = client
-        options.bundleID = Bundle.main.bundleIdentifier
+        options.bundleID = bundleID
         return options
     }
 
