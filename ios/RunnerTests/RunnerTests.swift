@@ -2,6 +2,30 @@ import XCTest
 @testable import Runner
 
 class RunnerTests: XCTestCase {
+    @MainActor
+    func testSiriFirebaseOptionsDoNotRequireDefaultConfigurationFile() throws {
+        let settings = ["FIREBASE_IOS_APP_ID": "1:123456789:ios:abcdef",
+                        "FIREBASE_IOS_API_KEY": "fixture-key", "FIREBASE_SENDER_ID": "123456789",
+                        "FIREBASE_PROJECT_ID": "fixture-project", "GOOGLE_IOS_CLIENT_ID": "fixture.apps.googleusercontent.com"]
+        let options = try SiriConnection.firebaseOptions(info: ["CTRFirebaseOptions": settings])
+        XCTAssertEqual(options.googleAppID, settings["FIREBASE_IOS_APP_ID"])
+        XCTAssertEqual(options.apiKey, settings["FIREBASE_IOS_API_KEY"])
+        XCTAssertEqual(options.gcmSenderID, settings["FIREBASE_SENDER_ID"])
+        XCTAssertEqual(options.projectID, settings["FIREBASE_PROJECT_ID"])
+        XCTAssertEqual(options.clientID, settings["GOOGLE_IOS_CLIENT_ID"])
+        XCTAssertThrowsError(try SiriConnection.firebaseOptions(info: [:]))
+    }
+
+    @MainActor
+    func testSiriErrorsExplainSignInAndUncertainAdditions() {
+        let error = SiriConnection.failure("Open CTR and sign in before using Siri.")
+        XCTAssertEqual(SiriConnection.errorMessage(error), "Open CTR and sign in before using Siri.")
+        let uncertain = SiriConnection.errorMessage(URLError(.networkConnectionLost), adding: true)
+        XCTAssertTrue(uncertain.contains("connection and sign-in"))
+        XCTAssertTrue(uncertain.contains("Check your shopping list before trying again"))
+        XCTAssertFalse(uncertain.contains("Added"))
+    }
+
     func testDinnerUsesHouseholdDateAndIncludesEveryDish() throws {
         let plan: [String: Any] = ["today": "2026-11-18", "entries": [
             ["plan_date": "2026-11-18", "title": "Chicken"],

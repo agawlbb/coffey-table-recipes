@@ -67,7 +67,7 @@ class IOSShareConfigurationTests(unittest.TestCase):
             plist.parent.mkdir(parents=True)
             plist.write_bytes((ROOT / 'ios/Runner/Info.plist').read_bytes())
             config = workspace / 'firebase.json'
-            config.write_text(json.dumps({'FIREBASE_IOS_APP_ID': 'fixture', 'FIREBASE_IOS_API_KEY': 'fixture', 'GOOGLE_IOS_CLIENT_ID': 'fixture.apps.googleusercontent.com'}))
+            config.write_text(json.dumps({'FIREBASE_IOS_APP_ID': 'fixture', 'FIREBASE_IOS_API_KEY': 'fixture', 'GOOGLE_IOS_CLIENT_ID': 'fixture.apps.googleusercontent.com', 'FIREBASE_PROJECT_ID': 'fixture-project', 'FIREBASE_SENDER_ID': '123456789'}))
             for _ in range(2):
                 subprocess.run([sys.executable, str(ROOT / 'tool/configure-ios.py'), str(config)], cwd=workspace, check=True)
             info = plistlib.loads(plist.read_bytes())
@@ -76,6 +76,29 @@ class IOSShareConfigurationTests(unittest.TestCase):
             self.assertIn('ShareMedia-$(PRODUCT_BUNDLE_IDENTIFIER)', schemes)
             self.assertIn('com.googleusercontent.apps.fixture', schemes)
             self.assertEqual(len(schemes), 2)
+            # The generated native options must match the same input as Flutter.
+            self.assertEqual(info['CTRFirebaseOptions'], json.loads(config.read_text()))
+            self.assertEqual(info['INAlternativeAppNames'][0]['INAlternativeAppName'], 'CTR')
+
+    def test_missing_native_auth_configuration_fails_without_changing_plist(self):
+        with tempfile.TemporaryDirectory() as directory:
+            workspace = Path(directory)
+            plist = workspace / 'ios/Runner/Info.plist'
+            plist.parent.mkdir(parents=True)
+            original = (ROOT / 'ios/Runner/Info.plist').read_bytes()
+            for missing in ['FIREBASE_PROJECT_ID', 'FIREBASE_SENDER_ID']:
+                plist.write_bytes(original)
+                settings = {'FIREBASE_IOS_APP_ID': 'fixture', 'FIREBASE_IOS_API_KEY': 'fixture',
+                            'GOOGLE_IOS_CLIENT_ID': 'fixture.apps.googleusercontent.com',
+                            'FIREBASE_PROJECT_ID': 'fixture-project', 'FIREBASE_SENDER_ID': '123456789'}
+                del settings[missing]
+                config = workspace / 'firebase.json'
+                config.write_text(json.dumps(settings))
+                result = subprocess.run([sys.executable, str(ROOT / 'tool/configure-ios.py'), str(config)],
+                                        cwd=workspace, capture_output=True, text=True)
+                self.assertNotEqual(result.returncode, 0)
+                self.assertEqual(plist.read_bytes(), original)
+
     def test_paid_signing_app_group_and_file_activation(self):
         runner = plistlib.loads((ROOT / 'ios/Runner/Info.plist').read_bytes())
         extension = plistlib.loads((ROOT / 'ios/ShareExtension/Info.plist').read_bytes())

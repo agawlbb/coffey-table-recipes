@@ -157,3 +157,12 @@ they still require a macOS/iOS test environment. An explicitly requested signed
 iOS build and device checks are needed to verify Siri phrase discovery,
 recognition of “CTR”, dictated input, background execution and Apple Watch
 invocation. No independent watchOS app is included.
+
+
+Siri cold-start correction (2026-11-18): native actions initialize Firebase from
+options embedded by the existing private build-config step, then wait for the
+initial Firebase auth-state callback before using the saved user. They no longer
+call the default initializer, which expects an unbundled GoogleService-Info.plist.
+Request failures return actionable spoken responses, and uncertain additions ask
+the user to check the list before retrying. This source correction is not present
+in 2.11.0/build 79; a new iOS build and device validation are still required.

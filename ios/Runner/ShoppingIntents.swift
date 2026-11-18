@@ -17,11 +17,53 @@ final class SiriConnection {
         NSError(domain: "CTRSiri", code: 1, userInfo: [NSLocalizedDescriptionKey: message])
     }
 
-    init() throws {
-        if FirebaseApp.app() == nil { FirebaseApp.configure() }
-        guard let user = Auth.auth().currentUser else {
-            throw Self.failure("Open CTR and sign in before using Siri.")
+    static func firebaseOptions(info: [String: Any]) throws -> FirebaseOptions {
+        guard let settings = info["CTRFirebaseOptions"] as? [String: String],
+              let appID = settings["FIREBASE_IOS_APP_ID"], !appID.isEmpty,
+              let apiKey = settings["FIREBASE_IOS_API_KEY"], !apiKey.isEmpty,
+              let sender = settings["FIREBASE_SENDER_ID"], !sender.isEmpty,
+              let project = settings["FIREBASE_PROJECT_ID"], !project.isEmpty,
+              let client = settings["GOOGLE_IOS_CLIENT_ID"], !client.isEmpty else {
+            throw failure("CTR’s Siri configuration is missing. Install the latest app update.")
         }
+        let options = FirebaseOptions(googleAppID: appID, gcmSenderID: sender)
+        options.apiKey = apiKey
+        options.projectID = project
+        options.clientID = client
+        options.bundleID = Bundle.main.bundleIdentifier
+        return options
+    }
+
+    static func open() async throws -> SiriConnection {
+        if FirebaseApp.app() == nil {
+            let options = try firebaseOptions(info: Bundle.main.infoDictionary ?? [:])
+            FirebaseApp.configure(options: options)
+        }
+        let auth = Auth.auth()
+        // currentUser can be nil while Firebase is restoring its Keychain state.
+        let user: User? = await withCheckedContinuation { continuation in
+            var handle: AuthStateDidChangeListenerHandle?
+            var resolved = false
+            handle = auth.addStateDidChangeListener { _, user in
+                guard !resolved else { return }
+                resolved = true
+                if let handle { auth.removeStateDidChangeListener(handle) }
+                continuation.resume(returning: user)
+            }
+        }
+        try Task.checkCancellation()
+        guard let user else { throw failure("Open CTR and sign in before using Siri.") }
+        return SiriConnection(user: user)
+    }
+
+    static func errorMessage(_ error: Error, adding: Bool = false) -> String {
+        let failure = error as NSError
+        let message = failure.domain == "CTRSiri" ? failure.localizedDescription
+            : "I couldn’t reach CTR. Open the app to check your connection and sign-in."
+        return adding ? message + " Check your shopping list before trying again." : message
+    }
+
+    private init(user: User) {
         self.user = user
         let config = URLSessionConfiguration.ephemeral
         config.timeoutIntervalForRequest = 20
@@ -136,30 +178,36 @@ struct AddCTRShoppingItem: AppIntent {
         }
         // Obtain household choices before any write. Do not keep a socket open
         // while Siri waits for the user to choose a household.
-        let choices = try await CTRSiriHouseholds.load()
+        let choices: [(id: String, label: String)]
+        do { choices = try await CTRSiriHouseholds.load() }
+        catch { return .result(dialog: "\(SiriConnection.errorMessage(error))") }
         let selected = try await CTRSiriHouseholds.select(choices, value: household) {
             try await $household.requestDisambiguation(among: $0, dialog: "Which household?")
         }
-        let connection = try SiriConnection()
-        defer { connection.close() }
-        let snapshot = try await connection.authenticate()
-        let account = snapshot["account"] as? [String: Any]
-        let user = account?["user"] as? [String: Any]
-        guard user?["child_mode"] as? Bool == false else {
-            throw SiriConnection.failure("Child mode allows viewing only. Open CTR to change it.")
+        do {
+            let connection = try await SiriConnection.open()
+            defer { connection.close() }
+            let snapshot = try await connection.authenticate()
+            let account = snapshot["account"] as? [String: Any]
+            let user = account?["user"] as? [String: Any]
+            guard user?["child_mode"] as? Bool == false else {
+                throw SiriConnection.failure("Child mode allows viewing only. Open CTR to change it.")
+            }
+            let id = UUID().uuidString.lowercased()
+            let path = "/households/\(selected)/shopping-list"
+            _ = try await connection.request(path, body: [
+                "upsert_items": [["id": id, "name": name, "department": "", "checked": false]],
+                "client_change_id": UUID().uuidString.lowercased()
+            ])
+            let readback = try await connection.request(path)
+            guard let items = readback["items"] as? [[String: Any]],
+                  items.contains(where: { $0["id"] as? String == id && $0["name"] as? String == name }) else {
+                throw SiriConnection.failure("CTR did not confirm the addition.")
+            }
+            return .result(dialog: "Added \(name) to your shopping list.")
+        } catch {
+            return .result(dialog: "\(SiriConnection.errorMessage(error, adding: true))")
         }
-        let id = UUID().uuidString.lowercased()
-        let path = "/households/\(selected)/shopping-list"
-        _ = try await connection.request(path, body: [
-            "upsert_items": [["id": id, "name": name, "department": "", "checked": false]],
-            "client_change_id": UUID().uuidString.lowercased()
-        ])
-        let readback = try await connection.request(path)
-        guard let items = readback["items"] as? [[String: Any]],
-              items.contains(where: { $0["id"] as? String == id && $0["name"] as? String == name }) else {
-            throw SiriConnection.failure("The addition was not confirmed. Check your CTR list before trying again.")
-        }
-        return .result(dialog: "Added \(name) to your shopping list.")
     }
 }
 
@@ -167,7 +215,7 @@ struct AddCTRShoppingItem: AppIntent {
 @MainActor
 enum CTRSiriHouseholds {
     static func load() async throws -> [(id: String, label: String)] {
-        let connection = try SiriConnection()
+        let connection = try await SiriConnection.open()
         defer { connection.close() }
         _ = try await connection.authenticate(scope: "account")
         let account = try await connection.request("/me")
@@ -209,16 +257,22 @@ struct CTRDinner: AppIntent {
 
     @MainActor
     func perform() async throws -> some IntentResult & ProvidesDialog {
-        let choices = try await CTRSiriHouseholds.load()
+        let choices: [(id: String, label: String)]
+        do { choices = try await CTRSiriHouseholds.load() }
+        catch { return .result(dialog: "\(SiriConnection.errorMessage(error))") }
         let selected = try await CTRSiriHouseholds.select(choices, value: household) {
             try await $household.requestDisambiguation(among: $0, dialog: "Which household?")
         }
-        let connection = try SiriConnection()
-        defer { connection.close() }
-        _ = try await connection.authenticate()
-        let plan = try await connection.request("/households/\(selected)/meal-plan?from=2000-01-01&to=2199-12-31")
-        let text = try CTRDinnerResponse.text(plan: plan, tomorrow: day == .tomorrow)
-        return .result(dialog: "\(text)")
+        do {
+            let connection = try await SiriConnection.open()
+            defer { connection.close() }
+            _ = try await connection.authenticate()
+            let plan = try await connection.request("/households/\(selected)/meal-plan?from=2000-01-01&to=2199-12-31")
+            let text = try CTRDinnerResponse.text(plan: plan, tomorrow: day == .tomorrow)
+            return .result(dialog: "\(text)")
+        } catch {
+            return .result(dialog: "\(SiriConnection.errorMessage(error))")
+        }
     }
 }
 
