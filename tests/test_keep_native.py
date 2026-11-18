@@ -115,7 +115,7 @@ async def test_optional_selector_validates_identity_and_can_disable(hass, pair):
     result = await hass.config_entries.options.async_configure(flow["flow_id"], {"scan_interval":10, CONF_KEEP_LIST:None})
     await hass.async_block_till_done()
     assert result["type"] == "create_entry"
-    assert entry.options == {"scan_interval":10}
+    assert entry.options == {"scan_interval":10, "work_calendar":None}
     assert entry.runtime_data.keep_sync is None
 
 
