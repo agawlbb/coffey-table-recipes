@@ -4,7 +4,7 @@ Release dates and changes are reconstructed from annotated Git tags, commit hist
 
 ## 2.11.1 — 2026-11-18
 
-Build 80; tag `v2.11.1`. iOS-only release preparation; delivery verification pending.
+Build 80; tag `v2.11.1`. iOS-only TestFlight release; delivery verified.
 
 - Fix Siri cold-start failures by providing native Firebase settings from the existing private build configuration.
 - Wait for Firebase to restore the saved sign-in state before running Siri actions.

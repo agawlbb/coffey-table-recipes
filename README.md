@@ -164,5 +164,5 @@ options embedded by the existing private build-config step, then wait for the
 initial Firebase auth-state callback before using the saved user. They no longer
 call the default initializer, which expects an unbundled GoogleService-Info.plist.
 Request failures return actionable spoken responses, and uncertain additions ask
-the user to check the list before retrying. This source correction is not present
-in 2.11.0/build 79; a new iOS build and device validation are still required.
+the user to check the list before retrying. This correction is included in iOS 2.11.1/build 80. Device validation of cold
+Siri startup and Apple Watch invocation is still required.

@@ -2101,3 +2101,44 @@ resolution was not exercised during this release; hosted associations were
 verified against the actual signed packages. No backend, HA, database or web
 deployment was performed. This later documentation commit does not move the
 immutable source tag.
+
+
+## 2.11.1 / build 80 — 2026-11-18 — iOS only
+
+Owner explicitly requested the Siri startup correction for iOS only.
+Immutable tag `v2.11.1` points to source
+`e02786bcabc2182192eb2b8e594e62446dc04928`.
+No Android build, upload, notification or cleanup was performed.
+
+The correction provides native Firebase options from the same private build
+configuration as Flutter, awaits the initial restored auth state, and returns
+actionable spoken request errors. A focused exported-package check rejects
+missing, incomplete or mismatched native configuration without printing its
+values. Two configuration regressions and two package-check tests passed;
+no full suite or native XCTest run was performed.
+
+The first attempt stopped before upload on an optional bundle-ID compiler
+error. The final source unwraps the bundle identity before configuring Firebase.
+Signed run
+[44374337465](https://github.com/agawlbb/coffey-table-recipes/actions/runs/44374337465)
+succeeded using Xcode 27.0 and iPhoneOS27.0.sdk. The actual exported Runner,
+TimerWidget and ShareExtension all match 2.11.1/build 80 and the tagged source.
+Strict signatures, App Store profiles, App Groups, production APNs,
+exempt-encryption declarations and the hosted AASA against signed app
+entitlements passed. The actual exported main app's native Siri Firebase
+settings matched the private build input. IPA SHA-256:
+`953bc8d1fd8c92ea940ce21fa9a367ee0ab3d543fd31a22da918626bcfa93f1f`.
+
+Direct read-only Apple queries verified build
+`bcbcf9e0-7bd3-4708-b082-5378c1785afe` as VALID, unexpired,
+usesNonExemptEncryption=false and IN_BETA_TESTING, with this exact build present
+in the existing Family testers group. No tester, territory or signing-identity
+settings changed; retain the existing France exclusion.
+
+Build logs and signed-package/TestFlight receipts remain in ignored
+`build/release-2.11.1/`. Siri recognition, actual cold/background execution
+and Apple Watch behavior still require testing on the owner's devices; package
+verification and successful upload do not prove those runtime outcomes.
+Installed-app OS link resolution was not exercised; the hosted association was
+verified against the signed package. No server, HA, database or web deployment
+was performed. This later validation commit does not move the immutable tag.
