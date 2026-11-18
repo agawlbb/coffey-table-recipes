@@ -52,6 +52,10 @@
 
 
 /* Begin PBXBuildFile section */
+        A11800000000000000000001 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Runner/ShoppingIntents.swift; sourceTree = SOURCE_ROOT; };
+        A11800000000000000000002 = {isa = PBXBuildFile; fileRef = A11800000000000000000001; };
+        A11800000000000000000003 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Runner/CTRDinnerResponse.swift; sourceTree = SOURCE_ROOT; };
+        A11800000000000000000004 = {isa = PBXBuildFile; fileRef = A11800000000000000000003; };
 		1498D2341E8E89220040F4C2 /* GeneratedPluginRegistrant.m in Sources */ = {isa = PBXBuildFile; fileRef = 1498D2331E8E89220040F4C2 /* GeneratedPluginRegistrant.m */; };
 		331C808B294A63AB00263BE5 /* RunnerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 331C807B294A618700263BE5 /* RunnerTests.swift */; };
 		3B3967161E833CAA004F5970 /* AppFrameworkInfo.plist in Resources */ = {isa = PBXBuildFile; fileRef = 3B3967151E833CAA004F5970 /* AppFrameworkInfo.plist */; };
@@ -142,6 +146,8 @@
 			isa = PBXGroup;
 			children = (
 				9C678DD6208AB6EF0C35A27A,
+                A11800000000000000000001,
+                A11800000000000000000003,
 				DFE7118E8FB2913D16894E72,
 				00913963F56B5C15D364A981,
 				ACF5081F6FF4FA29367D933E,
@@ -351,6 +357,8 @@
 			files = (
 				74858FAF1ED2DC5600515810 /* AppDelegate.swift in Sources */,
 				AAF93144B976652677F82B7A,
+                A11800000000000000000002,
+                A11800000000000000000004,
 				A7D22890D43D39FB86B89896,
 				1498D2341E8E89220040F4C2 /* GeneratedPluginRegistrant.m in Sources */,
 				7884E8682EC3CC0700C636F2 /* SceneDelegate.swift in Sources */,

@@ -1,6 +1,7 @@
 import Flutter
 import UIKit
 import UserNotifications
+import AppIntents
 
 @main
 @objc class AppDelegate: FlutterAppDelegate, FlutterImplicitEngineDelegate {
@@ -9,6 +10,7 @@ import UserNotifications
     didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?
   ) -> Bool {
     UNUserNotificationCenter.current().delegate = self
+    if #available(iOS 16.0, *) { CTRShortcuts.updateAppShortcutParameters() }
     return super.application(application, didFinishLaunchingWithOptions: launchOptions)
   }
 

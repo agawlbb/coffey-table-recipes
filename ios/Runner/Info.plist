@@ -14,6 +14,11 @@
 	<true/>
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
+	<key>INAlternativeAppNames</key>
+	<array><dict>
+		<key>INAlternativeAppName</key><string>CTR</string>
+		<key>INAlternativeAppNamePronunciationHint</key><string>see tee ar</string>
+	</dict></array>
 	<key>CFBundleDisplayName</key>
 	<string>Coffey Table Recipes</string>
 	<key>CFBundleExecutable</key>

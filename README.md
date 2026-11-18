@@ -134,3 +134,26 @@ History was sanitized before publication. Existing contributors must make a fres
 clone rather than merging old history back. Earlier validation commit hashes and
 Actions links in release notes refer to private, retired pre-publication records;
 version labels and factual validation results are retained.
+
+### Siri shopping and dinner actions (iOS)
+
+The app registers `CTR` as a Siri app-name synonym and provides these phrases:
+
+- “Add to my CTR list” asks what to add, then confirms after server readback.
+- “Ask CTR what's for dinner” and “Ask CTR what's for dinner tonight” read the same day's plan.
+- “Ask CTR what's for dinner tomorrow” and “Ask CTR what's for dinner tomorrow night” read the next day's plan.
+
+These actions use the signed-in CTR account directly, without Home Assistant or
+Apple Reminders. If the account has multiple households, Siri asks which one.
+Dinner uses the meal planner's household-local date and includes all dishes on
+that date; the planner has no separate dinner slot. Empty plans receive an
+explicit “nothing is planned” response. Child mode cannot add shopping items.
+An interrupted addition is not automatically replayed; check the list before
+trying again if Siri cannot confirm it.
+
+Source validation covers Swift syntax and plist/project registration. Focused
+XCTest cases cover dinner dates, empty/malformed plans and household selection;
+they still require a macOS/iOS test environment. An explicitly requested signed
+iOS build and device checks are needed to verify Siri phrase discovery,
+recognition of “CTR”, dictated input, background execution and Apple Watch
+invocation. No independent watchOS app is included.
