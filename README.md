@@ -14,9 +14,9 @@ rebuilding and distributing them requires an explicit build/release request.
 
 The app defaults to https://coffeybean.com/ctr/api/v1 on every platform. Public recipe links use `https://coffeybean.com/ctr/recipes/{id}`; native app links use the root `coffeybean.com` association files. The Home Assistant integration uses the same API and `wss://coffeybean.com/ctr/shopping`.
 
-The remaining hostname migration is source-ready but requires backend/integration deployment, domain-root association publication, and a new native app release before retiring `ctr.coffeybean.com`. Existing old-host links still require that DNS entry to resolve. Cached old-host managed image URLs are normalized to the new media path, and existing offline storage keys are retained.
+Backend and Home Assistant deployment and domain-root association publication are verified. Corrected native release 2.10.4/build 78 completes the app side; see [release delivery records](docs/releases.md) before retiring `ctr.coffeybean.com`. Existing old-host links still require that DNS entry to resolve. Cached old-host managed image URLs are normalized to the new media path, and existing offline storage keys are retained.
 
-Validation: changed Dart files were formatted and analyzed; 30 focused tests across `api_test.dart`, `recipe_sharing_test.dart`, and `sharing_timers_test.dart`, plus six iOS association and three Android association tooling tests passed. No app build, release or deployment was performed for this follow-up. Live public recipe and Home Assistant auth-config routes returned 200; both new root association files returned 404, and the live recipe page still contained old-host URLs. Those live gaps require deployment.
+Validation: changed Dart files were formatted and analyzed; 30 focused tests across `api_test.dart`, `recipe_sharing_test.dart`, and `sharing_timers_test.dart`, plus six iOS association and three Android association tooling tests passed. The subsequently authorized deployment fixed the live gaps: public recipe and Home Assistant auth-config routes return 200, both root association checkers pass, and the live recipe page uses the canonical URL without the old hostname. Native package delivery is recorded in `docs/releases.md`.
 
 The local PHP source remains available for development; the persistent database is hosted exclusively.
 

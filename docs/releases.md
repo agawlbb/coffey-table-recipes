@@ -1973,3 +1973,79 @@ assertions plus category/media fixtures, four selected data/AI WebSocket scenari
 and two HA transport scenarios passed. No full suite was run. No dependency,
 encryption or signing-identity change; retain exempt-encryption declarations and
 France exclusion. New Android/iOS packages and delivery verification follow below.
+
+
+### Home Assistant and iOS delivery
+
+Marketplace/HACS installed the corrected main source `071b76b`. All 16 component
+files were read through File editor and exactly matched the canonical checkout.
+The validating restart returned CTR to `loaded`; existing Google Keep, iCloud,
+work-calendar and interval settings were retained. Filtered system logs contained
+no CTR entries after restart. Canonical WebSocket upgrade returned 101. Deployment
+records are backend `293eba6`, HA `791fb39` and VPS `2a42109`.
+
+Signed iOS run
+[44202080929](https://github.com/agawlbb/coffey-table-recipes/actions/runs/44202080929)
+succeeded in 19m16s. Actual exported Runner, TimerWidget and ShareExtension match
+2.10.4/build 78 and source `6533a1c6c05573d9e91d8e27fc4fda4d9274dc4e`;
+strict signatures, App Store profiles, production APNs, App Groups, encryption
+declarations and hosted AASA against signed `applinks:coffeybean.com` passed.
+IPA SHA-256:
+`f1e25361c02396f2429fb77f4d929d564ec4e0d6ebeb2a56eb8b23e4cb479e50`.
+Archive succeeded November 17 at 23:57:58 UTC; export November 18 at 00:01:01 UTC;
+upload November 18 at 00:04:21 UTC. No downloadable IPA artifact is published.
+
+Direct read-only Apple queries verified build `b19ed6fe-22e3-4529-9c8c-a0b69aaa6452`
+as `VALID`, unexpired, `usesNonExemptEncryption=false`, `IN_BETA_TESTING`, with
+this exact build in the existing Family testers group's builds endpoint. No
+new testers, group settings or territories were changed; France stays excluded.
+The full log, signed receipt and asserted TestFlight delivery report are in
+ignored `build/release-2.10.4/`.
+
+
+### Android package and remaining Drive obstacle
+
+Android was built on VM-laptop from immutable `v2.10.4`, source
+`6533a1c6c05573d9e91d8e27fc4fda4d9274dc4e`, with existing private Firebase config
+and original signing identity. Signed APK:
+`build/release-2.10.4/CoffeyTableRecipes-2.10.4-build78.apk`, 71,874,201 bytes.
+SHA-256: `921a0e4de7c96d450c460ed1ca4bce530654f607f3836ae2d4878859fbf7bf70`.
+Certificate SHA-256:
+`f8de933f14b9bb4b3191a94aedc8637972c5ab224565f6abd7808f8038d12097`.
+Signature, version/build/package/source, non-debuggable status, 16 KiB ZIP
+alignment, native timer Kotlin classes, compiled HTTP/native WebSocket URLs,
+and native manifest `coffeybean.com` + `/ctr/recipes/` passed. Hosted Android
+association verification passed against the actual signing certificate.
+
+Drive publication is NOT complete. The standard publisher's upload timed out at
+600 seconds. Bounded immutable retries then returned Google HTTP 403
+`rateLimitExceeded`: Drive API project `202264815644`, `defaultPerMinutePerProject`
+Queries / previous Requests-per-minute quota (840000). After more than five
+minutes without Drive calls, a folder listing succeeded, but another unchanged
+APK upload failed with the same quota. A final single-large-chunk, slower-paced
+attempt also failed on the initial listing. No new Drive release file was visible
+in successful post-failure listings. Existing 2.10.3/build 77 and the unrelated
+NEGA APK remained; no release notification or old-file cleanup occurred.
+The APK remains available locally for direct delivery. No credentials, Drive
+permissions, folders, sharing settings or quota settings were changed.
+
+Logs and verification reports remain in ignored `build/release-2.10.4/`.
+The optional Google Drive connector was discovered but is not confirmed connected;
+it was not used. Resume the existing publisher with the verified APK/hash once
+Drive permits uploads, then verify the downloaded hash before notification/cleanup.
+No additional app build is needed. Do not report Android Drive delivery complete
+until that receipt succeeds.
+
+### Verification limits and DNS retirement
+
+Backend and HA deployments and internal TestFlight delivery are finished and
+verified; Android Drive upload remains the exact external obstacle above.
+Both native association documents were checked against actual signed identities.
+`adb devices -l` found no device, so installed-device cold/warm link opening,
+visual acceptance and physical-device timer behavior were not exercised.
+No full app/tooling suite, web build, DNS change or production test-data mutation
+was performed. Install 2.10.4/build 78 on all devices before retiring the alias;
+old `ctr.coffeybean.com` shared links/bookmarks still need its DNS entry to resolve.
+No further backend deployment or app build is needed; only Android publication is
+pending. The immutable tag remains on the release source; final records are pushed
+on main and all four repositories have clean synchronized default checkouts.

@@ -4,7 +4,7 @@ Release dates and changes are reconstructed from annotated Git tags, commit hist
 
 ## 2.10.4 — 2026-11-17
 
-Build 78; tag `v2.10.4`. iOS and Android release.
+Build 78; tag `v2.10.4`. iOS released; Android signed build is ready, with Google Drive publication blocked by its API project quota.
 
 - Move shared recipe links and native Android/iOS link associations to `coffeybean.com/ctr/recipes/`.
 - Resolve previously cached managed images through the new media path without clearing offline data.
