@@ -2,6 +2,14 @@
 
 Release dates and changes are reconstructed from annotated Git tags, commit history, and project release records. Versions before 1.0 are demonstration releases; 1.0 marks the first usable release. Android retains the existing signing identity; iOS delivery and signing are recorded for each release.
 
+## 2.11.2 — 2026-11-18
+
+Build 81; tag `v2.11.2`. iOS-only release preparation; delivery verification pending.
+
+- Fix Siri requests failing when the server sends normal progress updates before its final result.
+- Continue waiting through progress, snapshots and heartbeat replies; only the matching final response confirms success.
+- Preserve failure handling for interrupted connections and malformed or unrelated results.
+
 ## 2.11.1 — 2026-11-18
 
 Build 80; tag `v2.11.1`. iOS-only TestFlight release; delivery verified.
