@@ -48,7 +48,19 @@ jobs:
         with:
           ref: ${{ inputs.source_commit }}
       - name: Select Xcode
-        run: sudo xcode-select -s /Applications/Xcode_27.app/Contents/Developer
+        run: |
+          set -euo pipefail
+          export DEVELOPER_DIR=/Applications/Xcode_27.2.app/Contents/Developer
+          test -d "$DEVELOPER_DIR"
+          sudo xcode-select -s "$DEVELOPER_DIR"
+          echo "DEVELOPER_DIR=$DEVELOPER_DIR" >> "$GITHUB_ENV"
+          xcodebuild -version
+          [[ "$(xcodebuild -version)" == $'Xcode 27.2\nBuild version 27B52' ]]
+          for sdk in iphoneos; do
+            version="$(xcrun --sdk "$sdk" --show-sdk-version)"
+            echo "$sdk SDK: $version"
+            [[ "$version" == 27.2 ]] || { echo "::error::Expected $sdk SDK 27.2"; exit 1; }
+          done
       - name: Download and verify the existing signed package
         env:
           GH_TOKEN: ${{ github.token }}

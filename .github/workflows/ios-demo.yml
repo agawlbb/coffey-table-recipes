@@ -40,8 +40,18 @@ jobs:
           ref: ${{ inputs.release_tag || github.ref }}
       - name: Select Xcode with iOS 27 SDK
         run: |
-          sudo xcode-select -s /Applications/Xcode_27.app/Contents/Developer
+          set -euo pipefail
+          export DEVELOPER_DIR=/Applications/Xcode_27.2.app/Contents/Developer
+          test -d "$DEVELOPER_DIR"
+          sudo xcode-select -s "$DEVELOPER_DIR"
+          echo "DEVELOPER_DIR=$DEVELOPER_DIR" >> "$GITHUB_ENV"
           xcodebuild -version
+          [[ "$(xcodebuild -version)" == $'Xcode 27.2\nBuild version 27B52' ]]
+          for sdk in iphoneos iphonesimulator; do
+            version="$(xcrun --sdk "$sdk" --show-sdk-version)"
+            echo "$sdk SDK: $version"
+            [[ "$version" == 27.2 ]] || { echo "::error::Expected $sdk SDK 27.2"; exit 1; }
+          done
       - name: Install pinned Flutter
         run: |
           git clone --depth 1 --branch 3.47.8 https://github.com/flutter/flutter.git "$RUNNER_TEMP/flutter"
@@ -94,12 +104,13 @@ jobs:
       fail-fast: false
       matrix:
         include:
+          # Legacy toolchain/runtime compatibility only; xcode-27 has no iOS 26 runtime.
           - runner: macos-15
             runtime: '26'
             xcode: '26.3'
           - runner: xcode-27
             runtime: '27'
-            xcode: default
+            xcode: '27.2'
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 35
     steps:
@@ -108,10 +119,17 @@ jobs:
         env:
           XCODE_VERSION: ${{ matrix.xcode }}
         run: |
-          if [[ "$XCODE_VERSION" != default ]]; then
-            sudo xcode-select -s "/Applications/Xcode_${XCODE_VERSION}.app/Contents/Developer"
-          fi
+          set -euo pipefail
+          export DEVELOPER_DIR="/Applications/Xcode_${XCODE_VERSION}.app/Contents/Developer"
+          test -d "$DEVELOPER_DIR"
+          sudo xcode-select -s "$DEVELOPER_DIR"
+          echo "DEVELOPER_DIR=$DEVELOPER_DIR" >> "$GITHUB_ENV"
           xcodebuild -version
+          [[ "$(xcodebuild -version | head -n 1)" == "Xcode $XCODE_VERSION" ]]
+          if [[ "$XCODE_VERSION" == 27.2 ]]; then
+            [[ "$(xcodebuild -version | tail -n 1)" == "Build version 27B52" ]]
+            [[ "$(xcrun --sdk iphonesimulator --show-sdk-version)" == 27.2 ]]
+          fi
           xcrun simctl list runtimes
       - name: Install pinned Flutter
         run: |
