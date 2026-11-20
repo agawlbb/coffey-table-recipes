@@ -4,7 +4,7 @@ import importlib.util
 from pathlib import Path
 import unittest
 
-spec = importlib.util.spec_from_file_location("engine", Path(__file__).parents[1] / "custom_components/coffey_table_recipes/keep_engine.py")
+spec = importlib.util.spec_from_file_location("engine", Path(__file__).parents[2] / "custom_components/coffey_table_recipes/keep_engine.py")
 module = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(module)
 Engine, SyncBlocked = module.Engine, module.SyncBlocked

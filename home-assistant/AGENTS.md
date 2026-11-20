@@ -10,7 +10,7 @@ Apple builds retain the existing macOS runner exception under that procedure.
 
 ## Repository workflow
 
-Canonical repository: `agawlbb/home-assistant-coffey-table-recipes`; default branch: `main`.
+Canonical repository: `agawlbb/coffey-table-recipes`; default branch: `main`.
 Follow the VM-wide working procedure in `/home/dev/projects/AGENTS.md`.
 Use the existing checkout on `main`, one task at a time; no routine task
 branches, extra worktrees or ownership claims. Commit and push completed source changes to `main`.
@@ -21,7 +21,7 @@ whether deployment and an app build are needed; do not automatically do either.
 
 ## Project boundaries
 
-- This standalone Home Assistant integration, the Flutter client and PHP server remain separate repositories. Existing laptop integration checkout: `C:\Users\mailb\StudioProjects\home-assistant-coffey-table-recipes`.
+- This integration belongs to the combined repository. Its runtime source is in root `custom_components/`; support files and tests are in `home-assistant/`.
 - Keep credentials, tokens, private Firebase settings, Home Assistant account backups and personal data out of Git. Do not create another remote repository or rewrite published history without explicit authorization.
 - Follow the user's requested scope. Instruction changes do not authorize functionality/dependency changes, builds, installation, deployment, releases, or repository/security settings changes. Do not automatically update a running Home Assistant installation; deploy only when explicitly requested.
 

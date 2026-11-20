@@ -12,8 +12,10 @@ Requires Home Assistant 2025.12 or later and internet access to coffeybean.com
 and Google's Firebase Authentication service. This is a custom integration,
 not an official Home Assistant Core integration.
 
-Add [this repository](https://github.com/agawlbb/home-assistant-coffey-table-recipes)
+Add [this repository](https://github.com/agawlbb/coffey-table-recipes)
 to **HACS → Custom repositories**, choose **Integration**, and download CoffeyTableRecipes.
+Select the `main` branch when downloading through HACS until a combined release contains the integration; older mobile app tags predate this consolidation.
+
 Alternatively copy `custom_components/coffey_table_recipes` into your Home
 Assistant `config/custom_components` folder. Restart Home Assistant.
 

@@ -1,0 +1,23 @@
+name: Validate integration
+on: [workflow_dispatch]
+permissions:
+  contents: read
+jobs:
+  tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.14'
+      - name: Install patched CI harness
+        run: |
+          python -m pip install uv==0.13.4
+          uv pip install --system --override home-assistant/scripts/ci-overrides.txt -r home-assistant/requirements-test.txt
+      - run: python home-assistant/scripts/check_ci_dependencies.py
+      - run: python -m pip_audit --progress-spinner off
+      - run: python -m unittest discover -s home-assistant/tests -p test_api.py -v
+      - run: python -m unittest discover -s home-assistant/tests -p test_shopping_socket.py -v
+      - run: python -m unittest discover -s home-assistant/tests -p test_keep_engine.py -v
+      - run: python -m unittest discover -s home-assistant/tests -p test_keep_adapter.py -v
+      - run: python -m pytest -c home-assistant/pytest.ini home-assistant/tests/test_integration.py home-assistant/tests/test_keep_native.py -v

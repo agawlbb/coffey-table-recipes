@@ -36,7 +36,7 @@ fake_modules = {
     "homeassistant.util": stub("homeassistant.util"),
     "homeassistant.util.dt": stub("homeassistant.util.dt", utcnow=lambda: NS(isoformat=lambda: "now")),
 }
-directory = Path(__file__).parents[1] / "custom_components/coffey_table_recipes"
+directory = Path(__file__).parents[2] / "custom_components/coffey_table_recipes"
 spec = importlib.util.spec_from_file_location("keep_adapter_test", directory / "keep_sync.py", submodule_search_locations=[str(directory)])
 module = importlib.util.module_from_spec(spec)
 sys.modules[spec.name] = module

@@ -3,6 +3,7 @@
 Run preparation, dependencies, selected tests and Git in VM-laptop's existing
 checkout using `dev COMMAND...`, from the clean committed default branch.
 Use VM-only test credentials. Deploy only when explicitly requested.
+Run the commands below from `backend/` in this combined checkout.
 From `dev bash`, use standard rsync and `ssh vps-admin` with the existing pairing.
 Transfer prepared files only, preserving private settings, runtime state and
 infrastructure. Never build images or install dependencies on the VPS.

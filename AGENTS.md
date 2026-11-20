@@ -31,7 +31,7 @@ Apple builds retain the existing macOS runner exception under that procedure.
 
 - Commit completed changes after appropriate verification. Include documentation and meaningful validation in the commit where applicable.
 - Keep credentials, local Firebase configuration, signing keys, generated builds and personal import source files out of Git.
-- This repository contains the Flutter app. The PHP server is a separate repository at `C:\xampp\htdocs\CoffeyTableRecipes`. When changing both, commit each repository independently.
+- This repository contains the Flutter app at root, PHP backend in `backend/`, and Home Assistant integration in `custom_components/` with support files in `home-assistant/`. Commit related changes together.
 - Do not create remote repositories, overwrite unrelated changes, or rewrite history without explicit authorization. Inspect workflow push triggers before pushing; do not trigger unrelated builds or releases. Do not deploy automatically; deployment requires an explicit user request.
 
 ## Repository workflow
@@ -55,7 +55,7 @@ whether deployment and an app build are needed; do not automatically do either.
 
 # Hosted development workflow
 
-- For a requested release, use the default branches of the Flutter and PHP repositories. Commit and push the requested work in each affected repository before tagging or publishing. Preserve unrelated or unmerged work and report any conflict instead of silently including it. Honor explicit source-only or local-only requests.
+- For a requested release, use the combined repository default branch. Commit and push the requested work before tagging or publishing. Preserve unrelated or unmerged work and report any conflict instead of silently including it. Honor explicit source-only or local-only requests.
 
 - Release completion includes verified installed-app recipe links. Before reporting a release complete, verify the domain-root Android assetlinks.json against the actual released APK certificate and iOS apple-app-site-association against the signed app identity/entitlements. Publish missing associations while preserving other apps' entries, and test OS link resolution where possible. A successful web deployment alone does not verify native app links. Run `python tool/verify-app-links.py --fingerprint ACTUAL_APK_CERTIFICATE_SHA256` for Android; update its default if the signing identity changes.
 
@@ -68,10 +68,10 @@ whether deployment and an app build are needed; do not automatically do either.
 
 - CTR backend and persistent MariaDB run on the VPS at ctr.coffeybean.com. InMotion CTR web hosting was retired on 2026-11-05; InMotion retains SMTP only. Do not rebuild or publish the retired web app as part of a release, re-enable its workflows, or recreate its hosted files/databases without an explicit user request. See docs/inmotion-retirement.md.
 - Commit and push requested backend source changes. Deploy backend or database changes only when the user explicitly requests deployment; identify pending deployment in every answer.
-- Changes to the app itself are developed and tested in the chosen working environment using coffeybean.com as the backend. The existing laptop PHP checkout is `C:\xampp\htdocs\CoffeyTableRecipes`; use the existing VM checkout for current work. Flutter source changes belong in this repository.
+- Changes to the app itself are developed and tested in the chosen working environment using coffeybean.com as the backend. Use `backend/` in this VM checkout for PHP work. Flutter source changes belong in this repository.
 - The hosted web app is retired. A release/tag does not authorize restoring web hosting.
 - Native app builds require an explicit build or release request as stated above; future releases omit web builds/publication.
-- Use ctr.coffeybean.com as the hosted testing backend when live checks are authorized. Development tests use isolated fixtures, not production data. Preserve the separate PHP repositories as source history; do not restore the retired InMotion backend.
+- Use ctr.coffeybean.com as the hosted testing backend when live checks are authorized. Development tests use isolated fixtures, not production data. Preserve the archived PHP repositories as historical evidence; do not restore the retired InMotion backend.
 - Use the Codex built-in browser for work whenever possible. Use Chrome only to investigate Chrome-specific problems identified by the user.
 
 ## Keep the project simple

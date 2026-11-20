@@ -20,7 +20,7 @@ adding complexity. Stay within the requested behavior; no unsolicited features.
 
 ## Repository workflow
 
-Canonical repository: `agawlbb/coffey-table-recipes-vps`; default branch: `main`.
+Canonical repository: `agawlbb/coffey-table-recipes`; default branch: `main`.
 Follow the VM-wide working procedure in `/home/dev/projects/AGENTS.md`.
 Use the existing checkout on `main`, one task at a time; no routine task
 branches, extra worktrees or ownership claims. Commit and push completed source changes to `main`.
@@ -29,7 +29,7 @@ Questions and status checks are read-only. Preserve unrelated work and credentia
 Deploy only when the user explicitly requests deployment. In every answer state
 whether deployment and an app build are needed; do not automatically do either.
 
-This is the VPS backend only. InMotion remains a separate server repository.
+This directory contains the VPS backend in the combined repository. InMotion is retired.
 Do not create repositories, rewrite published history or change protections
 unless explicitly requested.
 

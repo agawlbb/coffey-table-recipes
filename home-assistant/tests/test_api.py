@@ -9,7 +9,7 @@ import unittest
 from unittest.mock import AsyncMock
 
 # Load just the client under an isolated package, leaving HA lifecycle untouched.
-ROOT = Path(__file__).resolve().parents[1] / "custom_components/coffey_table_recipes"
+ROOT = Path(__file__).resolve().parents[2] / "custom_components/coffey_table_recipes"
 pkg = types.ModuleType("ctr_client_test")
 pkg.__path__ = [str(ROOT)]
 sys.modules[pkg.__name__] = pkg

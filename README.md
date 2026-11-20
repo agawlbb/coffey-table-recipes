@@ -1,3 +1,17 @@
+# CoffeyTableRecipes
+
+This is the canonical repository for the mobile app, VPS backend and Home Assistant integration.
+
+| Component | Source | Instructions |
+| --- | --- | --- |
+| Flutter mobile app | Repository root (`lib/`, `android/`, `ios/`) | Existing app documentation below |
+| VPS backend | `backend/` | [Backend README](backend/README.md), [deployment](backend/DEPLOYMENT.md) |
+| Home Assistant | `custom_components/coffey_table_recipes/` | [Integration README](home-assistant/README.md), support/tests in `home-assistant/` |
+
+HACS metadata and `custom_components/` remain at root. Add `agawlbb/coffey-table-recipes` as the HACS custom integration repository and select `main` until the next combined release. Existing installations continue running; this consolidation does not deploy anything.
+
+See [consolidation record](docs/repository-consolidation.md) for preserved history and rollback details.
+
 # Coffey Table Recipes
 
 Flutter client for Android, iOS, and responsive web. The PHP API lives in `C:\xampp\htdocs\CoffeyTableRecipes`.
