@@ -1,0 +1,335 @@
+# Validation — October 18, 2026
+
+## Current CI dependencies — October 20, 2026
+
+Commit `ad41764` passed all 57 tests in
+[Linux CI run 39411036851](https://github.com/agawlbb/home-assistant-coffey-table-recipes/actions/runs/39411036851)
+using Python 3.14, pytest-homeassistant-custom-component 0.13.373,
+Home Assistant 2026.10.2 and aiohttp 3.14.5. The obsolete pycares restriction and
+older Home Assistant fixture pin were removed. The current resolver installed
+aiodns 4.0.4 and pycares 5.2.1 without the former compatibility workaround.
+
+`python -m pip check` passed. pip-audit 2.10.1 audited the installed environment
+and reported no known vulnerabilities; no advisories were suppressed. CI now
+checks dependency consistency and runs that audit before every test run.
+Tests are invoked with `python -m pytest` so project imports remain available
+under the updated pytest stack. These changes affect CI/development dependencies
+only; no installed Home Assistant packages, integration runtime code, or app
+builds were changed. Audit results reflect the advisory data available at the
+time of that run, rather than a guarantee against future vulnerabilities.
+
+## Reduced service surface — October 20, 2026 (0.4.1)
+
+Runtime commit `2de3550` passed all 57 tests in
+[Linux CI run 39407925976](https://github.com/agawlbb/home-assistant-coffey-table-recipes/actions/runs/39407925976).
+The unused configuration-deletion and component-archiving functionality was
+removed entirely, together with its setup compatibility path, metadata,
+documentation and obsolete tests. A real HA regression test verifies that the
+domain registers exactly `sync_google_keep` and `sync_icloud`.
+
+The targeted one-time metadata cleanup separately passed
+[run 39407598047](https://github.com/agawlbb/home-assistant-coffey-table-recipes/actions/runs/39407598047),
+including preservation of unrelated connection data and current item mappings.
+That temporary cleanup was applied on the installed instance, verified through
+read-only storage inspection, then removed from the final source.
+
+Obsolete installed source archives, orphaned item storage, local archived source,
+deployment packages and outdated deployment notes were deleted. Current working
+files were searched for stale references. Existing Git history and full-system
+backup snapshots were not rewritten or deleted.
+
+Installed 0.4.1 through HACS and verified after restart: both Keep and iCloud
+reported `synced` with no errors or changes; all three lists matched their
+pre-update snapshots. The live domain exposed exactly the two native sync
+actions. Read-only inspection confirmed the removed functionality and obsolete
+metadata were absent from installed source, and the obsolete component,
+dedicated recovery directory and orphaned store were absent from disk.
+
+## Optional Apple iCloud list synchronization — October 19, 2026 (0.4.0)
+
+Runtime commit `21d3a2e` passed all 60 tests in
+[Linux CI run 39244468045](https://github.com/agawlbb/home-assistant-coffey-table-recipes/actions/runs/39244468045).
+The 37 isolated API/engine/Keep-adapter tests also passed locally on Windows.
+Seven new real-HA tests cover iCloud mapping and status persistence, failed and
+partially decrypted refreshes without writes, preservation of Apple notes/due
+dates in service calls, scoped app requests, CTR/HA edit triggers, 60-second
+polling, unloading, optional selection/clearing, list ownership, and Apple-to-CTR
+renaming with CTR departments retained. Remote Apple/CTR responses are mocked in
+these tests; the existing reconciliation engine's bidirectional and duplicate
+checks are reused.
+
+The adapter follows Home Assistant 2026.10.2's iCloud reminder coordinator and
+native To-do actions, using the existing iCloud account. Refresh failures and
+skipped unreadable reminders block reconciliation. No Apple credentials, private
+list identities, or household contents are included in this repository.
+
+Installed through HACS and restarted Home Assistant successfully. The live CTR
+entry loaded, its options schema exposes an optional selector restricted to
+`icloud` To-do entities, and the new Apple synchronization sensor reports
+`disabled` until a list is selected. Existing Keep synchronization resumed as
+`synced` with its 15 mappings and no changes. No Apple list was selected or
+modified during this installation check; real Apple end-to-end reconciliation
+remains unverified. The optional selector lets the household choose its list.
+
+## Native Google Keep synchronization (0.3.0)
+
+The API, reconciliation engine, adapter and HA lifecycle tests passed in
+[Linux CI run 39156956847](https://github.com/agawlbb/home-assistant-coffey-table-recipes/actions/runs/39156956847).
+Live temporary-item checks verified additions and deletions in both directions,
+Keep rename/check/uncheck delivery to CTR, CTR check/uncheck delivery to Keep,
+scoped synchronization requests and 60-second polling. Original item identities
+and CTR departments were preserved after test items were removed.
+
+Runtime source: `3b6010611afc25a27fadf78d2cee19ea4d228eed`.
+All tests passed in [Linux CI run 39148209297](https://github.com/agawlbb/home-assistant-coffey-table-recipes/actions/runs/39148209297):
+
+- 10 isolated client tests: add/check/uncheck/rename/remove, stable IDs across
+  conflict retries, preservation of concurrent edits/departments, bounded
+  conflicts, missing items, no replay after uncertain network failures, transient
+  login credentials, malformed snapshots, and safe HTTP authorization errors.
+- 7 tests using real Home Assistant 2025.12.0 and its test fixtures: sign-in and
+  household-only stored credentials, invalid login/member-only denial, duplicate
+  household prevention, complete and incomplete To-do items, event entity and bus
+  delivery without duplicate unchanged events, standard To-do actions, auth-failure
+  reauthentication, options/reload, original-household enforcement and unloading.
+
+The 10 client tests also passed locally on Windows. Installing the full HA test
+environment locally was blocked by a native C dependency requiring Visual C++;
+the full integration suite ran successfully on Linux instead. The test
+dependencies pin pycares below 5 to match the older HA test environment's aiodns.
+
+## Hosted backend
+
+Deployed server commit `7c2e3742b37d67611ed82bcc3386b8aeee6652cd` passed
+[backend deployment run 39147995236](https://github.com/agawlbb/coffey-table-recipes-server/actions/runs/39147995236).
+Local PHP connection fixtures and shopping-list fixtures passed. Four new
+deployment configuration tests passed, and the backend workflow passed its full
+PHP/Python checks. No new database schema was required.
+
+Independent HTTPS checks verified the matching backend receipt, HTTP 200 health,
+HTTP 401 on unauthenticated list reads, revocation and connection management,
+and HTTP 403 for private configuration and connection storage. The public
+Firebase client identifier is available through the setup endpoint. An
+intentionally nonexistent fixture login produced Firebase's expected invalid
+credentials response, verifying the configured sign-in boundary without using a
+real account or creating users.
+
+## Limits of verification
+
+No real household shopping items were modified and no live HA installation was
+changed. Successful real-account sign-in and interactive appearance on the user's
+HA installation still need an installation check. Config flow and entity behavior
+are verified through Home Assistant's real test framework with mocked remote
+responses. Polling provides snapshot change notifications, not guaranteed delivery
+of every intermediate app edit. Google popup sign-in is not implemented; use a
+password method linked to the existing account. No Flutter builds were produced.
+
+## External list synchronization requests (0.2.0)
+
+Runtime commit `961b791` passed [Linux run 39148980874](https://github.com/agawlbb/home-assistant-coffey-table-recipes/actions/runs/39148980874):
+10 client tests and 9 real HA lifecycle tests. The new checks deliver multiple
+requests without item changes, verify the separate event entity and bus payloads,
+persist the request cursor without reloading on each event, suppress repeats
+after polling/reload, and baseline existing history on initial connection.
+
+The Flutter source passed 11 focused widget checks and source analysis, including
+once-per-opening requests and nonblocking failures. App commit `51221f5` is source
+only; no app build or hosted Flutter deployment was requested or produced.
+The PHP request-journal fixtures passed persistence, household isolation, ordered
+IDs, non-mutating reads and the 128-request retention bound. Delivery of a real
+app-open event through an installed HA instance remains unverified.
+
+Backend synchronization support was deployed successfully as
+`8ec35404908a745cc549735580e8c3164d9c124b` in
+[run 39148973036](https://github.com/agawlbb/coffey-table-recipes-server/actions/runs/39148973036).
+Independent HTTPS checks confirmed the matching receipt, HTTP 200 health,
+HTTP 401 for unauthenticated request creation and integration reads, HTTP 405
+for GET on the POST-only request endpoint, and HTTP 403 on journal storage.
+No real household data or sync requests were changed during hosted verification.
+
+## Patched CI harness - October 21, 2026
+
+Home Assistant 2026.10.2 pins vulnerable uv 0.12.23 and Pillow 12.3.0.
+The CI-only overrides install uv 0.13.4 and Pillow 13.0.0; they do not modify
+an installed Home Assistant system. The dependency checker permits precisely
+these two upstream metadata discrepancies and rejects any others. Advisory
+checking remains enabled without suppressions, followed by the complete suite.
+
+On JoeLaptop, Python 3.14.8 installed this environment successfully. The
+version/consistency checks and PNG/TIFF/JPEG round trips passed, as did all 35
+isolated API, Keep engine and adapter tests. Full HA pytest startup requires
+POSIX fcntl, unavailable on Windows; Linux CI supplies that runtime validation.
+
+## Shopping WebSocket migration — 2026-10-28
+
+Task branch: `migration/shopping-websocket`, based on `aa5fc4f`.
+
+Verified in the existing shared development container:
+
+- `python -m pytest -q --tb=short`: all 61 tests passed using the existing HA test
+  environment (Python 3.14). Lifecycle fixtures isolate external network access.
+- `python -m unittest discover -s tests -p test_api.py`: 10 passed.
+- `python -m unittest discover -s tests -p test_shopping_socket.py -v`: four passed,
+  including a real loopback WebSocket, durable offline deletion/restart/replay,
+  storage failure, and overlay of unrelated incoming additions.
+- The backend's `tests/shopping_websocket.py` passed all three tests with
+  `CTR_HA_SOURCE` pointing to this worktree. This includes the actual HA client
+  exchanging committed changes with the PHP WebSocket handler and simulated app.
+- Python compilation and `git diff --check` passed.
+
+No running Home Assistant installation was changed. Real-user sign-in, public
+TLS/WSS, hosted schema import, sync-journal transfer and production cutover remain
+pending. Source publication does not establish those results or authorize merging.
+
+
+## Completed backend branch state — 2026-10-28
+
+The backend branch now unconditionally retires legacy shopping HTTP routes and
+uses SQL-only HA credentials, with deployment-time import included. The existing
+HA credential record and journal are installed privately on the VPS, and the
+shared credential hash was imported and verified. Public WSS authenticated read
+and open-connection revocation passed against the prepared VPS service and hosted
+database. The integration source is unchanged from the passing 61-test run; no
+running HA installation was updated.
+
+## Keep blank-separator recovery — 2026-10-31
+
+Live diagnosis found Keep synchronization `not_confirmed` with the error
+`List exceeds 1000 items or contains blank separators; sync stopped`.
+CTR's app-open requests reached Home Assistant, and iCloud synchronization
+continued succeeding. An adapter regression reproduced the failure when a
+blank, unpaired Keep row accompanied valid items.
+
+Repair `d53b633` leaves unpaired blank Keep rows untouched while synchronizing
+real items. A previously mapped item cleared to blank still blocks safely,
+preventing an inferred deletion of its CTR counterpart. The new regression
+failed before the fix. All 27 Keep engine/adapter unit tests and 22 native
+Keep/iCloud and integration lifecycle tests passed afterward.
+
+With explicit user installation approval, refreshed HACS repository information,
+downloaded the integration's main branch, and restarted Home Assistant through
+the configuration-validating restart tool. HACS confirmed installed commit
+`d53b633`; the CTR config entry loaded with its existing Keep/iCloud selections.
+Keep's startup reconciliation completed at 14:06:36 UTC with `synced`, no error,
+15 catch-up operations and 17 mapped items. Independent reads of Keep and CTR
+returned 17 items each with identical name/status multisets, including duplicate
+counts. No synthetic groceries were added for validation.
+
+A manual `coffey_table_recipes.sync_google_keep` completed at 14:07:14 UTC with
+`synced`, zero changes and no error. The subsequent automatic poll at 14:07:18 UTC
+also confirmed zero-change synchronization. No CTR errors appeared in the
+post-restart system log. iCloud's last-success advanced after restart as well.
+No Flutter app build, app deployment, Core upgrade or OS upgrade was performed.
+
+
+## Remaining VPS migration
+
+Branch `feature/vps-remaining-php` starts at `7ad6e5e`. HTTP bootstrap, household
+selection, connection creation and revocation now use `https://ctr.coffeybean.com/api/v1`.
+The existing shopping WebSocket and durable outbox are unchanged. Transport tests
+cover the full Firebase-to-household-connection sequence without retaining personal
+credentials. API and socket unit tests and integration lifecycle tests pass in the
+development container. Installation was subsequently authorized; see below.
+
+## Installed VPS feature integration — 2026-10-31
+
+The user explicitly authorized updating the installed integration. HACS downloaded
+`feature/vps-remaining-php`, whose component source is commit
+`a3b9e093cae1bdb87f75e05b81b42ed71f4957cb`. Home Assistant restarted through the
+configuration-validating restart tool and the existing CTR config entry loaded.
+No config entry was removed/recreated. The household connection, Google Keep and
+iCloud list selections and 10-second scan interval were preserved; before/after
+option mappings compare equal.
+
+All 15 installed Python/JSON/YAML component files were read through the existing
+File editor app's read-only API and compared by SHA-256 with the feature checkout:
+zero mismatches. The actual installed `const.py` points to
+`https://ctr.coffeybean.com/api/v1`. HACS reports the feature branch installed.
+
+The shopping entity is available. Google Keep and iCloud both completed fresh
+post-restart synchronization with `synced`, zero changes and no error. Observed
+last-success times were 18:09:58 UTC for Keep and 18:10:11 UTC for iCloud. A filtered
+system-log read returned no CTR errors. No synthetic groceries were created and
+no personal credentials, list contents or HA storage files were read or committed.
+This verifies the existing connection after restart, not a fresh user sign-in.
+
+The HomeAssistant plugin and its best-practices guide were used for HACS,
+configuration-validating restart and live verification. No main merge, release,
+Home Assistant Core/OS upgrade or additional app build was performed.
+
+## Accepted main merge — 2026-10-31
+
+The user approved merging the remaining-PHP branches and removing them, while
+deferring the app release for AI dish chat and retaining the live InMotion backend.
+Before merging, all 15 installed component files were compared again by SHA-256
+with the accepted source: zero mismatches. API tests (11), shopping socket tests
+(4) and integration lifecycle tests (9) passed in the development container.
+HACS tracking is switched to main after publication, before branch removal.
+
+
+## Work calendar task (2026-11-10)
+
+Base `73f5a3a`, task branch `feat/work-calendar`. Four new calendar checks cover
+arbitrary titles, all-day/timed/overnight boundaries and timezone conversion,
+subscription/state/poll-driven replacement and deletion, unavailable calendar
+preservation, unload cleanup, selecting/clearing the option, and clearing markers.
+These four checks plus the modified real loopback WebSocket transport test passed
+(`pytest -q tests/test_work_calendar.py tests/test_shopping_socket.py -k
+'work_calendar or transport_authenticates'`: 5 passed, 3 deselected). The existing
+options check passed earlier with the calendar checks (3 passed, 8 deselected).
+Three unchanged shopping socket checks also passed in the initial focused run.
+No complete suite, running HA installation, production calendar, or deployment
+was used. Source commits use `[skip ci]` to avoid the existing full-suite push
+workflow; no build, installation or release is triggered.
+
+
+## Authorized work calendar installation — 2026-11-10
+
+The owner requested backend setup, HA installation and a temporary Android APK.
+HACS refreshed repository information and downloaded `feat/work-calendar` at
+`d8ffc96a0bbda99e835ff6f6c003050e92fd6d2a`. All 16 Python/JSON/YAML component
+files were read via File editor's read-only API under `/homeassistant` and compared
+with the task checkout: zero differences. The `/config` alias is outside File
+editor's enforced base path on this instance; no access settings were changed.
+Home Assistant 2026.11.0 restarted via the configuration-validating restart tool;
+CTR returned loaded and its options schema included Work calendar.
+
+Selected `calendar.joe_s_work_schedule_work_calendar` via the existing options
+flow. Before/after comparison retained the Google Keep and iCloud selections and
+10-second refresh interval. A native read of the selected calendar returned nine
+all-day events; their occupied dates exactly matched the nine dates read from the
+new backend table through its normal runtime database identity. The stored default
+color is amber. No calendar events or synthetic shopping/meal data were created.
+A filtered HA system log read returned no CTR errors after restart and selection.
+This verifies real HA-to-backend delivery; editing/deletion behavior was covered
+by the focused fixtures, not by changing the owner's production events.
+
+The HomeAssistant plugin and its
+[best-practices skill](skill://home-assistant-best-practices/SKILL.md) were used for
+HACS, the validating restart, options and verification. No Core/OS upgrade, main
+integration, full suite or release was performed. The prior main source remains
+the source rollback; existing HA configuration/data was retained.
+
+
+## Authorized apex endpoint installation — 2026-11-17
+
+The owner authorized completing the CTR migration, including the installed HA
+integration. Marketplace/HACS refreshed information and downloaded default branch
+main at source `071b76b`. All 16 tracked Python/JSON/YAML component files were
+read back via File editor under `/homeassistant/custom_components/coffey_table_recipes`
+and compared with the canonical checkout: zero differences. Actual installed
+HTTP and WebSocket constants use `coffeybean.com/ctr`.
+
+The configuration-validating restart succeeded. CTR returned `loaded`; the
+Google Keep and iCloud selections, work calendar and 10-second interval were
+retained. A filtered system-log read after restart returned no CTR entries.
+Canonical public HA auth-config returned HTTPS 200 and the WebSocket endpoint
+upgraded with 101 without credentials or live mutations. This confirms installed
+code and integration startup, not user shopping edits or calendar changes.
+No user data was synthesized, no Core/OS upgrade was performed and no complete
+suite was run. The two focused source HTTP/real-socket tests had already passed.
+
+The [Home Assistant best-practices skill](skill://home-assistant-best-practices/SKILL.md)
+and Marketplace, File editor proxy, validating restart and integration/log tools
+were used. No entity IDs or existing configuration options were changed. Old-host
+DNS is still needed for clients not yet updated and existing old-host shared links.

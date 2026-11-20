@@ -1,0 +1,160 @@
+"""Adapter tests with remote clients mocked; no live list writes."""
+import importlib.util
+from pathlib import Path
+import sys
+from types import ModuleType, SimpleNamespace as NS
+import unittest
+from unittest.mock import AsyncMock, Mock, patch
+
+
+def stub(name, **attributes):
+    result = ModuleType(name)
+    result.__dict__.update(attributes)
+    return result
+
+
+class HAError(Exception):
+    pass
+
+
+def mark_callback(function):
+    function._hass_callback = True
+    return function
+
+
+fake_modules = {
+    "voluptuous": stub("voluptuous"),
+    "homeassistant": stub("homeassistant"),
+    "homeassistant.components": stub("homeassistant.components", persistent_notification=NS(async_create=Mock(), async_dismiss=Mock())),
+    "homeassistant.const": stub("homeassistant.const", Platform=NS(SENSOR="sensor")),
+    "homeassistant.core": stub("homeassistant.core", SupportsResponse=NS(OPTIONAL="optional"), callback=mark_callback),
+    "homeassistant.exceptions": stub("homeassistant.exceptions", HomeAssistantError=HAError),
+    "homeassistant.helpers": stub("homeassistant.helpers", entity_registry=NS(async_get=lambda hass: hass.registry)),
+    "homeassistant.helpers.dispatcher": stub("homeassistant.helpers.dispatcher", async_dispatcher_send=lambda *a: None),
+    "homeassistant.helpers.event": stub("homeassistant.helpers.event", async_track_time_interval=lambda *a: lambda: None),
+    "homeassistant.helpers.storage": stub("homeassistant.helpers.storage", Store=lambda *a: NS(async_save=AsyncMock(), async_load=AsyncMock(return_value=None))),
+    "homeassistant.util": stub("homeassistant.util"),
+    "homeassistant.util.dt": stub("homeassistant.util.dt", utcnow=lambda: NS(isoformat=lambda: "now")),
+}
+directory = Path(__file__).parents[1] / "custom_components/coffey_table_recipes"
+spec = importlib.util.spec_from_file_location("keep_adapter_test", directory / "keep_sync.py", submodule_search_locations=[str(directory)])
+module = importlib.util.module_from_spec(spec)
+sys.modules[spec.name] = module
+with patch.dict(sys.modules, fake_modules):
+    spec.loader.exec_module(module)
+
+
+class AdapterTests(unittest.IsolatedAsyncioTestCase):
+    def make_adapter(self):
+        entry = NS(entry_id="adapter", data={"ctr_entry": "ctr", "keep_entry": "keep", "keep_list_id": "list",
+                                         "ctr_unique": "ctr_unique", "keep_unique": "keep_unique"})
+        ctr = NS()
+        import asyncio
+        ctr._snapshot_lock = asyncio.Lock()
+        ctr.client = NS(read=AsyncMock(return_value={"items": [{"id": "c", "name": "Milk", "checked": False}]}))
+        ctr.accept = lambda state: state
+        ctr.async_set_updated_data = Mock()
+        ctr.change = AsyncMock()
+        keep = NS(api=NS(fetch_all_lists=AsyncMock(return_value=[NS(id="list", trashed=False, deleted=False,
+                    items=[NS(id="k", text="Milk", checked=False, deleted=False)])]),
+                    async_create_todo_item=AsyncMock(), async_delete_todo_item=AsyncMock(), async_update_todo_item=AsyncMock()),
+                  config_entry=NS(data={"lists_to_sync": ["list"]}), async_set_updated_data=Mock())
+        entries = {"ctr": NS(state=NS(value="loaded"), entry_id="ctr", runtime_data=ctr),
+                   "keep": NS(state=NS(value="loaded"), entry_id="keep", data={"lists_to_sync": ["list"]})}
+        registry = NS(async_get_entity_id=lambda domain, platform, unique: platform,
+                      async_get=lambda entity: NS(config_entry_id="ctr" if entity == "coffey_table_recipes" else "keep", disabled_by=None))
+        hass = NS(config_entries=NS(async_get_entry=entries.get, async_entries=lambda domain: []), registry=registry,
+                  data={"google_keep_sync": {"keep": keep}})
+        adapter = module.KeepSync(hass, entry, entry.data)
+        return adapter, ctr, keep
+
+    async def test_fresh_read_maps_only_selected_lists(self):
+        adapter, ctr, keep = self.make_adapter()
+        result = await adapter.read()
+        self.assertEqual(result["left"]["c"], result["right"]["k"])
+        ctr.async_set_updated_data.assert_called_once()
+        keep.async_set_updated_data.assert_called_once()
+
+    async def test_keep_network_failure_does_not_read_or_write_ctr(self):
+        adapter, ctr, keep = self.make_adapter()
+        keep.api.fetch_all_lists.side_effect = ConnectionError()
+        result = await adapter.sync("ctr_request")
+        self.assertEqual(result["status"], "not_confirmed")
+        ctr.client.read.assert_not_awaited()
+        ctr.change.assert_not_awaited()
+        self.assertIsNone(result["last_success"])
+
+    async def test_blank_keep_separator_does_not_block_sync_or_get_deleted(self):
+        adapter, ctr, keep = self.make_adapter()
+        keep.api.fetch_all_lists.return_value[0].items.extend([
+            NS(id="blank", text="", checked=False, deleted=False),
+            NS(id="whitespace", text=" \n\t", checked=True, deleted=False),
+        ])
+        result = await adapter.sync("ctr_request")
+        self.assertEqual(result["status"], "synced")
+        self.assertEqual(len(adapter.state["rows"]), 1)
+        ctr.change.assert_not_awaited()
+        keep.api.async_delete_todo_item.assert_not_awaited()
+
+    async def test_cleared_mapped_keep_item_does_not_delete_ctr_item(self):
+        adapter, ctr, keep = self.make_adapter()
+        adapter.state = {"rows": [{"left": "c", "right": "k", "base": {
+            "summary": "Milk", "status": "needs_action"}}]}
+        keep.api.fetch_all_lists.return_value[0].items[0].text = ""
+        result = await adapter.sync("poll")
+        self.assertEqual(result["status"], "not_confirmed")
+        ctr.change.assert_not_awaited()
+        keep.api.async_delete_todo_item.assert_not_awaited()
+
+    async def test_ctr_network_failure_cannot_look_like_empty_list(self):
+        adapter, ctr, keep = self.make_adapter()
+        ctr.client.read.side_effect = ConnectionError()
+        result = await adapter.sync("poll")
+        self.assertEqual(result["status"], "not_confirmed")
+        keep.api.async_delete_todo_item.assert_not_awaited()
+
+    async def test_deleted_or_trashed_list_is_not_item_deletions(self):
+        adapter, ctr, keep = self.make_adapter()
+        keep.api.fetch_all_lists.return_value = []
+        with self.assertRaises(module.SyncBlocked):
+            await adapter.read()
+        ctr.change.assert_not_awaited()
+
+    async def test_deselected_keep_list_blocks(self):
+        adapter, ctr, keep = self.make_adapter()
+        adapter.hass.config_entries.async_get_entry("keep").data["lists_to_sync"] = []
+        with self.assertRaises(module.SyncBlocked):
+            await adapter.read()
+        keep.api.fetch_all_lists.assert_not_awaited()
+
+    async def test_unload_blocks_further_writes(self):
+        adapter, ctr, keep = self.make_adapter()
+        adapter.closed = True
+        with self.assertRaises(module.SyncBlocked):
+            await adapter.write("left", "delete", "c", None)
+        ctr.change.assert_not_awaited()
+
+    async def test_selected_list_identity_must_still_match(self):
+        adapter, ctr, keep = self.make_adapter()
+        adapter.hass.registry.async_get = lambda entity: NS(config_entry_id="wrong", disabled_by=None)
+        with self.assertRaises(module.SyncBlocked):
+            await adapter.read()
+
+    async def test_sync_success_requires_full_final_read(self):
+        adapter, ctr, keep = self.make_adapter()
+        result = await adapter.sync("ctr_request")
+        self.assertEqual(result["status"], "synced")
+        self.assertEqual(result["last_success"], "now")
+        self.assertEqual(keep.api.fetch_all_lists.await_count, 2)
+
+    async def test_self_changes_do_not_queue_but_ctr_requests_do(self):
+        adapter, ctr, keep = self.make_adapter()
+        await adapter.lock.acquire()
+        adapter.schedule("ctr_change")
+        self.assertFalse(adapter.again)
+        adapter.schedule("ctr_request")
+        self.assertTrue(adapter.again)
+        adapter.lock.release()
+
+if __name__ == "__main__":
+    unittest.main()

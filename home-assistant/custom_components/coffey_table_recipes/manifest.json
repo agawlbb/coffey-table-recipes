@@ -1,0 +1,17 @@
+{
+  "domain": "coffey_table_recipes",
+  "name": "CoffeyTableRecipes",
+  "after_dependencies": [
+    "google_keep_sync"
+  ],
+  "codeowners": [
+    "@agawlbb"
+  ],
+  "config_flow": true,
+  "documentation": "https://github.com/agawlbb/home-assistant-coffey-table-recipes",
+  "integration_type": "service",
+  "iot_class": "cloud_push",
+  "issue_tracker": "https://github.com/agawlbb/home-assistant-coffey-table-recipes/issues",
+  "requirements": [],
+  "version": "0.4.1"
+}
