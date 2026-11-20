@@ -1,0 +1,72 @@
+<?php
+declare(strict_types=1);
+
+/** Nonblocking bridge to isolated PHP workers. Socket heartbeats keep running. */
+final class AiJobs {
+    private array $jobs=[];
+    public function __construct(private array $command=[PHP_BINARY,__DIR__.'/../ai-worker.php'], private string $label='AI', private int $timeout=600) {}
+
+    public function start(string $key,array $request,callable $emit,callable $done,bool $finishOnDisconnect=false): void {
+        if (isset($this->jobs[$key]) || count($this->jobs)>=4) throw new HttpError(409,$this->label==='AI'?'ai_busy':'account_busy',$this->label.' request is already running. Please wait.');
+        $process=proc_open($this->command,[0=>['pipe','r'],1=>['pipe','w'],2=>['file','/dev/null','a']],$pipes);
+        if (!is_resource($process)) throw new RuntimeException('Cannot start AI worker');
+        $input=json_encode($request,JSON_THROW_ON_ERROR); $offset=0;
+        while ($offset<strlen($input)) {
+            $written=fwrite($pipes[0],substr($input,$offset));
+            if ($written===false || $written===0) { fclose($pipes[0]); fclose($pipes[1]); proc_terminate($process); proc_close($process); throw new RuntimeException('Cannot submit AI request'); }
+            $offset+=$written;
+        }
+        fclose($pipes[0]); stream_set_blocking($pipes[1],false);
+        $this->jobs[$key]=['process'=>$process,'pipe'=>$pipes[1],'buffer'=>'','started'=>microtime(true),'last'=>microtime(true),'emit'=>$emit,'done'=>$done,'message'=>'Preparing the request…','finish_on_disconnect'=>$finishOnDisconnect];
+        $emit(['type'=>'progress','message'=>'Preparing the request…','elapsed_seconds'=>0]);
+    }
+
+    public function poll(): void {
+        foreach (array_keys($this->jobs) as $key) {
+            $key=(string)$key;
+            if (!isset($this->jobs[$key])) continue;
+            $job=&$this->jobs[$key];
+            $job['buffer'].=stream_get_contents($job['pipe']);
+            if (strlen($job['buffer'])>16*1024*1024) { $this->fail($key,$this->label.' returned too much data. Please try a smaller request.'); continue; }
+            while (($end=strpos($job['buffer'],"\n"))!==false) {
+                $line=substr($job['buffer'],0,$end); $job['buffer']=substr($job['buffer'],$end+1);
+                try { $event=json_decode($line,true,32,JSON_THROW_ON_ERROR); }
+                catch (Throwable $e) { $this->fail($key,$this->label.' could not complete this request. Please try again.'); break; }
+                if (($event['type']??'')==='progress') { $job['message']=$event['message']; $job['last']=microtime(true); $event['elapsed_seconds']=(int)(microtime(true)-$job['started']); ($job['emit'])($event); }
+                elseif (in_array($event['type']??'', ['response','error'],true)) {
+                    ($job['emit'])($event); $done=$job['done']; $success=$event['type']==='response'; $this->stop($key); $done($success,$event['data']??null); break;
+                }
+            }
+            unset($job);
+            if (!isset($this->jobs[$key])) continue;
+            $job=&$this->jobs[$key]; $now=microtime(true);
+            if ($now-$job['started']>$this->timeout) { $this->fail($key,$this->label.' took too long. Please try again.'); }
+            elseif (!proc_get_status($job['process'])['running']) { $this->fail($key,$this->label.' was interrupted. Please try again.'); }
+            elseif ($now-$job['last']>=10) { $job['last']=$now; ($job['emit'])(['type'=>'progress','message'=>$job['message'],'elapsed_seconds'=>(int)($now-$job['started'])]); }
+            unset($job);
+        }
+    }
+
+    private function fail(string $key,string $message): void {
+        ($this->jobs[$key]['emit'])(['type'=>'error','status'=>503,'error'=>['code'=>$this->label==='AI'?'ai_interrupted':'account_interrupted','message'=>$message]]);
+        $done=$this->jobs[$key]['done']; $this->stop($key); $done(false);
+    }
+
+    public function disconnect(string $key): void {
+        if (!isset($this->jobs[$key])) return;
+        if (!$this->jobs[$key]['finish_on_disconnect']) { $this->stop($key); return; }
+        // A confirmed mutation may already have changed Firebase. Let its SQL
+        // cleanup finish, but never deliver an old identity's response after reauth.
+        $this->jobs[$key]['emit']=static function(){};
+        $this->jobs['detached-'.$key.'-'.bin2hex(random_bytes(4))]=$this->jobs[$key];
+        unset($this->jobs[$key]);
+    }
+
+    public function stop(string $key): void {
+        if (!isset($this->jobs[$key])) return;
+        $job=$this->jobs[$key]; unset($this->jobs[$key]);
+        fclose($job['pipe']);
+        if (proc_get_status($job['process'])['running']) proc_terminate($job['process']);
+        proc_close($job['process']);
+    }
+}

@@ -1,0 +1,40 @@
+<?php
+declare(strict_types=1);
+require dirname(__DIR__).'/bootstrap.php';
+function jobCheck(bool $ok): void { if (!$ok) throw new RuntimeException('AI job lifecycle regression'); }
+function finishJob(AiJobs $jobs,array &$events): void {
+    $deadline=microtime(true)+2;
+    while (microtime(true)<$deadline && !array_filter($events,fn($event)=>in_array($event['type'],['response','error'],true))) { $jobs->poll(); usleep(10000); }
+}
+$events=[]; $finished=[];
+$jobs=new AiJobs([PHP_BINARY,'-r','stream_get_contents(STDIN); exit(1);']);
+$jobs->start('1',[],function($event) use (&$events){$events[]=$event;},function($ok) use (&$finished){$finished[]=$ok;});
+finishJob($jobs,$events);
+jobCheck(end($events)['type']==='error' && $finished===[false]);
+// A broken child never leaves its connection busy forever.
+$events=[];
+$jobs->start('1',[],function($event) use (&$events){$events[]=$event;},static function(){});
+finishJob($jobs,$events); jobCheck(end($events)['type']==='error');
+$jobs=new AiJobs([PHP_BINARY,'-r','stream_get_contents(STDIN); usleep(1000000);']);
+$jobs->start('1',[],static function(){},static function(){});
+try { $jobs->start('1',[],static function(){},static function(){}); throw new RuntimeException('Concurrent run accepted'); }
+catch (HttpError $error) { jobCheck($error->errorCode==='ai_busy'); }
+$start=microtime(true); $jobs->stop('1'); $jobs->poll();
+jobCheck(microtime(true)-$start<0.8);
+$events=[];
+$jobs=new AiJobs([PHP_BINARY,'-r','stream_get_contents(STDIN); exit(1);'],'Account',85);
+$jobs->start('account',[],function($event) use (&$events){$events[]=$event;},static function(){});
+finishJob($jobs,$events);
+jobCheck(end($events)['error']['code']==='account_interrupted');
+jobCheck(str_starts_with(end($events)['error']['message'],'Account'));
+$events=[]; $finished=[];
+$jobs=new AiJobs([PHP_BINARY,'-r','stream_get_contents(STDIN); usleep(200000); echo "{\"type\":\"response\",\"data\":{}}\n";']);
+$jobs->start('same-socket',[],function($e)use(&$events){$events[]=$e;},function($ok)use(&$finished){$finished[]=$ok;},true);
+$jobs->disconnect('same-socket');
+// Reauthentication must be able to use the original key while mutation completes.
+$jobs->start('same-socket',[],static function(){},static function(){});
+$deadline=microtime(true)+2;
+while(!$finished && microtime(true)<$deadline){$jobs->poll();usleep(10000);}
+jobCheck($finished===[true] && count($events)===1);
+$jobs->stop('same-socket');
+echo "AI/account worker crash recovery, duplicate-run protection, cancellation and detached mutation completion passed\n";

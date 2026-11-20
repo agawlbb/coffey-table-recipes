@@ -1,0 +1,4 @@
+# ctr.coffeybean.com is retired; do not restore its host block.
+# Recipe HTTP and WebSocket routing lives under coffeybean.com/ctr in the
+# vps_admin root Caddyfile. This placeholder keeps future backend deployments
+# from recreating the legacy host while preserving their existing file contract.

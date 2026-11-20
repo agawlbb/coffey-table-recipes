@@ -1,0 +1,270 @@
+<?php
+declare(strict_types=1);
+require_once __DIR__.'/bootstrap.php';
+
+
+use Workerman\Worker;
+use Workerman\Timer;
+use Workerman\Connection\TcpConnection;
+
+// One worker deliberately owns all subscriptions. SQL transactions remain the
+// authority; adding workers requires shared publication, not per-worker lists.
+TcpConnection::$defaultMaxPackageSize = 32 * 1024 * 1024;
+$worker = new Worker(getenv('CTR_LISTEN') ?: 'websocket://0.0.0.0:8080');
+$worker->count = 1;
+$worker->name = 'ctr-backend';
+$runtime = getenv('CTR_RUNTIME_DIR') ?: sys_get_temp_dir();
+Worker::$logFile = $runtime.'/ctr-backend.log';
+Worker::$pidFile = $runtime.'/ctr-backend.pid';
+$clients = [];
+$aiJobs ??=new AiJobs();
+$accountJobs ??=new AiJobs([PHP_BINARY,__DIR__.'/account-worker.php'],'Account',85);
+$factory ??= static function (bool $reset=false): ?DataSocket {
+    static $service=null;
+    if ($reset) { $service=null; return null; }
+    if ($service!==null) return $service;
+    $private = getenv('CTR_PRIVATE') ?: '/run/ctr-private';
+    $db = json_decode(file_get_contents($private.'/database.json'), true, 16, JSON_THROW_ON_ERROR);
+    $firebase = json_decode(file_get_contents($private.'/firebase.json'), true, 16, JSON_THROW_ON_ERROR);
+    $pdo=openDatabase(['host'=>$db['host'],'port'=>$db['port']??3306,'name'=>$db['database'],
+        'user'=>$db['username'],'password'=>$db['password'],'tls'=>$db['tls']??true,
+        'ca_file'=>$db['ca_file']??'/etc/ssl/certs/ca-certificates.crt']);
+    $verify = static fn(string $token): array => (new FirebaseIdentity($firebase['firebase_project_id'], 'firebasePublicKeys'))->verify($token);
+    $push=new TimerPush(['firebase_project_id'=>$firebase['firebase_project_id'],
+        'timer_push_service_account_file'=>$private.'/timer-push.json']);
+    return $service=new DataSocket($pdo,$verify,new ShoppingSocket($pdo,$verify,new HomeAssistantConnections($pdo),
+        new ShoppingSyncRequests(CTR_STORAGE.'/shopping-sync-requests')),Closure::fromCallable([$push,'send']));
+};
+$send = static fn(TcpConnection $c, array $message) => $c->send(json_encode($message + ['server_time_ms'=>(int)(microtime(true)*1000)], JSON_THROW_ON_ERROR));
+$broadcast = static function (array $source) use (&$clients, $factory, $send): void {
+    foreach ($clients as $entry) {
+        if (!isset($entry['token'])) continue;
+        $scope=$entry['scope'] ?? 'shopping';
+        if ($scope==='public') continue;
+        if ($scope==='app') {
+            try {
+                $service=$factory(); $actor=$service->authenticate($entry['token'],null,'app');
+                $send($entry['connection'],['type'=>'snapshot','household_id'=>null,'data'=>$service->appSnapshot($actor,$source['scope'])]);
+            } catch (Throwable $error) {
+                $status=$error instanceof HttpError ? $error->status : 500;
+                $code=$error instanceof HttpError ? $error->errorCode : 'snapshot_failed';
+                error_log('App snapshot failed: '.get_class($error).' code='.$code.' driver='.($error instanceof PDOException ? ($error->errorInfo[1] ?? '') : ''));
+                $send($entry['connection'],['type'=>'error','status'=>$status,'error'=>['code'=>$code,'message'=>'Could not load your data. Reconnecting.']]);
+                $entry['connection']->close();
+            }
+            continue;
+        }
+        if ($source['scope']==='cooking') {
+            if ($scope!=='cooking') continue;
+        } elseif ($source['scope']==='timers') {
+            if ($scope!=='timers' || $entry['actor']['user']!==$source['actor']['user']) continue;
+        } elseif (!in_array($scope,['shopping','household'],true)) continue;
+        // Canonical recipes can belong to multiple households. Refresh each
+        // subscribed household independently; never send another user's snapshot.
+        elseif ($source['scope']==='shopping' && $entry['household']!==$source['household']) continue;
+        try {
+            $service=$factory();
+            $actor=$service->authenticate($entry['token'],$entry['household'],$scope);
+            $send($entry['connection'],['type'=>'snapshot','household_id'=>$entry['household'],'data'=>$service->snapshot($actor)]);
+        } catch (HttpError $e) {
+            $send($entry['connection'],['type'=>'error','status'=>$e->status,'error'=>['code'=>$e->errorCode,'message'=>$e->getMessage()]]);
+            $entry['connection']->close();
+        } catch (Throwable $e) { $entry['connection']->close(); }
+    }
+};
+$scheduleImages=static function(array $source,array $data) use ($factory,$aiJobs,$broadcast): void {
+    if (($source['scope']??'')!=='household' || !isset($data['recipe']['id'])) return;
+    try {
+        $ids=$factory()->missingCategoryImages($source['actor'],$data);
+        if (!$ids) return;
+        $aiJobs->start('artwork-'.$source['household'].'-'.$data['recipe']['id'],
+            ['token'=>$source['token'],'household'=>$source['household'],'scope'=>'ai',
+                'path'=>'/households/'.$source['household'].'/category-image','body'=>null,'category_ids'=>$ids],
+            static function(array $event): void { if (($event['type']??'')==='error') error_log('Automatic category artwork generation failed.'); },
+            static function(bool $success) use ($source,$broadcast): void { if ($success) $broadcast($source); });
+    } catch (HttpError $error) {
+        if ($error->errorCode!=='ai_busy') error_log('Could not start automatic category artwork.');
+    } catch (Throwable $error) { error_log('Could not start automatic category artwork.'); }
+};
+$worker->onConnect = static function (TcpConnection $c) use (&$clients): void {
+    if (count($clients) >= 64) { $c->close(); return; }
+    $c->maxSendBufferSize=32 * 1024 * 1024;
+    $c->onBufferFull = static function (TcpConnection $slow): void { $slow->close(); };
+    $clients[$c->id] = ['connection'=>$c, 'connected'=>time(), 'last'=>time(), 'rate'=>0, 'window'=>time()];
+};
+$worker->onMessage = static function (TcpConnection $c, string $text) use (&$clients, $factory, $send, $broadcast, $aiJobs,$scheduleImages,$accountJobs): void {
+    $id = null;
+    try {
+        $m = json_decode($text, true, 32, JSON_THROW_ON_ERROR);
+        if (!is_array($m) || ($m['v'] ?? null) !== 1) throw new HttpError(422, 'invalid_message', 'Unsupported protocol.');
+        $entry = &$clients[$c->id];
+        $entry['last'] = time();
+        if (($m['type'] ?? '') === 'auth') {
+            if (!is_string($m['token'] ?? null) || strlen($m['token']) > 16384) throw new HttpError(401, 'invalid_token', 'Sign in again.');
+            $household = $m['household_id'] ?? null;
+            if ($household !== null && (!is_string($household) || !preg_match('/^[1-9][0-9]{0,18}$/D', $household))) throw new HttpError(422, 'invalid_household', 'Choose a household.');
+            $scope=$m['scope']??'shopping';
+            if (!is_string($scope)) throw new HttpError(422,'invalid_scope','Invalid scope.');
+            $service = $factory(); $actor = $service->authenticate($m['token'], $household, $scope);
+            if (isset($entry['actor']) && (($entry['actor']['uid']??null)!==($actor['uid']??null)
+                || $entry['scope']!==$scope || $entry['household']!==$actor['household'])) {
+                $accountJobs->disconnect((string)$c->id);
+                $aiJobs->stop((string)$c->id);
+            }
+            $entry['scope']=$scope; $entry['actor']=$actor;
+            $entry['token']=$m['token']; $entry['household']=$actor['household'];
+            $data=(object)(in_array($scope,['ai','account'],true) ? [] : $service->snapshot($actor));
+            $send($c, ['type'=>'ready','household_id'=>$entry['household'],'data'=>$data]);
+        } else {
+            if (!isset($entry['token'])) throw new HttpError(401, 'authentication_required', 'Authenticate first.');
+            $service=$factory();
+            if (($m['type'] ?? '') === 'ping') {
+                $service->authenticate($entry['token'], $entry['household'], $entry['scope']);
+                $send($c, ['type'=>'pong']); return;
+            }
+            $id=$m['id'] ?? null;
+            if (($m['type'] ?? '') !== 'request' || !is_string($id) || strlen($id)>80 || !is_string($m['path'] ?? null)
+                || (isset($m['body']) && !is_array($m['body']))) throw new HttpError(422, 'invalid_message', 'Invalid data request.');
+            if (time() - $entry['window'] >= 60) { $entry['window']=time(); $entry['rate']=0; }
+            if (++$entry['rate'] > 120) throw new HttpError(429, 'rate_limited', 'Data synchronization is busy.');
+            $body=$m['body'] ?? null;
+            if (AccountService::matches($m['path'])) {
+                if (!in_array($entry['scope'],['account','app'],true)) throw new HttpError(403,'permission_denied','Use an account connection.');
+                if (strlen($text)>128*1024) throw new HttpError(413,'request_too_large','Account request is too large.');
+                $service->authenticate($entry['token'],null,'account');
+                $source=$entry; $source['scope']='account';
+                $terminal=null;
+                $app=$entry['scope']==='app';
+                $accountJobs->start((string)$c->id,['token'=>$entry['token'],'path'=>$m['path'],'body'=>$body],
+                    static function(array $event) use ($c,$id,$send,$app,&$terminal): void {
+                        if ($app && $event['type']==='response') { $terminal=$event; return; }
+                        $send($c,$event+['id'=>$id]);
+                    },static function(bool $success) use (&$clients,$factory,$broadcast,$source,$body,$app,&$terminal,$send,$c,$id):void {
+                        if (!$success) return;
+                        if ($body!==null) {
+                            foreach ($clients as $client) {
+                                if (!isset($client['token'])) continue;
+                                try { $factory()->authenticate($client['token'],$client['household'],$client['scope']); }
+                                catch (Throwable $error) { $client['connection']->close(); }
+                            }
+                        }
+                        if ($body!==null || $app) $broadcast($source);
+                        if ($terminal!==null) $send($c,$terminal+['id'=>$id]);
+                    },$body!==null);
+                return;
+            }
+            if ($entry['scope']==='account') throw new HttpError(404,'not_found','Account endpoint not found.');
+            if (AiService::matches($m['path']) || AiService::categorizesSave($m['path'],$body)) {
+                if (!in_array($entry['scope'],['ai','app'],true) && !AiService::categorizesSave($m['path'],$body)) throw new HttpError(403,'permission_denied','Use an AI connection.');
+                if ($entry['scope']==='shopping' || $entry['scope']==='public' || $entry['scope']==='timers' || $entry['scope']==='cooking') throw new HttpError(403,'permission_denied','AI access denied.');
+                $service->authenticate($entry['token'],$entry['household'],$entry['scope']);
+                $source=$entry;
+                if ($entry['scope']==='app') {
+                    $source['scope']='household';
+                    $source['household']=preg_match('#^/households/([1-9][0-9]*)/#',$m['path'],$match) ? $match[1] : null;
+                }
+                $terminal=null; $app=$entry['scope']==='app';
+                $aiJobs->start((string)$c->id,['token'=>$entry['token'],'household'=>$source['household'],'scope'=>$entry['scope']==='app'?'ai':$entry['scope'],'path'=>$m['path'],'body'=>$body],
+                    static function(array $event) use ($c,$id,$send,$app,&$terminal): void {
+                        if ($app && $event['type']==='response') { $terminal=$event; return; }
+                        $send($c,$event+['id'=>$id]);
+                    },
+                    static function(bool $success,?array $data=null) use ($source,$broadcast,$body,$scheduleImages,$app,&$terminal,$send,$c,$id): void {
+                        if ($success && $body!==null) { if (str_ends_with($source['path']??'', '/cooking-plan') || isset($data['session']['combined'])) $source['scope']='cooking'; $broadcast($source); if ($data!==null) $scheduleImages($source,$data); }
+                        if ($app && $terminal!==null) $send($c,$terminal+['id'=>$id]);
+                    });
+                return;
+            }
+            if ($entry['scope']==='ai') throw new HttpError(404,'not_found','AI endpoint not found.');
+            $data=$service->handle($entry['token'], $entry['household'], $m['path'], $body, $entry['scope']);
+            $source=$entry;
+            if ($entry['scope']==='app') {
+                $source['scope']=str_starts_with($m['path'],'/me/cooking-sessions') ? 'cooking' : (str_starts_with($m['path'],'/me/') ? 'timers' : 'household');
+                if (preg_match('#^/households/([1-9][0-9]*)/#',$m['path'],$match)) $source['household']=$match[1];
+                if (str_ends_with($m['path'],'/name')) $source['scope']='account';
+            }
+            $changed=$body!==null && !str_contains($m['path'],'/shopping-list/photos');
+            // Apply the server update before acknowledging a foreground save.
+            if ($changed && $entry['scope']==='app') $broadcast($source);
+            $send($c, ['type'=>'response','id'=>$id,'data'=>$data]);
+            if ($changed) {
+                if ($entry['scope']!=='app') $broadcast($source);
+                $scheduleImages($source,$data);
+                CookingSessions::flushPushes();
+            }
+        }
+    } catch (HttpError $e) {
+        $send($c, ['type'=>'error','id'=>$id,'status'=>$e->status,'error'=>['code'=>$e->errorCode,'message'=>$e->getMessage()]]);
+        if ($e->status===401 || in_array($e->errorCode,['account_disabled','household_not_found','household_access_removed','invalid_connection'],true)) $c->close();
+    } catch (JsonException $e) { $send($c, ['type'=>'error','id'=>$id,'status'=>422,'error'=>['message'=>'Invalid data message.']]); }
+    catch (PDOException $e) { error_log('CTR database failure '.get_class($e).' at '.basename($e->getFile()).':'.$e->getLine()); $factory(true); $send($c,['type'=>'error','id'=>$id,'status'=>503,'error'=>['code'=>'database_unavailable','message'=>'Database connection interrupted. Retry shortly.']]); }
+    catch (Throwable $e) { error_log('CTR socket failure '.get_class($e).' at '.basename($e->getFile()).':'.$e->getLine()); $send($c, ['type'=>'error','id'=>$id,'status'=>503,'error'=>['code'=>'internal_error','message'=>'Data synchronization temporarily unavailable.']]); }
+};
+$worker->onClose = static function (TcpConnection $c) use (&$clients,$aiJobs,$accountJobs): void { $aiJobs->stop((string)$c->id); $accountJobs->disconnect((string)$c->id); unset($clients[$c->id]); };
+$worker->onWorkerStart = static function () use (&$clients,$aiJobs,$accountJobs,$factory,$send): void {
+    Timer::add(30,static function() use (&$clients,$factory,$send): void {
+        try { $changed=$factory()->expireCooking(); } catch (Throwable $e) { $changed=false; }
+        if ($changed) foreach ($clients as $entry) {
+            if (!in_array($entry['scope']??'',['cooking','app'],true)) continue;
+            try {
+                $service=$factory(); $actor=$service->authenticate($entry['token'],null,$entry['scope']);
+                $snapshot=$entry['scope']==='app' ? $service->appSnapshot($actor,'cooking') : $service->snapshot($actor);
+                $send($entry['connection'],['type'=>'snapshot','household_id'=>null,'data'=>$snapshot]);
+            } catch (Throwable $e) { $entry['connection']->close(); }
+        }
+        CookingSessions::flushPushes();
+    });
+    Timer::add(0.1,static fn()=>$accountJobs->poll());
+    Timer::add(0.1,static fn()=>$aiJobs->poll());
+    Timer::add(5, static function () use (&$clients): void {
+        foreach ($clients as $entry) {
+            if ((!isset($entry['token']) && time()-$entry['connected']>10) || time()-$entry['last']>70) $entry['connection']->close();
+        }
+    });
+};
+$httpFactory ??= static function(bool $reset=false): ?HttpService {
+    static $service=null;
+    if ($reset) { $service=null; return null; }
+    if ($service!==null) return $service;
+    return $service=new HttpService(Closure::fromCallable('runtimeDatabase'),static fn()=>runtimeAccountService(runtimeDatabase(),runtimeVerifier()),'runtimeHomeAssistantConfig',CTR_STORAGE.'/media/recipes',__DIR__.'/associations');
+};
+$media = new Worker(getenv('CTR_MEDIA_LISTEN') ?: 'http://0.0.0.0:8081');
+$media->count=1;
+$media->onMessage=static function(TcpConnection $c, Workerman\Protocols\Http\Request $request) use ($httpFactory): void {
+    try {
+        $result=$httpFactory()->handle($request->method(),$request->uri(),$request->header(),$request->rawBody());
+        $length=$result['headers']['Content-Length']??null;
+        // Workerman always appends its own body length, even when supplied.
+        unset($result['headers']['Content-Length']);
+        $response=new Workerman\Protocols\Http\Response($result['status'],$result['headers'],$result['body']??'');
+        if (isset($result['file']) && $request->method()!=='HEAD') $response->withFile($result['file']);
+        if ($request->method()==='HEAD' && $length!==null) {
+            // A HEAD response advertises the GET length but sends no body.
+            $c->send(str_replace("Content-Length: 0\r\n","Content-Length: ".$length."\r\n",(string)$response),true);
+            return;
+        }
+        $c->send($response);
+    } catch (Throwable $error) {
+        if ($error instanceof PDOException) $httpFactory(true);
+        $c->send(new Workerman\Protocols\Http\Response(503,['Content-Type'=>'application/json','Cache-Control'=>'no-store'],'{"error":{"code":"service_unavailable","message":"Recipe service temporarily unavailable."}}'));
+    }
+};
+// Image decoding/encoding runs in its own process. Uploads only save originals;
+// scanning also recovers pending work after restarts and covers AI-worker saves.
+$images=new Worker();
+$images->name='ctr-photo-optimizer';
+$images->count=1;
+$images->onWorkerStart=static function(): void {
+    $optimizer=new RecipeImageOptimizer(CTR_STORAGE.'/media/recipes');
+    $pending=[]; $lastScan=0;
+    Timer::add(1,static function() use ($optimizer,&$pending,&$lastScan): void {
+        try {
+            if (!$pending && time()-$lastScan>=30) {
+                $lastScan=time();
+                if (is_dir(CTR_STORAGE.'/media/recipes')) $pending=$optimizer->pending();
+            }
+            if ($pending) $optimizer->optimize(array_shift($pending));
+        } catch (Throwable $error) { error_log('Photo optimization failed: '.$error->getMessage()); }
+    });
+};
+Worker::runAll();

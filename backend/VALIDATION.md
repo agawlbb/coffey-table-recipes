@@ -1,0 +1,332 @@
+> Current workflow (November 17, 2026): all development, dependencies, tests,
+> packaging and image builds run on VM-laptop under `/home/dev/projects`, using
+> `dev COMMAND...` and VM-only test databases. The VPS is production only;
+> deploy VM-prepared files/prebuilt images through the existing `vps-admin`
+> pairing only when requested. Older VPS development paths, `vps-host` aliases,
+> host-side build commands and Windows checkout instructions below are historical
+> and must not be followed. Never start the retained VPS development/BuildKit
+> containers. See the repository AGENTS.md and `/home/dev/projects/AGENTS.md`.
+> Requested Apple builds retain the existing macOS runner exception.
+
+# Initial extraction validation — 2026-10-28
+
+Source was extracted from server migration commit
+`f28caaa4e8e1c5d1c13b341f87ef0a0056a9a3c5`. Runtime classes and the WebSocket
+server retain the deployed behavior. Bootstrap, deployment paths and tests now
+use this independent repository; no code is loaded from the inMotion checkout.
+
+Verified using the existing shared development environment:
+
+- 21 signed Firebase identity checks.
+- PHP fixtures for HA credentials, socket access/isolation/revocation, shopping
+  transaction replay/merge/deletion and persistent sync requests.
+- All three real WebSocket tests, including the actual HA integration client.
+- Two deployer tests: preserve private/state data while replacing code, and stop
+  before mutation if dependencies are missing. No image build or cPanel operation.
+- Strict locked Composer validation and PHP syntax checks.
+
+Wire/transaction tests use disposable SQLite. No hosted shopping data, running
+VPS service, inMotion files, app packages or installed HA integration were changed
+for this repository extraction. There are no push-triggered deployment workflows.
+
+## Shopping write repair
+
+The owner requested app-only child-mode enforcement. Removed the server-side
+policy callback and its HTTPS request to inMotion, which timed out and caused
+503 responses on otherwise authenticated shopping writes. Firebase validation,
+household membership, disabled-account checks, credential revocation and receipt
+handling remain enforced. No schema or data migration is needed.
+
+Verified 21 signed identity checks, socket access/receipt/revocation and HA
+credential fixtures, all three real WebSocket tests (including the actual HA
+client), two deployment-preservation tests, and changed PHP syntax. The source
+branch starts at `a7f9c260990d8dc74cbd1f1c2aae53963d28427a`.
+
+Deployed the repair through `python3 deploy.py`. The running container uses
+`php server.php start`; its bootstrap, server and all runtime classes match this
+branch. The public authenticated read passed. The first open-connection revocation
+check failed without a detailed response; an immediate repeat passed both read
+and revocation. No shopping items were modified by these checks, and temporary
+credentials were revoked. No app packages were built or installed.
+
+## Shared CPU policy retained through deployment
+
+Updated source Compose from `cpus: 0.5` to `cpu_shares: 1024`, matching
+`vps_admin` work commit `9463376` and the corrected installed configuration.
+There is no separate runtime generator: deploy.py installs this source file.
+Deployment now checks Docker CpuShares and effective cgroup cpu.max after restart.
+
+All three deployment tests passed, including rejection of incorrect shares and a
+hard effective quota. Resolved Compose contained no cpus, cpu_quota or CPU limit
+under deploy.resources. Ran the corrected deployment and verified CpuShares=1024,
+NanoCpus=0, CpuQuota=0 and cpu.max=`max 100000`. Installed Compose matched source.
+A pre/post snapshot confirmed unchanged memory, swap/reservation/swappiness,
+process, security, capability, root-filesystem, OOM and restart settings. No
+image build, app build, schema/data change or changes to other services occurred.
+
+## Remaining data transport — 2026-10-29
+
+Branch `backend_migration`, purpose: migrate remaining recipe/household/meal-plan
+and timer data using the shopping protocol, based on fetched `origin/main`
+`eb49ad5a7187d5e50410490dafe6b4aa1aa751b5`. Services were copied from the InMotion
+repository's accepted `5424e9d` implementation. SQL remains on InMotion; existing
+transactions, revision guards and immutable save/operation IDs are preserved.
+The VPS meal service requires a date for every new add/move.
+
+Verified in the shared development container, using disposable SQLite fixtures:
+
+- `php tests/data_socket.php`: authenticated recipe reads/adds/edits, immutable
+  replay, stale-edit rejection, household/person names, membership/HA/disabled
+  account boundaries, meal dates/conflicts and account-private timer replay.
+- Existing shopping/identity/HA/sync-request fixtures passed, including 21 signed
+  Firebase checks. Ported meal-plan (25 checks), timer and recipe-receipt fixtures
+  passed. `php tests/timer_push.php` verifies valid-token reuse and expiry renewal
+  for the long-running FCM sender using a local transport fixture.
+- `CTR_HA_SOURCE=/home/debian/projects/home-assistant-coffey-table-recipes .venv/bin/python -m unittest discover -s tests -p shopping_websocket.py`:
+  all three existing real WebSocket tests passed, including the actual HA client.
+- `.venv/bin/python -m unittest discover -s tests -p data_websocket.py`: all three
+  new wire tests passed: recipe saves/push/replay and household isolation; private
+  timers and public read-only recipe links; persistent photo uploads/readback,
+  unchanged old photo URLs, public image CORS and rejection of private-file URLs.
+- `.venv/bin/python -m unittest discover -s tests -p test_deployment.py`: all three
+  tests passed, including preservation of uploaded photos and sender credentials.
+- Strict Composer validation, runtime/fixture PHP syntax, changed Python syntax
+  and `git diff --check` passed.
+
+Deployment remains `python3 deploy.py`: copy code, restart the existing service
+and reload this repository's Caddy site for uploaded photos. Private configuration
+and state remain outside replaced code. No image build or schema migration is
+needed. The already-existing VPS timer sender was copied privately into the data
+service's protected configuration (mode 600, matching Firebase project); no AI,
+signup or cPanel credential was moved.
+
+No service restart, hosted endpoint removal, app build or installation was
+performed. No production data was used for development tests. These matching
+`backend_migration` branches remain unmerged for review.
+
+## Branch deployment — 2026-10-29
+
+At the owner’s explicit request, deployed `backend_migration` runtime commit
+`f3056931e90ead6ca6b91a5ffad1daca89916863` using the existing `python3 deploy.py`.
+The app and InMotion branches were neither merged nor deployed.
+
+- The existing backend restarted successfully with zero restarts afterward;
+  Caddy reloaded the branch’s WebSocket and persistent-photo routes.
+- Installed bootstrap, server, all runtime PHP classes, Composer lock, Compose
+  and Caddy site matched the selected source. CPU shares are 1024 and effective
+  `cpu.max` is `max 100000`; no image build or database migration occurred.
+- Live public TLS WebSocket shopping authentication/read and open-connection HA
+  credential revocation passed. The temporary verification credential was revoked;
+  no shopping items were edited.
+- An existing public recipe’s detail and steps were read successfully through the
+  new public WebSocket scope. Recipe contents and credentials were not printed.
+  A missing recipe and an invalid media filename returned the expected errors.
+- The deployed timer sender passed OAuth and FCM validate-only authorization;
+  no notification was sent.
+
+Authenticated app household snapshots, meal-plan writes and device timer delivery
+remain for the owner’s matching-app testing. Blank-recipe automatic categorization
+calls the new AI endpoint in the matching InMotion branch, which remains pending
+that branch’s deployment. Existing signup and AI endpoints were left untouched.
+# AI WebSocket working branch — 2026-10-30
+
+`feature/vps-ai-websocket`, based on fetched `origin/main` `b977c8f`.
+Source is prepared for review; do not merge until the user explicitly approves.
+
+- PHP syntax passed for bootstrap/server/AI worker and every service, plus the
+  new PHP worker/configuration fixtures. Changed Python files passed `py_compile`.
+- Migrated AI fixtures passed: `tests/recipe_ai.php` (256), `recipe_photo.php`
+  (30), `recipe_variation.php` (92, including the new persistent VPS cover check),
+  `blank_recipe_categories.php` (18), `source_photos.php` (10),
+  `website_import.php` (19), `website_photos.php` (8), `recipe_methods.php` (25),
+  `recipe_descriptions.php` (18), and `recipe_wording.php` (25).
+- `php tests/ai_jobs.php`: child crash recovery, repeated connection-key use,
+  duplicate-run rejection and cancellation passed.
+- `php tests/ai_configuration.php`: model pinning, private policy/extractor
+  preservation and missing-credential rejection passed.
+- `php tests/data_socket.php`: existing recipe/edit/replay, meal-date/conflict,
+  timer-isolation/replay and access-revocation checks passed.
+- `python3 -m unittest discover -s tests -p test_deployment.py`: all three
+  mocked deployment/CPU-preservation checks passed. These did not deploy or restart
+  anything. The AI credential and worker are required/preserved by deployment.
+- Using the existing development Python environment with aiohttp,
+  `python -m unittest discover -s tests -p ai_websocket.py`: all five real-socket
+  tests passed. They cover progress with responsive heartbeats and other readers,
+  clarification on one connection without saving, authorization/revocation,
+  image generation/category media, blank categorization and error recovery.
+- `python -m unittest discover -s tests -p data_websocket.py`: all three passed.
+  `python -m unittest discover -s tests -p shopping_websocket.py`: two passed;
+  the fixture-inapplicable sync-request test remained skipped.
+- App full suite: 544 passed; its final progress-placement/long-connection
+  follow-up passed 40 focused tests. Analysis passed; no app packages were built.
+
+All AI provider responses were mocked and all SQL was disposable SQLite. No
+production data, real API credential or paid provider request was used in tests.
+The existing uploaded recipe credential is only referenced by its private runtime
+path. The updated runtime image has not been built and the branch is not deployed.
+No source was merged into main. Physical-device suspension, real-provider execution
+and the rebuilt production runtime are not claimed verified.
+
+# Deployment from feature/vps-ai-websocket
+
+The user explicitly requested deploying this branch while retaining the earlier
+instruction not to merge into main. Published runtime source is
+`3bbd7723c6cd9bf0147e0ff1f735afc67d48a6bf`; this subsequent commit records evidence
+only. Shared-hosting and app branches were neither deployed nor merged.
+
+- Saved the previous source, Compose and Caddy configuration in
+  `/var/backups/ctr-backend-before-ai-20261031T095222Z`. The previous image
+  `sha256:1cec91ca6ec9eb989b07b669e3e727df8356ea5c3d56b187d27970114723765d`
+  is retained as `ctr-backend:before-ai-20261031T095222Z`. The root-only
+  `deployment.json` in that backup records source/image and verification metadata.
+  Private credentials and persistent state/photos were not replaced.
+- Built the backend runtime from this branch's Dockerfile. New image:
+  `sha256:48d43a22111a500ed5853688f3db2406a97634c4d978db834ff24b3d36797e36`.
+  Before restart, isolated image checks verified pdo_mysql, curl, mbstring,
+  pcntl, DOM and OpenSSL; Poppler pdftotext 22.12.0 and Tesseract 5.3.0 ran.
+  No app package was built.
+- Ran the existing `python3 deploy.py` on the VPS host. Source copied and the
+  backend container restarted successfully. Caddy reloaded successfully.
+  CpuShares remains 1024; effective cpu.max is `max 100000`. The container was
+  running afterward with zero restarts.
+- Compared all 38 installed PHP runtime files against the requested source;
+  every hash matched. The real runtime established database TLS and loaded the
+  private AI configuration. Non-generating OpenAI model-access requests returned
+  HTTP 200 for both the configured recipe and image models. No secret values
+  were printed or stored in Git. The credential directory remains mode 700 and
+  the AI JSON remains mode 600.
+- Public `wss://ctr.coffeybean.com/shopping` recognized the new AI scope and
+  rejected an invalid credential with `401 invalid_token`. Anonymous public-scope
+  authentication and ping/pong succeeded.
+- Ran `python3 tests/live_shopping.py`: authenticated public WSS shopping reads
+  and revocation on the still-open connection passed. Its temporary verification
+  credential was revoked; shopping items and recipe/account data were not edited.
+
+These production checks validate deployment, configuration/model access and
+socket availability. No paid AI generation, signed-in end-user AI/clarification
+run, physical-device suspension test or app build/deployment was performed.
+
+# Subcategory artwork correction — 2026-10-31
+
+Resumed `feature/vps-ai-websocket` after fetching and confirming clean matching
+local/GitHub heads at `a7d38bc`. The reported category is Mexican under Main dishes,
+ID 41. Read-only production inspection found an inherited `main-dishes` stock
+image key and no generated category-41 file. Its household allows AI artwork.
+This was a missed generation, not an AI response reusing another generated photo.
+Local-first recipe saves can return before server category IDs exist, while local
+browsing sets needs_ai_image false; app-side follow-up generation is insufficient.
+
+The VPS now schedules missing assigned subcategory artwork after acknowledging a
+committed recipe. It pushes the completed artwork in household snapshots and does
+not copy parent artwork into new subcategories. Existing owned artwork remains
+idempotent, including original-host images. Scheduling honors household permission;
+provider failure preserves the saved recipe. No Flutter or shared-hosting source
+changed, and no main merge is authorized.
+
+Validation: changed runtime PHP files passed syntax checks. The focused PHP
+scripts `tests/category_images.php`, `tests/data_socket.php`, `tests/ai_jobs.php`
+and `tests/recipe_save_receipts.php` passed. Real socket checks using disposable
+SQLite/fake provider responses passed: `ai_websocket.py` (eight),
+`data_websocket.py` (three), and `shopping_websocket.py` (two, one existing
+fixture-inapplicable skip). New coverage checks save acknowledgment before image
+completion, completion after the saving client disconnects, a pushed owned image,
+existing-cover reuse, disabled generation and preservation after provider failure.
+Changed Python compiled and `git diff --check` passed. Existing Flutter validation
+was retained; there is no app change or app build for this repair.
+
+The user's reported category was repaired through the existing production image
+service using the already-approved recipe AI key and its household's image
+permission. This generated one new 816×816 JPEG for Mexican main dishes and set
+only category 41's artwork to `ai-41`. No recipe, category label, parent artwork or
+other category was edited. Visual inspection shows tacos, enchiladas, tamales and
+mole rather than the inherited stock image. Public HTTPS serves the JPEG at
+`https://ctr.coffeybean.com/media/recipes/category-41.jpg`; its SHA-256 matches
+the persistent file, `a9257b536696dac17c31554e50324aa3f9817f4834270850a56f7cd109dc03c7`.
+
+Deployed source `0dfda05` from the existing feature branch with `python3 deploy.py`.
+The runtime image stayed `sha256:48d43a22111a500ed5853688f3db2406a97634c4d978db834ff24b3d36797e36`;
+no image/app build or rollback copy was made. Installed runtime PHP hashes match
+the tested source. The container is running with zero restarts; CpuShares=1024
+and `cpu.max=max 100000` remain verified. The affected household's real durable
+snapshot now contains the owned VPS image URL. Public WSS authentication and
+ping/pong passed after restart. Branches remain unmerged; shared-hosting and app
+source/deployments are unchanged. The automatic new-save sequence was exercised
+with disposable fixtures; no synthetic production recipe was created for testing.
+
+# Completed integration and deployment from defaults — 2026-10-31
+
+The user declared the work complete, authorized integrating every task repository,
+requested deployment from main and removal of the feature branches, then explicitly
+confirmed that the shared-hosting backend should deploy through its normal push
+trigger. No branch protection, history rewrite, app build or app release was added.
+
+- App main includes the accepted WebSocket/progress source at `573e51e`.
+  Its workflows remain manually dispatched; no app build/deployment was started.
+- Shared-hosting main includes the endpoint retirements at
+  `42ab6258f6a2ace0fcdeb9f64e5df538028241ec`. The initial integration merge skipped
+  deployment; the user's subsequent explicit instruction was fulfilled with a
+  normal main push. [Deployment run 41194982790](https://github.com/agawlbb/coffey-table-recipes-server/actions/runs/41194982790)
+  succeeded. The public backend-version.json receipt matches that exact commit.
+  Cache-bypassed live GET/POST checks return `410 ai_moved` for recipe import and
+  `410 ai_moved` for parent-category administration; health remains HTTP 200.
+- Before integration, latest fetched defaults were already ancestors of each
+  task branch. No runtime source changed during integration. Existing app/VPS
+  test evidence remains applicable. The shared-hosting workflow's 29 fixture
+  scripts and all 122 tool tests passed locally, and its complete CI deployment
+  checks subsequently passed. No synthetic production recipe or paid AI run was
+  added during integration verification.
+- VPS main at `7754d0df088d2b5f46b7a70c3e33189513f6bd6b` was published and
+  deployed using `python3 deploy.py` from the canonical main checkout. The current
+  documentation follow-up does not change runtime files. Installed PHP hashes
+  match main. The existing runtime image remains
+  `sha256:48d43a22111a500ed5853688f3db2406a97634c4d978db834ff24b3d36797e36`;
+  no runtime image build or rollback copy was made. CpuShares=1024 and effective
+  cpu.max=`max 100000` passed. The container runs with zero restarts. Public WSS
+  authentication/heartbeat passed, and category 41's JPEG remains publicly served
+  with bytes matching its persistent file.
+- The administration cleanup/policy work is integrated at `f810fba` into that
+  repository's existing canonical default `work`; no replacement main branch was
+  created. Application/deployment feature branches are removed locally/remotely
+  only after merge ancestry verification. Temporary task checkouts contain only
+  merged tracked source and generated caches/dependencies and are removed.
+  The old fully merged local backend_migration branch is also removed; its
+  published history remains in main. Final default trees must be clean and their
+  local/GitHub heads must match before reporting completion.
+
+
+## Parent-first AI import categories — 2026-10-31
+
+Task: repair parent/category duplication and category-picture clarification requests.
+Branch `fix/ai-import-categories` starts from canonical VPS main
+`287dc4d67a27c4d6a75515c19410e0721fc272ef`, separately from backend migration.
+The user approved merging this fix into `main` and removing the temporary branch.
+The fetched main remained at the original base, so integration adds no source
+changes to the already verified result. No build or deployment is authorized by
+this merge; the repository has no push-triggered workflows.
+
+AI first chooses an existing parent, then selects a suitable existing child under
+that parent or proposes a new child. The request schema constrains parent labels
+to catalog roots. Validation rejects unknown parents, children used as parents,
+and parent-only/self-named assignments instead of silently selecting a root.
+Existing children still resolve to trusted catalog IDs, while a redundant parent
+alongside a valid child is removed. Manual app selection and blank-recipe
+classification retain their existing behavior.
+
+Category pictures already use automatic AI generation after saving, subject to
+household image permissions. Import instructions now explicitly prohibit asking
+users to choose, upload, describe or supply category pictures in clarification
+questions. No extra image request, app control or schema migration was added.
+
+Verified in the shared development container:
+
+- PHP syntax for `src/RecipeImportService.php` and `tests/recipe_ai.php`.
+- `php tests/recipe_ai.php`: 294 checks, including existing-child resolution,
+  new-child proposals, invalid parents, root-only rejection, and the actual
+  mocked request schema and category-picture prompt instructions.
+- Shared callers/policies: `recipe_variation.php` (92 checks),
+  `website_import.php` (19), `recipe_methods.php` (25),
+  `recipe_descriptions.php` (18), `recipe_wording.php` (25).
+- `php tests/category_images.php`: existing automatic artwork ownership,
+  inherited-image detection, original-host reuse and household permissions.
+
+No live AI calls, production data changes, Flutter builds or deployments.

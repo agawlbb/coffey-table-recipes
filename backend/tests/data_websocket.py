@@ -1,0 +1,211 @@
+"""Real WebSocket snapshots, isolation and replay using disposable SQLite."""
+import unittest
+import shopping_websocket as shopping
+
+
+class DataWireTests(unittest.IsolatedAsyncioTestCase):
+    server_fixture = 'tests/fixtures/data_socket_server.php'
+    asyncSetUp = shopping.ShoppingWireTests.asyncSetUp
+    asyncTearDown = shopping.ShoppingWireTests.asyncTearDown
+    connect = shopping.ShoppingWireTests.connect
+    message = shopping.ShoppingWireTests.message
+
+    async def test_metadata_rename_is_in_the_same_canonical_household_generation(self):
+        ready=await self.auth(self.app)
+        library=ready['data']['library']
+        self.assertEqual(library['household']['id'],'1')
+        self.assertEqual(library['user']['id'],'1')
+        self.assertIsInstance(library['user']['child_mode'],bool)
+        before=library['version']
+        result=await self.request(self.app,'/households/1/name',{'name':'Renamed table'})
+        self.assertEqual(result['type'],'response')
+        pushed=await self.message(self.app)
+        self.assertEqual(pushed['data']['library']['household']['name'],'Renamed table')
+        self.assertNotEqual(pushed['data']['library']['version'],before)
+
+    async def test_household_photo_routes_remain_private(self):
+        import subprocess
+        await self.auth(self.app)
+        root = '/households/1/shopping-list/photos'
+        image = subprocess.check_output(['php', '-r', '$i=imagecreatetruecolor(2,3);ob_start();imagepng($i);echo base64_encode(ob_get_clean());'], text=True)
+        uploaded = await self.request(self.app, root, {'image_base64': image})
+        photo = uploaded['data']['photo']
+        view = await self.request(self.app, root+'/'+photo)
+        self.assertIn('image_base64', view['data'])
+        other = await self.connect()
+        await self.auth(other, token='bob', household='2')
+        rejected = await self.request(other, '/households/2/shopping-list/photos/'+photo)
+        self.assertEqual(rejected['status'], 404)
+
+    async def test_rendered_recipe_and_association_http_responses(self):
+        base=f'http://127.0.0.1:{self.media_port}'
+        async with self.session.get(base+'/recipes/1') as response:
+            self.assertEqual(response.status,200)
+            content=await response.read()
+            self.assertIn(b'https://coffeybean.com/ctr/recipes/1',content)
+            self.assertIn(b'src="/ctr/assets/email/coffey_table.jpg"',content)
+            self.assertNotIn(b'ctr.coffeybean.com',content)
+            self.assertNotIn(b'PRIVATE SOURCE',content)
+            self.assertEqual(len(response.headers.getall('Content-Length')),1)
+        async with self.session.head(base+'/recipes/1') as response:
+            self.assertEqual(response.status,200)
+            self.assertEqual(int(response.headers['Content-Length']),len(content))
+            self.assertEqual(await response.read(),b'')
+        async with self.session.get(base+'/recipes/999') as response:
+            self.assertEqual(response.status,404)
+        for name in ('assetlinks.json','apple-app-site-association'):
+            async with self.session.get(base+'/.well-known/'+name) as response:
+                self.assertEqual(response.status,200)
+                association = await response.json()
+                if name == 'apple-app-site-association':
+                    self.assertIn({'/': '/ctr/recipes/*'}, association['applinks']['details'][0]['components'])
+
+    async def auth(self, ws, scope='household', token='alice', household='1'):
+        await ws.send_json(dict(v=1, type='auth', scope=scope, token=token, household_id=household))
+        return await self.message(ws)
+
+    async def request(self, ws, path, body=None, request_id='1'):
+        frame = dict(v=1, type='request', id=request_id, path=path)
+        if body is not None:
+            frame['body'] = body
+        await ws.send_json(frame)
+        return await self.message(ws)
+
+    async def test_recipe_save_pushes_per_household_snapshot_and_replays_receipt(self):
+        ready = await self.auth(self.app)
+        self.assertEqual(ready['type'], 'ready')
+        self.assertIn('shopping', ready['data'])
+        self.assertIn('library', ready['data'])
+        second = await self.connect()
+        await self.auth(second)
+        other = await self.connect()
+        await self.auth(other, token='bob', household='2')
+        body = dict(title='New soup', source_type='website', original_language='en',
+                    measurement_system='unspecified', client_save_id='a'*32,
+                    groups=[], ingredients=[], steps=[], actions=[], photos=[], tags=[],
+                    category_assignments=[], pairings=[])
+        result = await self.request(self.app, '/households/1/recipes', body)
+        saved = result['data']['recipe']
+        for ws in (self.app, second):
+            snapshot = await self.message(ws)
+            self.assertEqual(snapshot['type'], 'snapshot')
+            self.assertIn(saved['id'], [r['id'] for r in snapshot['data']['library']['recipes']])
+        other_snapshot = await self.message(other)
+        self.assertEqual(other_snapshot['household_id'], '2')
+        self.assertNotIn(saved['id'], [r['id'] for r in other_snapshot['data']['library']['recipes']])
+        replay = await self.request(self.app, '/households/1/recipes', body)
+        self.assertEqual(replay['data']['recipe'], saved)
+        await self.message(self.app)
+        bad = await self.request(self.app, '/households/2/recipes')
+        self.assertEqual(bad['status'], 404)
+
+    async def test_timer_updates_only_reach_same_account_and_public_is_read_only(self):
+        await self.auth(self.app, scope='timers', household=None)
+        second = await self.connect()
+        await self.auth(second, scope='timers', household=None)
+        other = await self.connect()
+        await self.auth(other, scope='timers', token='bob', household=None)
+        device = 'd'*32
+        registered = await self.request(self.app, '/me/timer-devices', dict(
+            installation_id=device, platform='android', receive_timers=False, push_token=None))
+        self.assertEqual(registered['type'], 'response')
+        await self.message(self.app)
+        await self.message(second)
+        import time
+        body = dict(installation_id=device, timer_id=device+':soup', operation_id='e'*32,
+                    revision=0, title='Soup', deadline_ms=int(time.time()*1000)+600000, cancelled=False)
+        result = await self.request(self.app, '/me/timers', body)
+        for ws in (self.app, second):
+            self.assertEqual((await self.message(ws))['data']['timers'], [result['data']['timer']])
+        # A ping remains the next frame: no other-account timer snapshot was sent.
+        await other.send_json(dict(v=1, type='ping'))
+        self.assertEqual((await self.message(other))['type'], 'pong')
+        public = await self.connect()
+        public_ready = await self.auth(public, scope='public', token='', household=None)
+        self.assertEqual(public_ready['type'], 'ready')
+        self.assertIsInstance(public_ready['data'], dict, 'Dart requires an object handshake payload')
+        missing = await self.request(public, '/recipes/999999')
+        self.assertEqual(missing['status'], 404)
+        self.assertEqual((await self.request(public, '/recipes/1'))['data']['recipe']['title'], 'Soup')
+        self.assertEqual((await self.request(public, '/recipes/1', dict(title='forged')))['status'], 404)
+
+    async def test_new_uploads_and_existing_managed_photos_use_vps_media(self):
+        await self.auth(self.app)
+        old = await self.request(self.app, '/households/1/recipes/1')
+        self.assertEqual(old['data']['recipe']['photos'][0]['source_url'], 'https://coffeybean.com/ctr/media/recipes/' + 'a'*48 + '.jpg')
+        import base64
+        from pathlib import Path
+        image = base64.b64decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jFuoAAAAASUVORK5CYII=')
+        body = dict(title='Photo soup', source_type='website', original_language='en',
+                    measurement_system='unspecified', client_save_id='f'*32,
+                    groups=[], ingredients=[], steps=[], actions=[], tags=[], category_assignments=[], pairings=[],
+                    photos=[dict(id='new-photo', is_cover=True, image_base64=base64.b64encode(image).decode())])
+        result = await self.request(self.app, '/households/1/recipes', body)
+        self.assertEqual(result['type'], 'response', result)
+        photo = result['data']['recipe']['photos'][0]
+        self.assertTrue(photo['source_url'].startswith('https://coffeybean.com/ctr/media/recipes/'))
+        self.assertTrue(photo['storage_key'].startswith('vps/recipes/'))
+        self.assertEqual((Path(self.runtime) / 'state/media/recipes' / photo['source_url'].split('/')[-1]).read_bytes(), image)
+        await self.message(self.app)
+        read = await self.request(self.app, '/households/1/recipes/' + result['data']['recipe']['id'])
+        self.assertEqual(read['data']['recipe']['photos'][0]['source_url'], photo['source_url'])
+        path = '/media/recipes/' + photo['source_url'].split('/')[-1]
+        async with self.session.get(f'http://127.0.0.1:{self.media_port}' + path) as response:
+            self.assertEqual(response.status, 200)
+            self.assertEqual(response.headers.get('Access-Control-Allow-Origin'), '*')
+            self.assertEqual(response.headers.get('X-Content-Type-Options'), 'nosniff')
+            self.assertEqual(await response.read(), image)
+        async with self.session.head(f'http://127.0.0.1:{self.media_port}' + path) as response:
+            self.assertEqual(int(response.headers['Content-Length']),len(image))
+            self.assertEqual(await response.read(),b'')
+        async with self.session.get(f'http://127.0.0.1:{self.media_port}/private/database.json') as response:
+            self.assertEqual(response.status, 404)
+
+    async def test_large_upload_is_optimized_in_background_without_changing_recipe(self):
+        import asyncio
+        import base64
+        import struct
+        import zlib
+        from pathlib import Path
+
+        def chunk(kind, data):
+            return struct.pack('>I', len(data)) + kind + data + struct.pack('>I', zlib.crc32(kind + data))
+
+        width, height = 2000, 1000
+        image = (b'\x89PNG\r\n\x1a\n'
+                 + chunk(b'IHDR', struct.pack('>IIBBBBB', width, height, 8, 2, 0, 0, 0))
+                 + chunk(b'IDAT', zlib.compress((b'\0' + b'\xc0\x50\x20' * width) * height))
+                 + chunk(b'IEND', b''))
+        await self.auth(self.app)
+        body = dict(title='Background photo', source_type='website', original_language='en',
+                    measurement_system='unspecified', client_save_id='e'*32,
+                    groups=[], ingredients=[], steps=[], actions=[], tags=[], category_assignments=[], pairings=[],
+                    photos=[dict(id='new-photo', is_cover=True, image_base64=base64.b64encode(image).decode())])
+        result = await self.request(self.app, '/households/1/recipes', body)
+        self.assertEqual(result['type'], 'response', result)
+        photo = result['data']['recipe']['photos'][0]
+        name = photo['source_url'].split('/')[-1]
+        original = Path(self.runtime) / 'state/media/recipes' / name
+        self.assertEqual(original.read_bytes(), image)
+        await self.message(self.app)  # Committed snapshot, independent of image processing.
+        await self.app.send_json(dict(v=1, type='ping'))
+        self.assertEqual((await self.message(self.app))['type'], 'pong')
+        # Production's separate image worker discovers uploads within 30 seconds.
+        for _ in range(80):
+            async with self.session.get(f'http://127.0.0.1:{self.media_port}/media/recipes/' + name) as response:
+                self.assertEqual(response.status, 200)
+                content = await response.read()
+                if response.headers.get('Content-Type') == 'image/webp':
+                    self.assertLess(len(content), len(image))
+                    self.assertEqual(content[:4], b'RIFF')
+                    break
+            await asyncio.sleep(.5)
+        else:
+            self.fail('Background worker did not optimize the uploaded image')
+        self.assertEqual(original.read_bytes(), image)
+        read = await self.request(self.app, '/households/1/recipes/' + result['data']['recipe']['id'])
+        self.assertEqual(read['data']['recipe']['photos'][0], photo)
+        async with self.session.head(f'http://127.0.0.1:{self.media_port}/media/recipes/' + name) as response:
+            self.assertEqual(response.headers['Content-Type'], 'image/webp')
+            self.assertEqual(int(response.headers['Content-Length']), len(content))
+            self.assertEqual(await response.read(), b'')
