@@ -1,4 +1,4 @@
-FROM php:8.4-cli-bookworm
+FROM php:8.4.28-cli-bookworm
 RUN apt-get update && apt-get install -y --no-install-recommends libcurl4-openssl-dev libonig-dev libxml2-dev libjpeg62-turbo-dev libpng-dev libwebp-dev poppler-utils tesseract-ocr ca-certificates \
     && docker-php-ext-configure gd --with-jpeg --with-webp \
     && docker-php-ext-install pdo_mysql curl mbstring pcntl dom gd exif \
