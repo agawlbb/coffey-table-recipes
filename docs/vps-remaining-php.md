@@ -91,3 +91,25 @@ Focused meal planner, access, drag, backend socket and API tests passed, along
 with analysis of the affected meal planner and API files. Earlier full-suite
 validation remains recorded above. No app build or release is authorized by this
 merge; release waits for AI dish chat. InMotion deployment is explicitly deferred.
+
+## PHP runtime patch — 2026-11-26
+
+Updated the running CTR backend from PHP 8.4.27 to 8.4.28, retaining the
+supported 8.4 branch. Source commit `cf71c3b` pins the Docker base image.
+The VM-built runtime manifest is
+`sha256:47a7e6b76005e70e60bd49c472edd772d0c6d790fb7ad0d869270d7f91252386`.
+The transferred archive SHA-256 matched before installation; only the backend
+container was recreated, retaining its source, state and private configuration
+mounts. No application source or database migration was deployed.
+
+Focused verification passed: exact-image PHP version, seven required extensions,
+syntax checks of `src/*.php` and `server.php`, live PHP version and public
+`https://coffeybean.com/ctr/api/v1/health` response. The container remained running
+with zero restarts and no OOM. No full test suite or mobile app build ran.
+The older `ctr.coffeybean.com` hostname failed TLS during inspection; the current
+public health route above passed. This task did not change routing or TLS.
+
+Removed VM `build/php-8.4.28` (archive and metadata), the VM test image, VPS
+`/home/debian/ctr-php-8.4.28.tar` and the unreferenced previous backend image.
+Exact staging paths are absent, the shared builder is stopped and disk space
+was rechecked. No disposable task artifacts or PHP deployment remain pending.
