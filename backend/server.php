@@ -19,8 +19,13 @@ Worker::$pidFile = $runtime.'/ctr-backend.pid';
 $clients = [];
 $aiJobs ??=new AiJobs();
 $accountJobs ??=new AiJobs([PHP_BINARY,__DIR__.'/account-worker.php'],'Account',85);
-$factory ??= static function (bool $reset=false): ?DataSocket {
-    static $service=null;
+$factory ??= static function (bool $reset=false, bool $idle=false): ?DataSocket {
+    static $service=null, $lastUsed=0;
+    if ($idle) {
+        if (microtime(true)-$lastUsed>=60) $service=null;
+        return null;
+    }
+    $lastUsed=microtime(true);
     if ($reset) { $service=null; return null; }
     if ($service!==null) return $service;
     $private = getenv('CTR_PRIVATE') ?: '/run/ctr-private';
@@ -30,8 +35,7 @@ $factory ??= static function (bool $reset=false): ?DataSocket {
         'user'=>$db['username'],'password'=>$db['password'],'tls'=>$db['tls']??true,
         'ca_file'=>$db['ca_file']??'/etc/ssl/certs/ca-certificates.crt']);
     $verify = static fn(string $token): array => (new FirebaseIdentity($firebase['firebase_project_id'], 'firebasePublicKeys'))->verify($token);
-    $push=new TimerPush(['firebase_project_id'=>$firebase['firebase_project_id'],
-        'timer_push_service_account_file'=>$private.'/timer-push.json']);
+    $push=runtimeTimerPush();
     return $service=new DataSocket($pdo,$verify,new ShoppingSocket($pdo,$verify,new HomeAssistantConnections($pdo),
         new ShoppingSyncRequests(CTR_STORAGE.'/shopping-sync-requests')),Closure::fromCallable([$push,'send']));
 };
@@ -201,9 +205,20 @@ $worker->onMessage = static function (TcpConnection $c, string $text) use (&$cli
     catch (Throwable $e) { error_log('CTR socket failure '.get_class($e).' at '.basename($e->getFile()).':'.$e->getLine()); $send($c, ['type'=>'error','id'=>$id,'status'=>503,'error'=>['code'=>'internal_error','message'=>'Data synchronization temporarily unavailable.']]); }
 };
 $worker->onClose = static function (TcpConnection $c) use (&$clients,$aiJobs,$accountJobs): void { $aiJobs->stop((string)$c->id); $accountJobs->disconnect((string)$c->id); unset($clients[$c->id]); };
-$worker->onWorkerStart = static function () use (&$clients,$aiJobs,$accountJobs,$factory,$send): void {
-    Timer::add(30,static function() use (&$clients,$factory,$send): void {
-        try { $changed=$factory()->expireCooking(); } catch (Throwable $e) { $changed=false; }
+// File-only expiry scans need no SQL. Notifications resolve one connection only
+// when a session actually expires; that short-lived sweep releases it afterward.
+$sweepCooking ??= static function(): bool {
+    $push=null;
+    $sessions=new CookingSessions(Closure::fromCallable('runtimeDatabase'),
+        static function(array $device,array $payload) use (&$push): bool {
+            $push ??=runtimeTimerPush();
+            return $push->send($device,$payload);
+        },null,null,true);
+    return $sessions->sweep();
+};
+$worker->onWorkerStart = static function () use (&$clients,$aiJobs,$accountJobs,$factory,$send,$sweepCooking): void {
+    Timer::add(30,static function() use (&$clients,$factory,$send,$sweepCooking): void {
+        try { $changed=$sweepCooking(); } catch (Throwable $e) { $changed=false; }
         if ($changed) foreach ($clients as $entry) {
             if (!in_array($entry['scope']??'',['cooking','app'],true)) continue;
             try {
@@ -216,7 +231,8 @@ $worker->onWorkerStart = static function () use (&$clients,$aiJobs,$accountJobs,
     });
     Timer::add(0.1,static fn()=>$accountJobs->poll());
     Timer::add(0.1,static fn()=>$aiJobs->poll());
-    Timer::add(5, static function () use (&$clients): void {
+    Timer::add(5, static function () use (&$clients,$factory): void {
+        $factory(false,true);
         foreach ($clients as $entry) {
             if ((!isset($entry['token']) && time()-$entry['connected']>10) || time()-$entry['last']>70) $entry['connection']->close();
         }

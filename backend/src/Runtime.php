@@ -53,3 +53,10 @@ function runtimeHomeAssistantConfig(): array {
     if (!is_string($data['api_key']??null) || $data['api_key']==='') throw new HttpError(503,'auth_unavailable','Home Assistant sign-in is not configured.');
     return ['api_key'=>$data['api_key']];
 }
+
+function runtimeTimerPush(): TimerPush {
+    $private=getenv('CTR_PRIVATE') ?: '/run/ctr-private';
+    $firebase=json_decode(file_get_contents($private.'/firebase.json'),true,16,JSON_THROW_ON_ERROR);
+    return new TimerPush(['firebase_project_id'=>$firebase['firebase_project_id'],
+        'timer_push_service_account_file'=>$private.'/timer-push.json']);
+}

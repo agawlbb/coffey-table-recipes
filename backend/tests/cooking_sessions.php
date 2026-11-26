@@ -106,6 +106,18 @@ try {
   expectCooking($ended['ended_at']!==null && $ended['timers'][0]['cancelled'],'Unjoined authorized device ends session and cancels timers');
   expectCooking(!in_array($device,$ended['joined_devices'],true),'Ending does not join or mirror alarms');
  }
+ // File-only maintenance must work even when SQL is unavailable. Expiry still
+ // resolves SQL when notification recipients need to be reconciled.
+ $create['session_id']=str_repeat('7',32);$create['operation_id']=bin2hex(random_bytes(16));
+ $service->request('1','alice','/me/cooking-sessions',$create);
+ $lazy=new CookingSessions(static function(): PDO { throw new RuntimeException('Unexpected SQL during idle sweep'); },null,$directory.'/cooking',function()use(&$now){return $now;});
+ expectCooking(!$lazy->sweep(),'Unchanged cooking sweep needs no database');
+ $expiryPushes=[];
+ $lazy=new CookingSessions(static fn(): PDO => $pdo,function($d,$p)use(&$expiryPushes){$expiryPushes[]=[$d,$p];return true;},$directory.'/cooking',function()use(&$now){return $now;},true);
+ $now+=86400000;
+ expectCooking($lazy->sweep(),'Lazy sweep still expires inactive sessions');
+ CookingSessions::flushPushes();
+ expectCooking($service->snapshot('1')['sessions']===[],'Expired sessions disappear with lazy SQL');
  // Access is rechecked after household removal.
  $pdo->exec('DELETE FROM household_memberships WHERE user_id=2');expectCooking($service->snapshot('2')['sessions']===[] && $service->snapshot('2')['ended_sessions']===[],'Removed members lose access');
  echo "Cooking sessions: discovery, invitation, joins, steps, timers, replay, conflicts, expiry and membership passed.\n";

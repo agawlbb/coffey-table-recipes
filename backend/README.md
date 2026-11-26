@@ -459,3 +459,30 @@ unlimited cpu.max. No live user-data write was used for verification.
 App tag `v2.8.0`, version 2.8.0/build63, is being built separately for iOS.
 Android and main integration remain deferred. This deployment does not merge
 or delete either working branch.
+
+### Database connection budget (2026-11-26)
+
+The `ctr_backend`@`%` account needs a maximum of **11 concurrent connections**:
+1 shared WebSocket connection, 1 HTTP request, up to 4 AI workers, up to 4
+account workers, and 1 short-lived cooking-expiry notification connection.
+The two job limits are independent; lowering the SQL cap below this budget
+could reject work already permitted by the server. Revisit the cap if worker
+counts or other consumers of this account change. Administrative SQL uses a
+separate account and is not part of this budget.
+
+WebSocket operations reuse their connection while active. A five-second timer
+releases it after 60 seconds without SQL-service activity; the next operation
+opens a fresh connection. Normal heartbeats keep active connections warm.
+Cooking maintenance still runs every 30 seconds, but scans the session file
+without connecting to SQL. Only expiry notification reconciliation resolves a
+connection, released after the deferred notifications finish. HTTP health,
+static files and media do not open SQL; public recipe and HA requests already
+use short-lived connections. PDO connections are not persistent.
+
+AI and account subprocesses retain their connections for the operation and
+release them when they exit or are terminated. Some operations hold SQL locks
+or transactions across external work; indiscriminately dropping those
+connections or lowering server-wide idle timeouts would change correctness.
+No job concurrency, heartbeat frequency, expiry timing, query behavior or global
+MariaDB settings are reduced by this change. A request after an idle release
+pays a new local database handshake; no throughput benchmark is claimed.

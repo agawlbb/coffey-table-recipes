@@ -6,10 +6,14 @@ final class CookingSessions
 {
     private static array $pending=[];
     private bool $changed=false;
-    public function __construct(private PDO $pdo, private $push = null, private ?string $directory = null, private $clock = null, private bool $deferPush=false) {}
+    public function __construct(private PDO|Closure $pdo, private $push = null, private ?string $directory = null, private $clock = null, private bool $deferPush=false) {}
     public static function flushPushes(): void {
         $pending=self::$pending; self::$pending=[];
         foreach($pending as $send) { try { $send(); } catch(Throwable $e) { /* Reconnect reconciles missed background delivery. */ } }
+    }
+    private function database(): PDO {
+        if ($this->pdo instanceof Closure) $this->pdo=($this->pdo)();
+        return $this->pdo;
     }
     private function now(): int { return $this->clock ? ($this->clock)() : (int)floor(microtime(true)*1000); }
     private function store(callable $action): mixed {
@@ -59,7 +63,7 @@ final class CookingSessions
     }
     public function sweep(): bool { $this->store(static fn(&$state)=>null); return $this->changed; }
     private function member(string $user,string $household): bool {
-        $q=$this->pdo->prepare('SELECT role FROM household_memberships WHERE household_id=? AND user_id=?'); $q->execute([$household,$user]);
+        $q=$this->database()->prepare('SELECT role FROM household_memberships WHERE household_id=? AND user_id=?'); $q->execute([$household,$user]);
         return $q->fetchColumn()!==false;
     }
     private function accessible(array $s,string $user): bool {
@@ -102,7 +106,7 @@ final class CookingSessions
             return $this->store(function(&$state) use($user,$m) {
                 $s=$state[$m[1]]??null;
                 if (!$s || !$this->accessible($s,$user) || $s['ended_at']!==null) throw new HttpError(404,'session_missing','Cooking session ended.');
-                $q=$this->pdo->prepare('SELECT p.id,p.display_name FROM household_people p JOIN users u ON u.id=p.user_id JOIN household_memberships m ON m.user_id=p.user_id AND m.household_id=p.household_id WHERE p.household_id=? AND p.user_id<>? AND u.disabled=0 ORDER BY p.id');
+                $q=$this->database()->prepare('SELECT p.id,p.display_name FROM household_people p JOIN users u ON u.id=p.user_id JOIN household_memberships m ON m.user_id=p.user_id AND m.household_id=p.household_id WHERE p.household_id=? AND p.user_id<>? AND u.disabled=0 ORDER BY p.id');
                 $q->execute([$s['household_id'],$user]); return ['people'=>$q->fetchAll(PDO::FETCH_ASSOC)];
             });
         }
@@ -113,7 +117,7 @@ final class CookingSessions
             $id=$action==='create' ? $this->id($body['session_id']??null) : $m[1];
             if ($action==='create' && !isset($state[$id])) {
                 $household=(string)($body['household_id']??'');
-                $recipe=(new RecipeService($this->pdo,new HouseholdService($this->pdo)))->detail($user,$household,(string)($body['recipe_id']??''));
+                $recipe=(new RecipeService($this->database(),new HouseholdService($this->database())))->detail($user,$household,(string)($body['recipe_id']??''));
                 if (empty($recipe['steps'])) throw new HttpError(422,'no_steps','This recipe has no cooking steps.');
                 $recipe=array_intersect_key($recipe,array_flip(['id','title','steps','actions','ingredients','groups','prep_minutes','cook_minutes','total_minutes']));
                 $minutes=$recipe['total_minutes']??((float)($recipe['prep_minutes']??0)+(float)($recipe['cook_minutes']??0));
@@ -168,7 +172,7 @@ final class CookingSessions
                     $push=$old!==null || $cancel;
                 } elseif ($action==='end') { $this->end($s,$now); $push=true; }
                 elseif ($action==='share') {
-                    $q=$this->pdo->prepare('SELECT p.user_id FROM household_people p JOIN users u ON u.id=p.user_id JOIN household_memberships m ON m.user_id=p.user_id AND m.household_id=p.household_id WHERE p.id=? AND p.household_id=? AND u.disabled=0');
+                    $q=$this->database()->prepare('SELECT p.user_id FROM household_people p JOIN users u ON u.id=p.user_id JOIN household_memberships m ON m.user_id=p.user_id AND m.household_id=p.household_id WHERE p.id=? AND p.household_id=? AND u.disabled=0');
                     $q->execute([(string)($body['person_id']??''),$s['household_id']]); $target=$q->fetchColumn();
                     if (!$target || (string)$target===$user) throw new HttpError(422,'invalid_member','Choose a household member.');
                     $s['users'][(string)$target]=['invited'=>true]; $invite=(string)$target;
@@ -236,7 +240,7 @@ final class CookingSessions
     }
     private function deliver(array $view,?string $invite,string $source,?string $timerKey): void {
         $s=$this->store(fn(&$state)=>$state[$view['id']]);
-            $q=$this->pdo->prepare('SELECT d.installation_id,d.push_token,d.platform,d.user_id,d.receive_cooking_invitations,u.firebase_uid FROM timer_devices d JOIN users u ON u.id=d.user_id WHERE d.push_token IS NOT NULL AND u.disabled=0');
+            $q=$this->database()->prepare('SELECT d.installation_id,d.push_token,d.platform,d.user_id,d.receive_cooking_invitations,u.firebase_uid FROM timer_devices d JOIN users u ON u.id=d.user_id WHERE d.push_token IS NOT NULL AND u.disabled=0');
             $q->execute();
             foreach ($q->fetchAll(PDO::FETCH_ASSOC) as $d) {
                 $user=(string)$d['user_id'];
@@ -253,7 +257,7 @@ final class CookingSessions
                 foreach ($payloads as $payload) {
                     try {
                         if ($this->push && ($this->push)($d,$payload+['account_uid'=>$d['firebase_uid'],'target_device'=>$d['installation_id']])===false) {
-                            $this->pdo->prepare('UPDATE timer_devices SET push_token=NULL,receive_timers=0 WHERE installation_id=? AND push_token=?')->execute([$d['installation_id'],$d['push_token']]);
+                            $this->database()->prepare('UPDATE timer_devices SET push_token=NULL,receive_timers=0 WHERE installation_id=? AND push_token=?')->execute([$d['installation_id'],$d['push_token']]);
                         }
                     }
                     catch (Throwable $e) { /* Snapshot reconciliation remains authoritative. */ }
