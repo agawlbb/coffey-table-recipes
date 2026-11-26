@@ -98,3 +98,38 @@ comment-only placeholder: deploy.py can still install it, but it must not recrea
 the old host. Active HTTP/WSS routes are maintained in vps_admin at
 https://coffeybean.com/ctr and wss://coffeybean.com/ctr/shopping. No backend restart
 or image build is needed for the hostname retirement itself.
+
+### Database connection reduction — November 26, 2026
+
+Deployed source commit `b403bc5` by copying only `server.php`,
+`src/Runtime.php` and `src/CookingSessions.php`, then restarting the existing
+backend with `--no-build`. All three live prior hashes matched `main` before
+transfer and all three new hashes matched afterward. No staging bundle, image,
+dependency installation, schema migration or production-data mutation.
+
+SQL administration set `ctr_backend`@`%` to `MAX_USER_CONNECTIONS 11` (previously
+uncapped). A fresh connection from the actual backend verified both
+`CURRENT_USER() = ctr_backend@%` and session `max_user_connections = 11`.
+The budget is documented in README: WebSocket + HTTP + four AI + four account
+workers + one transient expiry-notification connection. This is the configured
+peak requirement, not a claim of eleven observed concurrent requests. Live
+observations showed one shared connection in use; existing client traffic kept
+it active, so a zero-connection idle state was not established on production.
+No global SQL limits/timeouts or other database accounts were changed.
+
+Validation: PHP syntax for the three changed runtime files; 34 HTTP fixture
+assertions; the cooking-session fixture including SQL-free unchanged sweeps and
+lazy expiry; four WebSocket cases covering cooking broadcasts/automatic expiry,
+timer account isolation/public read-only access and recipe-save replay. Wire
+checks used the existing backend Python virtualenv and disposable SQLite.
+No full test suite or throughput benchmark. HTTPS health and public recipe 12
+returned 200, deployed logs showed a clean start, CpuShares remained 1024 and
+cpu.max remained `max 100000`. Existing dependency environments were retained;
+task-created Python bytecode was removed. No deployment staging or rollback
+artifacts were created or retained.
+
+A live public WebSocket also reauthenticated and read recipe 12 successfully
+on the same socket after 66 seconds without sending messages. An initial probe
+waited 81 seconds and hit the existing 70-second client timeout; correcting the
+probe to stay below that timeout passed. This verifies read-only socket
+continuity, not SQL idle release while other clients remain active.
